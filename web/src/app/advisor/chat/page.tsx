@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
-import ChatPageClient from './ChatPageClient'
+import ChatPageClient from '@/app/advisor/chat/ChatPageClient'
 
 export const metadata = {
   title: '智能客服 - 安美智享',
