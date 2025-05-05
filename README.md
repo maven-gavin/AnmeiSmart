@@ -9,8 +9,8 @@
 ## 目录结构（建议）
 ```
 / (项目根目录)
-├── frontend/      # 前端代码
-├── backend/       # 后端代码
+├── web/      # 前端代码
+├── api/       # 后端代码
 ├── docs/          # 文档
 ├── scripts/       # 脚本与工具
 ├── README.md      # 项目说明
@@ -36,7 +36,7 @@
 - 提交信息规范：feat/bugfix/docs/chore + 描述
 
 ## 其他说明
-- 建议使用pnpm/yarn管理前端依赖，pip/poetry管理后端依赖
+- 建议使用pnpm管理前端依赖，uv管理后端依赖
 - 所有文档、设计、决策需同步到docs/
 
 ---

@@ -1,0 +1,114 @@
+# 依赖目录
+node_modules/
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+venv/
+.venv/
+
+# 构建输出
+dist/
+build/
+*.egg-info/
+.eggs/
+*.egg
+.next/
+out/
+
+# IDE和编辑器
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# 测试和覆盖率
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+
+# 日志和数据库
+*.log
+*.sqlite3
+*.db
+logs/
+test.db
+
+# 前端
+# Next.js
+.next/
+out/
+.env*.local
+
+# 缓存
+.cache/
+.npm
+.eslintcache
+.parcel-cache
+
+# 调试文件
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+debug.log
+
+# 本地配置
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Python虚拟环境
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Python测试
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Python打包
+*.manifest
+*.spec
+.Python
+build/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 临时文件
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini 

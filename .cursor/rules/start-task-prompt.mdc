@@ -1,0 +1,11 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+@UIUX需求文档.md 请帮我开发前端，后端暂时不开发，使用模拟数据，前端项目在web目录里。技术选型参考@项目蓝图.md ，在开发前先详细分解任务，把任务更新到@TODO.md 任务列表中，再完成一个任务后，更新任务状态。
+
+[UIUX需求文档.md](mdc:docs/UIUX需求文档.md)
+[TODO.md](mdc:docs/TODO.md)
+
+[项目蓝图.md](mdc:docs/项目蓝图.md)
