@@ -86,6 +86,22 @@
   - 用途：角色选择器组件
 - `..\web\src\components\layout\RoleHeader.tsx`
   - 用途：角色头部导航组件
+- `..\web\src\app\advisor\page.tsx`
+  - 用途：顾问端首页（聚合导航与入口）
+- `..\web\src\app\advisor\AdvisorClientPage.tsx`
+  - 用途：顾问端首页Client组件，展示主要功能入口卡片
+- `..\web\src\app\advisor\plan\page.tsx`
+  - 用途：顾问端-个性化方案推荐页面
+- `..\web\src\app\advisor\plan\PlanPageClient.tsx`
+  - 用途：顾问端-个性化方案推荐Client组件
+- `..\web\src\app\advisor\simulation\page.tsx`
+  - 用途：顾问端-术前模拟页面
+- `..\web\src\app\advisor\simulation\SimulationPageClient.tsx`
+  - 用途：顾问端-术前模拟Client组件
+- `..\web\src\app\advisor\chat\page.tsx`
+  - 用途：顾问端-智能客服页面
+- `..\web\src\app\advisor\chat\ChatPageClient.tsx`
+  - 用途：顾问端-智能客服Client组件
 
 ## 工具和类型
 
