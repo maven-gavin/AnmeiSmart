@@ -42,6 +42,32 @@
   - 用途：应用布局定义
 - `..\web\src\app\page.tsx`
   - 用途：首页组件
+- `..\web\src\app\customer\page.tsx`
+  - 用途：顾客端首页
+- `..\web\src\app\customer\layout.tsx`
+  - 用途：顾客端布局
+- `..\web\src\app\customer\profile\page.tsx`
+  - 用途：顾客端个人中心页面
+- `..\web\src\app\customer\chat\page.tsx`
+  - 用途：顾客端在线咨询页面
+- `..\web\src\app\customer\appointments\page.tsx`
+  - 用途：顾客端预约管理页面
+- `..\web\src\app\customer\treatments\page.tsx`
+  - 用途：顾客端治疗记录页面
+- `..\web\src\app\customer\plans\page.tsx`
+  - 用途：顾客端治疗方案页面
+- `..\web\src\app\doctor\page.tsx`
+  - 用途：医生端首页
+- `..\web\src\app\doctor\layout.tsx`
+  - 用途：医生端布局
+- `..\web\src\app\doctor\plans\page.tsx`
+  - 用途：医生端治疗方案列表页面
+- `..\web\src\app\doctor\plans\create\page.tsx`
+  - 用途：医生端治疗方案录入页面
+- `..\web\src\app\login\page.tsx`
+  - 用途：登录页面
+- `..\web\src\components\auth\LoginForm.tsx`
+  - 用途：登录表单组件
 - `..\web\src\components\chat\ChatLayout.tsx`
   - 用途：聊天界面布局
 - `..\web\src\components\chat\ChatWindow.tsx`
@@ -56,13 +82,33 @@
   - 用途：通用按钮组件
 - `..\web\src\components\ui\LoadingSpinner.tsx`
   - 用途：加载动画组件
+- `..\web\src\components\ui\RoleSelector.tsx`
+  - 用途：角色选择器组件
+- `..\web\src\components\layout\RoleHeader.tsx`
+  - 用途：角色头部导航组件
 
 ## 工具和类型
 
 - `..\web\src\lib\utils.ts`
   - 用途：通用工具函数
+- `..\web\src\lib\authService.ts`
+  - 用途：认证服务
+- `..\web\src\lib\customerService.ts`
+  - 用途：顾客服务接口
+- `..\web\src\lib\doctorService.ts`
+  - 用途：医生服务接口
+- `..\web\src\lib\chatService.ts`
+  - 用途：聊天服务接口
+- `..\web\src\lib\mockData.ts`
+  - 用途：模拟数据
 - `..\web\src\types\chat.ts`
   - 用途：聊天相关类型定义
+- `..\web\src\types\auth.ts`
+  - 用途：认证相关类型定义
+- `..\web\src\types\customer.ts`
+  - 用途：顾客相关类型定义
+- `..\web\src\types\doctor.ts`
+  - 用途：医生相关类型定义
 
 ## 样式文件
 
@@ -110,6 +156,10 @@
   - 用途：前端项目说明
 - `..\README.md`
   - 用途：项目总体说明
+- `..\docs\TODO.md`
+  - 用途：项目待办任务清单
+- `..\docs\FILE_MAP.md`
+  - 用途：项目文件结构映射
 
 ## 资源文件
 
@@ -123,3 +173,15 @@
   - 用途：Vercel图标
 - `..\web\public\window.svg`
   - 用途：窗口图标
+- `..\web\public\logo.svg`
+  - 用途：安美智享Logo
+- `..\web\public\logo.png`
+  - 用途：安美智享Logo备用图片
+- `..\web\public\logo.ico`
+  - 用途：安美智享网站图标
+- `..\web\public\avatars\default.png`
+  - 用途：默认头像
+- `..\web\public\avatars\user1.png`
+  - 用途：顾客李小姐头像
+- `..\web\public\avatars\user2.png`
+  - 用途：顾客王先生头像

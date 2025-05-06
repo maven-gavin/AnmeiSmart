@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { type Message, type CustomerProfile } from '@/types/chat'
+import { type Message } from '@/types/chat'
 import { 
   sendTextMessage, 
   sendImageMessage, 
@@ -13,9 +13,7 @@ import {
   getImportantMessages,
   takeoverConversation,
   switchBackToAI,
-  isAdvisorMode,
-  getCustomerProfile,
-  getCustomerConsultationHistory
+  isAdvisorMode
 } from '@/lib/chatService'
 
 // 模拟完整的FAQ数据
@@ -34,19 +32,12 @@ export default function ChatWindow() {
   // 当前对话ID
   const currentConversationId = '1';
   
-  // 当前客户ID
-  const currentCustomerId = '101';
   
   // 基本状态
   const [message, setMessage] = useState('')
   const [showFAQ, setShowFAQ] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
-  
-  // 历史咨询弹窗状态
-  const [showHistoryModal, setShowHistoryModal] = useState(false)
-  const [consultationHistory, setConsultationHistory] = useState<CustomerProfile['consultationHistory']>([])
-  const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null)
   
   // 搜索功能状态
   const [showSearch, setShowSearch] = useState(false)
@@ -185,30 +176,6 @@ export default function ChatWindow() {
   // 获取重点消息
   const fetchImportantMessages = () => {
     setImportantMessages(getImportantMessages(currentConversationId))
-  }
-  
-  // 获取客户信息
-  const fetchCustomerProfile = () => {
-    const profile = getCustomerProfile(currentCustomerId)
-    setCustomerProfile(profile)
-  }
-  
-  // 获取历史咨询记录
-  const fetchConsultationHistory = () => {
-    const history = getCustomerConsultationHistory(currentCustomerId)
-    setConsultationHistory(history)
-  }
-  
-  // 打开历史咨询弹窗
-  const openHistoryModal = () => {
-    fetchCustomerProfile()
-    fetchConsultationHistory()
-    setShowHistoryModal(true)
-  }
-  
-  // 关闭历史咨询弹窗
-  const closeHistoryModal = () => {
-    setShowHistoryModal(false)
   }
   
   // 切换消息重点标记
@@ -691,83 +658,6 @@ export default function ChatWindow() {
         </div>
       )}
       
-      {/* 历史咨询弹窗 */}
-      {showHistoryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-              <h3 className="text-lg font-medium">历史咨询记录</h3>
-              <button 
-                onClick={closeHistoryModal}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className="p-4 overflow-y-auto flex-1">
-              {customerProfile && (
-                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                  <div className="font-medium">客户基本信息</div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                    <div>姓名: {customerProfile.basicInfo.name}</div>
-                    <div>年龄: {customerProfile.basicInfo.age}岁</div>
-                    <div>性别: {customerProfile.basicInfo.gender === 'female' ? '女' : '男'}</div>
-                    <div>电话: {customerProfile.basicInfo.phone}</div>
-                  </div>
-                  
-                  {customerProfile.riskNotes && customerProfile.riskNotes.length > 0 && (
-                    <div className="mt-3">
-                      <div className="font-medium text-red-500">风险提示</div>
-                      <div className="mt-1 text-sm">
-                        {customerProfile.riskNotes.map((note, index) => (
-                          <div key={index} className="flex items-start mt-1">
-                            <span className={`inline-block w-2 h-2 mt-1 mr-2 rounded-full ${
-                              note.level === 'high' ? 'bg-red-500' : 
-                              note.level === 'medium' ? 'bg-orange-500' : 'bg-yellow-500'
-                            }`}></span>
-                            <span>{note.type}: {note.description}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              <div className="font-medium mb-3">咨询记录</div>
-              {consultationHistory.length > 0 ? (
-                <div className="space-y-3">
-                  {consultationHistory.map((record, index) => (
-                    <div key={index} className="p-3 border border-gray-200 rounded-lg">
-                      <div className="flex justify-between">
-                        <span className="font-medium">{record.date}</span>
-                        <span className="text-sm px-2 py-0.5 bg-gray-100 rounded-full">{record.type}</span>
-                      </div>
-                      <p className="mt-2 text-sm text-gray-600">{record.description}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  暂无咨询记录
-                </div>
-              )}
-            </div>
-            
-            <div className="p-4 border-t border-gray-200">
-              <Button
-                onClick={closeHistoryModal}
-                className="w-full"
-              >
-                关闭
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
       
       {/* 聊天记录 */}
       <div 
@@ -1137,28 +1027,7 @@ export default function ChatWindow() {
               />
             </svg>
           </button>
-          
-          {/* 历史咨询按钮 */}
-          <button 
-            className="flex-shrink-0 text-gray-500 hover:text-gray-700"
-            onClick={openHistoryModal}
-            title="查看历史咨询"
-          >
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          </button>
-          
+                    
           <button className="flex-shrink-0 text-gray-500 hover:text-gray-700" title="表情">
             <svg
               className="h-6 w-6"

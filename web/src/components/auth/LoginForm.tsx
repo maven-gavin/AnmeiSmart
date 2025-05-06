@@ -39,7 +39,8 @@ export default function LoginForm() {
         // 只有一个角色时，直接跳转到对应角色的页面
         const role = user.roles[0];
         const path = role === 'advisor' ? '/advisor' : 
-                    role === 'doctor' ? '/doctor' : '/operator';
+                    role === 'doctor' ? '/doctor' : 
+                    role === 'customer' ? '/customer' : '/operator';
         router.push(path);
       }
     } catch (err) {
@@ -50,7 +51,8 @@ export default function LoginForm() {
   };
 
   const handleRoleSelect = (role: UserRole) => {
-    // 角色选择器已处理导航，这里不需要额外操作
+    // RoleSelector 组件现在会自行处理路由导航
+    // 不需要在这里做额外处理
   };
 
   return (
@@ -86,7 +88,10 @@ export default function LoginForm() {
       </div>
       
       {showRoleSelector ? (
-        <RoleSelector onRoleSelect={handleRoleSelect} />
+        <div>
+          <h2 className="mb-4 text-center text-lg font-medium text-gray-800">选择角色</h2>
+          <RoleSelector onRoleSelect={handleRoleSelect} />
+        </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -153,6 +158,7 @@ export default function LoginForm() {
           <div className="mt-4 text-center text-sm text-gray-500">
             <p>演示账号：zhang@example.com</p>
             <p>演示密码：123456</p>
+            <p className="mt-2 font-medium text-orange-600">顾客账号：customer1@example.com / 123456</p>
           </div>
         </form>
       )}

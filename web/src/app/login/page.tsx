@@ -1,10 +1,7 @@
+'use client';
+
 import { Suspense } from 'react';
 import LoginForm from '@/components/auth/LoginForm';
-
-export const metadata = {
-  title: '登录 - 安美智享',
-  description: '安美智享医美智能服务平台登录',
-};
 
 export default function LoginPage() {
   return (

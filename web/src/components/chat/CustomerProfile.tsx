@@ -63,7 +63,7 @@ export default function CustomerProfile({ customerId = '101' }: CustomerProfileP
   return (
     <div className="h-full flex flex-col">
       {/* 顶部标签页 */}
-      <div className="flex border-b border-gray-200 sticky top-0 bg-white z-10">
+      <div className="flex border-b border-gray-200 sticky top-0 bg-white">
         <button
           className={`px-4 py-2 text-sm font-medium ${
             activeTab === 'basic' 
