@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { UserRole } from '@/types/auth';
+import { UserRole, AuthUser } from '@/types/auth';
 import { authService } from '@/lib/authService';
 import { roleOptions } from '@/lib/mockData';
 
@@ -13,7 +13,7 @@ interface RoleSelectorProps {
 
 export default function RoleSelector({ onRoleSelect, className = '' }: RoleSelectorProps) {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [selectedRole, setSelectedRole] = useState<UserRole | undefined>(undefined);
   const [loading, setLoading] = useState<UserRole | null>(null);
   const [error, setError] = useState<string | null>(null);

@@ -102,7 +102,7 @@ export default function SimulationPageClient() {
   });
 
   // 更新参数值
-  const handleParameterChange = (name: string, value: any) => {
+  const handleParameterChange = (name: string, value: string | number) => {
     setParameters(prev => ({
       ...prev,
       [name]: value
@@ -235,7 +235,7 @@ export default function SimulationPageClient() {
                     </label>
                     <Input
                       value={customerId}
-                      onChange={e => setCustomerId(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCustomerId(e.target.value)}
                       placeholder="输入客户ID"
                     />
                   </div>
@@ -245,7 +245,7 @@ export default function SimulationPageClient() {
                     </label>
                     <Input
                       value={customerName}
-                      onChange={e => setCustomerName(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCustomerName(e.target.value)}
                       placeholder="输入客户姓名"
                     />
                   </div>
@@ -494,7 +494,7 @@ export default function SimulationPageClient() {
                   </label>
                   <Textarea
                     value={notes}
-                    onChange={e => setNotes(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNotes(e.target.value)}
                     placeholder="添加关于模拟效果的备注..."
                     className="h-24"
                   />
