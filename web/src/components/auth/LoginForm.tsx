@@ -60,7 +60,7 @@ export default function LoginForm() {
       <div className="mb-8 text-center">
         <div className="mx-auto mb-4 h-16 w-16 flex items-center justify-center">
           <img 
-            src="/logo.svg" 
+            src="/logo.ico" 
             alt="安美智享" 
             className="h-16 w-16" 
             onError={(e) => {
@@ -150,7 +150,7 @@ export default function LoginForm() {
           <Button
             type="submit"
             className="w-full"
-            isLoading={loading}
+            disabled={loading}
           >
             登录
           </Button>

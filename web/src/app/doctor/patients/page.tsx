@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { doctorService } from '@/lib/doctorService';
 import { Patient } from '@/types/doctor';
+import Link from 'next/link';
 
 export default function PatientsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -160,7 +161,12 @@ export default function PatientsPage() {
                       )}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm">
-                      <button className="mr-2 text-indigo-600 hover:text-indigo-900">查看详情</button>
+                      <Link 
+                        href={`/doctor/patients/${patient.id}`}
+                        className="mr-2 text-indigo-600 hover:text-indigo-900"
+                      >
+                        查看详情
+                      </Link>
                       <button className="text-orange-600 hover:text-orange-900">新增记录</button>
                     </td>
                   </tr>
