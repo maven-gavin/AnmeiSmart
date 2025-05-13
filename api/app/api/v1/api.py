@@ -3,8 +3,17 @@ from app.api.v1.endpoints import users, auth
 
 api_router = APIRouter()
 
+# 认证相关路由
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+
+# 用户管理路由
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+
+# 后续可添加其他路由
+# api_router.include_router(plans.router, prefix="/plans", tags=["plans"])
+# api_router.include_router(appointments.router, prefix="/appointments", tags=["appointments"])
+# api_router.include_router(treatments.router, prefix="/treatments", tags=["treatments"])
+# api_router.include_router(chats.router, prefix="/chats", tags=["chats"])
 
 # 在这里添加其他路由器
 # api_router.include_router(services.router, prefix="/services", tags=["services"]) 

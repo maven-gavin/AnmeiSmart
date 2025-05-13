@@ -1,50 +1,162 @@
-# 安美智享智能医美服务系统 - 后端API
+# 安美智享 - API 服务
+
+这是安美智享(AnmeiSmart)智能医美服务系统的后端API服务，基于FastAPI框架开发。
 
 ## 技术栈
-- Python 3.12
-- FastAPI
-- SQLAlchemy (PostgreSQL)
-- MongoDB
-- Weaviate
-- JWT认证
-- 单元测试 (pytest)
 
-## 开发环境设置
+- FastAPI - 高性能异步API框架
+- SQLAlchemy - ORM框架
+- PostgreSQL - 关系型数据库
+- MongoDB - 非关系型数据库
+- Weaviate - 向量搜索引擎
+- Pydantic - 数据验证
+- JWT - 用户认证
 
-1. 创建并激活虚拟环境:
-```powershell
-# Windows
+## 环境需求
+
+- Python 3.12 或更高版本
+- PostgreSQL 15或更高版本
+- MongoDB 6.0或更高版本
+- Weaviate (可选)
+
+## 安装步骤
+
+1. 克隆代码库
+
+2. 创建并激活虚拟环境
+
+```bash
 python -m venv venv
-.\venv\Scripts\Activate
-
-# Linux/Mac
-python -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate  # Windows
 ```
 
-2. 安装依赖:
+3. 安装依赖
+
 ```bash
-# 使用uv加速安装
-uv pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
-3. 设置环境变量:
-- 复制`.env.example`为`.env`
-- 修改配置项（数据库连接等）
+4. 配置环境变量
 
-4. 初始化数据库:
-```bash
-python app/db/init_db.py
+创建`.env`文件，设置以下环境变量:
+
+```
+DATABASE_URL=postgresql://用户名:密码@localhost:5432/AnmeiSmart
+MONGODB_URL=mongodb://localhost:27017
+WEAVIATE_URL=http://localhost:8080
+WEAVIATE_API_KEY=你的密钥
+SECRET_KEY=你的密钥
 ```
 
-5. 启动开发服务器:
+5. 初始化数据库
+
 ```bash
-uvicorn app.main:app --reload
+python scripts/init_db.py
+```
+
+6. 启动服务
+
+```bash
+uvicorn main:app --reload
 ```
 
 ## API文档
+
+启动服务后，可以访问以下URL查看API文档:
+
 - Swagger UI: http://localhost:8000/api/v1/docs
 - ReDoc: http://localhost:8000/api/v1/redoc
+
+## 认证API
+
+### 登录
+
+```
+POST /api/v1/auth/login
+```
+
+请求体:
+```json
+{
+  "username": "user@example.com",
+  "password": "password"
+}
+```
+
+响应:
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer"
+}
+```
+
+### 注册
+
+```
+POST /api/v1/auth/register
+```
+
+请求体:
+```json
+{
+  "email": "newuser@example.com",
+  "username": "newuser",
+  "password": "password",
+  "roles": ["customer"]
+}
+```
+
+### 获取当前用户信息
+
+```
+GET /api/v1/auth/me
+```
+
+请求头:
+```
+Authorization: Bearer your_access_token
+```
+
+### 获取用户角色
+
+```
+GET /api/v1/auth/roles
+```
+
+请求头:
+```
+Authorization: Bearer your_access_token
+```
+
+## 开发指南
+
+- 添加新的API端点: 在`app/api/v1/endpoints`目录创建新文件
+- 添加新的数据库模型: 在`app/db/models`目录创建新文件
+- 添加新的Pydantic模型: 在`app/models`目录创建新文件
+
+## 测试
+
+运行单元测试:
+
+```bash
+pytest
+```
+
+## 部署
+
+1. 构建Docker镜像
+
+```bash
+docker build -t anmeismart-api .
+```
+
+2. 运行容器
+
+```bash
+docker run -d -p 8000:8000 --name anmeismart-api anmeismart-api
+```
 
 ## 项目结构
 ```
@@ -110,15 +222,6 @@ api/
 3. Weaviate
    - 向量数据库
    - 用于相似搜索和AI推荐
-
-## 部署
-1. 准备环境变量
-2. 安装依赖
-3. 初始化数据库
-4. 使用uvicorn或gunicorn启动:
-```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
 
 ## 贡献指南
 1. Fork项目

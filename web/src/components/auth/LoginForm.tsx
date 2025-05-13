@@ -1,19 +1,33 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { authService } from '@/lib/authService';
 import RoleSelector from '@/components/ui/RoleSelector';
 import { UserRole } from '@/types/auth';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginForm() {
   const router = useRouter();
+  const { login, error: authError, loading: authLoading } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showRoleSelector, setShowRoleSelector] = useState(false);
+  const [availableRoles, setAvailableRoles] = useState<UserRole[]>([]);
+
+  // 从URL参数中获取错误信息和跳转URL
+  useEffect(() => {
+    // 获取当前URL参数
+    const params = new URLSearchParams(window.location.search);
+    const errorMsg = params.get('error');
+    
+    // 如果有错误信息，设置错误状态
+    if (errorMsg) {
+      setError(decodeURIComponent(errorMsg));
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,21 +41,31 @@ export default function LoginForm() {
     setError('');
     
     try {
-      const { user } = await authService.login({
-        username,
-        password,
-      });
+      // 使用AuthContext的login方法
+      await login(username, password);
+      
+      // 获取当前用户信息
+      const user = JSON.parse(localStorage.getItem('auth_user') || '{}');
+      
+      // 获取跳转URL（如果有）
+      const params = new URLSearchParams(window.location.search);
+      const returnUrl = params.get('returnUrl');
       
       // 如果用户有多个角色，显示角色选择器
-      if (user.roles.length > 1) {
+      if (user.roles && user.roles.length > 1) {
+        setAvailableRoles(user.roles);
         setShowRoleSelector(true);
-      } else {
-        // 只有一个角色时，直接跳转到对应角色的页面
-        const role = user.roles[0];
-        const path = role === 'advisor' ? '/advisor' : 
-                    role === 'doctor' ? '/doctor' : 
-                    role === 'customer' ? '/customer' : '/operator';
-        router.push(path);
+      } else if (user.roles && user.roles.length === 1) {
+        // 只有一个角色时，直接跳转到对应角色的页面或returnUrl
+        if (returnUrl) {
+          router.push(decodeURIComponent(returnUrl));
+        } else {
+          const role = user.roles[0];
+          const path = role === 'advisor' ? '/advisor' : 
+                      role === 'doctor' ? '/doctor' : 
+                      role === 'customer' ? '/customer' : '/operator';
+          router.push(path);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '登录失败，请重试');
@@ -51,9 +75,11 @@ export default function LoginForm() {
   };
 
   const handleRoleSelect = (role: UserRole) => {
-    // RoleSelector 组件现在会自行处理路由导航
-    // 不需要在这里做额外处理
+    // RoleSelector 组件会自行处理路由导航
   };
+
+  const isLoading = loading || authLoading;
+  const errorMessage = error || authError;
 
   return (
     <div className="mx-auto max-w-md rounded-xl bg-white p-8 shadow-md">
@@ -108,6 +134,7 @@ export default function LoginForm() {
               onChange={(e) => setUsername(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-orange-500 focus:outline-none"
               placeholder="请输入手机号或邮箱"
+              disabled={isLoading}
             />
           </div>
           
@@ -125,6 +152,7 @@ export default function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-orange-500 focus:outline-none"
               placeholder="请输入密码"
+              disabled={isLoading}
             />
           </div>
           
@@ -141,24 +169,31 @@ export default function LoginForm() {
             </a>
           </div>
           
-          {error && (
+          {errorMessage && (
             <div className="rounded-md bg-red-50 p-3 text-sm text-red-500">
-              {error}
+              {errorMessage}
             </div>
           )}
           
           <Button
             type="submit"
             className="w-full"
-            disabled={loading}
+            disabled={isLoading}
           >
-            登录
+            {isLoading ? (
+              <span className="flex items-center justify-center">
+                <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+                登录中...
+              </span>
+            ) : (
+              '登录'
+            )}
           </Button>
           
           <div className="mt-4 text-center text-sm text-gray-500">
             <p>演示账号：zhang@example.com</p>
-            <p>演示密码：123456</p>
-            <p className="mt-2 font-medium text-orange-600">顾客账号：customer1@example.com / 123456</p>
+            <p>演示密码：123456@Test</p>
+            <p className="mt-2 font-medium text-orange-600">顾客账号：customer1@example.com / 123456@Test</p>
           </div>
         </form>
       )}

@@ -42,6 +42,8 @@
   - 用途：应用布局定义
 - `..\web\src\app\page.tsx`
   - 用途：首页组件
+- `..\web\src\app\access-denied\page.tsx`
+  - 用途：访问拒绝页面
 - `..\web\src\app\customer\page.tsx`
   - 用途：顾客端首页
 - `..\web\src\app\customer\layout.tsx`
@@ -68,6 +70,8 @@
   - 用途：登录页面
 - `..\web\src\components\auth\LoginForm.tsx`
   - 用途：登录表单组件
+- `..\web\src\components\auth\ProtectedRoute.tsx`
+  - 用途：受保护路由组件
 - `..\web\src\components\chat\ChatLayout.tsx`
   - 用途：聊天界面布局
 - `..\web\src\components\chat\ChatWindow.tsx`
@@ -117,6 +121,10 @@
   - 用途：聊天服务接口
 - `..\web\src\lib\mockData.ts`
   - 用途：模拟数据
+- `..\web\src\lib\apiClient.ts`
+  - 用途：API客户端，处理认证和请求拦截
+- `..\web\src\contexts\AuthContext.tsx`
+  - 用途：全局认证状态管理
 - `..\web\src\types\chat.ts`
   - 用途：聊天相关类型定义
 - `..\web\src\types\auth.ts`

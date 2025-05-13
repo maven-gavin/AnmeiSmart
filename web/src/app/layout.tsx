@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Modern Web App",
-  description: "A modern web application built with Next.js and TypeScript",
+  title: "安美智享 - 医美智能服务平台",
+  description: "安美智享 - 专为医美机构定制的AI智能服务平台",
 };
 
 export default function RootLayout({
@@ -15,11 +16,13 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="zh-CN">
       <body className={inter.className}>
-        <main className="min-h-screen bg-gray-50">
-          {children}
-        </main>
+        <AuthProvider>
+          <main className="min-h-screen bg-gray-50">
+            {children}
+          </main>
+        </AuthProvider>
       </body>
     </html>
   );

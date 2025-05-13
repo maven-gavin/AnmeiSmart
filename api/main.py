@@ -1,3 +1,6 @@
+# 先导入 bcrypt 补丁修复 passlib 问题
+from app.core.bcrypt_patch import *
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict

@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { UserRole, AuthUser } from '@/types/auth';
-import { authService } from '@/lib/authService';
+import { useAuth } from '@/contexts/AuthContext';
 import { roleOptions } from '@/lib/mockData';
 
 interface RoleSelectorProps {
@@ -13,7 +13,7 @@ interface RoleSelectorProps {
 
 export default function RoleSelector({ onRoleSelect, className = '' }: RoleSelectorProps) {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const { user, switchRole, loading: authLoading } = useAuth();
   const [selectedRole, setSelectedRole] = useState<UserRole | undefined>(undefined);
   const [loading, setLoading] = useState<UserRole | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -22,16 +22,14 @@ export default function RoleSelector({ onRoleSelect, className = '' }: RoleSelec
   // 在客户端挂载后获取用户信息
   useEffect(() => {
     setIsClient(true);
-    const user = authService.getCurrentUser();
     if (user) {
-      setCurrentUser(user);
       setSelectedRole(user.currentRole);
     }
-  }, []);
+  }, [user]);
 
   // 过滤出当前用户拥有的角色
-  const availableRoles = isClient && currentUser?.roles 
-    ? roleOptions.filter(role => currentUser.roles.includes(role.id))
+  const availableRoles = isClient && user?.roles 
+    ? roleOptions.filter(role => user.roles.includes(role.id))
     : [];
 
   const handleRoleSelect = async (role: UserRole) => {
@@ -42,8 +40,8 @@ export default function RoleSelector({ onRoleSelect, className = '' }: RoleSelec
       setSelectedRole(role);
       
       // 切换用户角色
-      if (currentUser) {
-        await authService.switchRole(role);
+      if (user) {
+        await switchRole(role);
       }
       
       // 调用回调
@@ -80,12 +78,12 @@ export default function RoleSelector({ onRoleSelect, className = '' }: RoleSelec
           <button
             key={role.id}
             onClick={() => !loading && handleRoleSelect(role.id)}
-            disabled={loading !== null}
+            disabled={loading !== null || authLoading}
             className={`flex items-center rounded-lg border p-4 transition-all hover:border-orange-500 hover:bg-orange-50 ${
               selectedRole === role.id 
                 ? 'border-orange-500 bg-orange-50' 
                 : 'border-gray-200'
-            } ${loading !== null && 'cursor-wait opacity-70'}`}
+            } ${(loading !== null || authLoading) && 'cursor-wait opacity-70'}`}
           >
             <div 
               className={`mr-3 flex h-12 w-12 items-center justify-center rounded-full ${
