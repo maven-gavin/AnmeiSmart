@@ -2,10 +2,11 @@
 - "安美智享(Anmei Smart) "——专为医美机构定制的AI智能服务平台，聚焦核心业务流程，提升服务效率与安全性。
 
 ## 技术栈
-- 前端：React 18+/Next.js 15、TypeScript 6、Ant Design/Chakra UI
+- 前端：React 19.0.0/Next.js 15、TypeScript 6、tailwindcss/shadcn UI
 - 后端：Python 3.12、FastAPI、uvicorn、Pydantic
-- 数据库：PostgreSQL、MongoDB、Weaviate/Neo4j
-- AI服务：Dify、RAGFlow、DeepSeek、OpenAI API、Stable Diffusion
+- 数据库：PostgreSQL（结构化数据）、MongoDB（非结构化）、Weaviate/Neo4j（知识图谱）
+- AI服务：Dify、RAGFlow、DeepSeek、OpenAI API、Stable Diffusion（图像生成）
+
 
 ## 目录结构（建议）
 ```

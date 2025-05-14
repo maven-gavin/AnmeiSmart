@@ -130,11 +130,48 @@ GET /api/v1/auth/roles
 Authorization: Bearer your_access_token
 ```
 
+## 用户管理API
+
+### 获取用户列表
+
+```
+GET /api/v1/users
+```
+
+### 创建用户
+
+```
+POST /api/v1/users
+```
+
+请求体:
+```json
+{
+  "email": "newuser@example.com",
+  "username": "newuser",
+  "password": "password",
+  "roles": ["admin", "advisor"],
+  "phone": "13800138000"
+}
+```
+
+### 更新用户
+
+```
+PUT /api/v1/users/{user_id}
+```
+
+### 获取角色列表
+
+```
+GET /api/v1/users/roles/all
+```
+
 ## 开发指南
 
 - 添加新的API端点: 在`app/api/v1/endpoints`目录创建新文件
 - 添加新的数据库模型: 在`app/db/models`目录创建新文件
-- 添加新的Pydantic模型: 在`app/models`目录创建新文件
+- 添加新的Pydantic模型: 在`app/schemas`目录创建新文件
 
 ## 测试
 
@@ -168,7 +205,7 @@ api/
 │   │   └── security.py # 安全工具
 │   ├── crud/         # CRUD操作
 │   ├── db/           # 数据库模型和工具
-│   ├── models/       # Pydantic模型
+│   ├── schemas/       # Pydantic模型（数据验证和序列化）
 │   ├── api/          # API路由
 │   └── services/     # 业务逻辑
 ├── tests/            # 单元测试
@@ -179,11 +216,15 @@ api/
 
 ## API端点
 - `/api/v1/auth/login` - 用户登录
+- `/api/v1/auth/register` - 用户注册
+- `/api/v1/auth/me` - 获取当前用户信息
+- `/api/v1/auth/roles` - 获取用户角色
 - `/api/v1/users/` - 用户管理
+  - GET / - 获取用户列表
   - POST / - 创建用户
-  - GET /me - 获取当前用户信息
-  - PUT /me - 更新当前用户信息
+  - PUT /{user_id} - 更新用户信息
   - GET /{user_id} - 获取指定用户信息
+- `/api/v1/users/roles/all` - 获取所有角色
 
 ## 开发规范
 1. 代码质量
