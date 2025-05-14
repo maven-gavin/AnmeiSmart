@@ -103,7 +103,7 @@ async def delete_role(
         )
     
     # 检查是否为系统基础角色（不允许删除）
-    base_roles = ["admin", "advisor", "doctor", "customer", "operator"]
+    base_roles = ["admin", "consultant", "doctor", "customer", "operator"]
     if role.name in base_roles:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

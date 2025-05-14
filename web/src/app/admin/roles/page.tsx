@@ -168,7 +168,7 @@ export default function RolesPage() {
   const getRoleStyle = (name: string) => {
     const styles: Record<string, string> = {
       admin: 'bg-red-100 text-red-800',
-      advisor: 'bg-blue-100 text-blue-800',
+      consultant: 'bg-blue-100 text-blue-800',
       doctor: 'bg-green-100 text-green-800',
       customer: 'bg-purple-100 text-purple-800',
       operator: 'bg-yellow-100 text-yellow-800'

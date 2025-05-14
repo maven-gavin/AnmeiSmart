@@ -34,7 +34,7 @@
 
 ## 前端组件
 
-- `..\web\src\app\advisor\chat\page.tsx`
+- `..\web\src\app\consultant\chat\page.tsx`
   - 用途：顾问聊天页面
 - `..\web\src\app\components\Todo.tsx`
   - 用途：待办事项组件
@@ -94,25 +94,25 @@
   - 用途：加载动画组件
 - `..\web\src\components\ui\RoleSelector.tsx`
   - 用途：角色选择器组件
-- `..\web\src\components\ui\AdvisorNavigation.tsx`
+- `..\web\src\components\ui\consultantNavigation.tsx`
   - 用途：顾问导航组件
 - `..\web\src\components\layout\RoleHeader.tsx`
   - 用途：角色头部导航组件
-- `..\web\src\app\advisor\page.tsx`
+- `..\web\src\app\consultant\page.tsx`
   - 用途：顾问端首页（聚合导航与入口）
-- `..\web\src\app\advisor\AdvisorClientPage.tsx`
+- `..\web\src\app\consultant\consultantClientPage.tsx`
   - 用途：顾问端首页Client组件，展示主要功能入口卡片
-- `..\web\src\app\advisor\plan\page.tsx`
+- `..\web\src\app\consultant\plan\page.tsx`
   - 用途：顾问端-个性化方案推荐页面
-- `..\web\src\app\advisor\plan\PlanPageClient.tsx`
+- `..\web\src\app\consultant\plan\PlanPageClient.tsx`
   - 用途：顾问端-个性化方案推荐Client组件
-- `..\web\src\app\advisor\simulation\page.tsx`
+- `..\web\src\app\consultant\simulation\page.tsx`
   - 用途：顾问端-术前模拟页面
-- `..\web\src\app\advisor\simulation\SimulationPageClient.tsx`
+- `..\web\src\app\consultant\simulation\SimulationPageClient.tsx`
   - 用途：顾问端-术前模拟Client组件
-- `..\web\src\app\advisor\chat\page.tsx`
+- `..\web\src\app\consultant\chat\page.tsx`
   - 用途：顾问端-智能客服页面
-- `..\web\src\app\advisor\chat\ChatPageClient.tsx`
+- `..\web\src\app\consultant\chat\ChatPageClient.tsx`
   - 用途：顾问端-智能客服Client组件
 
 ## 工具和类型
@@ -131,7 +131,7 @@
   - 用途：模拟数据
 - `..\web\src\service\apiClient.ts`
   - 用途：API客户端，处理认证和请求拦截
-- `..\web\src\service\advisorService.ts`
+- `..\web\src\service\consultantService.ts`
   - 用途：顾问服务接口
 - `..\web\src\service\customerMockData.ts`
   - 用途：顾客端模拟数据
@@ -221,3 +221,87 @@
   - 用途：顾客李小姐头像
 - `..\web\public\avatars\user2.png`
   - 用途：顾客王先生头像
+
+## 用户系统重构设计
+
+### 数据库模型
+
+在重构后，我们将从单表用户设计迁移到多表继承模式，主要包括以下表结构：
+
+**1. 基础用户表 (Users)**
+- 存储所有用户共享的基本信息
+- 字段：id, email, username, hashed_password, phone, avatar, is_active, created_at, updated_at
+
+**2. 角色表 (Roles)**
+- 存储系统中的角色定义
+- 字段：id, name, description, created_at, updated_at
+
+**3. 用户-角色关联表 (UserRoles)**
+- 多对多关联用户和角色
+- 字段：user_id, role_id, assigned_at, assigned_by
+
+**4. 顾客表 (Customers)**
+- 存储顾客特有信息
+- 字段：id, user_id(外键), medical_history, allergies, preferences
+
+**5. 医生表 (Doctors)**
+- 存储医生特有信息
+- 字段：id, user_id(外键), specialization, certification, license_number
+
+**6. 顾问表 (Consultants)**
+- 存储顾问特有信息
+- 字段：id, user_id(外键), expertise, performance_metrics
+
+**7. 运营人员表 (Operators)**
+- 存储运营人员特有信息
+- 字段：id, user_id(外键), department, responsibilities
+
+**8. 管理员表 (Administrators)**
+- 存储管理员特有信息
+- 字段：id, user_id(外键), admin_level, access_permissions
+
+### API设计
+
+**1. 认证相关**
+- POST /api/auth/register - 顾客自行注册
+- POST /api/auth/login - 用户登录
+- POST /api/auth/refresh-token - 刷新令牌
+- GET /api/auth/me - 获取当前用户信息
+- PUT /api/auth/me - 更新当前用户信息
+- GET /api/auth/roles - 获取用户角色
+- POST /api/auth/switch-role - 切换当前活跃角色
+
+**2. 用户管理**
+- GET /api/users - 获取用户列表(支持角色筛选)
+- POST /api/users - 创建新用户(支持指定角色)
+- GET /api/users/{id} - 获取特定用户信息
+- PUT /api/users/{id} - 更新用户信息
+- DELETE /api/users/{id} - 删除用户
+- GET /api/users/{id}/roles - 获取用户的角色
+- POST /api/users/{id}/roles - 为用户分配角色
+- DELETE /api/users/{id}/roles/{role_id} - 移除用户角色
+
+**3. 角色管理**
+- GET /api/roles - 获取所有角色
+- POST /api/roles - 创建新角色
+- GET /api/roles/{id} - 获取特定角色
+- PUT /api/roles/{id} - 更新角色
+- DELETE /api/roles/{id} - 删除角色
+
+### 重构路径
+
+**1. 数据迁移**
+- 创建新的数据库表结构
+- 从现有用户表提取基本信息到新的Users表
+- 根据现有用户角色创建相应的扩展表记录
+- 建立用户-角色关联关系
+
+**2. 认证流程**
+- 更新JWT令牌生成和验证逻辑，包含活跃角色信息
+- 实现基于角色的访问控制(RBAC)
+- 支持用户角色切换功能
+
+**3. 前端适配**
+- 更新Auth状态管理
+- 重构用户管理界面
+- 实现角色切换UI

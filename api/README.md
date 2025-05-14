@@ -150,7 +150,7 @@ POST /api/v1/users
   "email": "newuser@example.com",
   "username": "newuser",
   "password": "password",
-  "roles": ["admin", "advisor"],
+  "roles": ["admin", "consultant"],
   "phone": "13800138000"
 }
 ```

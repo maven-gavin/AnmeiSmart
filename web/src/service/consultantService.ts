@@ -1,4 +1,4 @@
-import { SimulationImage, ProjectType, PersonalizedPlan } from '@/types/advisor';
+import { SimulationImage, ProjectType, PersonalizedPlan } from '@/types/consultant';
 import { CustomerProfile } from '@/types/chat';
 
 // 模拟项目类型数据
@@ -220,8 +220,8 @@ const mockPersonalizedPlans: PersonalizedPlan[] = [
     totalCost: 20000,
     estimatedTimeframe: '2周',
     createdAt: '2024-05-03T11:30:00Z',
-    advisorId: '2',
-    advisorName: '李顾问',
+    consultantId: '2',
+    consultantName: '李顾问',
     status: 'shared',
     notes: '客户对方案表示满意，计划下周确认'
   },
@@ -261,8 +261,8 @@ const mockPersonalizedPlans: PersonalizedPlan[] = [
     totalCost: 14000,
     estimatedTimeframe: '1周',
     createdAt: '2024-05-04T14:20:00Z',
-    advisorId: '2',
-    advisorName: '李顾问',
+    consultantId: '2',
+    consultantName: '李顾问',
     status: 'draft'
   }
 ];

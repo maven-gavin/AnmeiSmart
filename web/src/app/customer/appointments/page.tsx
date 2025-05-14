@@ -61,10 +61,10 @@ function AppointmentCard({ appointment }: { appointment: CustomerAppointment }) 
             </p>
           </div>
         )}
-        {appointment.advisor && (
+        {appointment.consultant && (
           <div>
             <p className="font-medium text-gray-700">顾问：
-              <span className="font-normal text-gray-600">{appointment.advisor}</span>
+              <span className="font-normal text-gray-600">{appointment.consultant}</span>
             </p>
           </div>
         )}

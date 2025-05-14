@@ -15,7 +15,7 @@ export default function Home() {
     if (isLoggedIn && currentUser) {
       // 已登录，根据当前角色重定向
       const currentRole = currentUser.currentRole;
-      const path = currentRole === 'advisor' ? '/advisor' :
+      const path = currentRole === 'consultant' ? '/consultant' :
                   currentRole === 'doctor' ? '/doctor' : '/operator';
       router.push(path);
     } else {

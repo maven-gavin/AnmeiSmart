@@ -11,7 +11,7 @@ export interface Message {
   type: 'text' | 'image' | 'voice';
   sender: {
     id: string;
-    type: 'user' | 'advisor' | 'ai' | 'system';
+    type: 'user' | 'consultant' | 'ai' | 'system';
     name: string;
     avatar: string;
   };

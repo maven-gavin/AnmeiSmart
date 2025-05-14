@@ -10,15 +10,15 @@ export const mockUsers = [
     email: 'zhang@example.com',
     phone: '13800138001',
     avatar: '/avatars/doctor1.png',
-    roles: ['doctor', 'advisor'] as UserRole[],
+    roles: ['doctor', 'consultant'] as UserRole[],
   },
   {
     id: '2',
     name: '李顾问',
     email: 'li@example.com',
     phone: '13900139001',
-    avatar: '/avatars/advisor1.png',
-    roles: ['advisor'] as UserRole[],
+    avatar: '/avatars/consultant1.png',
+    roles: ['consultant'] as UserRole[],
   },
   {
     id: '3',

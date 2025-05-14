@@ -30,7 +30,7 @@ export interface CustomerAppointment {
   title: string;
   date: string;
   time: string;
-  advisor?: string;
+  consultant?: string;
   doctor?: string;
   status: 'confirmed' | 'pending' | 'canceled' | 'completed';
   notes?: string;

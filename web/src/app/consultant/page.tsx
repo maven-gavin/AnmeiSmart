@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import AdvisorClientPage from '@/app/advisor/AdvisorClientPage';
+import ConsultantClientPage from '@/app/consultant/ConsultantClientPage';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 export const metadata = {
@@ -7,10 +7,10 @@ export const metadata = {
   description: '医美顾问管理系统',
 };
 
-export default function AdvisorPage() {
+export default function ConsultantPage() {
   return (
     <Suspense fallback={<LoadingSpinner />}>
-      <AdvisorClientPage />
+      <ConsultantClientPage />
     </Suspense>
   );
 } 

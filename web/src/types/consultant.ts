@@ -63,8 +63,8 @@ export interface PersonalizedPlan {
   estimatedTimeframe: string;
   createdAt: string;
   updatedAt?: string;
-  advisorId: string;
-  advisorName: string;
+  consultantId: string;
+  consultantName: string;
   status: 'draft' | 'shared' | 'accepted' | 'rejected';
   notes?: string;
 } 

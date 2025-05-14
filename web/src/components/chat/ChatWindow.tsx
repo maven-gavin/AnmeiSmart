@@ -13,7 +13,7 @@ import {
   getImportantMessages,
   takeoverConversation,
   switchBackToAI,
-  isAdvisorMode
+  isConsultantMode
 } from '@/service/chatService'
 
 // 模拟完整的FAQ数据
@@ -50,7 +50,7 @@ export default function ChatWindow() {
   const [importantMessages, setImportantMessages] = useState<Message[]>([])
   
   // 顾问接管状态
-  const [isAdvisorTakeover, setIsAdvisorTakeover] = useState(false)
+  const [isConsultantTakeover, setIsConsultantTakeover] = useState(false)
   
   // 媒体状态
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -218,7 +218,7 @@ export default function ChatWindow() {
       setMessage('')
       
       // 如果不是顾问接管模式，则生成AI回复
-      if (!isAdvisorTakeover) {
+      if (!isConsultantTakeover) {
         await getAIResponse(currentConversationId, userMsg)
         
         // 再次更新消息列表
@@ -294,7 +294,7 @@ export default function ChatWindow() {
     fetchMessages()
     
     // 检查当前接管状态
-    setIsAdvisorTakeover(isAdvisorMode(currentConversationId))
+    setIsConsultantTakeover(isConsultantMode(currentConversationId))
   }, [currentConversationId])
   
   // 新消息自动滚动到底部
@@ -550,17 +550,17 @@ export default function ChatWindow() {
   }, [isRecording])
   
   // 切换顾问接管状态
-  const toggleAdvisorMode = () => {
-    if (isAdvisorTakeover) {
+  const toggleConsultantMode = () => {
+    if (isConsultantTakeover) {
       // 切换回AI助手
       if (switchBackToAI(currentConversationId)) {
-        setIsAdvisorTakeover(false)
+        setIsConsultantTakeover(false)
         fetchMessages()
       }
     } else {
       // 顾问接管
       if (takeoverConversation(currentConversationId)) {
-        setIsAdvisorTakeover(true)
+        setIsConsultantTakeover(true)
         fetchMessages()
       }
     }
@@ -1006,9 +1006,9 @@ export default function ChatWindow() {
           
           {/* 顾问接管按钮 */}
           <button 
-            className={`flex-shrink-0 ${isAdvisorTakeover ? 'text-green-500' : 'text-gray-500 hover:text-gray-700'}`}
-            onClick={toggleAdvisorMode}
-            title={isAdvisorTakeover ? "切换回AI助手" : "顾问接管"}
+            className={`flex-shrink-0 ${isConsultantTakeover ? 'text-green-500' : 'text-gray-500 hover:text-gray-700'}`}
+            onClick={toggleConsultantMode}
+            title={isConsultantTakeover ? "切换回AI助手" : "顾问接管"}
           >
             <svg
               className="h-6 w-6"
@@ -1020,7 +1020,7 @@ export default function ChatWindow() {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d={isAdvisorTakeover 
+                d={isConsultantTakeover 
                   ? "M13 10V3L4 14h7v7l9-11h-7z" // 闪电图标，表示切换回AI
                   : "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" // 用户图标，表示顾问接管
                 }

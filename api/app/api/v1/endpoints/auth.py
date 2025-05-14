@@ -10,7 +10,7 @@ from app.db.base import get_db
 from app.db.models.user import User
 from app.crud import crud_user
 from app.schemas.token import Token
-from app.schemas.user import UserCreate, UserUpdate, UserResponse
+from app.schemas.user import UserCreate, UserUpdate, UserResponse, SwitchRoleRequest
 
 router = APIRouter()
 settings = get_settings()
@@ -40,9 +40,12 @@ async def login(
             detail="用户未激活"
         )
     
+    # 获取用户的第一个角色作为默认活跃角色
+    active_role = user.roles[0].name if user.roles else None
+    
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        subject=user.id, expires_delta=access_token_expires
+        subject=user.id, expires_delta=access_token_expires, active_role=active_role
     )
     
     return {
@@ -68,19 +71,16 @@ async def register(
             detail="此邮箱已注册",
         )
     
+    # 确保公开注册的用户至少有顾客角色
+    if not user_in.roles or len(user_in.roles) == 0:
+        user_in.roles = ["customer"]
+    
     user = await crud_user.create(db, obj_in=user_in)
-    # 将用户角色转换为字符串列表
-    user_dict = {
-        "id": user.id,
-        "email": user.email,
-        "username": user.username,
-        "phone": user.phone,
-        "avatar": user.avatar,
-        "is_active": user.is_active,
-        "created_at": user.created_at,
-        "roles": [role.name for role in user.roles]
-    }
-    return user_dict
+    
+    # 获取用户的第一个角色作为默认活跃角色
+    active_role = user.roles[0].name if user.roles else None
+    
+    return UserResponse.from_orm(user, active_role=active_role)
 
 @router.post("/refresh-token", response_model=Token)
 async def refresh_token(
@@ -92,9 +92,16 @@ async def refresh_token(
     
     使用当前有效的令牌获取新的访问令牌
     """
+    # 从当前令牌中获取活跃角色
+    active_role = current_user._active_role if hasattr(current_user, "_active_role") else None
+    
+    # 如果未设置活跃角色，使用第一个角色作为默认
+    if not active_role and current_user.roles:
+        active_role = current_user.roles[0].name
+    
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        subject=current_user.id, expires_delta=access_token_expires
+        subject=current_user.id, expires_delta=access_token_expires, active_role=active_role
     )
     
     return {
@@ -111,18 +118,10 @@ async def read_users_me(
     
     返回当前已认证用户的详细信息
     """
-    # 将用户角色转换为字符串列表
-    user_dict = {
-        "id": current_user.id,
-        "email": current_user.email,
-        "username": current_user.username,
-        "phone": current_user.phone,
-        "avatar": current_user.avatar,
-        "is_active": current_user.is_active,
-        "created_at": current_user.created_at,
-        "roles": [role.name for role in current_user.roles]
-    }
-    return user_dict
+    # 从当前令牌中获取活跃角色
+    active_role = current_user._active_role if hasattr(current_user, "_active_role") else None
+    
+    return UserResponse.from_orm(current_user, active_role=active_role)
 
 @router.put("/me", response_model=UserResponse)
 async def update_user_me(
@@ -137,18 +136,11 @@ async def update_user_me(
     允许用户更新自己的信息
     """
     user = await crud_user.update(db, db_obj=current_user, obj_in=user_in)
-    # 将用户角色转换为字符串列表
-    user_dict = {
-        "id": user.id,
-        "email": user.email,
-        "username": user.username,
-        "phone": user.phone,
-        "avatar": user.avatar,
-        "is_active": user.is_active,
-        "created_at": user.created_at,
-        "roles": [role.name for role in user.roles]
-    }
-    return user_dict
+    
+    # 从当前令牌中获取活跃角色
+    active_role = current_user._active_role if hasattr(current_user, "_active_role") else None
+    
+    return UserResponse.from_orm(user, active_role=active_role)
 
 @router.get("/roles", response_model=List[str])
 async def get_roles(
@@ -162,4 +154,37 @@ async def get_roles(
     """
     # 从数据库获取用户角色
     user_roles = await crud_user.get_user_roles(db, user_id=current_user.id)
-    return user_roles 
+    return user_roles
+
+@router.post("/switch-role", response_model=Token)
+async def switch_role(
+    *,
+    db: Session = Depends(get_db),
+    role_request: SwitchRoleRequest,
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """
+    切换用户角色
+    
+    更改用户当前活跃角色，并返回新的访问令牌
+    """
+    # 检查用户是否拥有请求的角色
+    user_roles = [role.name for role in current_user.roles]
+    if role_request.role not in user_roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"用户没有 '{role_request.role}' 角色权限",
+        )
+    
+    # 生成包含新活跃角色的令牌
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        subject=current_user.id, 
+        expires_delta=access_token_expires,
+        active_role=role_request.role
+    )
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
+    } 

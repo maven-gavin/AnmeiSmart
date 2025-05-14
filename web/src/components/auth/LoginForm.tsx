@@ -61,7 +61,7 @@ export default function LoginForm() {
           router.push(decodeURIComponent(returnUrl));
         } else {
           const role = user.roles[0];
-          const path = role === 'advisor' ? '/advisor' : 
+          const path = role === 'consultant' ? '/consultant' : 
                       role === 'doctor' ? '/doctor' : 
                       role === 'admin' ? '/admin' :
                       role === 'operator' ? '/operator' : 

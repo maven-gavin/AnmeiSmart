@@ -68,7 +68,7 @@ web/
 ├── public/           # 静态资源
 ├── src/
 │   ├── app/          # 页面与路由（Next.js App Router）
-│   │   ├── advisor/  # 顾问端页面
+│   │   ├── consultant/  # 顾问端页面
 │   │   ├── doctor/   # 医生端页面
 │   │   ├── customer/ # 顾客端页面
 │   │   ├── admin/    # 管理员端页面
@@ -84,7 +84,7 @@ web/
 │   │   ├── chatService.ts  # 聊天服务
 │   │   ├── customerService.ts # 顾客服务
 │   │   ├── doctorService.ts   # 医生服务
-│   │   └── advisorService.ts  # 顾问服务
+│   │   └── consultantService.ts  # 顾问服务
 │   ├── contexts/     # 全局状态
 │   └── types/        # TypeScript类型定义
 ```

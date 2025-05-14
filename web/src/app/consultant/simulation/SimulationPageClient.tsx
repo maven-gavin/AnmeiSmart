@@ -17,11 +17,11 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { SimulationImage, ProjectType } from '@/types/advisor';
+import { SimulationImage, ProjectType } from '@/types/consultant';
 import { 
   getProjectTypes, uploadAndSimulate, 
   getAllSimulations 
-} from '@/service/advisorService';
+} from '@/service/consultantService';
 
 export default function SimulationPageClient() {
   const [selectedSimulation, setSelectedSimulation] = useState<SimulationImage | null>(null);

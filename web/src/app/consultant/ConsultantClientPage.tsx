@@ -1,14 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import AdvisorNavigation from '@/components/ui/AdvisorNavigation';
+import ConsultantNavigation from '@/components/ui/ConsultantNavigation';
 
-export default function AdvisorClientPage() {
+export default function ClientPage() {
   return (
     <div className="container mx-auto p-6">
       <h1 className="mb-6 text-2xl font-bold text-gray-800">欢迎使用顾问端</h1>
       
-      <AdvisorNavigation />
+      <ConsultantNavigation />
       
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">

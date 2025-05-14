@@ -19,7 +19,7 @@
 ## 1. 顾问端
 ### 1.0 顾问端首页
 - 入口区：聚合导航卡片，快速进入智能客服、术前模拟、方案推荐等主要功能
-- 已实现：/advisor/page.tsx + AdvisorClientPage.tsx，采用shadcn/ui卡片组件，风格与主色调一致
+- 已实现：/consultant/page.tsx + consultantClientPage.tsx，采用shadcn/ui卡片组件，风格与主色调一致
 
 ### 1.1 智能客服页面
 - 顶部：用户信息栏（头像、姓名、标签、历史咨询入口）
@@ -32,7 +32,7 @@
   - AI自动回复，顾问可随时介入
   - FAQ一键插入
   - 聊天记录可检索、标记重点
-- 已实现：/advisor/chat/page.tsx + ChatPageClient.tsx，支持多模态沟通与AI/人工切换，UI基于shadcn/ui
+- 已实现：/consultant/chat/page.tsx + ChatPageClient.tsx，支持多模态沟通与AI/人工切换，UI基于shadcn/ui
 
 ### 1.2 术前模拟页面
 - 上传区：支持图片拖拽/选择上传，显示上传进度
@@ -43,7 +43,7 @@
 - 交互：
   - 模拟图可放大、对比、下载
   - 顾问可添加备注、与客户讨论
-- 已实现：/advisor/simulation/page.tsx + SimulationPageClient.tsx，支持图片上传、参数调整、AI效果展示，UI基于shadcn/ui
+- 已实现：/consultant/simulation/page.tsx + SimulationPageClient.tsx，支持图片上传、参数调整、AI效果展示，UI基于shadcn/ui
 
 ### 1.3 方案推荐页面
 - 表单区：填写客户偏好、预算、期望效果等
@@ -53,7 +53,7 @@
 - 交互：
   - 顾问与客户可协作编辑方案
   - 历史方案可一键复用
-- 已实现：/advisor/plan/page.tsx + PlanPageClient.tsx，支持客户偏好填写、AI方案生成与编辑，UI基于shadcn/ui
+- 已实现：/consultant/plan/page.tsx + PlanPageClient.tsx，支持客户偏好填写、AI方案生成与编辑，UI基于shadcn/ui
 - 通用说明：顾问端所有新页面均采用shadcn/ui组件库，统一风格与交互体验
 
 ---

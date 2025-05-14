@@ -43,7 +43,7 @@ export default function UnauthorizedPage() {
               if (user) {
                 const role = user.currentRole || (user.roles.length > 0 ? user.roles[0] : null);
                 if (role) {
-                  const path = role === 'advisor' ? '/advisor' : 
+                  const path = role === 'consultant' ? '/consultant' : 
                               role === 'doctor' ? '/doctor' : 
                               role === 'customer' ? '/customer' : 
                               role === 'admin' ? '/admin' : '/';

@@ -9,11 +9,11 @@ let chatMessages: Record<string, Message[]> = { ...mockMessages };
 let conversations: Conversation[] = [...mockConversations];
 
 // 当前顾问信息（模拟从登录状态获取）
-const advisorInfo = {
+const consultantInfo = {
   id: '2',
   name: '李顾问',
-  avatar: '/avatars/advisor1.png',
-  type: 'advisor' as const,
+  avatar: '/avatars/consultant1.png',
+  type: 'consultant' as const,
 };
 
 // AI信息
@@ -25,7 +25,7 @@ const aiInfo = {
 };
 
 // 保存AI状态（会话ID -> 是否由顾问接管）
-let advisorTakeover: Record<string, boolean> = {};
+let consultantTakeover: Record<string, boolean> = {};
 
 // 生成模拟AI回复
 const generateAIResponse = (content: string): string => {
@@ -51,10 +51,10 @@ export const sendTextMessage = async (conversationId: string, content: string): 
     content,
     type: 'text',
     sender: {
-      id: advisorInfo.id,
-      type: advisorInfo.type,
-      name: advisorInfo.name,
-      avatar: advisorInfo.avatar,
+      id: consultantInfo.id,
+      type: consultantInfo.type,
+      name: consultantInfo.name,
+      avatar: consultantInfo.avatar,
     },
     timestamp: new Date().toISOString(),
   };
@@ -91,10 +91,10 @@ export const sendImageMessage = async (conversationId: string, imageUrl: string)
     content: imageUrl,
     type: 'image',
     sender: {
-      id: advisorInfo.id,
-      type: advisorInfo.type,
-      name: advisorInfo.name,
-      avatar: advisorInfo.avatar,
+      id: consultantInfo.id,
+      type: consultantInfo.type,
+      name: consultantInfo.name,
+      avatar: consultantInfo.avatar,
     },
     timestamp: new Date().toISOString(),
   };
@@ -131,10 +131,10 @@ export const sendVoiceMessage = async (conversationId: string, audioUrl: string)
     content: audioUrl,
     type: 'voice',
     sender: {
-      id: advisorInfo.id,
-      type: advisorInfo.type,
-      name: advisorInfo.name,
-      avatar: advisorInfo.avatar,
+      id: consultantInfo.id,
+      type: consultantInfo.type,
+      name: consultantInfo.name,
+      avatar: consultantInfo.avatar,
     },
     timestamp: new Date().toISOString(),
   };
@@ -166,7 +166,7 @@ export const sendVoiceMessage = async (conversationId: string, audioUrl: string)
 // 获取AI回复
 export const getAIResponse = async (conversationId: string, userMessage: Message): Promise<Message | null> => {
   // 如果顾问已接管，不再生成AI回复
-  if (advisorTakeover[conversationId]) {
+  if (consultantTakeover[conversationId]) {
     return null;
   }
   
@@ -249,61 +249,63 @@ export const getCustomerConsultationHistory = (customerId: string): CustomerProf
   return profile.consultationHistory;
 };
 
-// 顾问接管对话
+// 顾问接管会话
 export const takeoverConversation = (conversationId: string): boolean => {
-  advisorTakeover[conversationId] = true;
+  consultantTakeover[conversationId] = true;
   
-  // 添加系统消息，通知顾问接管
+  // 发送系统消息通知顾问接管
   const systemMessage: Message = {
     id: `m_${uuidv4()}`,
-    content: '顾问已接管对话',
+    content: '顾问已接管会话',
     type: 'text',
     sender: {
       id: 'system',
       type: 'system',
       name: '系统',
-      avatar: '/avatars/system.png',
+      avatar: '',
     },
     timestamp: new Date().toISOString(),
     isSystemMessage: true,
   };
   
+  // 添加到消息列表
   if (!chatMessages[conversationId]) {
     chatMessages[conversationId] = [];
   }
-  
   chatMessages[conversationId].push(systemMessage);
+  
   return true;
 };
 
-// 切换回AI助手
+// 切回AI模式
 export const switchBackToAI = (conversationId: string): boolean => {
-  advisorTakeover[conversationId] = false;
+  consultantTakeover[conversationId] = false;
   
-  // 添加系统消息，通知AI助手接管
+  // 发送系统消息通知切回AI模式
   const systemMessage: Message = {
     id: `m_${uuidv4()}`,
-    content: 'AI助手已接管对话',
+    content: 'AI助手已接管会话',
     type: 'text',
     sender: {
       id: 'system',
       type: 'system',
       name: '系统',
-      avatar: '/avatars/system.png',
+      avatar: '',
     },
     timestamp: new Date().toISOString(),
     isSystemMessage: true,
   };
   
+  // 添加到消息列表
   if (!chatMessages[conversationId]) {
     chatMessages[conversationId] = [];
   }
-  
   chatMessages[conversationId].push(systemMessage);
+  
   return true;
 };
 
-// 检查当前对话状态
-export const isAdvisorMode = (conversationId: string): boolean => {
-  return !!advisorTakeover[conversationId];
+// 是否处于顾问模式
+export const isConsultantMode = (conversationId: string): boolean => {
+  return !!consultantTakeover[conversationId];
 }; 

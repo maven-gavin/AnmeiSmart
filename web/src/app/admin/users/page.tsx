@@ -163,7 +163,7 @@ export default function UsersPage() {
   const renderRoleBadge = (role: string) => {
     const colors: Record<string, string> = {
       admin: 'bg-red-100 text-red-800',
-      advisor: 'bg-blue-100 text-blue-800',
+      consultant: 'bg-blue-100 text-blue-800',
       doctor: 'bg-green-100 text-green-800',
       customer: 'bg-purple-100 text-purple-800',
       operator: 'bg-yellow-100 text-yellow-800'
@@ -171,7 +171,7 @@ export default function UsersPage() {
 
     const roleNames: Record<string, string> = {
       admin: '管理员',
-      advisor: '顾问',
+      consultant: '顾问',
       doctor: '医生',
       customer: '顾客',
       operator: '运营'
@@ -256,7 +256,7 @@ export default function UsersPage() {
               <SelectContent>
                 <SelectItem value="all">全部角色</SelectItem>
                 <SelectItem value="admin">管理员</SelectItem>
-                <SelectItem value="advisor">顾问</SelectItem>
+                <SelectItem value="consultant">顾问</SelectItem>
                 <SelectItem value="doctor">医生</SelectItem>
                 <SelectItem value="customer">顾客</SelectItem>
                 <SelectItem value="operator">运营</SelectItem>

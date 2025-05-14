@@ -95,7 +95,7 @@ function UpcomingAppointments({ appointments }: { appointments: CustomerAppointm
                   </p>
                   <p className="text-xs text-gray-500">
                     {appointment.type === 'consultation' 
-                      ? `咨询：${appointment.advisor}` 
+                      ? `咨询：${appointment.consultant}` 
                       : `${appointment.type === 'treatment' ? '治疗' : '复诊'}：${appointment.doctor}`}
                   </p>
                 </div>

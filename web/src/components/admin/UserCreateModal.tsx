@@ -22,7 +22,7 @@ export default function UserCreateModal({ isOpen, onClose, onUserCreated }: User
   
   const availableRoles: { id: string; name: string }[] = [
     { id: 'admin', name: '管理员' },
-    { id: 'advisor', name: '顾问' },
+    { id: 'consultant', name: '顾问' },
     { id: 'doctor', name: '医生' },
     { id: 'customer', name: '顾客' },
     { id: 'operator', name: '运营' }

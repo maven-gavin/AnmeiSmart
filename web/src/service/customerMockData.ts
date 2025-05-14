@@ -126,7 +126,7 @@ export const mockAppointments: Record<string, CustomerAppointment[]> = {
       title: '皮肤护理咨询',
       date: '2024-05-10',
       time: '14:30',
-      advisor: '李顾问',
+      consultant: '李顾问',
       status: 'confirmed'
     },
     {

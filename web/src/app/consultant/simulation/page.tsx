@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import SimulationPageClient from '@/app/advisor/simulation/SimulationPageClient';
+import SimulationPageClient from '@/app/consultant/simulation/SimulationPageClient';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 export const metadata = {

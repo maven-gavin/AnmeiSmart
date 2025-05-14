@@ -186,9 +186,9 @@ export const authService = {
 // 角色选项
 export const roleOptions = [
   {
-    id: 'advisor' as UserRole,
+    id: 'consultant' as UserRole,
     name: '顾问端',
-    path: '/advisor',
+    path: '/consultant',
     icon: 'chat',
   },
   {

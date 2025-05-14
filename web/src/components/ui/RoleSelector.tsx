@@ -96,7 +96,7 @@ export default function RoleSelector({ onRoleSelect, className = '' }: RoleSelec
                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
               ) : (
                 <span className="text-lg">
-                  {role.id === 'advisor' ? '顾' : 
+                  {role.id === 'consultant' ? '顾' : 
                    role.id === 'doctor' ? '医' : 
                    role.id === 'operator' ? '运' : '客'}
                 </span>
@@ -105,7 +105,7 @@ export default function RoleSelector({ onRoleSelect, className = '' }: RoleSelec
             <div className="text-left">
               <p className="font-medium text-gray-800">{role.name}</p>
               <p className="text-sm text-gray-500">
-                {role.id === 'advisor' 
+                {role.id === 'consultant' 
                   ? '客户沟通与方案推荐'
                   : role.id === 'doctor'
                   ? '方案录入与风险评估'

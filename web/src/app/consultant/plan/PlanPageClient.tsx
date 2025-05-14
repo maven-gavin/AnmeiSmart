@@ -24,8 +24,8 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { 
   getAllPersonalizedPlans, getCustomerPlans, 
   createPersonalizedPlan, updatePersonalizedPlan 
-} from '@/service/advisorService';
-import { PersonalizedPlan } from '@/types/advisor';
+} from '@/service/consultantService';
+import { PersonalizedPlan } from '@/types/consultant';
 
 // 新方案的表单数据类型
 interface PlanFormData {
@@ -122,8 +122,8 @@ export default function PlanPageClient() {
         projects: [], // 初始为空项目列表
         totalCost: 0,
         estimatedTimeframe: '待定',
-        advisorId: '2', // 假设当前顾问ID，实际应该从用户信息获取
-        advisorName: '李顾问', // 假设当前顾问名，实际应该从用户信息获取
+        consultantId: '2', // 假设当前顾问ID，实际应该从用户信息获取
+        consultantName: '李顾问', // 假设当前顾问名，实际应该从用户信息获取
         status: 'draft' as 'draft' | 'shared' | 'accepted' | 'rejected'
       };
       
@@ -429,7 +429,7 @@ export default function PlanPageClient() {
                           </div>
                           <div>
                             <p className="text-sm font-medium text-gray-500">顾问</p>
-                            <p>{selectedPlan.advisorName}</p>
+                            <p>{selectedPlan.consultantName}</p>
                           </div>
                           <div>
                             <p className="text-sm font-medium text-gray-500">备注</p>
