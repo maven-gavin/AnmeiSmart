@@ -11,9 +11,17 @@ class RoleCreate(RoleBase):
     """角色创建模型"""
     pass
 
-class Role(RoleBase):
+class RoleResponse(RoleBase):
     """API响应中的角色模型"""
     id: int
+
+    @classmethod
+    def from_orm(cls, role):
+        return cls(
+            id=role.id,
+            name=role.name,
+            description=role.description
+        )
 
     class Config:
         from_attributes = True
@@ -40,22 +48,22 @@ class UserUpdate(BaseModel):
     avatar: Optional[str] = None
     roles: Optional[List[str]] = None
 
-class UserInDB(UserBase):
-    """数据库中的用户模型"""
-    id: int
-    hashed_password: str
-    created_at: datetime
-    updated_at: datetime
-    roles: List[Role] = []
-
-    class Config:
-        from_attributes = True
-
-class User(UserBase):
+class UserResponse(UserBase):
     """API响应中的用户模型"""
     id: int
     created_at: datetime
     roles: List[str] = []
 
-    class Config:
-        from_attributes = True 
+    @classmethod
+    def from_orm(cls, user):
+        return cls(
+            id=user.id,
+            email=user.email,
+            username=user.username, 
+            phone=user.phone,
+            avatar=user.avatar,
+            is_active=user.is_active,
+            created_at=user.created_at,
+            roles=[role.name for role in user.roles]
+        )   
+    

@@ -7,9 +7,10 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.security import create_access_token, get_current_user
 from app.db.base import get_db
+from app.db.models.user import User
 from app.crud import crud_user
-from app.models.token import Token
-from app.models.user import User, UserCreate, UserUpdate
+from app.schemas.token import Token
+from app.schemas.user import UserCreate, UserUpdate, UserResponse
 
 router = APIRouter()
 settings = get_settings()
@@ -49,7 +50,7 @@ async def login(
         "token_type": "bearer"
     }
 
-@router.post("/register", response_model=User)
+@router.post("/register", response_model=UserResponse)
 async def register(
     *,
     db: Session = Depends(get_db),
@@ -101,7 +102,7 @@ async def refresh_token(
         "token_type": "bearer"
     }
 
-@router.get("/me", response_model=User)
+@router.get("/me", response_model=UserResponse)
 async def read_users_me(
     current_user: User = Depends(get_current_user),
 ) -> Any:
@@ -123,7 +124,7 @@ async def read_users_me(
     }
     return user_dict
 
-@router.put("/me", response_model=User)
+@router.put("/me", response_model=UserResponse)
 async def update_user_me(
     *,
     db: Session = Depends(get_db),

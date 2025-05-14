@@ -63,7 +63,9 @@ export default function LoginForm() {
           const role = user.roles[0];
           const path = role === 'advisor' ? '/advisor' : 
                       role === 'doctor' ? '/doctor' : 
-                      role === 'customer' ? '/customer' : '/operator';
+                      role === 'admin' ? '/admin' :
+                      role === 'operator' ? '/operator' : 
+                      role === 'customer' ? '/customer' : '/other';
           router.push(path);
         }
       }
@@ -193,6 +195,8 @@ export default function LoginForm() {
           <div className="mt-4 text-center text-sm text-gray-500">
             <p>演示账号：zhang@example.com</p>
             <p>演示密码：123456@Test</p>
+            <p>管理员账号：admin@anmeismart.com</p>
+            <p>管理员密码：Admin@123456</p>
             <p className="mt-2 font-medium text-orange-600">顾客账号：customer1@example.com / 123456@Test</p>
           </div>
         </form>

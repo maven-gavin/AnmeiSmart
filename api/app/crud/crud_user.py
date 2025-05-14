@@ -2,12 +2,12 @@ from typing import Optional, Union, Dict, Any, List
 from sqlalchemy.orm import Session
 
 from app.core.security import get_password_hash, verify_password
-from app.models.user import UserCreate, UserUpdate
+from app.schemas.user import UserCreate, UserUpdate
 from app.db.models.user import User, Role
 
 async def get(db: Session, id: int) -> Optional[User]:
     """根据ID获取用户"""
-    return db.query(User).filter(User.id == id).first()
+    return db.query(User).filter(User.id == id).first() 
 
 async def get_by_email(db: Session, email: str) -> Optional[User]:
     """根据邮箱获取用户"""

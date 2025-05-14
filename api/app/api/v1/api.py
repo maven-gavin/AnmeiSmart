@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import users, auth
+from app.api.v1.endpoints import users, auth, roles
 
 api_router = APIRouter()
 
@@ -8,6 +8,9 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 
 # 用户管理路由
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+
+# 角色管理路由
+api_router.include_router(roles.router, prefix="/roles", tags=["roles"])
 
 # 后续可添加其他路由
 # api_router.include_router(plans.router, prefix="/plans", tags=["plans"])
