@@ -21,7 +21,7 @@ import { SimulationImage, ProjectType } from '@/types/advisor';
 import { 
   getProjectTypes, uploadAndSimulate, 
   getAllSimulations 
-} from '@/lib/advisorService';
+} from '@/service/advisorService';
 
 export default function SimulationPageClient() {
   const [selectedSimulation, setSelectedSimulation] = useState<SimulationImage | null>(null);

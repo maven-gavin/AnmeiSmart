@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { doctorService } from '@/lib/doctorService';
+import { doctorService } from '@/service/doctorService';
 import { Treatment, TreatmentProcedure, Medication } from '@/types/doctor';
 
 export default function EditTreatmentPage({ params }: { params: { id: string } }) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { customerService } from '@/lib/customerService';
+import { customerService } from '@/service/customerService';
 import { CustomerAppointment } from '@/types/customer';
 
 // 预约卡片组件

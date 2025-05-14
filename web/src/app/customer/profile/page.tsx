@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { authService } from '@/lib/authService';
-import { mockCustomerProfiles } from '@/lib/mockData';
+import { authService } from '@/service/authService';
+import { mockCustomerProfiles } from '@/service/mockData';
 import type { CustomerProfile } from '@/types/chat';
 
 export default function CustomerProfile() {

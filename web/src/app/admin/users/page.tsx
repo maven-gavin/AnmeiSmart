@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { UserRole } from '@/types/auth';
 import UserCreateModal from '@/components/admin/UserCreateModal';
 import UserEditModal from '@/components/admin/UserEditModal';
-import { apiClient } from '@/lib/apiClient';
+import { apiClient } from '@/service/apiClient';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';

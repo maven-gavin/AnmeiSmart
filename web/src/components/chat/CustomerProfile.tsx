@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { type CustomerProfile as ICustomerProfile } from '@/types/chat';
-import { mockCustomerProfiles } from '@/lib/mockData';
+import { mockCustomerProfiles } from '@/service/mockData';
 
 interface CustomerProfileProps {
   customerId?: string;

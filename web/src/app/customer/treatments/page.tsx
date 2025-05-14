@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { customerService } from '@/lib/customerService';
+import { customerService } from '@/service/customerService';
 import { Treatment } from '@/types/customer';
 
 // 治疗记录卡片组件

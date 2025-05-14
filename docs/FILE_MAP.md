@@ -25,9 +25,9 @@
   - 用途：数据库初始化脚本
 - `..\api\app\db\models\user.py`
   - 用途：用户数据库模型定义
-- `..\api\app\models\token.py`
+- `..\api\app\schemas\token.py`
   - 用途：Token数据模型
-- `..\api\app\models\user.py`
+- `..\api\app\schemas\user.py`
   - 用途：用户数据模型（Pydantic模型）
 - `..\api\main.py`
   - 用途：FastAPI应用入口
@@ -68,6 +68,12 @@
   - 用途：医生端治疗方案录入页面
 - `..\web\src\app\login\page.tsx`
   - 用途：登录页面
+- `..\web\src\app\admin\page.tsx`
+  - 用途：管理员端首页
+- `..\web\src\app\admin\users\page.tsx`
+  - 用途：用户管理页面
+- `..\web\src\app\admin\roles\page.tsx`
+  - 用途：角色管理页面
 - `..\web\src\components\auth\LoginForm.tsx`
   - 用途：登录表单组件
 - `..\web\src\components\auth\ProtectedRoute.tsx`
@@ -88,6 +94,8 @@
   - 用途：加载动画组件
 - `..\web\src\components\ui\RoleSelector.tsx`
   - 用途：角色选择器组件
+- `..\web\src\components\ui\AdvisorNavigation.tsx`
+  - 用途：顾问导航组件
 - `..\web\src\components\layout\RoleHeader.tsx`
   - 用途：角色头部导航组件
 - `..\web\src\app\advisor\page.tsx`
@@ -109,20 +117,24 @@
 
 ## 工具和类型
 
-- `..\web\src\lib\utils.ts`
+- `..\web\src\service\utils.ts`
   - 用途：通用工具函数
-- `..\web\src\lib\authService.ts`
+- `..\web\src\service\authService.ts`
   - 用途：认证服务
-- `..\web\src\lib\customerService.ts`
+- `..\web\src\service\customerService.ts`
   - 用途：顾客服务接口
-- `..\web\src\lib\doctorService.ts`
+- `..\web\src\service\doctorService.ts`
   - 用途：医生服务接口
-- `..\web\src\lib\chatService.ts`
+- `..\web\src\service\chatService.ts`
   - 用途：聊天服务接口
-- `..\web\src\lib\mockData.ts`
+- `..\web\src\service\mockData.ts`
   - 用途：模拟数据
-- `..\web\src\lib\apiClient.ts`
+- `..\web\src\service\apiClient.ts`
   - 用途：API客户端，处理认证和请求拦截
+- `..\web\src\service\advisorService.ts`
+  - 用途：顾问服务接口
+- `..\web\src\service\customerMockData.ts`
+  - 用途：顾客端模拟数据
 - `..\web\src\contexts\AuthContext.tsx`
   - 用途：全局认证状态管理
 - `..\web\src\types\chat.ts`

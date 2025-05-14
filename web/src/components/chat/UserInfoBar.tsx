@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { authService } from '@/lib/authService';
+import { authService } from '@/service/authService';
 import { type User } from '@/types/chat';
 import { type AuthUser } from '@/types/auth';
 

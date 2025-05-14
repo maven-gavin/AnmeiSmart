@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { type CustomerProfile } from '@/types/chat';
-import { getCustomerConsultationHistory } from '@/lib/chatService';
+import { getCustomerConsultationHistory } from '@/service/chatService';
 import { Button } from '@/components/ui/button';
 
 interface HistoryConsultationProps {

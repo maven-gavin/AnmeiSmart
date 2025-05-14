@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { doctorService } from '@/lib/doctorService';
+import { doctorService } from '@/service/doctorService';
 import { Treatment } from '@/types/doctor';
 
 // 状态标签组件

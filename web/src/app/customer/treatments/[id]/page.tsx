@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { customerService } from '@/lib/customerService';
+import { customerService } from '@/service/customerService';
 import { Treatment } from '@/types/customer';
 
 // 图片对比组件

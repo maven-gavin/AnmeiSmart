@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { customerService } from '@/lib/customerService';
-import { authService } from '@/lib/authService';
+import { customerService } from '@/service/customerService';
+import { authService } from '@/service/authService';
 import { CustomerAppointment, Treatment, TreatmentPlan } from '@/types/customer';
 import { Message } from '@/types/chat';
 

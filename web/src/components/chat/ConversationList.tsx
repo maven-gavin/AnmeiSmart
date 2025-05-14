@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react'
-import { cn } from '@/lib/utils'
-import { mockConversations } from '@/lib/mockData'
+import { cn } from '@/service/utils'
+import { mockConversations } from '@/service/mockData'
 
 export default function ConversationList() {
   const [selectedId, setSelectedId] = useState<string>('1') // 默认选中第一个会话

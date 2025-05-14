@@ -46,33 +46,6 @@ export const mockUsers = [
   },
 ];
 
-// 角色选项
-export const roleOptions = [
-  {
-    id: 'advisor' as UserRole,
-    name: '顾问端',
-    path: '/advisor',
-    icon: 'chat',
-  },
-  {
-    id: 'doctor' as UserRole,
-    name: '医生端',
-    path: '/doctor',
-    icon: 'hospital',
-  },
-  {
-    id: 'operator' as UserRole,
-    name: '运营端',
-    path: '/operator',
-    icon: 'chart',
-  },
-  {
-    id: 'customer' as UserRole,
-    name: '顾客端',
-    path: '/customer',
-    icon: 'user',
-  },
-];
 
 // 模拟会话数据
 export const mockConversations: Conversation[] = [

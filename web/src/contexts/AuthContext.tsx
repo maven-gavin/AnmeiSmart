@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { AuthUser, UserRole } from '@/types/auth';
-import { authService } from '@/lib/authService';
+import { authService } from '@/service/authService';
 
 interface AuthContextType {
   user: AuthUser | null;

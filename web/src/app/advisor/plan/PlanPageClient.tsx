@@ -24,7 +24,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { 
   getAllPersonalizedPlans, getCustomerPlans, 
   createPersonalizedPlan, updatePersonalizedPlan 
-} from '@/lib/advisorService';
+} from '@/service/advisorService';
 import { PersonalizedPlan } from '@/types/advisor';
 
 // 新方案的表单数据类型

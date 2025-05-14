@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { UserRole, AuthUser } from '@/types/auth';
 import { useAuth } from '@/contexts/AuthContext';
-import { roleOptions } from '@/lib/mockData';
+import { roleOptions } from '@/service/authService';
 
 interface RoleSelectorProps {
   onRoleSelect?: (role: UserRole) => void;

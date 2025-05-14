@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { authService } from '@/lib/authService';
+import { authService } from '@/service/authService';
 import RoleHeader from './RoleHeader';
 import { UserRole } from '@/types/auth';
 

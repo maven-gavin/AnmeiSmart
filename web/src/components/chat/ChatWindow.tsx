@@ -14,7 +14,7 @@ import {
   takeoverConversation,
   switchBackToAI,
   isAdvisorMode
-} from '@/lib/chatService'
+} from '@/service/chatService'
 
 // 模拟完整的FAQ数据
 const allFAQs = [

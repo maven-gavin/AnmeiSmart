@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { apiClient } from '@/lib/apiClient';
+import { apiClient } from '@/service/apiClient';
 
 interface User {
   id: number;

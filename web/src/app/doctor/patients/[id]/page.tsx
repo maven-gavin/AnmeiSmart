@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { doctorService } from '@/lib/doctorService';
+import { doctorService } from '@/service/doctorService';
 import { Patient, Treatment, TreatmentPlan, DoctorAppointment } from '@/types/doctor';
 
 export default function PatientDetailPage() {

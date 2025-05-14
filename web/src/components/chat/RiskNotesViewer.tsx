@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { type CustomerProfile } from '@/types/chat';
-import { getCustomerProfile } from '@/lib/chatService';
+import { getCustomerProfile } from '@/service/chatService';
 import { Button } from '@/components/ui/button';
 
 interface RiskNotesViewerProps {

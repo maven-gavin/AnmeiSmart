@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { UserRole } from '@/types/auth';
-import { apiClient } from '@/lib/apiClient';
+import { apiClient } from '@/service/apiClient';
 
 interface UserCreateModalProps {
   isOpen: boolean;

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { doctorService } from '@/lib/doctorService';
+import { doctorService } from '@/service/doctorService';
 import { Patient, Medication, TreatmentProcedure, TreatmentPlan } from '@/types/doctor';
 
 // 药物输入行组件

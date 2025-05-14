@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { authService } from '@/lib/authService';
-import { doctorService } from '@/lib/doctorService';
+import { authService } from '@/service/authService';
+import { doctorService } from '@/service/doctorService';
 
 // 概览卡片组件
 function DashboardCard({ 

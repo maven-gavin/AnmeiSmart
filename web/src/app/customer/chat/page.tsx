@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { customerService } from '@/lib/customerService';
+import { customerService } from '@/service/customerService';
 import { Message } from '@/types/chat';
 
 // 聊天消息组件

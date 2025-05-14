@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { authService } from '@/lib/authService';
-import { roleOptions } from '@/lib/mockData';
+import { authService, roleOptions } from '@/service/authService';
 import UserInfoBar from '@/components/chat/UserInfoBar'
 import { UserRole, AuthUser } from '@/types/auth';
 
