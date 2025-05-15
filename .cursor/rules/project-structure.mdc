@@ -1,0 +1,42 @@
+---
+description: 项目结构说明
+globs: 
+alwaysApply: false
+---
+- 请生成 PowerShell 兼容的脚本, 在执行python相关命令时请在激活的虚拟环境中运行
+
+# 项目结构与导航规则
+
+本项目为医美智能服务系统，采用前后端分离、领域驱动设计，核心文档和代码结构如下：
+
+## 主要目录结构
+- 前端：`web/src/app/`（页面与路由）、`web/src/components/`（UI组件）、`web/src/service/`（API与服务）、`web/src/contexts/`（全局状态）、`web/src/types/`（类型定义）
+- 后端：`api/app/api/`（FastAPI路由）、`api/app/core/`（核心功能）、`api/app/crud/`（数据库操作）、`api/app/db/`（模型与连接）
+- 文档：`docs/` 目录下包含全局分析、架构设计、需求、UIUX、用户手册等说明书
+
+## 关键文档
+- [医美项目全局分析规格说明书.md](mdc:docs/医美项目全局分析规格说明书.md)：系统价值、愿景、范围、业务需求、子领域与服务规范
+- [医美架构映射战略设计方案.md](mdc:docs/医美架构映射战略设计方案.md)：系统上下文、业务/应用/子领域架构、服务契约
+- [FILE_MAP.md](mdc:docs/FILE_MAP.md)：全项目文件结构与用途索引
+- [TODO.md](mdc:docs/TODO.md)：全局与集成开发任务清单
+- [UIUX需求文档.md](mdc:docs/UIUX需求文档.md)：各端页面结构、交互、视觉规范
+- [用户手册.md](mdc:docs/用户手册.md)：典型操作流程与功能说明
+- [需求.md](mdc:docs/需求.md)：产品需求说明书
+- [项目蓝图.md](mdc:docs/项目蓝图.md)：系统总体设计蓝图
+
+## 核心业务领域（限界上下文）
+- 智能沟通（ChatContext）：多模态咨询、AI/人工回复、消息检索
+- 方案与安全（PlanSafetyContext）：治疗方案录入、用药冲突检测、风险评估
+- 运营分析（OpsContext）：数据大屏、方案审核、统计分析
+- 用户与权限（UserAuthContext）：用户注册、登录、角色分配、权限管理
+
+## 架构分层
+- 表现层：Next.js前端页面与组件
+- 业务层：各限界上下文服务（ChatService、PlanService等）
+- AI集成层：AIAdapter，供业务服务调用
+- 数据层：DataStore（PostgreSQL、MongoDB等）
+
+
+## 其他说明
+- 重要架构、业务、UI、需求变更需同步更新相关文档与[FILE_MAP.md](mdc:docs/FILE_MAP.md)
+- 参考[医美项目全局分析规格说明书.md](mdc:docs/医美项目全局分析规格说明书.md)与[医美架构映射战略设计方案.md](mdc:docs/医美架构映射战略设计方案.md)理解领域、服务、组件边界

@@ -1,0 +1,22 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+---
+description: 该规则解释了 FastAPI 高性能 Python API 的约定和最佳实践。
+globs: **/*.py
+alwaysApply: false
+---
+
+# FastAPI 规则
+
+- 为所有函数参数和返回值使用类型提示
+- 使用 Pydantic 模型进行请求和响应验证
+- 在路径操作装饰器中使用适当的 HTTP 方法（@app.get、@app.post 等）
+- 使用依赖注入实现共享逻辑，如数据库连接和身份验证
+- 使用后台任务（background tasks）进行非阻塞操作
+- 使用适当的状态码进行响应（201 表示创建，404 表示未找到等）
+- 使用 APIRouter 按功能或资源组织路由
+
+- 适当使用路径参数、查询参数和请求体

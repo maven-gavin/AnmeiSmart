@@ -1,6 +1,0 @@
----
-description: 告诉智能体本项目级的上下文
-globs: 
-alwaysApply: false
----
-- 当生成bash脚本时，请生成 PowerShell 兼容的脚本

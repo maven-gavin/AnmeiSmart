@@ -1,0 +1,89 @@
+---
+description: 
+globs: **/*.java
+alwaysApply: false
+---
+---
+description: 该规则解释了 Java 和 SpringBoot的约定和最佳实践。
+globs: **/*.java
+alwaysApply: false
+---
+
+你是Java、Spring Boot、Spring Framework、Maven、JUnit和相关Java技术的专家。
+
+# Java 和 SpringBoot 规则
+
+## 代码风格和结构
+- 编写干净、高效且文档齐全的Java代码，提供准确的Spring Boot示例。
+- 在代码中遵循Spring Boot最佳实践和约定。
+- 实现RESTful API设计模式创建Web服务。
+- 使用符合驼峰命名法的描述性方法和变量名。
+- 结构化Spring Boot应用程序：控制器、服务、仓库、模型、配置。
+
+## Spring Boot具体要求
+- 使用Spring Boot启动器进行快速项目设置和依赖管理。
+- 正确实现注解（如@SpringBootApplication、@RestController、@Service）。
+- 有效利用Spring Boot的自动配置功能。
+- 使用@ControllerAdvice和@ExceptionHandler实现适当的异常处理。
+
+## 命名约定
+- 类名使用帕斯卡命名法（如UserController、OrderService）。
+- 方法和变量名使用驼峰命名法（如findUserById、isOrderValid）。
+- 常量使用全大写（如MAX_RETRY_ATTEMPTS、DEFAULT_PAGE_SIZE）。
+
+## Java和Spring Boot使用
+- 适当使用Java 17或更高版本特性（如记录、密封类、模式匹配）。
+- 运用Spring Boot 3.x功能和最佳实践。
+- 适当情况下使用Spring Data JPA进行数据库操作。
+- 使用Bean Validation实现适当验证（如@Valid、自定义验证器）。
+
+## 配置和属性
+- 使用application.properties或application.yml进行配置。
+- 使用Spring配置文件实现特定环境的配置。
+- 使用@ConfigurationProperties实现类型安全的配置属性。
+
+## 依赖注入和IoC
+- 为了更好的可测试性，使用构造函数注入而非字段注入。
+- 利用Spring的IoC容器管理Bean生命周期。
+
+## 测试
+- 使用JUnit 5和Spring Boot Test编写单元测试。
+- 使用MockMvc测试Web层。
+- 使用@SpringBootTest实现集成测试。
+- 使用@DataJpaTest进行仓库层测试。
+
+## 性能和可扩展性
+- 使用Spring Cache抽象实现缓存策略。
+- 使用@Async进行非阻塞操作的异步处理。
+- 实现适当的数据库索引和查询优化。
+
+## 安全
+- 实现Spring Security进行身份验证和授权。
+- 使用适当的密码编码（如BCrypt）。
+- 必要时实现CORS配置。
+
+## 日志和监控
+- 使用SLF4J和Logback进行日志记录。
+- 实现适当的日志级别（ERROR、WARN、INFO、DEBUG）。
+- 使用Spring Boot Actuator进行应用程序监控和指标收集。
+
+## API文档
+- 使用Springdoc OpenAPI（前身为Swagger）进行API文档编写。
+
+## 数据访问和ORM
+- 使用Spring Data JPA进行数据库操作。
+- 实现适当的实体关系和级联操作。
+- 使用Flyway或Liquibase等工具进行数据库迁移。
+
+## 构建和部署
+- 使用Maven进行依赖管理和构建过程。
+- 为不同环境（开发、测试、生产）实现适当的配置文件。
+- 适用情况下使用Docker进行容器化。
+
+遵循以下最佳实践：
+- RESTful API设计（适当使用HTTP方法、状态码等）。
+- 微服务架构（如适用）。
+- 使用Spring的@Async或Spring WebFlux的响应式编程进行异步处理。
+
+
+在Spring Boot应用程序设计中遵循SOLID原则，保持高内聚和低耦合。

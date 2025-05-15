@@ -13,8 +13,15 @@ import {
   getImportantMessages,
   takeoverConversation,
   switchBackToAI,
-  isConsultantMode
+  isConsultantMode,
+  initializeWebSocket,
+  closeWebSocketConnection,
+  addMessageCallback,
+  removeMessageCallback,
+  ConnectionStatus,
+  getConnectionStatus
 } from '@/service/chatService'
+import { useAuth } from '@/contexts/AuthContext'
 
 // 模拟完整的FAQ数据
 const allFAQs = [
@@ -32,6 +39,8 @@ export default function ChatWindow() {
   // 当前对话ID
   const currentConversationId = '1';
   
+  // 获取身份验证上下文
+  const { user } = useAuth();
   
   // 基本状态
   const [message, setMessage] = useState('')
@@ -74,6 +83,9 @@ export default function ChatWindow() {
   
   // 使用模拟数据服务中的聊天消息
   const currentConversationMessages = getConversationMessages(currentConversationId) || []
+  
+  // WebSocket连接状态
+  const [wsStatus, setWsStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
   
   // 插入FAQ内容
   const insertFAQ = (faq: { question: string, answer: string }) => {
@@ -289,13 +301,52 @@ export default function ChatWindow() {
     }
   }
   
-  // 初始化加载消息
+  // 滚动到底部
+  const scrollToBottom = () => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  };
+  
+  // 初始化
   useEffect(() => {
     fetchMessages()
-    
-    // 检查当前接管状态
-    setIsConsultantTakeover(isConsultantMode(currentConversationId))
   }, [currentConversationId])
+  
+  // 在组件初始化时建立WebSocket连接
+  useEffect(() => {
+    if (user && currentConversationId) {
+      // 初始化WebSocket连接
+      initializeWebSocket(user.id, currentConversationId);
+
+      // 添加消息回调
+      const handleMessage = (data: any) => {
+        // 处理新消息，可能需要更新UI或播放提示音等
+        if (data.action === 'message') {
+          // 刷新消息列表
+          fetchMessages();
+          // 滚动到底部
+          scrollToBottom();
+        }
+      };
+
+      addMessageCallback('message', handleMessage);
+      
+      // 监听连接状态
+      const checkConnectionStatus = () => {
+        setWsStatus(getConnectionStatus());
+      };
+      
+      const statusInterval = setInterval(checkConnectionStatus, 2000);
+
+      // 组件卸载时清理
+      return () => {
+        removeMessageCallback('message', handleMessage);
+        clearInterval(statusInterval);
+        closeWebSocketConnection();
+      };
+    }
+  }, [user, currentConversationId]);
   
   // 新消息自动滚动到底部
   useEffect(() => {
@@ -565,7 +616,11 @@ export default function ChatWindow() {
       }
     }
   }
-  
+
+  // 显示连接状态
+  const connectionStatus = getConnectionStatus();
+  const isConnected = connectionStatus === ConnectionStatus.CONNECTED;
+
   return (
     <div className="flex h-full flex-col">
       {/* 搜索栏 */}

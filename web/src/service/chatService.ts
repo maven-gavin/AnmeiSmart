@@ -1,12 +1,16 @@
 import { Message, Conversation, CustomerProfile } from "@/types/chat";
 import { mockMessages, mockConversations, mockCustomerProfiles } from "./mockData";
 import { v4 as uuidv4 } from 'uuid';
+import { authService } from "./authService";
 
 // 保存运行时的消息数据（会话ID -> 消息数组）
 let chatMessages: Record<string, Message[]> = { ...mockMessages };
 
 // 保存运行时的会话数据
 let conversations: Conversation[] = [...mockConversations];
+
+// API基础URL
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 // 当前顾问信息（模拟从登录状态获取）
 const consultantInfo = {
@@ -27,6 +31,215 @@ const aiInfo = {
 // 保存AI状态（会话ID -> 是否由顾问接管）
 let consultantTakeover: Record<string, boolean> = {};
 
+// WebSocket连接
+let socket: WebSocket | null = null;
+let isConnecting = false;
+let messageQueue: any[] = [];
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
+
+// 消息回调处理函数
+type MessageCallback = (message: any) => void;
+const messageCallbacks: Record<string, MessageCallback[]> = {};
+
+// WebSocket连接状态
+export enum ConnectionStatus {
+  DISCONNECTED = 'disconnected',
+  CONNECTING = 'connecting',
+  CONNECTED = 'connected',
+  ERROR = 'error'
+}
+
+let connectionStatus = ConnectionStatus.DISCONNECTED;
+
+// 初始化WebSocket连接
+export const initializeWebSocket = (userId: string, conversationId: string) => {
+  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+    return; // 已经连接或正在连接
+  }
+  
+  if (isConnecting) {
+    return; // 防止多次同时连接
+  }
+  
+  isConnecting = true;
+  connectionStatus = ConnectionStatus.CONNECTING;
+  
+  const token = authService.getToken();
+  if (!token) {
+    console.error('无法建立WebSocket连接：未登录');
+    connectionStatus = ConnectionStatus.ERROR;
+    isConnecting = false;
+    return;
+  }
+  
+  // 建立连接
+  try {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = process.env.NEXT_PUBLIC_WS_URL || window.location.host;
+    const wsUrl = `${wsProtocol}//${wsHost}/api/v1/chat/ws/${userId}?token=${token}`;
+    
+    socket = new WebSocket(wsUrl);
+    
+    socket.onopen = () => {
+      console.log('WebSocket连接已建立');
+      connectionStatus = ConnectionStatus.CONNECTED;
+      isConnecting = false;
+      reconnectAttempts = 0;
+      
+      // 发送连接消息
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+          action: 'connect',
+          conversation_id: conversationId,
+          timestamp: new Date().toISOString()
+        }));
+      }
+      
+      // 发送队列中的消息
+      while (messageQueue.length > 0 && socket && socket.readyState === WebSocket.OPEN) {
+        const message = messageQueue.shift();
+        socket.send(JSON.stringify(message));
+      }
+    };
+    
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        handleWebSocketMessage(data);
+      } catch (error) {
+        console.error('处理WebSocket消息时出错:', error);
+      }
+    };
+    
+    socket.onerror = (error) => {
+      console.error('WebSocket错误:', error);
+      connectionStatus = ConnectionStatus.ERROR;
+      isConnecting = false;
+    };
+    
+    socket.onclose = () => {
+      console.log('WebSocket连接已关闭');
+      connectionStatus = ConnectionStatus.DISCONNECTED;
+      isConnecting = false;
+      
+      // 尝试重连
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttempts++;
+        setTimeout(() => {
+          initializeWebSocket(userId, conversationId);
+        }, 1000 * Math.pow(2, reconnectAttempts)); // 指数退避重连
+      }
+    };
+  } catch (error) {
+    console.error('初始化WebSocket时出错:', error);
+    connectionStatus = ConnectionStatus.ERROR;
+    isConnecting = false;
+  }
+};
+
+// 处理接收到的WebSocket消息
+const handleWebSocketMessage = (data: any) => {
+  const { action, conversation_id } = data;
+  
+  // 调用对应action的回调函数
+  if (action && messageCallbacks[action]) {
+    messageCallbacks[action].forEach(callback => {
+      callback(data);
+    });
+  }
+  
+  // 处理消息动作
+  if (action === 'message') {
+    const messageData = data.data;
+    
+    // 将消息添加到本地存储
+    if (conversation_id && messageData) {
+      if (!chatMessages[conversation_id]) {
+        chatMessages[conversation_id] = [];
+      }
+      
+      // 构建消息对象
+      const newMessage: Message = {
+        id: messageData.id,
+        content: messageData.content,
+        type: messageData.type,
+        sender: {
+          id: messageData.sender_id,
+          type: messageData.sender_type,
+          name: messageData.sender_type === 'ai' ? 'AI助手' : '用户', // 应从用户信息中获取
+          avatar: messageData.sender_type === 'ai' ? '/avatars/ai.png' : '/avatars/user.png',
+        },
+        timestamp: data.timestamp,
+        isRead: messageData.is_read,
+        isImportant: messageData.is_important,
+      };
+      
+      // 添加到消息列表
+      chatMessages[conversation_id].push(newMessage);
+      
+      // 更新会话最后一条消息
+      const conversationIndex = conversations.findIndex(conv => conv.id === conversation_id);
+      if (conversationIndex >= 0) {
+        conversations[conversationIndex] = {
+          ...conversations[conversationIndex],
+          lastMessage: newMessage,
+          updatedAt: new Date(data.timestamp).toISOString(),
+        };
+      }
+    }
+  }
+};
+
+// 添加消息回调
+export const addMessageCallback = (action: string, callback: MessageCallback) => {
+  if (!messageCallbacks[action]) {
+    messageCallbacks[action] = [];
+  }
+  messageCallbacks[action].push(callback);
+};
+
+// 移除消息回调
+export const removeMessageCallback = (action: string, callback: MessageCallback) => {
+  if (messageCallbacks[action]) {
+    messageCallbacks[action] = messageCallbacks[action].filter(cb => cb !== callback);
+  }
+};
+
+// 发送WebSocket消息
+export const sendWebSocketMessage = (message: any) => {
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify(message));
+  } else {
+    // 如果连接未建立，将消息加入队列
+    messageQueue.push(message);
+    
+    // 尝试建立连接
+    if (connectionStatus === ConnectionStatus.DISCONNECTED && !isConnecting) {
+      const user = authService.getCurrentUser();
+      if (user && message.conversation_id) {
+        initializeWebSocket(user.id, message.conversation_id);
+      }
+    }
+  }
+};
+
+// 关闭WebSocket连接
+export const closeWebSocketConnection = () => {
+  if (socket) {
+    socket.close();
+    socket = null;
+  }
+  connectionStatus = ConnectionStatus.DISCONNECTED;
+  isConnecting = false;
+  messageQueue = [];
+};
+
+// 获取连接状态
+export const getConnectionStatus = () => {
+  return connectionStatus;
+};
+
 // 生成模拟AI回复
 const generateAIResponse = (content: string): string => {
   // 简单的模拟AI回复
@@ -45,27 +258,33 @@ const generateAIResponse = (content: string): string => {
 
 // 发送文字消息
 export const sendTextMessage = async (conversationId: string, content: string): Promise<Message> => {
+  // 获取当前用户
+  const currentUser = authService.getCurrentUser();
+  if (!currentUser) {
+    throw new Error('用户未登录');
+  }
+  
   // 创建用户消息
   const userMessage: Message = {
     id: `m_${uuidv4()}`,
     content,
     type: 'text',
     sender: {
-      id: consultantInfo.id,
-      type: consultantInfo.type,
-      name: consultantInfo.name,
-      avatar: consultantInfo.avatar,
+      id: currentUser.id,
+      type: currentUser.currentRole || 'customer',
+      name: currentUser.name,
+      avatar: '/avatars/user.png', // 应使用用户头像
     },
     timestamp: new Date().toISOString(),
   };
   
-  // 添加到消息列表
+  // 添加到本地消息列表
   if (!chatMessages[conversationId]) {
     chatMessages[conversationId] = [];
   }
   chatMessages[conversationId].push(userMessage);
   
-  // 更新会话最后一条消息
+  // 更新本地会话最后一条消息
   const conversationIndex = conversations.findIndex(conv => conv.id === conversationId);
   if (conversationIndex >= 0) {
     conversations[conversationIndex] = {
@@ -74,6 +293,18 @@ export const sendTextMessage = async (conversationId: string, content: string): 
       updatedAt: userMessage.timestamp,
     };
   }
+  
+  // 通过WebSocket发送消息
+  sendWebSocketMessage({
+    action: 'message',
+    data: {
+      content,
+      type: 'text',
+      sender_type: currentUser.currentRole || 'customer'
+    },
+    conversation_id: conversationId,
+    timestamp: new Date().toISOString()
+  });
   
   // 模拟异步API调用
   return new Promise((resolve) => {

@@ -1,5 +1,8 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm.session import Session
+from sqlalchemy.pool import NullPool
 from typing import Generator, Any
 import importlib.util
 import sys
@@ -13,10 +16,81 @@ settings = get_settings()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# PostgreSQL配置
-engine = create_engine(settings.DATABASE_URL)
+# 确定是否使用SQLite
+is_sqlite = settings.DATABASE_URL.startswith("sqlite")
+
+# 创建数据库引擎
+if is_sqlite:
+    # SQLite配置，启用外键支持
+    connect_args = {"check_same_thread": False}
+    engine = create_engine(
+        settings.DATABASE_URL, 
+        connect_args=connect_args,
+        poolclass=NullPool
+    )
+else:
+    # PostgreSQL或其他数据库配置
+    engine = create_engine(
+        settings.DATABASE_URL, 
+        poolclass=NullPool
+    )
+
+# 创建会话工厂
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# 创建基类
 Base = declarative_base()
+
+# 依赖注入函数，用于提供数据库会话
+def get_db() -> Generator:
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# 导入模型以便Alembic创建迁移
+from app.db.models.user import User, Role
+from app.db.models.chat import Conversation, Message, CustomerProfile
+
+# 初始化数据库
+def init_db():
+    Base.metadata.create_all(bind=engine)
+
+# 使用同步会话执行数据库操作的帮助函数
+def with_db(func):
+    """装饰器，提供数据库会话给被装饰的函数"""
+    def wrapper(*args, **kwargs):
+        db = SessionLocal()
+        try:
+            result = func(db, *args, **kwargs)
+            return result
+        finally:
+            db.close()
+    return wrapper
+
+# 创建初始角色
+@with_db
+def create_initial_roles(db: Session):
+    from app.db.models.user import Role
+    
+    # 角色列表
+    roles = [
+        {"name": "admin", "description": "系统管理员"},
+        {"name": "customer", "description": "顾客"},
+        {"name": "consultant", "description": "医美顾问"},
+        {"name": "doctor", "description": "医生"},
+        {"name": "operator", "description": "运营人员"}
+    ]
+    
+    # 检查并创建角色
+    for role_data in roles:
+        role = db.query(Role).filter(Role.name == role_data["name"]).first()
+        if not role:
+            role = Role(**role_data)
+            db.add(role)
+    
+    db.commit()
 
 # MongoDB配置 - 条件导入
 mongodb_client = None
@@ -52,14 +126,6 @@ if settings.WEAVIATE_URL:
             logger.warning("未安装Weaviate客户端依赖(weaviate-client)，Weaviate功能将不可用")
     except Exception as e:
         logger.warning(f"Weaviate连接警告: {str(e)}")
-
-# 数据库会话管理
-def get_db() -> Generator:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 # MongoDB连接管理
 def get_mongodb() -> Any:

@@ -5,17 +5,20 @@ export interface User {
   tags: string[];
 }
 
+export type SenderType = 'user' | 'consultant' | 'doctor' | 'ai' | 'system' | 'customer' | 'operator' | 'admin';
+
 export interface Message {
   id: string;
   content: string;
   type: 'text' | 'image' | 'voice';
   sender: {
     id: string;
-    type: 'user' | 'consultant' | 'ai' | 'system';
+    type: SenderType;
     name: string;
     avatar: string;
   };
   timestamp: string;
+  isRead?: boolean;
   isImportant?: boolean;
   isSystemMessage?: boolean;
 }
