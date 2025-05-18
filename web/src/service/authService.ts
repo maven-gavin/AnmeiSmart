@@ -180,8 +180,19 @@ export const authService = {
       throw error;
     }
   },
-}; 
 
+  // 获取当前用户ID
+  getCurrentUserId(): string | null {
+    const user = this.getCurrentUser();
+    return user ? user.id : null;
+  },
+
+  // 获取当前用户角色
+  getCurrentUserRole(): UserRole | null {
+    const user = this.getCurrentUser();
+    return user && user.currentRole !== undefined ? user.currentRole : null;
+  },
+};
 
 // 角色选项
 export const roleOptions = [

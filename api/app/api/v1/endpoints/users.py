@@ -67,7 +67,7 @@ async def read_user_me(
     current_user: User = Depends(get_current_user)
 ) -> UserResponse:
     """获取当前用户信息"""
-    return current_user
+    return UserResponse.from_orm(current_user)
 
 @router.put("/me", response_model=UserResponse)
 async def update_user_me(

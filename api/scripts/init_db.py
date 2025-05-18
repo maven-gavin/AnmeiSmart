@@ -17,7 +17,7 @@ try:
     from app.crud import crud_user
     from app.core.config import get_settings
     from app.schemas.user import UserCreate
-    from app.db.base import Base, engine, SessionLocal
+    from app.db.base import Base, engine, SessionLocal, is_sqlite
 except ImportError as e:
     print(f"导入错误: {e}")
     print("请确保所有必要的依赖已安装: pip install -r requirements.txt")
@@ -186,6 +186,12 @@ def main():
     
     try:
         db = SessionLocal()
+        # 检查数据库类型
+        if is_sqlite:
+            print("使用SQLite数据库进行初始化")
+        else:
+            print(f"使用数据库: {settings.DATABASE_URL}")
+            
         init_db(db)
         print_success()
     except Exception as e:

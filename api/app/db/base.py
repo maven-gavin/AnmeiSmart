@@ -1,6 +1,5 @@
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.orm.session import Session
 from sqlalchemy.pool import NullPool
 from typing import Generator, Any
@@ -16,24 +15,11 @@ settings = get_settings()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 确定是否使用SQLite
-is_sqlite = settings.DATABASE_URL.startswith("sqlite")
-
-# 创建数据库引擎
-if is_sqlite:
-    # SQLite配置，启用外键支持
-    connect_args = {"check_same_thread": False}
-    engine = create_engine(
-        settings.DATABASE_URL, 
-        connect_args=connect_args,
-        poolclass=NullPool
-    )
-else:
-    # PostgreSQL或其他数据库配置
-    engine = create_engine(
-        settings.DATABASE_URL, 
-        poolclass=NullPool
-    )
+# PostgreSQL或其他数据库配置
+engine = create_engine(
+    settings.DATABASE_URL, 
+    poolclass=NullPool
+)
 
 # 创建会话工厂
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -49,14 +35,6 @@ def get_db() -> Generator:
     finally:
         db.close()
 
-# 导入模型以便Alembic创建迁移
-from app.db.models.user import User, Role
-from app.db.models.chat import Conversation, Message, CustomerProfile
-
-# 初始化数据库
-def init_db():
-    Base.metadata.create_all(bind=engine)
-
 # 使用同步会话执行数据库操作的帮助函数
 def with_db(func):
     """装饰器，提供数据库会话给被装饰的函数"""
@@ -68,6 +46,14 @@ def with_db(func):
         finally:
             db.close()
     return wrapper
+
+# 初始化数据库
+def init_db():
+    # 在这里导入模型，避免循环导入
+    from app.db.models.user import User, Role
+    from app.db.models.chat import Conversation, Message, CustomerProfile
+    from app.db.models.system import SystemSettings, AIModelConfig
+    Base.metadata.create_all(bind=engine)
 
 # 创建初始角色
 @with_db
@@ -91,6 +77,44 @@ def create_initial_roles(db: Session):
             db.add(role)
     
     db.commit()
+
+# 创建初始系统设置
+@with_db
+def create_initial_system_settings(db: Session):
+    from app.db.models.system import SystemSettings, AIModelConfig
+    
+    # 检查是否已存在系统设置
+    system_settings = db.query(SystemSettings).first()
+    if not system_settings:
+        # 创建默认系统设置
+        system_settings = SystemSettings(
+            siteName="安美智能咨询系统",
+            logoUrl="/logo.png",
+            themeColor="#FF6B00",
+            defaultModelId="GPT-4",
+            maintenanceMode=False,
+            userRegistrationEnabled=True
+        )
+        db.add(system_settings)
+        db.commit()
+        db.refresh(system_settings)
+        
+        # 创建默认AI模型配置
+        default_model = AIModelConfig(
+            modelName="GPT-4",
+            apiKey="sk-••••••••••••••••••••••••",  # 实际部署时应使用环境变量或安全存储
+            baseUrl="https://api.openai.com/v1",
+            maxTokens=2000,
+            temperature=0.7,
+            enabled=True,
+            system_settings_id=system_settings.id
+        )
+        db.add(default_model)
+        db.commit()
+        
+        logger.info("初始系统设置已创建")
+    
+    return system_settings
 
 # MongoDB配置 - 条件导入
 mongodb_client = None

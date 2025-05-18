@@ -23,6 +23,27 @@ def get_password_hash(password: str) -> str:
     """生成密码哈希"""
     return pwd_context.hash(password)
 
+def verify_token(token: str) -> Optional[int]:
+    """
+    验证JWT令牌并提取用户ID
+    
+    Args:
+        token: JWT令牌
+    
+    Returns:
+        int: 用户ID，如果令牌无效则返回None
+    """
+    try:
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            return None
+        return int(user_id)
+    except JWTError:
+        return None
+
 def create_access_token(
     subject: Union[str, Any], 
     expires_delta: Optional[timedelta] = None,

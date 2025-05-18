@@ -39,7 +39,7 @@ pip install -r requirements.txt
 
 4. 配置环境变量
 
-创建`.env`文件，设置以下环境变量:
+创建`.env`文件，参考`env.example`文件，设置以下环境变量:
 
 ```
 DATABASE_URL=postgresql://用户名:密码@localhost:5432/AnmeiSmart
@@ -166,6 +166,58 @@ PUT /api/v1/users/{user_id}
 ```
 GET /api/v1/users/roles/all
 ```
+
+## AI服务API
+
+### 获取AI回复
+
+```
+POST /api/v1/ai/chat
+```
+
+请求体:
+```json
+{
+  "conversation_id": "会话ID",
+  "content": "用户问题内容",
+  "type": "text",
+  "sender_id": "用户ID",
+  "sender_type": "customer"
+}
+```
+
+响应:
+```json
+{
+  "id": "msg_xxx",
+  "conversation_id": "会话ID",
+  "content": "AI回复内容",
+  "type": "text",
+  "sender_id": "ai",
+  "sender_type": "ai",
+  "timestamp": "2024-01-01T00:00:00",
+  "is_read": false,
+  "is_important": false
+}
+```
+
+## AI服务配置
+
+AI服务需要在环境变量中设置以下参数:
+
+```
+# AI服务配置
+AI_API_KEY=your_ai_api_key
+AI_MODEL=default
+AI_API_BASE_URL=https://api.example.com
+
+# OpenAI配置（可选）
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_API_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-3.5-turbo
+```
+
+在不设置API密钥的情况下，系统会使用内置知识库提供医美领域的基础问答服务。
 
 ## 开发指南
 

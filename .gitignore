@@ -3,7 +3,6 @@ node_modules/
 __pycache__/
 *.py[cod]
 *$py.class
-.env
 venv/
 .venv/
 
@@ -43,7 +42,6 @@ test.db
 # Next.js
 .next/
 out/
-.env*.local
 
 # 缓存
 .cache/
@@ -58,10 +56,6 @@ yarn-error.log*
 debug.log
 
 # 本地配置
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
 
 # Python虚拟环境
 .Python

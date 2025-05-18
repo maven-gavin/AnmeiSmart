@@ -16,6 +16,7 @@ from app.schemas.chat import (
     WebSocketMessage
 )
 from app.core.security import get_current_user, check_role_permission
+from app.services.ai import get_ai_service
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -183,6 +184,68 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = No
                         
                         db.commit()
                         logger.info(f"消息已保存到数据库: {message_id}")
+                        
+                        # 检查是否需要AI自动回复
+                        # 获取AI接管状态（如果AI接管设置为False则由顾问接管）
+                        is_ai_controlled = True  # 默认由AI处理
+                        
+                        # 获取最近的会话历史
+                        conversation_history = db.query(Message).filter(
+                            Message.conversation_id == conversation_id
+                        ).order_by(Message.timestamp.desc()).limit(10).all()
+                        
+                        # 转换为AI服务需要的格式
+                        history_list = []
+                        for msg in conversation_history:
+                            history_list.append({
+                                "content": msg.content,
+                                "sender_type": msg.sender_type,
+                                "timestamp": msg.timestamp.isoformat()
+                            })
+                        
+                        # 判断是否由AI回复
+                        if is_ai_controlled:
+                            # 获取AI服务
+                            ai_service = get_ai_service()
+                            
+                            # 生成AI回复
+                            ai_response = await ai_service.get_response(
+                                message_data.get("content", ""), 
+                                history_list
+                            )
+                            
+                            # 创建AI回复消息
+                            ai_message = Message(
+                                id=ai_response["id"],
+                                conversation_id=conversation_id,
+                                content=ai_response["content"],
+                                type="text",
+                                sender_id="ai",
+                                sender_type="ai",
+                                timestamp=datetime.now()
+                            )
+                            
+                            db.add(ai_message)
+                            db.commit()
+                            
+                            # 广播AI回复消息
+                            await broadcast_to_conversation(conversation_id, {
+                                "action": "message",
+                                "data": {
+                                    "id": ai_message.id,
+                                    "content": ai_message.content,
+                                    "type": ai_message.type,
+                                    "sender_id": ai_message.sender_id,
+                                    "sender_type": ai_message.sender_type,
+                                    "is_read": False,
+                                    "is_important": False
+                                },
+                                "conversation_id": conversation_id,
+                                "timestamp": datetime.now().isoformat()
+                            })
+                            
+                            logger.info(f"AI回复已生成并广播: {ai_message.id}")
+                        
                     else:
                         logger.error(f"会话不存在: {conversation_id}")
                 except Exception as e:

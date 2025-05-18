@@ -241,18 +241,63 @@ export const getConnectionStatus = () => {
 };
 
 // 生成模拟AI回复
-const generateAIResponse = (content: string): string => {
-  // 简单的模拟AI回复
-  if (content.includes('恢复') || content.includes('术后')) {
-    return '术后恢复时间因人而异，一般需要1-2周的恢复期。建议术后遵循医生的指导，保持伤口清洁，避免剧烈运动，按时服用药物。';
-  } else if (content.includes('价格') || content.includes('费用')) {
-    return '我们的医美项目价格根据具体操作和材料有所不同。基础项目从数千元起，精细项目可能达到数万元。我们提供免费咨询和评估服务，可以根据您的需求提供详细报价。';
-  } else if (content.includes('风险') || content.includes('副作用')) {
-    return '任何医疗美容项目都存在一定风险。常见的副作用包括暂时性红肿、瘀斑等。严重但罕见的风险包括感染、过敏反应等。我们的专业医生会在术前详细告知您相关风险并制定个性化方案降低风险。';
-  } else if (content.includes('玻尿酸') || content.includes('填充')) {
-    return '玻尿酸是一种常见的注射填充剂，可用于面部轮廓塑造、唇部丰满等。效果通常可维持6-18个月，是一种临时性填充方案。注射过程快速，恢复期短，是许多客户的首选。';
-  } else {
-    return '感谢您的咨询。我们的专业医疗团队将为您提供个性化的方案和详细解答。您还有其他问题吗？';
+const generateAIResponse = async (content: string, conversationId: string): Promise<string> => {
+  try {
+    // 调用后端AI服务
+    const API_URL = `${API_BASE_URL}/ai/chat`;
+    
+    // 获取当前用户的认证信息
+    const token = authService.getToken();
+    
+    if (!token) {
+      console.error("未登录，无法请求AI服务");
+      return "请先登录以获取AI回复。";
+    }
+    
+    // 构建请求数据
+    const requestData = {
+      conversation_id: conversationId,
+      content: content,
+      type: "text",
+      sender_id: authService.getCurrentUserId() || "anonymous",
+      sender_type: authService.getCurrentUserRole() || "user"
+    };
+    
+    // 发送请求
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(requestData)
+    });
+    
+    // 检查响应
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("AI服务请求失败:", errorData);
+      return "抱歉，AI服务暂时不可用，请稍后再试。";
+    }
+    
+    // 获取AI回复
+    const data = await response.json();
+    return data.content;
+  } catch (error) {
+    console.error("AI服务请求异常:", error);
+    
+    // 如果后端服务不可用，使用简单的规则响应
+    if (content.includes('恢复') || content.includes('术后')) {
+      return '术后恢复时间因人而异，一般需要1-2周的恢复期。建议术后遵循医生的指导，保持伤口清洁，避免剧烈运动，按时服用药物。';
+    } else if (content.includes('价格') || content.includes('费用')) {
+      return '我们的医美项目价格根据具体操作和材料有所不同。基础项目从数千元起，精细项目可能达到数万元。我们提供免费咨询和评估服务，可以根据您的需求提供详细报价。';
+    } else if (content.includes('风险') || content.includes('副作用')) {
+      return '任何医疗美容项目都存在一定风险。常见的副作用包括暂时性红肿、瘀斑等。严重但罕见的风险包括感染、过敏反应等。我们的专业医生会在术前详细告知您相关风险并制定个性化方案降低风险。';
+    } else if (content.includes('玻尿酸') || content.includes('填充')) {
+      return '玻尿酸是一种常见的注射填充剂，可用于面部轮廓塑造、唇部丰满等。效果通常可维持6-18个月，是一种临时性填充方案。注射过程快速，恢复期短，是许多客户的首选。';
+    } else {
+      return '感谢您的咨询。我们的专业医疗团队将为您提供个性化的方案和详细解答。您还有其他问题吗？';
+    }
   }
 };
 
@@ -402,7 +447,7 @@ export const getAIResponse = async (conversationId: string, userMessage: Message
   }
   
   // 根据用户消息内容生成AI回复
-  const responseContent = generateAIResponse(userMessage.content);
+  const responseContent = await generateAIResponse(userMessage.content, conversationId);
   
   // 创建AI回复消息
   const aiMessage: Message = {
@@ -421,12 +466,17 @@ export const getAIResponse = async (conversationId: string, userMessage: Message
   // 添加到消息列表
   chatMessages[conversationId].push(aiMessage);
   
-  // 模拟异步AI处理时间
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(aiMessage);
-    }, 1000); // AI回复需要一定时间
-  });
+  // 更新会话最后一条消息
+  const conversationIndex = conversations.findIndex(conv => conv.id === conversationId);
+  if (conversationIndex >= 0) {
+    conversations[conversationIndex] = {
+      ...conversations[conversationIndex],
+      lastMessage: aiMessage,
+      updatedAt: aiMessage.timestamp,
+    };
+  }
+  
+  return aiMessage;
 };
 
 // 获取会话消息

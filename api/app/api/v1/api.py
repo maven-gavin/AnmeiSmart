@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import users, auth, roles, chat
+from app.api.v1.endpoints import users, auth, roles, chat, ai, system
 
 api_router = APIRouter()
 
@@ -14,6 +14,12 @@ api_router.include_router(roles.router, prefix="/roles", tags=["roles"])
 
 # 聊天系统路由
 api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
+
+# AI服务路由
+api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
+
+# 系统设置路由
+api_router.include_router(system.router, prefix="/system", tags=["system"])
 
 # 后续可添加其他路由
 # api_router.include_router(plans.router, prefix="/plans", tags=["plans"])

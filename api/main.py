@@ -1,6 +1,7 @@
 # 先导入 bcrypt 补丁修复 passlib 问题
 from app.core.bcrypt_patch import *
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
@@ -8,6 +9,7 @@ from datetime import datetime
 
 from app.core.config import get_settings
 from app.api.v1.api import api_router
+from app.db.base import create_initial_roles, create_initial_system_settings
 
 settings = get_settings()
 
@@ -31,6 +33,15 @@ app.add_middleware(
 
 # 包含API路由
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# 初始化数据
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用启动时执行的初始化操作"""
+    # 创建初始角色
+    create_initial_roles()
+    # 创建初始系统设置
+    create_initial_system_settings()
 
 @app.get("/")
 async def root() -> Dict[str, str]:
