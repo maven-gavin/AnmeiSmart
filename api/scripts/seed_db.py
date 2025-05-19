@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 """
 安美智享智能医美服务系统 - 数据扩展初始化脚本
-用于初始化系统需要的更复杂或高级的数据
+用于初始化测试和示例数据
 """
 import os
 import sys
 import asyncio
 import logging
+import argparse
+from sqlalchemy import inspect
 from typing import Dict, Any, List
 from pathlib import Path
 
@@ -16,7 +18,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 try:
     from sqlalchemy.orm import Session
     from app.db.models.user import User, Role, Customer, Doctor, Consultant, Operator, Administrator
-    from app.db.base import get_db
+    from app.db.base import get_db, engine
     from app.crud import crud_user
     from app.schemas.user import UserCreate, CustomerBase, DoctorBase, ConsultantBase, OperatorBase, AdministratorBase
 except ImportError as e:
@@ -28,37 +30,16 @@ except ImportError as e:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 示例扩展用户数据
-EXTENDED_USERS = [
-    {
-        "email": "superadmin@anmeismart.com",
-        "username": "超级管理员",
-        "doctor_info": DoctorBase(
-            specialization="全科",
-            certification="高级医师资格证",
-            license_number="SUPER123"
-        ),
-        "consultant_info": ConsultantBase(
-            expertise="全面咨询",
-            performance_metrics="顶级顾问"
-        ),
-        "customer_info": CustomerBase(
-            medical_history="无",
-            allergies="无",
-            preferences="全面了解"
-        ),
-        "operator_info": OperatorBase(
-            department="管理部",
-            responsibilities="系统管理与运营"
-        ),
-        "administrator_info": AdministratorBase(
-            admin_level=3,
-            access_permissions="full_access"
-        )
-    },
+# 示例测试用户数据
+MOCK_USERS = [
+    # 医生示例数据
     {
         "email": "zhang@example.com",
         "username": "张医生",
+        "password": "123456@Test",
+        "roles": ["doctor", "consultant"],
+        "phone": "13800138001",
+        "avatar": "/avatars/doctor1.png",
         "doctor_info": DoctorBase(
             specialization="整形外科",
             certification="医师资格证",
@@ -69,25 +50,40 @@ EXTENDED_USERS = [
             performance_metrics="高级顾问"
         )
     },
+    # 顾问示例数据
     {
         "email": "li@example.com",
         "username": "李顾问",
+        "password": "123456@Test",
+        "roles": ["consultant"],
+        "phone": "13900139001",
+        "avatar": "/avatars/consultant1.png",
         "consultant_info": ConsultantBase(
             expertise="皮肤护理",
             performance_metrics="资深顾问"
         )
     },
+    # 运营示例数据
     {
         "email": "wang@example.com",
         "username": "王运营",
+        "password": "123456@Test",
+        "roles": ["operator"],
+        "phone": "13700137001",
+        "avatar": "/avatars/operator1.png",
         "operator_info": OperatorBase(
             department="市场部",
             responsibilities="负责内容审核与活动策划"
         )
     },
+    # 顾客示例数据
     {
         "email": "customer1@example.com",
         "username": "李小姐",
+        "password": "123456@Test",
+        "roles": ["customer"],
+        "phone": "13812345678",
+        "avatar": "/avatars/user1.png",
         "customer_info": CustomerBase(
             medical_history="无重大疾病史",
             allergies="对某些抗生素过敏",
@@ -97,6 +93,10 @@ EXTENDED_USERS = [
     {
         "email": "customer2@example.com",
         "username": "王先生",
+        "password": "123456@Test",
+        "roles": ["customer"],
+        "phone": "13987654321",
+        "avatar": "/avatars/user2.png",
         "customer_info": CustomerBase(
             medical_history="高血压史",
             allergies="无",
@@ -108,173 +108,224 @@ EXTENDED_USERS = [
 def print_banner():
     """打印脚本横幅"""
     print("=" * 60)
-    print("安美智享智能医美服务系统 - 数据扩展初始化工具")
+    print("安美智享智能医美服务系统 - 测试数据初始化工具")
     print("=" * 60)
-    print("\n此工具将初始化系统需要的高级数据。")
+    print("\n此工具将初始化系统需要的测试和示例数据。")
     print("请确保已运行 init_db.py 初始化了基础数据和表结构。")
-    print("\n开始初始化扩展数据...")
+    print("\n开始初始化测试数据...")
 
 def print_success():
     """打印成功消息"""
-    print("\n扩展数据初始化完成！")
+    print("\n测试数据初始化完成！")
 
-async def create_extended_users(db: Session) -> None:
-    """创建扩展用户数据"""
-    logger.info("创建扩展用户数据")
+def check_extension_tables_exist() -> bool:
+    """检查扩展表是否存在"""
+    inspector = inspect(engine)
+    tables = inspector.get_table_names()
+    required_tables = ["customers", "doctors", "consultants", "operators", "administrators"]
+    return all(table in tables for table in required_tables)
+
+async def create_mock_users(db: Session, force_update: bool = False) -> None:
+    """创建测试用户数据
     
-    for user_data in EXTENDED_USERS:
+    Args:
+        db: 数据库会话
+        force_update: 是否强制更新现有数据
+    """
+    logger.info("创建测试用户数据")
+    
+    for user_data in MOCK_USERS:
+        # 提取角色和扩展信息
+        roles = user_data.get("roles", ["customer"])
+        doctor_info = user_data.pop("doctor_info", None)
+        consultant_info = user_data.pop("consultant_info", None)
+        customer_info = user_data.pop("customer_info", None)
+        operator_info = user_data.pop("operator_info", None)
+        administrator_info = user_data.pop("administrator_info", None)
+        
+        # 检查用户是否存在
         user = await crud_user.get_by_email(db, email=user_data["email"])
+        
         if not user:
-            logger.info(f"用户不存在，无法添加扩展信息: {user_data['email']}")
-            continue
+            logger.info(f"创建测试用户: {user_data['email']}")
+            user_in = UserCreate(**user_data)
+            user = await crud_user.create(db, obj_in=user_in)
+        else:
+            logger.info(f"测试用户已存在: {user_data['email']}")
             
-        logger.info(f"为用户添加扩展信息: {user_data['email']}")
-        
-        # 提取各类扩展信息
-        doctor_info = user_data.get("doctor_info")
-        consultant_info = user_data.get("consultant_info")
-        customer_info = user_data.get("customer_info")
-        operator_info = user_data.get("operator_info")
-        administrator_info = user_data.get("administrator_info")
-        
-        # 更新扩展表信息
-        roles = [role.name for role in user.roles]
-        
-        # 更新医生信息
-        if "doctor" in roles and doctor_info and not user.doctor:
+        # 添加扩展信息
+        await update_user_extended_info(
+            db, user, 
+            doctor_info, consultant_info, customer_info, 
+            operator_info, administrator_info,
+            force_update
+        )
+    
+    logger.info("测试用户创建完成")
+
+async def update_user_extended_info(
+    db: Session, 
+    user: User, 
+    doctor_info: DoctorBase = None,
+    consultant_info: ConsultantBase = None,
+    customer_info: CustomerBase = None,
+    operator_info: OperatorBase = None,
+    administrator_info: AdministratorBase = None,
+    force_update: bool = False
+) -> None:
+    """更新用户的扩展信息
+    
+    Args:
+        db: 数据库会话
+        user: 用户对象
+        doctor_info: 医生信息
+        consultant_info: 顾问信息
+        customer_info: 顾客信息
+        operator_info: 运营人员信息
+        administrator_info: 管理员信息
+        force_update: 是否强制更新现有数据
+    """
+    roles = [role.name for role in user.roles]
+    
+    # 更新医生信息
+    if "doctor" in roles and doctor_info and (not user.doctor or force_update):
+        if not user.doctor:
             doctor = Doctor(user_id=user.id)
-            for key, value in doctor_info.dict().items():
-                if value is not None:
-                    setattr(doctor, key, value)
             db.add(doctor)
             logger.info(f"  - 添加医生扩展信息")
+        else:
+            doctor = user.doctor
+            logger.info(f"  - 更新医生扩展信息")
             
-        # 更新顾问信息
-        if "consultant" in roles and consultant_info and not user.consultant:
+        for key, value in doctor_info.dict().items():
+            if value is not None:
+                setattr(doctor, key, value)
+        
+    # 更新顾问信息
+    if "consultant" in roles and consultant_info and (not user.consultant or force_update):
+        if not user.consultant:
             consultant = Consultant(user_id=user.id)
-            for key, value in consultant_info.dict().items():
-                if value is not None:
-                    setattr(consultant, key, value)
             db.add(consultant)
             logger.info(f"  - 添加顾问扩展信息")
+        else:
+            consultant = user.consultant
+            logger.info(f"  - 更新顾问扩展信息")
             
-        # 更新顾客信息
-        if "customer" in roles and customer_info and not user.customer:
+        for key, value in consultant_info.dict().items():
+            if value is not None:
+                setattr(consultant, key, value)
+        
+    # 更新顾客信息
+    if "customer" in roles and customer_info and (not user.customer or force_update):
+        if not user.customer:
             customer = Customer(user_id=user.id)
-            for key, value in customer_info.dict().items():
-                if value is not None:
-                    setattr(customer, key, value)
             db.add(customer)
             logger.info(f"  - 添加顾客扩展信息")
+        else:
+            customer = user.customer
+            logger.info(f"  - 更新顾客扩展信息")
             
-        # 更新运营人员信息
-        if "operator" in roles and operator_info and not user.operator:
+        for key, value in customer_info.dict().items():
+            if value is not None:
+                setattr(customer, key, value)
+        
+    # 更新运营人员信息
+    if "operator" in roles and operator_info and (not user.operator or force_update):
+        if not user.operator:
             operator = Operator(user_id=user.id)
-            for key, value in operator_info.dict().items():
-                if value is not None:
-                    setattr(operator, key, value)
             db.add(operator)
             logger.info(f"  - 添加运营人员扩展信息")
+        else:
+            operator = user.operator
+            logger.info(f"  - 更新运营人员扩展信息")
             
-        # 更新管理员信息
-        if "admin" in roles and administrator_info and not user.administrator:
+        for key, value in operator_info.dict().items():
+            if value is not None:
+                setattr(operator, key, value)
+        
+    # 更新管理员信息
+    if "admin" in roles and administrator_info and (not user.administrator or force_update):
+        if not user.administrator:
             administrator = Administrator(user_id=user.id)
-            for key, value in administrator_info.dict().items():
-                if value is not None:
-                    setattr(administrator, key, value)
             db.add(administrator)
             logger.info(f"  - 添加管理员扩展信息")
-    
-    # 提交所有更改
+        else:
+            administrator = user.administrator
+            logger.info(f"  - 更新管理员扩展信息")
+            
+        for key, value in administrator_info.dict().items():
+            if value is not None:
+                setattr(administrator, key, value)
+                
+    # 提交更改
     db.commit()
-    logger.info("扩展用户信息添加完成")
+    db.refresh(user)
 
-async def migrate_existing_users(db: Session) -> None:
-    """迁移现有用户到新的数据库结构"""
-    logger.info("开始迁移现有用户数据")
+async def create_system_test_data(db: Session) -> None:
+    """创建系统测试数据，比如聊天记录、系统设置等"""
+    logger.info("创建系统测试数据")
     
-    # 获取所有用户
-    users = db.query(User).all()
-    migrated_count = 0
+    # 在这里添加创建系统测试数据的代码
+    # 例如创建示例聊天记录、示例系统设置等
     
-    for user in users:
-        # 检查用户角色并创建相应的扩展表记录
-        roles = [role.name for role in user.roles]
-        
-        # 对于顾客角色
-        if "customer" in roles and not user.customer:
-            customer = Customer(user_id=user.id)
-            db.add(customer)
-            migrated_count += 1
-            logger.info(f"为用户 {user.username} 创建顾客扩展表记录")
-        
-        # 对于医生角色
-        if "doctor" in roles and not user.doctor:
-            doctor = Doctor(user_id=user.id)
-            db.add(doctor)
-            migrated_count += 1
-            logger.info(f"为用户 {user.username} 创建医生扩展表记录")
-        
-        # 对于顾问角色
-        if "consultant" in roles and not user.consultant:
-            consultant = Consultant(user_id=user.id)
-            db.add(consultant)
-            migrated_count += 1
-            logger.info(f"为用户 {user.username} 创建顾问扩展表记录")
-        
-        # 对于运营人员角色
-        if "operator" in roles and not user.operator:
-            operator = Operator(user_id=user.id)
-            db.add(operator)
-            migrated_count += 1
-            logger.info(f"为用户 {user.username} 创建运营人员扩展表记录")
-        
-        # 对于管理员角色
-        if "admin" in roles and not user.administrator:
-            administrator = Administrator(user_id=user.id)
-            db.add(administrator)
-            migrated_count += 1
-            logger.info(f"为用户 {user.username} 创建管理员扩展表记录")
-    
-    # 提交所有更改
-    if migrated_count > 0:
-        db.commit()
-        logger.info(f"用户数据迁移完成，共处理 {migrated_count} 条记录")
-    else:
-        logger.info("没有需要迁移的用户数据")
+    logger.info("系统测试数据创建完成")
 
-async def seed_db_async() -> None:
-    """异步初始化扩展数据"""
-    logger.info("初始化系统扩展数据")
+async def seed_db_async(force_update: bool = False) -> None:
+    """异步初始化测试数据
+    
+    Args:
+        force_update: 是否强制更新现有数据
+    """
+    logger.info("初始化系统测试数据")
     
     # 获取数据库会话
     db = next(get_db())
     
-    # 迁移现有用户数据
-    await migrate_existing_users(db)
+    # 检查扩展表是否存在
+    if not check_extension_tables_exist():
+        logger.error("扩展表不存在，请先运行 init_db.py 应用迁移")
+        return
     
-    # 创建扩展用户
-    await create_extended_users(db)
+    # 创建测试用户
+    await create_mock_users(db, force_update)
     
-    logger.info("系统扩展数据初始化完成")
+    # 创建系统测试数据
+    await create_system_test_data(db)
+    
+    logger.info("系统测试数据初始化完成")
 
-def seed_db() -> None:
-    """同步包装初始化扩展数据函数"""
+def seed_db(force_update: bool = False) -> None:
+    """同步包装初始化测试数据函数
+    
+    Args:
+        force_update: 是否强制更新现有数据
+    """
     try:
-        asyncio.run(seed_db_async())
+        asyncio.run(seed_db_async(force_update))
     except Exception as e:
-        logger.error(f"初始化扩展数据时出错: {e}")
+        logger.error(f"初始化测试数据时出错: {e}")
         raise e
 
 def main():
     """脚本入口点"""
+    # 添加命令行参数
+    parser = argparse.ArgumentParser(description="测试数据初始化脚本")
+    parser.add_argument("--force", action="store_true", help="强制更新现有数据")
+    parser.add_argument("--clean", action="store_true", help="清除现有测试数据后重新创建")
+    args = parser.parse_args()
+    
     print_banner()
     
     try:
-        seed_db()
+        if args.clean:
+            # 在此添加清除测试数据的代码
+            print("清除现有测试数据...")
+            # TODO: 实现清除测试数据的功能
+            
+        seed_db(args.force)
         print_success()
     except Exception as e:
-        print(f"\n初始化扩展数据过程中发生错误: {e}")
+        print(f"\n初始化测试数据过程中发生错误: {e}")
         print("请检查配置和连接信息后重试。")
         sys.exit(1)
 

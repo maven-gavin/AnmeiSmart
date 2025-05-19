@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, Enum
+from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, Enum, Integer
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base import Base
@@ -11,7 +11,7 @@ class Conversation(Base):
 
     id = Column(String, primary_key=True, default=lambda: f"conv_{uuid.uuid4().hex}")
     title = Column(String, nullable=False)
-    customer_id = Column(String, ForeignKey("users.id"), nullable=False)
+    customer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -29,7 +29,7 @@ class Message(Base):
     conversation_id = Column(String, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
     content = Column(Text, nullable=False)
     type = Column(Enum("text", "image", "voice", "file", "system", name="message_type"), default="text")
-    sender_id = Column(String, ForeignKey("users.id"), nullable=False)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     sender_type = Column(Enum("customer", "consultant", "doctor", "ai", "system", name="sender_type"), nullable=False)
     is_read = Column(Boolean, default=False)
     is_important = Column(Boolean, default=False)
@@ -45,7 +45,7 @@ class CustomerProfile(Base):
     __tablename__ = "customer_profiles"
 
     id = Column(String, primary_key=True, default=lambda: f"prof_{uuid.uuid4().hex}")
-    user_id = Column(String, ForeignKey("users.id"), unique=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
     medical_history = Column(Text, nullable=True)
     allergies = Column(Text, nullable=True)  # 存储为JSON字符串
     preferences = Column(Text, nullable=True)
