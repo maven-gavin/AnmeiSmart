@@ -11,7 +11,6 @@ class SystemSettings(Base):
     id = Column(Integer, primary_key=True, index=True)
     siteName = Column(String(255), nullable=False, default="安美智能咨询系统")
     logoUrl = Column(String(1024), nullable=True, default="/logo.png")
-    themeColor = Column(String(50), nullable=True, default="#FF6B00")
     defaultModelId = Column(String(255), nullable=True)
     maintenanceMode = Column(Boolean, default=False)
     userRegistrationEnabled = Column(Boolean, default=True)

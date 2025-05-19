@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import systemService, { SystemSettings, AIModelConfig } from '@/services/systemService';
+import systemService, { SystemSettings, AIModelConfig } from '@/service/systemService';
 
 export default function SystemSettingsPage() {
   const [activeTab, setActiveTab] = useState('general');
@@ -14,7 +14,6 @@ export default function SystemSettingsPage() {
   const [settings, setSettings] = useState<SystemSettings>({
     siteName: '',
     logoUrl: '',
-    themeColor: '',
     aiModels: [],
     defaultModelId: '',
     maintenanceMode: false,
@@ -201,24 +200,6 @@ export default function SystemSettingsPage() {
                 {...register('logoUrl')}
                 className="w-full rounded-md border border-gray-300 px-4 py-2 focus:border-orange-500 focus:outline-none"
               />
-            </div>
-            
-            <div className="mb-4">
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                主题颜色
-              </label>
-              <div className="flex items-center">
-                <input
-                  type="color"
-                  {...register('themeColor')}
-                  className="h-10 w-20 rounded-md border border-gray-300"
-                />
-                <input
-                  type="text"
-                  {...register('themeColor')}
-                  className="ml-2 w-40 rounded-md border border-gray-300 px-4 py-2 focus:border-orange-500 focus:outline-none"
-                />
-              </div>
             </div>
             
             <div className="mb-4">

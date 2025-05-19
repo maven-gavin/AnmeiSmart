@@ -1,6 +1,6 @@
 import axios from 'axios';
 import MockAdapter from 'axios-mock-adapter';
-import systemService from '@/services/systemService';
+import systemService from '@/service/systemService';
 import { API_BASE_URL } from '@/config';
 
 // 创建Mock适配器
@@ -10,7 +10,6 @@ const mock = new MockAdapter(axios);
 const mockSystemSettings = {
   siteName: '测试系统名称',
   logoUrl: '/test-logo.png',
-  themeColor: '#00FF00',
   aiModels: [
     {
       modelName: 'Test-GPT',
@@ -72,7 +71,6 @@ describe('系统设置服务测试', () => {
     // 更新数据
     const updateData = {
       siteName: '更新的测试系统名称',
-      themeColor: '#0000FF'
     };
     
     const updatedSettings = {

@@ -36,7 +36,6 @@ def get_system_settings(
     response_data = {
         "siteName": system_settings.siteName,
         "logoUrl": system_settings.logoUrl,
-        "themeColor": system_settings.themeColor,
         "defaultModelId": system_settings.defaultModelId,
         "maintenanceMode": system_settings.maintenanceMode,
         "userRegistrationEnabled": system_settings.userRegistrationEnabled,
@@ -76,7 +75,6 @@ def update_system_settings(
     response_data = {
         "siteName": updated_settings.siteName,
         "logoUrl": updated_settings.logoUrl,
-        "themeColor": updated_settings.themeColor,
         "defaultModelId": updated_settings.defaultModelId,
         "maintenanceMode": updated_settings.maintenanceMode,
         "userRegistrationEnabled": updated_settings.userRegistrationEnabled,

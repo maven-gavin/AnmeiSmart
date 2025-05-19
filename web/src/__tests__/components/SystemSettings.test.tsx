@@ -2,10 +2,10 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import SystemSettingsPage from '@/app/admin/settings/page';
-import systemService from '@/services/systemService';
+import systemService from '@/service/systemService';
 
 // 模拟systemService
-jest.mock('@/services/systemService', () => ({
+jest.mock('@/service/systemService', () => ({
   getSystemSettings: jest.fn(),
   updateSystemSettings: jest.fn(),
   createAIModel: jest.fn(),
@@ -23,7 +23,6 @@ jest.mock('react-hot-toast', () => ({
 const mockSettings = {
   siteName: '测试系统名称',
   logoUrl: '/test-logo.png',
-  themeColor: '#00FF00',
   aiModels: [
     {
       modelName: 'Test-GPT',

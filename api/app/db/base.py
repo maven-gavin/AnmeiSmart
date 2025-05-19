@@ -90,7 +90,6 @@ def create_initial_system_settings(db: Session):
         system_settings = SystemSettings(
             siteName="安美智能咨询系统",
             logoUrl="/logo.png",
-            themeColor="#FF6B00",
             defaultModelId="GPT-4",
             maintenanceMode=False,
             userRegistrationEnabled=True

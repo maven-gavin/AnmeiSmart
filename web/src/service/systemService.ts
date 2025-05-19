@@ -13,7 +13,6 @@ interface AIModelConfig {
 interface SystemSettings {
   siteName: string;
   logoUrl: string;
-  themeColor: string;
   aiModels: AIModelConfig[];
   defaultModelId: string;
   maintenanceMode: boolean;

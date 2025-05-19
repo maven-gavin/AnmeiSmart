@@ -22,7 +22,6 @@
 ## 安装步骤
 
 1. 克隆代码库
-
 2. 创建并激活虚拟环境
 
 ```bash
@@ -39,7 +38,7 @@ pip install -r requirements.txt
 
 4. 配置环境变量
 
-创建`.env`文件，参考`env.example`文件，设置以下环境变量:
+创建 `.env`文件，参考 `env.example`文件，设置以下环境变量:
 
 ```
 DATABASE_URL=postgresql://用户名:密码@localhost:5432/AnmeiSmart
@@ -77,6 +76,7 @@ POST /api/v1/auth/login
 ```
 
 请求体:
+
 ```json
 {
   "username": "user@example.com",
@@ -85,6 +85,7 @@ POST /api/v1/auth/login
 ```
 
 响应:
+
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -99,6 +100,7 @@ POST /api/v1/auth/register
 ```
 
 请求体:
+
 ```json
 {
   "email": "newuser@example.com",
@@ -115,6 +117,7 @@ GET /api/v1/auth/me
 ```
 
 请求头:
+
 ```
 Authorization: Bearer your_access_token
 ```
@@ -126,6 +129,7 @@ GET /api/v1/auth/roles
 ```
 
 请求头:
+
 ```
 Authorization: Bearer your_access_token
 ```
@@ -145,6 +149,7 @@ POST /api/v1/users
 ```
 
 请求体:
+
 ```json
 {
   "email": "newuser@example.com",
@@ -176,6 +181,7 @@ POST /api/v1/ai/chat
 ```
 
 请求体:
+
 ```json
 {
   "conversation_id": "会话ID",
@@ -187,6 +193,7 @@ POST /api/v1/ai/chat
 ```
 
 响应:
+
 ```json
 {
   "id": "msg_xxx",
@@ -221,9 +228,9 @@ OPENAI_MODEL=gpt-3.5-turbo
 
 ## 开发指南
 
-- 添加新的API端点: 在`app/api/v1/endpoints`目录创建新文件
-- 添加新的数据库模型: 在`app/db/models`目录创建新文件
-- 添加新的Pydantic模型: 在`app/schemas`目录创建新文件
+- 添加新的API端点: 在 `app/api/v1/endpoints`目录创建新文件
+- 添加新的数据库模型: 在 `app/db/models`目录创建新文件
+- 添加新的Pydantic模型: 在 `app/schemas`目录创建新文件
 
 ## 测试
 
@@ -248,9 +255,10 @@ docker run -d -p 8000:8000 --name anmeismart-api anmeismart-api
 ```
 
 ## 项目结构
+
 ```
 api/
-├── alembic/            # 数据库迁移
+├── migrations/            # 数据库迁移
 ├── app/
 │   ├── core/          # 核心配置
 │   │   ├── config.py  # 应用配置
@@ -267,6 +275,7 @@ api/
 ```
 
 ## API端点
+
 - `/api/v1/auth/login` - 用户登录
 - `/api/v1/auth/register` - 用户注册
 - `/api/v1/auth/me` - 获取当前用户信息
@@ -279,13 +288,15 @@ api/
 - `/api/v1/users/roles/all` - 获取所有角色
 
 ## 开发规范
+
 1. 代码质量
+
    - 所有函数必须有类型注解
    - 禁止使用Any类型
    - 所有API端点必须有文档字符串
    - 单元测试覆盖率要求≥80%
-
 2. Git提交规范
+
    - feat: 新功能
    - fix: 修复bug
    - docs: 文档更新
@@ -295,6 +306,7 @@ api/
    - chore: 构建过程或辅助工具的变动
 
 ## 运行测试
+
 ```powershell
 # Windows
 .\scripts\test.ps1
@@ -304,19 +316,22 @@ api/
 ```
 
 ## 数据库
+
 1. PostgreSQL
+
    - 用于结构化数据存储
    - 用户信息、预约记录等
-
 2. MongoDB
+
    - 用于非结构化数据
    - 用户行为日志、系统日志等
-
 3. Weaviate
+
    - 向量数据库
    - 用于相似搜索和AI推荐
 
 ## 贡献指南
+
 1. Fork项目
 2. 创建功能分支
 3. 提交更改
@@ -324,4 +339,5 @@ api/
 5. 创建Pull Request
 
 ## 许可证
-MIT 
+
+MIT
