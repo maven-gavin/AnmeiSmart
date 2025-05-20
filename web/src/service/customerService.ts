@@ -1,8 +1,8 @@
 import { authService } from './authService';
 import { mockTreatments, mockTreatmentPlans, mockAppointments, mockCustomerMessages } from './customerMockData';
-import { mockMessages } from './mockData';
 import { CustomerAppointment, Treatment, TreatmentPlan } from '@/types/customer';
 import { Message } from '@/types/chat';
+import { getConversationMessages, sendTextMessage } from './chatService';
 
 class CustomerService {
   // 获取当前顾客的治疗记录
@@ -57,7 +57,7 @@ class CustomerService {
     return mockAppointments[currentUser.id] || [];
   }
   
-  // 获取聊天记录
+  // 获取聊天记录 - 现在使用chatService
   async getChatHistory(): Promise<Message[]> {
     const currentUser = authService.getCurrentUser();
     if (!currentUser || currentUser.currentRole !== 'customer') {
@@ -66,36 +66,25 @@ class CustomerService {
     
     // 根据用户ID确定会话ID
     const conversationId = currentUser.id === '101' ? '1' : '2';
-    return mockMessages[conversationId] || [];
+    return getConversationMessages(conversationId);
   }
   
-  // 发送消息
+  // 发送消息 - 现在使用chatService
   async sendMessage(content: string, type: 'text' | 'image' | 'voice' = 'text'): Promise<Message> {
     const currentUser = authService.getCurrentUser();
     if (!currentUser) {
       throw new Error('用户未登录');
     }
     
-    // 创建新消息
-    const newMessage: Message = {
-      id: `m${Date.now()}`,
-      content,
-      type,
-      sender: {
-        id: currentUser.id,
-        type: 'user',
-        name: currentUser.name,
-        avatar: currentUser.avatar || '/avatars/default.png',
-      },
-      timestamp: new Date().toISOString(),
-    };
+    // 根据用户ID确定会话ID
+    const conversationId = currentUser.id === '101' ? '1' : '2';
     
-    // 这里模拟发送消息，实际应用中应与后端API交互
-    return new Promise(resolve => {
-      setTimeout(() => {
-        resolve(newMessage);
-      }, 500);
-    });
+    // 使用chatService发送消息
+    if (type === 'text') {
+      return await sendTextMessage(conversationId, content);
+    } else {
+      throw new Error(`暂不支持${type}类型消息`);
+    }
   }
   
   // 获取系统消息/通知

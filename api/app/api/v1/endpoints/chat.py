@@ -19,8 +19,11 @@ from app.core.security import get_current_user, check_role_permission
 from app.services.ai import get_ai_service
 
 # 配置日志
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, 
+                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+# 设置更详细的日志级别
+logger.setLevel(logging.DEBUG)
 
 router = APIRouter()
 
@@ -35,24 +38,42 @@ user_conversation_mapping: Dict[str, List[str]] = {}
 async def broadcast_to_conversation(conversation_id: str, message: Dict[str, Any]):
     """向会话中的所有连接发送消息"""
     if conversation_id in active_connections:
+        logger.info(f"广播消息到会话 {conversation_id}, 当前连接数: {len(active_connections[conversation_id])}")
+        logger.info(f"消息类型: {message.get('action')}, 发送者: {message.get('sender_id', '未知')}")
+        
+        # 获取会话相关用户列表以便调试
+        user_ids = []
+        for ws in active_connections[conversation_id]:
+            user_id = getattr(ws, "user_id", "unknown")
+            user_ids.append(user_id)
+        
+        logger.info(f"会话 {conversation_id} 的连接用户: {user_ids}")
+        
         disconnected_websockets = []
         for websocket in active_connections[conversation_id]:
             try:
                 await websocket.send_json(message)
+                logger.debug(f"消息已发送到用户: {getattr(websocket, 'user_id', 'unknown')}")
             except Exception as e:
-                logger.error(f"Error broadcasting message: {e}")
+                logger.error(f"广播消息失败: {e}, 用户: {getattr(websocket, 'user_id', 'unknown')}")
                 disconnected_websockets.append(websocket)
         
         # 移除断开的连接
         for ws in disconnected_websockets:
             if ws in active_connections[conversation_id]:
+                logger.info(f"移除断开的连接: 用户={getattr(ws, 'user_id', 'unknown')}")
                 active_connections[conversation_id].remove(ws)
+    else:
+        logger.warning(f"尝试广播到不存在的会话: {conversation_id}")
 
 
 @router.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = None):
     """WebSocket连接端点"""
     logger.info(f"新的WebSocket连接请求: user_id={user_id}")
+    
+    # 将用户ID存储到WebSocket对象，便于后续识别
+    websocket.user_id = user_id
     
     try:
         await websocket.accept()
@@ -92,10 +113,20 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = No
                 await websocket.close()
                 return
             
+            # 在添加到active_connections前记录日志
+            logger.info(f"将用户 {user_id} 添加到会话 {conversation_id} 的连接列表")
+            logger.info(f"当前会话 {conversation_id} 的连接数: {len(active_connections.get(conversation_id, []))}")
+            
             # 将连接添加到会话
             if conversation_id not in active_connections:
                 active_connections[conversation_id] = []
             active_connections[conversation_id].append(websocket)
+            
+            logger.info(f"添加后会话 {conversation_id} 的连接数: {len(active_connections[conversation_id])}")
+            
+            # 记录当前所有会话和连接情况
+            all_sessions = {cid: len(conns) for cid, conns in active_connections.items()}
+            logger.info(f"当前所有活跃会话连接: {all_sessions}")
             
             # 将用户与会话关联
             if user_id not in user_conversation_mapping:

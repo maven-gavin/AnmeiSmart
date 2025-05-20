@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { type Message } from '@/types/chat'
+import { type Message, type Conversation } from '@/types/chat'
 import { 
   sendTextMessage, 
   sendImageMessage, 
@@ -19,9 +19,11 @@ import {
   addMessageCallback,
   removeMessageCallback,
   ConnectionStatus,
-  getConnectionStatus
+  getConnectionStatus,
+  getConversations
 } from '@/service/chatService'
 import { useAuth } from '@/contexts/AuthContext'
+import { useSearchParams } from 'next/navigation'
 
 // 模拟完整的FAQ数据
 const allFAQs = [
@@ -36,8 +38,13 @@ const allFAQs = [
 ];
 
 export default function ChatWindow() {
-  // 当前对话ID
-  const currentConversationId = '1';
+  // 获取URL参数
+  const searchParams = useSearchParams()
+  
+  // 当前对话ID - 从URL参数获取，如果不存在则默认为'1'
+  const [currentConversationId, setCurrentConversationId] = useState<string>(
+    searchParams?.get('conversationId') || '1'
+  )
   
   // 获取身份验证上下文
   const { user } = useAuth();
@@ -47,6 +54,13 @@ export default function ChatWindow() {
   const [showFAQ, setShowFAQ] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
+  
+  // 会话数据
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  
+  // 用户角色状态
+  const isCustomer = user?.currentRole === 'customer'
+  const isConsultant = user?.currentRole === 'consultant'
   
   // 搜索功能状态
   const [showSearch, setShowSearch] = useState(false)
@@ -86,6 +100,40 @@ export default function ChatWindow() {
   
   // WebSocket连接状态
   const [wsStatus, setWsStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
+  
+  // 监听URL参数变化
+  useEffect(() => {
+    const conversationId = searchParams?.get('conversationId')
+    if (conversationId) {
+      setCurrentConversationId(conversationId)
+      console.log(`会话ID从URL参数更新: ${conversationId}`)
+      
+      // 重新初始化WebSocket连接
+      if (user) {
+        console.log(`重新初始化WebSocket连接: 用户ID=${user.id}, 会话ID=${conversationId}`)
+        initializeWebSocket(user.id, conversationId)
+      }
+      
+      // 重新获取消息
+      fetchMessages()
+    } else {
+      console.log('URL中未找到会话ID，使用默认值:', currentConversationId)
+    }
+  }, [searchParams, user])
+  
+  // 初始获取消息
+  useEffect(() => {
+    console.log(`初始化会话消息，会话ID: ${currentConversationId}`)
+    fetchMessages()
+    
+    // 获取会话列表
+    setConversations(getConversations())
+    
+    // 检查顾问接管状态
+    const isConsultantModeActive = isConsultantMode(currentConversationId)
+    setIsConsultantTakeover(isConsultantModeActive)
+    console.log(`会话 ${currentConversationId} 顾问接管状态: ${isConsultantModeActive}`)
+  }, [currentConversationId])
   
   // 插入FAQ内容
   const insertFAQ = (faq: { question: string, answer: string }) => {
@@ -214,27 +262,37 @@ export default function ChatWindow() {
     }
   }
   
-  // 发送文本消息
+  // 发送文本消息并获取AI回复
   const handleSendTextMessage = async () => {
     if (!message.trim()) return
     
-    setIsLoading(true)
     try {
-      // 发送用户消息
-      const userMsg = await sendTextMessage(currentConversationId, message)
+      setIsLoading(true)
+      console.log(`发送文本消息，会话ID: ${currentConversationId}, 消息内容: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`)
       
-      // 重新获取消息列表
-      fetchMessages()
+      // 发送消息
+      const userMessage = await sendTextMessage(currentConversationId, message)
       
       // 清空输入框
       setMessage('')
       
-      // 如果不是顾问接管模式，则生成AI回复
-      if (!isConsultantTakeover) {
-        await getAIResponse(currentConversationId, userMsg)
-        
-        // 再次更新消息列表
-        fetchMessages()
+      // 刷新消息列表
+      fetchMessages()
+      
+      // 滚动到底部
+      scrollToBottom()
+      
+      // 如果不是顾问模式，则获取AI回复
+      if (!isConsultantMode(currentConversationId)) {
+        // 获取AI回复
+        const aiMessage = await getAIResponse(currentConversationId, userMessage)
+        if (aiMessage) {
+          // 刷新消息列表
+          fetchMessages()
+          
+          // 滚动到底部
+          scrollToBottom()
+        }
       }
     } catch (error) {
       console.error('发送消息失败:', error)
@@ -308,44 +366,48 @@ export default function ChatWindow() {
     }
   };
   
-  // 初始化
+  // 监听WebSocket消息并更新状态
   useEffect(() => {
-    fetchMessages()
-  }, [currentConversationId])
-  
-  // 在组件初始化时建立WebSocket连接
-  useEffect(() => {
-    if (user && currentConversationId) {
-      // 初始化WebSocket连接
-      initializeWebSocket(user.id, currentConversationId);
-
-      // 添加消息回调
-      const handleMessage = (data: any) => {
-        // 处理新消息，可能需要更新UI或播放提示音等
-        if (data.action === 'message') {
-          // 刷新消息列表
-          fetchMessages();
-          // 滚动到底部
-          scrollToBottom();
-        }
-      };
-
-      addMessageCallback('message', handleMessage);
-      
-      // 监听连接状态
-      const checkConnectionStatus = () => {
-        setWsStatus(getConnectionStatus());
-      };
-      
-      const statusInterval = setInterval(checkConnectionStatus, 2000);
-
-      // 组件卸载时清理
-      return () => {
-        removeMessageCallback('message', handleMessage);
-        clearInterval(statusInterval);
-        closeWebSocketConnection();
-      };
-    }
+    if (!user) return;
+    
+    console.log(`ChatWindow初始化WebSocket: 用户ID=${user.id}, 会话ID=${currentConversationId}`);
+    
+    // 初始化WebSocket连接
+    initializeWebSocket(user.id, currentConversationId);
+    
+    // 监听WebSocket消息
+    const handleMessage = (data: any) => {
+      console.log(`ChatWindow收到WebSocket消息:`, data);
+      if (data.conversation_id !== currentConversationId) {
+        console.log(`收到的消息会话ID(${data.conversation_id})与当前会话ID(${currentConversationId})不匹配`);
+        return; // 如果消息不属于当前会话，不处理
+      }
+      // 收到消息后刷新消息列表
+      fetchMessages();
+    };
+    
+    // 添加消息回调
+    addMessageCallback('message', handleMessage);
+    addMessageCallback('system', handleMessage);
+    
+    // 检查连接状态
+    const checkConnectionStatus = () => {
+      const status = getConnectionStatus();
+      setWsStatus(status);
+      console.log(`当前WebSocket连接状态: ${status}, 会话ID: ${currentConversationId}`);
+    };
+    
+    const statusInterval = setInterval(checkConnectionStatus, 5000);
+    checkConnectionStatus(); // 立即检查一次
+    
+    // 组件卸载时清理
+    return () => {
+      console.log(`ChatWindow组件卸载，清理WebSocket资源，会话ID: ${currentConversationId}`);
+      removeMessageCallback('message', handleMessage);
+      removeMessageCallback('system', handleMessage);
+      clearInterval(statusInterval);
+      closeWebSocketConnection();
+    };
   }, [user, currentConversationId]);
   
   // 新消息自动滚动到底部
@@ -566,12 +628,50 @@ export default function ChatWindow() {
     
     // 文本消息处理，支持高亮搜索词
     return (
-      <p className="break-words">
+      <p className="break-words whitespace-pre-line">
         {showSearch && searchTerm.trim() && typeof msg.content === 'string'
           ? highlightText(msg.content, searchTerm)
           : msg.content}
       </p>
     )
+  }
+  
+  // 获取发送者名称和头像
+  const getSenderInfo = (msg: Message) => {
+    // 根据消息类型设置默认值
+    let name = msg.sender.name || '未知用户';
+    let avatar = msg.sender.avatar || '/avatars/default.png';
+    let isSelf = false;
+    
+    // 处理特殊角色
+    if (msg.sender.type === 'ai') {
+      name = 'AI助手';
+      avatar = '/avatars/ai.png';
+    } else if (msg.sender.type === 'consultant') {
+      name = msg.sender.name || '顾问';
+      avatar = msg.sender.avatar || '/avatars/consultant1.png';
+      // 如果当前用户是顾问，标记为"我"
+      if (isConsultant) {
+        name = '我';
+        isSelf = true;
+      }
+    } else if (msg.sender.type === 'customer' || msg.sender.type === 'user') {
+      // 处理客户/用户消息
+      const conversation = conversations.find(c => c.id === currentConversationId);
+      
+      if (isCustomer) {
+        // 顾客视角
+        name = '我';
+        isSelf = true;
+        avatar = user?.avatar || '/avatars/user.png';
+      } else if (conversation) {
+        // 顾问视角
+        name = conversation.user.name;
+        avatar = conversation.user.avatar;
+      }
+    }
+    
+    return { name, avatar, isSelf };
   }
   
   // 监听消息变化，自动推荐FAQ
@@ -713,6 +813,48 @@ export default function ChatWindow() {
         </div>
       )}
       
+      {/* WebSocket连接状态指示器 */}
+      {wsStatus !== ConnectionStatus.CONNECTED && (
+        <div className={`px-4 py-2 text-sm text-center ${
+          wsStatus === ConnectionStatus.CONNECTING ? 'bg-yellow-50 text-yellow-700' :
+          wsStatus === ConnectionStatus.ERROR ? 'bg-red-50 text-red-700' :
+          'bg-gray-50 text-gray-700'
+        }`}>
+          {wsStatus === ConnectionStatus.CONNECTING ? (
+            <span className="flex items-center justify-center">
+              <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              正在连接服务器...
+            </span>
+          ) : wsStatus === ConnectionStatus.ERROR ? (
+            <div className="flex items-center justify-center">
+              <span>连接服务器失败</span>
+              <button 
+                onClick={() => {
+                  if (user) initializeWebSocket(user.id, currentConversationId);
+                }}
+                className="ml-2 text-sm text-red-600 hover:text-red-800 underline"
+              >
+                重新连接
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center">
+              <span>未连接到服务器</span>
+              <button 
+                onClick={() => {
+                  if (user) initializeWebSocket(user.id, currentConversationId);
+                }}
+                className="ml-2 text-sm text-gray-600 hover:text-gray-800 underline"
+              >
+                连接
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       
       {/* 聊天记录 */}
       <div 
@@ -747,82 +889,106 @@ export default function ChatWindow() {
         )}
 
         {/* 显示消息列表 */}
-        {(showImportantOnly ? importantMessages : currentConversationMessages).map(msg => (
-          <div
-            key={msg.id}
-            id={`message-${msg.id}`}
-            className={`${msg.isSystemMessage ? 'my-2' : 'flex items-start space-x-3'} ${
-              msg.sender.type === 'user' && !msg.isSystemMessage ? 'flex-row-reverse space-x-reverse' : ''
-            } ${selectedMessageId === msg.id ? 'bg-orange-50 rounded-lg -mx-2 px-2 py-1' : ''}`}
-          >
-            {!msg.isSystemMessage && (
-              <>
-                <div className="flex-shrink-0">
-                  <img
-                    src={msg.sender.avatar}
-                    alt={msg.sender.name}
-                    className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center"
-                    onError={(e) => {
-                      // 如果头像加载失败，使用首字母替代
-                      const target = e.target as HTMLImageElement;
-                      target.onerror = null; // 防止循环错误
-                      const nameInitial = msg.sender.name.charAt(0);
-                      target.style.fontSize = '14px';
-                      target.style.fontWeight = 'bold';
-                      target.style.display = 'flex';
-                      target.style.alignItems = 'center';
-                      target.style.justifyContent = 'center';
-                      target.style.backgroundColor = msg.sender.type === 'ai' ? '#FFB300' : '#FF9800';
-                      target.style.color = '#FFFFFF';
-                      target.src = 'data:image/svg+xml;charset=UTF-8,' + 
-                        encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"></svg>');
-                      setTimeout(() => {
-                        (target.parentNode as HTMLElement).innerHTML = `<div class="h-8 w-8 rounded-full flex items-center justify-center text-white font-bold" style="background-color: ${msg.sender.type === 'ai' ? '#FFB300' : '#FF9800'}">${nameInitial}</div>`;
-                      }, 0);
-                    }}
-                  />
-                </div>
-                <div
-                  className={`max-w-[70%] rounded-lg p-3 ${
-                    msg.sender.type === 'user'
+        {(showImportantOnly ? importantMessages : messages).map(msg => {
+          const { name, avatar, isSelf } = getSenderInfo(msg);
+          
+          return (
+            <div
+              key={msg.id}
+              id={`message-${msg.id}`}
+              className={`flex ${isSelf ? 'justify-end' : 'justify-start'} items-end space-x-2 ${
+                selectedMessageId === msg.id ? 'bg-yellow-50 -mx-2 px-2 py-1 rounded-lg' : ''
+              }`}
+            >
+              {/* 非自己发送的消息显示头像 */}
+              {!isSelf && (
+                <img 
+                  src={avatar} 
+                  alt={name} 
+                  className="h-8 w-8 rounded-full"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.onerror = null;
+                    const nameInitial = name.charAt(0);
+                    target.style.display = 'flex';
+                    target.style.backgroundColor = '#FF9800';
+                    target.style.color = '#FFFFFF';
+                    target.style.justifyContent = 'center';
+                    target.style.alignItems = 'center';
+                    target.src = 'data:image/svg+xml;charset=UTF-8,' + 
+                      encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"></svg>');
+                    setTimeout(() => {
+                      target.parentElement!.innerHTML = `<div class="h-8 w-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style="background-color: #FF9800">${nameInitial}</div>`;
+                    }, 0);
+                  }}
+                />
+              )}
+              
+              <div className={`flex max-w-[75%] flex-col ${isSelf ? 'items-end' : 'items-start'}`}>
+                {/* 发送者名称 */}
+                <span className="mb-1 text-xs text-gray-500">{name}</span>
+                
+                {/* 消息内容气泡 */}
+                <div 
+                  className={`relative rounded-lg p-3 ${
+                    isSelf
                       ? 'bg-orange-500 text-white'
-                      : 'bg-white'
+                      : msg.sender.type === 'ai'
+                        ? 'bg-gray-100 text-gray-800'
+                        : 'bg-white border border-gray-200 text-gray-800'
                   }`}
                 >
-                  <div className={`flex justify-between items-center mb-1 ${
-                    msg.sender.type === 'user' ? 'text-orange-100' : 'text-gray-500'
-                  }`}>
-                    <span className="text-xs">
-                      {msg.sender.name} · {new Date(msg.timestamp).toLocaleTimeString()}
-                    </span>
-                    
-                    {/* 标记重点按钮 */}
-                    <button 
-                      className={`ml-2 ${
-                        msg.sender.type === 'user' 
-                          ? msg.isImportant ? 'text-red-300' : 'text-orange-200 hover:text-red-300'
-                          : msg.isImportant ? 'text-red-500' : 'text-gray-300 hover:text-red-500'
-                      }`}
-                      onClick={() => toggleMessageImportant(msg.id, !!msg.isImportant)}
-                      title={msg.isImportant ? '取消标记' : '标记为重点'}
-                    >
+                  {renderMessageContent(msg)}
+                  
+                  {/* 重点标记 */}
+                  <button
+                    onClick={() => toggleMessageImportant(msg.id, msg.isImportant)}
+                    className={`absolute -right-1.5 -top-1.5 rounded-full p-0.5 ${
+                      msg.isImportant ? 'bg-yellow-400 text-white' : 'bg-gray-200 text-gray-500'
+                    }`}
+                  >
                       <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
                         <path 
                           fillRule="evenodd" 
                           d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" 
                           clipRule="evenodd" 
                         />
-                      </svg>
-                    </button>
+                    </svg>
+                  </button>
+                  
+                  {/* 消息时间 */}
+                  <div className={`mt-1 text-right text-xs ${isSelf ? 'text-white text-opacity-75' : 'text-gray-500'}`}>
+                    {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
                   </div>
-                  {renderMessageContent(msg)}
                 </div>
-              </>
-            )}
-            
-            {msg.isSystemMessage && renderMessageContent(msg)}
-          </div>
-        ))}
+              </div>
+              
+              {/* 自己发送的消息显示头像 */}
+              {isSelf && (
+                <img 
+                  src={avatar} 
+                  alt={name} 
+                  className="h-8 w-8 rounded-full"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.onerror = null;
+                    const nameInitial = name.charAt(0);
+                    target.style.display = 'flex';
+                    target.style.backgroundColor = '#FF9800';
+                    target.style.color = '#FFFFFF';
+                    target.style.justifyContent = 'center';
+                    target.style.alignItems = 'center';
+                    target.src = 'data:image/svg+xml;charset=UTF-8,' + 
+                      encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"></svg>');
+                    setTimeout(() => {
+                      target.parentElement!.innerHTML = `<div class="h-8 w-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style="background-color: #FF9800">${nameInitial}</div>`;
+                    }, 0);
+                  }}
+                />
+              )}
+            </div>
+          );
+        })}
         
         {showImportantOnly && importantMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-32 text-gray-500">
@@ -1059,29 +1225,31 @@ export default function ChatWindow() {
             </svg>
           </button>
           
-          {/* 顾问接管按钮 */}
-          <button 
-            className={`flex-shrink-0 ${isConsultantTakeover ? 'text-green-500' : 'text-gray-500 hover:text-gray-700'}`}
-            onClick={toggleConsultantMode}
-            title={isConsultantTakeover ? "切换回AI助手" : "顾问接管"}
-          >
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          {/* 顾问接管按钮 - 只对顾问角色显示 */}
+          {isConsultant && (
+            <button 
+              className={`flex-shrink-0 ${isConsultantTakeover ? 'text-green-500' : 'text-gray-500 hover:text-gray-700'}`}
+              onClick={toggleConsultantMode}
+              title={isConsultantTakeover ? "切换回AI助手" : "顾问接管"}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d={isConsultantTakeover 
-                  ? "M13 10V3L4 14h7v7l9-11h-7z" // 闪电图标，表示切换回AI
-                  : "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" // 用户图标，表示顾问接管
-                }
-              />
-            </svg>
-          </button>
+              <svg
+                className="h-6 w-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d={isConsultantTakeover 
+                    ? "M13 10V3L4 14h7v7l9-11h-7z" // 闪电图标，表示切换回AI
+                    : "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" // 用户图标，表示顾问接管
+                  }
+                />
+              </svg>
+            </button>
+          )}
                     
           <button className="flex-shrink-0 text-gray-500 hover:text-gray-700" title="表情">
             <svg

@@ -3,6 +3,11 @@ import { mockMessages, mockConversations, mockCustomerProfiles } from "./mockDat
 import { v4 as uuidv4 } from 'uuid';
 import { authService } from "./authService";
 
+// 扩展WebSocket接口，添加自定义属性
+interface CustomWebSocket extends WebSocket {
+  _conversationId?: string;
+}
+
 // 保存运行时的消息数据（会话ID -> 消息数组）
 let chatMessages: Record<string, Message[]> = { ...mockMessages };
 
@@ -32,7 +37,7 @@ const aiInfo = {
 let consultantTakeover: Record<string, boolean> = {};
 
 // WebSocket连接
-let socket: WebSocket | null = null;
+let socket: CustomWebSocket | null = null;
 let isConnecting = false;
 let messageQueue: any[] = [];
 let reconnectAttempts = 0;
@@ -56,11 +61,30 @@ let connectionStatus = ConnectionStatus.DISCONNECTED;
 
 // 初始化WebSocket连接
 export const initializeWebSocket = (userId: string, conversationId: string) => {
+  // 如果传入的会话ID为空，使用一个安全默认值
+  if (!conversationId) {
+    console.error('初始化WebSocket时会话ID为空，使用默认值"1"');
+    conversationId = "1";
+  }
+
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
-    return; // 已经连接或正在连接
+    // 如果已经连接到相同的会话，则不需要重新连接
+    if (socket._conversationId === conversationId) {
+      console.log(`WebSocket已连接到会话${conversationId}，不需要重新连接`);
+      return;
+    } else {
+      console.log(`WebSocket已连接到会话${socket._conversationId}，但需要切换到会话${conversationId}，关闭当前连接`);
+      try {
+        closeWebSocketConnection();
+        console.log('关闭已有WebSocket连接以切换会话');
+      } catch (err) {
+        console.warn('关闭已有连接时出错:', err);
+      }
+    }
   }
   
   if (isConnecting) {
+    console.log('WebSocket正在连接中，请稍候...');
     return; // 防止多次同时连接
   }
   
@@ -79,24 +103,16 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
   try {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsHost = process.env.NEXT_PUBLIC_WS_URL || 'localhost:8000';
-    const wsUrl = `${wsProtocol}//${wsHost}/api/v1/chat/ws/${userId}?token=${encodeURIComponent(token)}`;
+    const wsUrl = `${wsProtocol}//${wsHost}/api/v1/chat/ws/${userId}?token=${encodeURIComponent(token)}&conversation_id=${conversationId}`;
     
-    console.log('尝试连接WebSocket:', wsUrl);
-    
-    // 在建立连接前关闭已有连接
-    if (socket) {
-      try {
-        socket.close();
-        console.log('关闭已有WebSocket连接');
-      } catch (err) {
-        console.warn('关闭已有连接时出错:', err);
-      }
-    }
+    console.log(`尝试连接WebSocket: 用户ID=${userId}, 会话ID=${conversationId}, URL=${wsUrl}`);
     
     socket = new WebSocket(wsUrl);
+    // 保存会话ID到socket对象以便后续检查
+    socket._conversationId = conversationId;
     
     socket.onopen = () => {
-      console.log('WebSocket连接已建立');
+      console.log(`WebSocket连接已建立，会话ID: ${conversationId}`);
       connectionStatus = ConnectionStatus.CONNECTED;
       isConnecting = false;
       reconnectAttempts = 0;
@@ -126,9 +142,10 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
       
       heartbeatInterval = setInterval(() => {
         if (socket && socket.readyState === WebSocket.OPEN) {
-          console.log('发送WebSocket心跳');
+          // 心跳消息中也包含会话ID
           socket.send(JSON.stringify({
             action: 'ping',
+            conversation_id: conversationId,
             timestamp: new Date().toISOString()
           }));
         } else {
@@ -215,6 +232,7 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
 // 处理接收到的WebSocket消息
 const handleWebSocketMessage = (data: any) => {
   const { action, conversation_id } = data;
+  console.log(`处理WebSocket消息: 动作=${action}, 会话ID=${conversation_id}`);
   
   // 处理心跳响应
   if (action === 'pong') {
@@ -224,49 +242,85 @@ const handleWebSocketMessage = (data: any) => {
   
   // 调用对应action的回调函数
   if (action && messageCallbacks[action]) {
+    console.log(`找到${messageCallbacks[action].length}个${action}动作的回调函数`);
     messageCallbacks[action].forEach(callback => {
-      callback(data);
+      try {
+        callback(data);
+      } catch (error) {
+        console.error(`执行${action}回调时出错:`, error);
+      }
     });
+  } else {
+    console.log(`没有找到${action}动作的回调函数`);
   }
   
   // 处理消息动作
   if (action === 'message') {
-    const messageData = data.data;
+    const { data: messageData, conversation_id: convId } = data;
     
-    // 将消息添加到本地存储
-    if (conversation_id && messageData) {
-      if (!chatMessages[conversation_id]) {
-        chatMessages[conversation_id] = [];
+    if (!convId) {
+      console.error('收到的消息没有会话ID');
+      return;
+    }
+    
+    // 确保会话消息数组存在
+    if (!chatMessages[convId]) {
+      chatMessages[convId] = [];
+      console.log(`为会话 ${convId} 创建新的消息数组`);
+    }
+    
+    // 避免重复消息
+    const existingMessage = chatMessages[convId].find(msg => 
+      msg.timestamp === data.timestamp && 
+      msg.content === messageData.content && 
+      msg.sender.type === messageData.sender_type
+    );
+    
+    if (existingMessage) {
+      console.log(`跳过重复消息:`, existingMessage);
+      return;
+    }
+    
+    // 构建消息对象
+    const message: Message = {
+      id: `m_${uuidv4()}`,
+      content: messageData.content,
+      type: messageData.type || 'text',
+      sender: {
+        id: messageData.sender_id || 'unknown',
+        type: messageData.sender_type || 'unknown',
+        name: messageData.sender_name || '未知用户',
+        avatar: messageData.sender_avatar || '/avatars/default.png',
+      },
+      timestamp: data.timestamp || new Date().toISOString(),
+    };
+    
+    console.log(`为会话 ${convId} 添加新消息:`, message);
+    
+    // 添加到消息列表
+    chatMessages[convId].push(message);
+    
+    // 更新会话最后一条消息和未读数
+    const conversationIndex = conversations.findIndex(conv => conv.id === convId);
+    if (conversationIndex >= 0) {
+      // 根据发送者类型决定是否增加未读计数
+      let unreadCount = conversations[conversationIndex].unreadCount;
+      
+      // 如果是其他人的消息，增加未读计数
+      if (message.sender.id !== authService.getCurrentUserId()) {
+        unreadCount += 1;
       }
       
-      // 构建消息对象
-      const newMessage: Message = {
-        id: messageData.id,
-        content: messageData.content,
-        type: messageData.type,
-        sender: {
-          id: messageData.sender_id,
-          type: messageData.sender_type,
-          name: messageData.sender_type === 'ai' ? 'AI助手' : '用户', // 应从用户信息中获取
-          avatar: messageData.sender_type === 'ai' ? '/avatars/ai.png' : '/avatars/user.png',
-        },
-        timestamp: data.timestamp,
-        isRead: messageData.is_read,
-        isImportant: messageData.is_important,
+      // 更新会话信息
+      conversations[conversationIndex] = {
+        ...conversations[conversationIndex],
+        lastMessage: message,
+        updatedAt: message.timestamp,
+        unreadCount: unreadCount
       };
-      
-      // 添加到消息列表
-      chatMessages[conversation_id].push(newMessage);
-      
-      // 更新会话最后一条消息
-      const conversationIndex = conversations.findIndex(conv => conv.id === conversation_id);
-      if (conversationIndex >= 0) {
-        conversations[conversationIndex] = {
-          ...conversations[conversationIndex],
-          lastMessage: newMessage,
-          updatedAt: new Date(data.timestamp).toISOString(),
-        };
-      }
+      console.log(`已更新会话 ${convId} 的最后一条消息和未读计数`);
+    } else {
+      console.log(`未找到会话记录，ID: ${convId}`);
     }
   }
 };
@@ -288,19 +342,71 @@ export const removeMessageCallback = (action: string, callback: MessageCallback)
 
 // 发送WebSocket消息
 export const sendWebSocketMessage = (message: any) => {
+  console.log(`准备通过WebSocket发送消息:`, message);
+  
+  // 确保必要的字段存在
+  if (!message.conversation_id) {
+    console.error('发送的消息没有会话ID，无法继续');
+    return false;
+  }
+  
+  const conversationId = message.conversation_id;
+  
+  // 尝试通过WebSocket发送消息
   if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify(message));
+    try {
+      console.log(`WebSocket已连接，直接发送消息到会话 ${conversationId}`);
+      
+      // 检查当前socket的会话ID是否与要发送的消息会话ID一致
+      if (socket._conversationId !== conversationId) {
+        console.warn(`当前WebSocket连接的会话ID(${socket._conversationId})与要发送消息的会话ID(${conversationId})不一致，将重新连接`);
+        // 关闭当前连接并重新建立连接
+        closeWebSocketConnection();
+        
+        // 将消息加入队列
+        messageQueue.push(message);
+        
+        // 尝试为正确的会话建立连接
+        const user = authService.getCurrentUser();
+        if (user) {
+          initializeWebSocket(user.id, conversationId);
+        }
+        
+        return false;
+      }
+      
+      const messageString = JSON.stringify(message);
+      socket.send(messageString);
+      return true;
+    } catch (error) {
+      console.error('发送WebSocket消息时出错:', error);
+      // 发送失败，将消息加入队列
+      messageQueue.push(message);
+      
+      // 尝试重新连接
+      const user = authService.getCurrentUser();
+      if (user) {
+        console.log(`发送失败，尝试重新连接WebSocket，会话ID: ${conversationId}`);
+        setTimeout(() => {
+          initializeWebSocket(user.id, conversationId);
+        }, 1000);
+      }
+      return false;
+    }
   } else {
+    console.log(`WebSocket未连接或未就绪，将消息加入队列`);
     // 如果连接未建立，将消息加入队列
     messageQueue.push(message);
     
     // 尝试建立连接
     if (connectionStatus === ConnectionStatus.DISCONNECTED && !isConnecting) {
       const user = authService.getCurrentUser();
-      if (user && message.conversation_id) {
-        initializeWebSocket(user.id, message.conversation_id);
+      console.log(`尝试为用户${user?.id}建立WebSocket连接，会话ID: ${conversationId}`);
+      if (user) {
+        initializeWebSocket(user.id, conversationId);
       }
     }
+    return false;
   }
 };
 
@@ -313,12 +419,16 @@ export const closeWebSocketConnection = () => {
   }
   
   if (socket) {
-    socket.close();
+    try {
+      socket.close();
+    } catch (error) {
+      console.error('关闭WebSocket连接时出错:', error);
+    }
     socket = null;
   }
   connectionStatus = ConnectionStatus.DISCONNECTED;
   isConnecting = false;
-  messageQueue = [];
+  console.log('WebSocket连接已关闭');
 };
 
 // 获取连接状态
@@ -395,6 +505,9 @@ export const sendTextMessage = async (conversationId: string, content: string): 
     throw new Error('用户未登录');
   }
   
+  console.log(`发送文本消息: 会话ID=${conversationId}, 用户ID=${currentUser.id}, 角色=${currentUser.currentRole}`);
+  console.log(`WebSocket状态: ${connectionStatus}, 连接状态: ${socket?.readyState}`);
+  
   // 创建用户消息
   const userMessage: Message = {
     id: `m_${uuidv4()}`,
@@ -409,11 +522,14 @@ export const sendTextMessage = async (conversationId: string, content: string): 
     timestamp: new Date().toISOString(),
   };
   
+  console.log(`创建本地消息对象:`, userMessage);
+  
   // 添加到本地消息列表
   if (!chatMessages[conversationId]) {
     chatMessages[conversationId] = [];
   }
   chatMessages[conversationId].push(userMessage);
+  console.log(`消息已添加到本地列表, 当前共${chatMessages[conversationId].length}条消息`);
   
   // 更新本地会话最后一条消息
   const conversationIndex = conversations.findIndex(conv => conv.id === conversationId);
@@ -423,10 +539,13 @@ export const sendTextMessage = async (conversationId: string, content: string): 
       lastMessage: userMessage,
       updatedAt: userMessage.timestamp,
     };
+    console.log(`已更新本地会话记录`);
+  } else {
+    console.log(`未找到本地会话记录，ID: ${conversationId}`);
   }
   
   // 通过WebSocket发送消息
-  sendWebSocketMessage({
+  const wsMessage = {
     action: 'message',
     data: {
       content,
@@ -435,14 +554,12 @@ export const sendTextMessage = async (conversationId: string, content: string): 
     },
     conversation_id: conversationId,
     timestamp: new Date().toISOString()
-  });
+  };
   
-  // 模拟异步API调用
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(userMessage);
-    }, 300);
-  });
+  console.log(`准备通过WebSocket发送消息，会话ID: ${conversationId}`, wsMessage);
+  sendWebSocketMessage(wsMessage);
+  
+  return userMessage;
 };
 
 // 发送图片消息

@@ -1,22 +1,9 @@
-import { FC } from 'react';
+'use client';
 
-interface LoadingSpinnerProps {
-  className?: string;
-  fullScreen?: boolean;
-}
-
-const LoadingSpinner: FC<LoadingSpinnerProps> = ({ className, fullScreen = true }) => {
-  if (fullScreen) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <div className={`h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent ${className || ''}`} />
-      </div>
-    );
-  }
-  
+export default function LoadingSpinner() {
   return (
-    <div className={`animate-spin rounded-full border-4 border-primary border-t-transparent ${className || 'h-12 w-12'}`} />
+    <div className="flex h-full w-full items-center justify-center">
+      <div className="h-12 w-12 animate-spin rounded-full border-4 border-orange-500 border-t-transparent"></div>
+    </div>
   );
-};
-
-export default LoadingSpinner; 
+} 

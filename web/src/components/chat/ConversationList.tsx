@@ -1,11 +1,40 @@
 'use client';
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/service/utils'
-import { mockConversations } from '@/service/mockData'
+import { getConversations } from '@/service/chatService'
 
 export default function ConversationList() {
-  const [selectedId, setSelectedId] = useState<string>('1') // 默认选中第一个会话
+  const searchParams = useSearchParams()
+  const initialSelectedId = searchParams?.get('conversationId') || '1'
+  const [selectedId, setSelectedId] = useState<string>(initialSelectedId)
+  const [conversations, setConversations] = useState(getConversations())
+  const router = useRouter()
+  
+  // 处理会话选择
+  const handleConversationSelect = (conversationId: string) => {
+    setSelectedId(conversationId)
+    // 更新URL参数，不刷新页面
+    router.push(`?conversationId=${conversationId}`, { scroll: false })
+  }
+  
+  // 监听URL参数变化
+  useEffect(() => {
+    const conversationId = searchParams?.get('conversationId')
+    if (conversationId) {
+      setSelectedId(conversationId)
+    }
+  }, [searchParams])
+  
+  // 定期刷新会话列表
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setConversations(getConversations())
+    }, 10000) // 每10秒刷新一次
+    
+    return () => clearInterval(intervalId)
+  }, [])
   
   return (
     <div className="flex h-full flex-col">
@@ -20,10 +49,10 @@ export default function ConversationList() {
       
       {/* 会话列表 */}
       <div className="flex-1 overflow-y-auto">
-        {mockConversations.map(conversation => (
+        {conversations.map(conversation => (
           <button
             key={conversation.id}
-            onClick={() => setSelectedId(conversation.id)}
+            onClick={() => handleConversationSelect(conversation.id)}
             className={cn(
               'flex w-full items-center space-x-3 border-b border-gray-100 p-3 text-left hover:bg-orange-50',
               selectedId === conversation.id && 'bg-orange-50'
