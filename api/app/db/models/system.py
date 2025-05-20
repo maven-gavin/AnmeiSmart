@@ -30,6 +30,8 @@ class AIModelConfig(Base):
     maxTokens = Column(Integer, default=2000)
     temperature = Column(Float, default=0.7)
     enabled = Column(Boolean, default=True)
+    provider = Column(String(255), nullable=False, default="openai")
+    appId = Column(String(255), nullable=True)
     
     # 外键关联系统设置
     system_settings_id = Column(Integer, ForeignKey("system_settings.id"))

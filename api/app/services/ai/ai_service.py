@@ -6,7 +6,7 @@ AI服务主类
 import os
 import logging
 import json
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Type
 from uuid import uuid4
 from datetime import datetime
 from functools import lru_cache
@@ -24,23 +24,40 @@ class AIService:
     
     def __init__(self):
         """初始化AI服务"""
+        # 获取AI服务提供商配置
+        self.provider = os.environ.get("AI_PROVIDER", "simulated").lower()
         self.api_key = os.environ.get("AI_API_KEY", "")
         self.ai_model = os.environ.get("AI_MODEL", "default")
         self.api_base_url = os.environ.get("AI_API_BASE_URL", "")
+        
         # 检查环境变量是否配置
         self._check_config()
-        logger.info(f"AI服务初始化完成，使用模型: {self.ai_model}")
+        logger.info(f"AI服务初始化完成，提供商: {self.provider}, 使用模型: {self.ai_model}")
         
         # 加载医美领域知识库
         self.medical_beauty_knowledge = self._load_medical_beauty_knowledge()
+        
+        # 初始化服务实例
+        self._service_instance = None
     
     def _check_config(self) -> None:
         """检查配置是否正确"""
-        if not self.api_key:
-            logger.warning("AI_API_KEY环境变量未设置，将使用模拟回复")
-        if not self.api_base_url and self.api_key:
-            logger.warning("AI_API_BASE_URL环境变量未设置，将使用默认API地址")
-            self.api_base_url = "https://api.openai.com/v1"
+        if self.provider == "simulated":
+            logger.info("使用模拟AI服务")
+        elif self.provider in ["openai", "dify"]:
+            if not self.api_key:
+                logger.warning(f"{self.provider.upper()}_API_KEY环境变量未设置，将使用模拟回复")
+                self.provider = "simulated"
+            if not self.api_base_url:
+                default_urls = {
+                    "openai": "https://api.openai.com/v1",
+                    "dify": "http://localhost/v1"
+                }
+                logger.warning(f"{self.provider.upper()}_API_BASE_URL环境变量未设置，将使用默认API地址: {default_urls[self.provider]}")
+                self.api_base_url = default_urls[self.provider]
+        else:
+            logger.warning(f"未知的AI提供商: {self.provider}，将使用模拟服务")
+            self.provider = "simulated"
     
     def _load_medical_beauty_knowledge(self) -> Dict[str, List[str]]:
         """加载医美领域知识库，用于模拟回复或增强AI回复"""
@@ -89,16 +106,22 @@ class AIService:
         Returns:
             包含AI回复内容的字典
         """
-        # 如果未配置API密钥，使用模拟回复
-        if not self.api_key:
+        # 根据提供商选择相应的服务
+        if self.provider == "simulated" or not self.api_key:
             return self._get_simulated_response(query, conversation_history)
         
         try:
-            # 实际项目中，这里应调用AI服务API
-            # 例如：OpenAI、Dify、DeepSeek等
-            # 暂时使用模拟回复
-            logger.warning("API调用尚未实现，使用模拟回复")
-            return self._get_simulated_response(query, conversation_history)
+            # 获取相应的服务实例
+            service = self._get_service_instance()
+            
+            # 如果服务实例不可用，使用模拟回复
+            if not service:
+                logger.warning(f"无法获取{self.provider}服务实例，使用模拟回复")
+                return self._get_simulated_response(query, conversation_history)
+            
+            # 调用实际AI服务
+            return await service.generate_response(query, conversation_history)
+            
         except Exception as e:
             logger.error(f"AI服务调用失败: {str(e)}")
             return {
@@ -106,6 +129,37 @@ class AIService:
                 "content": "抱歉，我暂时无法回答您的问题，请稍后再试。",
                 "timestamp": datetime.now().isoformat()
             }
+    
+    def _get_service_instance(self):
+        """获取具体AI服务实例"""
+        if self._service_instance:
+            return self._service_instance
+            
+        if self.provider == "openai":
+            # 导入OpenAI服务
+            try:
+                from .openai_service import OpenAIService
+                self._service_instance = OpenAIService()
+                return self._service_instance
+            except Exception as e:
+                logger.error(f"加载OpenAI服务失败: {str(e)}")
+                return None
+        elif self.provider == "dify":
+            # 导入Dify服务
+            try:
+                from .dify_service import DifyService
+                config = {
+                    "api_key": self.api_key,
+                    "api_base_url": self.api_base_url,
+                    "app_id": os.environ.get("DIFY_APP_ID", "")
+                }
+                self._service_instance = DifyService(config)
+                return self._service_instance
+            except Exception as e:
+                logger.error(f"加载Dify服务失败: {str(e)}")
+                return None
+        
+        return None
     
     def _get_simulated_response(self, query: str, conversation_history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """生成模拟AI回复"""
@@ -137,6 +191,30 @@ class AIService:
             "content": response_content,
             "timestamp": datetime.now().isoformat()
         }
+
+    @staticmethod
+    def create_service_from_config(config: Dict[str, Any]):
+        """根据配置创建AI服务实例"""
+        # 从配置中获取AI提供商
+        provider = config.get("provider", "simulated").lower()
+        
+        if provider == "openai":
+            try:
+                from .openai_service import OpenAIService
+                return OpenAIService()
+            except Exception as e:
+                logger.error(f"创建OpenAI服务失败: {str(e)}")
+                return None
+        elif provider == "dify":
+            try:
+                from .dify_service import DifyService
+                return DifyService(config)
+            except Exception as e:
+                logger.error(f"创建Dify服务失败: {str(e)}")
+                return None
+        else:
+            # 默认返回主AI服务（使用模拟回复）
+            return AIService()
 
 
 @lru_cache()

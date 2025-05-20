@@ -6,6 +6,8 @@ from typing import Generator, Any
 import importlib.util
 import sys
 import logging
+import os
+from functools import wraps
 
 from app.core.config import get_settings
 
@@ -18,7 +20,8 @@ logger = logging.getLogger(__name__)
 # PostgreSQL或其他数据库配置
 engine = create_engine(
     settings.DATABASE_URL, 
-    poolclass=NullPool
+    poolclass=NullPool,
+    connect_args={"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {}
 )
 
 # 创建会话工厂
@@ -38,10 +41,11 @@ def get_db() -> Generator:
 # 使用同步会话执行数据库操作的帮助函数
 def with_db(func):
     """装饰器，提供数据库会话给被装饰的函数"""
+    @wraps(func)
     def wrapper(*args, **kwargs):
         db = SessionLocal()
         try:
-            result = func(db, *args, **kwargs)
+            result = func(db=db, *args, **kwargs)
             return result
         finally:
             db.close()
@@ -61,22 +65,17 @@ def create_initial_roles(db: Session):
     from app.db.models.user import Role
     
     # 角色列表
-    roles = [
-        {"name": "admin", "description": "系统管理员"},
-        {"name": "customer", "description": "顾客"},
-        {"name": "consultant", "description": "医美顾问"},
-        {"name": "doctor", "description": "医生"},
-        {"name": "operator", "description": "运营人员"}
-    ]
+    roles = ["customer", "consultant", "doctor", "operator", "admin"]
     
     # 检查并创建角色
-    for role_data in roles:
-        role = db.query(Role).filter(Role.name == role_data["name"]).first()
+    for role_name in roles:
+        role = db.query(Role).filter(Role.name == role_name).first()
         if not role:
-            role = Role(**role_data)
+            role = Role(name=role_name)
             db.add(role)
     
     db.commit()
+    logger.info("初始角色已创建")
 
 # 创建初始系统设置
 @with_db
@@ -106,6 +105,7 @@ def create_initial_system_settings(db: Session):
             maxTokens=2000,
             temperature=0.7,
             enabled=True,
+            provider="openai",
             system_settings_id=system_settings.id
         )
         db.add(default_model)

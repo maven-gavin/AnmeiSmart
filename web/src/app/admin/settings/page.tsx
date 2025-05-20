@@ -27,7 +27,9 @@ export default function SystemSettingsPage() {
     baseUrl: '',
     maxTokens: 2000,
     temperature: 0.7,
-    enabled: true
+    enabled: true,
+    provider: 'openai', // 默认提供商
+    appId: '' // Dify应用ID
   });
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<SystemSettings>();
@@ -69,8 +71,15 @@ export default function SystemSettingsPage() {
 
   // 添加新AI模型
   const handleAddModel = async () => {
+    // 基本验证
     if (!newModel.modelName || !newModel.apiKey || !newModel.baseUrl) {
       toast.error('请填写所有必填字段');
+      return;
+    }
+    
+    // 特定提供商验证
+    if (newModel.provider === 'dify' && !newModel.appId) {
+      toast.error('使用Dify时必须填写应用ID');
       return;
     }
     
@@ -90,7 +99,9 @@ export default function SystemSettingsPage() {
         baseUrl: '',
         maxTokens: 2000,
         temperature: 0.7,
-        enabled: true
+        enabled: true,
+        provider: 'openai',
+        appId: ''
       });
       
       toast.success('AI模型已添加');
@@ -171,7 +182,7 @@ export default function SystemSettingsPage() {
         </button>
       </div>
       
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <form onSubmit={handleSubmit(onSubmit)} className="mb-8">
         {/* 基本设置 */}
         <div className={activeTab === 'general' ? 'block' : 'hidden'}>
           <div className="mb-6 rounded-lg border border-gray-200 bg-white p-6 shadow">
@@ -212,6 +223,23 @@ export default function SystemSettingsPage() {
                 <span className="ml-2 text-sm text-gray-700">启用维护模式</span>
               </label>
             </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                className="mr-4 rounded-md border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-50 focus:outline-none"
+                onClick={() => reset(settings)} // 重置为当前状态
+              >
+                重置
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="rounded-md bg-orange-500 px-4 py-2 text-white hover:bg-orange-600 focus:outline-none disabled:opacity-70"
+              >
+                {isSubmitting ? '保存中...' : '保存设置'}
+              </button>
+            </div>
           </div>
         </div>
         
@@ -220,7 +248,7 @@ export default function SystemSettingsPage() {
           <div className="mb-6 rounded-lg border border-gray-200 bg-white p-6 shadow">
             <h2 className="mb-4 text-xl font-semibold text-gray-800">AI模型配置</h2>
             
-            <div className="mb-6">
+            <div className="mb-6 max-h-96 overflow-y-auto pr-2">
               <h3 className="mb-3 text-lg font-medium text-gray-700">已配置模型</h3>
               
               {settings.aiModels.length === 0 ? (
@@ -233,6 +261,11 @@ export default function SystemSettingsPage() {
                         <div className="flex items-center">
                           <span className={`mr-2 h-3 w-3 rounded-full ${model.enabled ? 'bg-green-500' : 'bg-red-500'}`}></span>
                           <h4 className="font-medium">{model.modelName}</h4>
+                          {model.provider && (
+                            <span className="ml-2 rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-800">
+                              {model.provider.toUpperCase()}
+                            </span>
+                          )}
                         </div>
                         <div className="flex space-x-2">
                           <button
@@ -261,6 +294,12 @@ export default function SystemSettingsPage() {
                           <span className="text-sm font-medium text-gray-500">API密钥:</span>
                           <p className="text-sm">••••••••••••••••••••</p>
                         </div>
+                        {model.provider === 'dify' && model.appId && (
+                          <div>
+                            <span className="text-sm font-medium text-gray-500">应用ID:</span>
+                            <p className="text-sm">{model.appId}</p>
+                          </div>
+                        )}
                         <div>
                           <span className="text-sm font-medium text-gray-500">最大Token数:</span>
                           <p className="text-sm">{model.maxTokens}</p>
@@ -274,11 +313,24 @@ export default function SystemSettingsPage() {
                   ))}
                 </div>
               )}
-            </div>
             
-            <div className="mb-4">
-              <h3 className="mb-3 text-lg font-medium text-gray-700">添加新模型</h3>
+            
+              <h3 className="mb-3 mt-6 text-lg font-medium text-gray-700">添加新模型</h3>
               <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    AI提供商 *
+                  </label>
+                  <select
+                    value={newModel.provider}
+                    onChange={(e) => setNewModel({...newModel, provider: e.target.value})}
+                    className="w-full rounded-md border border-gray-300 px-4 py-2 focus:border-orange-500 focus:outline-none"
+                  >
+                    <option value="openai">OpenAI</option>
+                    <option value="dify">Dify</option>
+                  </select>
+                </div>
+                
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -289,7 +341,7 @@ export default function SystemSettingsPage() {
                       value={newModel.modelName}
                       onChange={(e) => setNewModel({...newModel, modelName: e.target.value})}
                       className="w-full rounded-md border border-gray-300 px-4 py-2 focus:border-orange-500 focus:outline-none"
-                      placeholder="例如: GPT-4, Claude 3"
+                      placeholder={newModel.provider === 'openai' ? "例如: GPT-4, GPT-3.5-turbo" : "例如: Dify-Claude"}
                     />
                   </div>
                   
@@ -302,7 +354,7 @@ export default function SystemSettingsPage() {
                       value={newModel.apiKey}
                       onChange={(e) => setNewModel({...newModel, apiKey: e.target.value})}
                       className="w-full rounded-md border border-gray-300 px-4 py-2 focus:border-orange-500 focus:outline-none"
-                      placeholder="sk-..."
+                      placeholder={newModel.provider === 'openai' ? "sk-..." : "Bearer token"}
                     />
                   </div>
                   
@@ -315,9 +367,24 @@ export default function SystemSettingsPage() {
                       value={newModel.baseUrl}
                       onChange={(e) => setNewModel({...newModel, baseUrl: e.target.value})}
                       className="w-full rounded-md border border-gray-300 px-4 py-2 focus:border-orange-500 focus:outline-none"
-                      placeholder="https://api.openai.com/v1"
+                      placeholder={newModel.provider === 'openai' ? "https://api.openai.com/v1" : "http://localhost/v1"}
                     />
                   </div>
+                  
+                  {newModel.provider === 'dify' && (
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-gray-700">
+                        应用ID *
+                      </label>
+                      <input
+                        type="text"
+                        value={newModel.appId}
+                        onChange={(e) => setNewModel({...newModel, appId: e.target.value})}
+                        className="w-full rounded-md border border-gray-300 px-4 py-2 focus:border-orange-500 focus:outline-none"
+                        placeholder="例如: e15daecf-548c-47da-986c-ed37036d33ea"
+                      />
+                    </div>
+                  )}
                   
                   <div>
                     <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -379,12 +446,34 @@ export default function SystemSettingsPage() {
                 {...register('defaultModelId')}
                 className="w-full rounded-md border border-gray-300 px-4 py-2 focus:border-orange-500 focus:outline-none"
               >
-                {settings.aiModels.map((model, index) => (
-                  <option key={index} value={model.modelName}>
-                    {model.modelName} {!model.enabled && '(已停用)'}
-                  </option>
-                ))}
+                {settings.aiModels.length > 0 ? (
+                  settings.aiModels.map((model, index) => (
+                    <option key={index} value={model.modelName}>
+                      {model.modelName} {!model.enabled && '(已停用)'} 
+                      {model.provider && ` - ${model.provider.toUpperCase()}`}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">请先添加模型</option>
+                )}
               </select>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                className="mr-4 rounded-md border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-50 focus:outline-none"
+                onClick={() => reset(settings)} // 重置为当前状态
+              >
+                重置
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="rounded-md bg-orange-500 px-4 py-2 text-white hover:bg-orange-600 focus:outline-none disabled:opacity-70"
+              >
+                {isSubmitting ? '保存中...' : '保存设置'}
+              </button>
             </div>
           </div>
         </div>
@@ -406,24 +495,24 @@ export default function SystemSettingsPage() {
             </div>
             
             {/* 这里可以添加更多安全相关的设置 */}
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                className="mr-4 rounded-md border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-50 focus:outline-none"
+                onClick={() => reset(settings)} // 重置为当前状态
+              >
+                重置
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="rounded-md bg-orange-500 px-4 py-2 text-white hover:bg-orange-600 focus:outline-none disabled:opacity-70"
+              >
+                {isSubmitting ? '保存中...' : '保存设置'}
+              </button>
+            </div>
           </div>
-        </div>
-        
-        <div className="mt-6 flex justify-end">
-          <button
-            type="button"
-            className="mr-4 rounded-md border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-50 focus:outline-none"
-            onClick={() => reset(settings)} // 重置为当前状态
-          >
-            重置
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="rounded-md bg-orange-500 px-4 py-2 text-white hover:bg-orange-600 focus:outline-none disabled:opacity-70"
-          >
-            {isSubmitting ? '保存中...' : '保存设置'}
-          </button>
         </div>
       </form>
     </div>

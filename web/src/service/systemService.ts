@@ -1,5 +1,4 @@
-import axios from 'axios';
-import { API_BASE_URL } from '@/config';
+import { apiClient } from '@/service/apiClient';
 
 interface AIModelConfig {
   modelName: string;
@@ -8,6 +7,8 @@ interface AIModelConfig {
   maxTokens: number;
   temperature: number;
   enabled: boolean;
+  provider?: string;  // 添加提供商字段：openai, dify等
+  appId?: string;     // Dify应用ID
 }
 
 interface SystemSettings {
@@ -19,28 +20,17 @@ interface SystemSettings {
   userRegistrationEnabled: boolean;
 }
 
-interface ApiResponse<T> {
-  success: boolean;
-  data: T;
-  message: string;
-}
-
 const systemService = {
   /**
    * 获取系统设置
    */
   async getSystemSettings(): Promise<SystemSettings> {
     try {
-      const response = await axios.get<ApiResponse<SystemSettings>>(
-        `${API_BASE_URL}/system/settings`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          withCredentials: true,
-        }
-      );
-      return response.data.data;
+      const response = await apiClient.get('/system/settings');
+      if (!response.ok) {
+        throw new Error(`获取系统设置失败: ${response.status}`);
+      }
+      return response.data?.data;
     } catch (error) {
       console.error('获取系统设置失败:', error);
       throw error;
@@ -52,17 +42,11 @@ const systemService = {
    */
   async updateSystemSettings(settings: Partial<SystemSettings>): Promise<SystemSettings> {
     try {
-      const response = await axios.put<ApiResponse<SystemSettings>>(
-        `${API_BASE_URL}/system/settings`,
-        settings,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          withCredentials: true,
-        }
-      );
-      return response.data.data;
+      const response = await apiClient.put('/system/settings', settings);
+      if (!response.ok) {
+        throw new Error(`更新系统设置失败: ${response.status}`);
+      }
+      return response.data?.data;
     } catch (error) {
       console.error('更新系统设置失败:', error);
       throw error;
@@ -74,16 +58,11 @@ const systemService = {
    */
   async getAIModels(): Promise<AIModelConfig[]> {
     try {
-      const response = await axios.get<ApiResponse<AIModelConfig[]>>(
-        `${API_BASE_URL}/system/ai-models`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          withCredentials: true,
-        }
-      );
-      return response.data.data;
+      const response = await apiClient.get('/system/ai-models');
+      if (!response.ok) {
+        throw new Error(`获取AI模型配置失败: ${response.status}`);
+      }
+      return response.data?.data;
     } catch (error) {
       console.error('获取AI模型配置失败:', error);
       throw error;
@@ -95,17 +74,11 @@ const systemService = {
    */
   async createAIModel(modelConfig: AIModelConfig): Promise<AIModelConfig> {
     try {
-      const response = await axios.post<ApiResponse<AIModelConfig>>(
-        `${API_BASE_URL}/system/ai-models`,
-        modelConfig,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          withCredentials: true,
-        }
-      );
-      return response.data.data;
+      const response = await apiClient.post('/system/ai-models', modelConfig);
+      if (!response.ok) {
+        throw new Error(`创建AI模型配置失败: ${response.status}`);
+      }
+      return response.data?.data;
     } catch (error) {
       console.error('创建AI模型配置失败:', error);
       throw error;
@@ -117,17 +90,11 @@ const systemService = {
    */
   async updateAIModel(modelName: string, modelConfig: Partial<AIModelConfig>): Promise<AIModelConfig> {
     try {
-      const response = await axios.put<ApiResponse<AIModelConfig>>(
-        `${API_BASE_URL}/system/ai-models/${modelName}`,
-        modelConfig,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          withCredentials: true,
-        }
-      );
-      return response.data.data;
+      const response = await apiClient.put(`/system/ai-models/${modelName}`, modelConfig);
+      if (!response.ok) {
+        throw new Error(`更新AI模型配置失败: ${response.status}`);
+      }
+      return response.data?.data;
     } catch (error) {
       console.error('更新AI模型配置失败:', error);
       throw error;
@@ -139,12 +106,10 @@ const systemService = {
    */
   async deleteAIModel(modelName: string): Promise<void> {
     try {
-      await axios.delete(`${API_BASE_URL}/system/ai-models/${modelName}`, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        withCredentials: true,
-      });
+      const response = await apiClient.delete(`/system/ai-models/${modelName}`);
+      if (!response.ok) {
+        throw new Error(`删除AI模型配置失败: ${response.status}`);
+      }
     } catch (error) {
       console.error('删除AI模型配置失败:', error);
       throw error;
@@ -156,17 +121,11 @@ const systemService = {
    */
   async toggleAIModelStatus(modelName: string): Promise<AIModelConfig> {
     try {
-      const response = await axios.post<ApiResponse<AIModelConfig>>(
-        `${API_BASE_URL}/system/ai-models/${modelName}/toggle`,
-        {},
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          withCredentials: true,
-        }
-      );
-      return response.data.data;
+      const response = await apiClient.post(`/system/ai-models/${modelName}/toggle`);
+      if (!response.ok) {
+        throw new Error(`切换AI模型状态失败: ${response.status}`);
+      }
+      return response.data?.data;
     } catch (error) {
       console.error('切换AI模型状态失败:', error);
       throw error;

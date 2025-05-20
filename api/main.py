@@ -13,6 +13,18 @@ from app.db.base import create_initial_roles, create_initial_system_settings
 
 settings = get_settings()
 
+# 定义应用生命周期管理器
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用启动时执行的初始化操作"""
+    # 创建初始角色
+    create_initial_roles()
+    # 创建初始系统设置
+    create_initial_system_settings()
+    yield
+    # 应用关闭时执行的清理操作
+
+# 创建FastAPI应用并应用lifespan
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="医美服务系统后端API",
@@ -20,6 +32,7 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url=f"{settings.API_V1_STR}/docs",
     redoc_url=f"{settings.API_V1_STR}/redoc",
+    lifespan=lifespan,
 )
 
 # CORS配置
@@ -33,15 +46,6 @@ app.add_middleware(
 
 # 包含API路由
 app.include_router(api_router, prefix=settings.API_V1_STR)
-
-# 初始化数据
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """应用启动时执行的初始化操作"""
-    # 创建初始角色
-    create_initial_roles()
-    # 创建初始系统设置
-    create_initial_system_settings()
 
 @app.get("/")
 async def root() -> Dict[str, str]:

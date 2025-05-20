@@ -4,10 +4,8 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.crud import system as crud_system
 from app.schemas.system import (
-    SystemSettings, 
     SystemSettingsResponse, 
     SystemSettingsUpdate,
-    AIModelConfig,
     AIModelConfigCreate,
     AIModelConfigUpdate,
     AIModelConfigResponse,
@@ -46,7 +44,9 @@ def get_system_settings(
                 "baseUrl": model.baseUrl,
                 "maxTokens": model.maxTokens,
                 "temperature": model.temperature,
-                "enabled": model.enabled
+                "enabled": model.enabled,
+                "provider": model.provider,
+                "appId": model.appId
             }
             for model in ai_models
         ]

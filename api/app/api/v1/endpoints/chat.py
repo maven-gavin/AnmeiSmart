@@ -52,279 +52,342 @@ async def broadcast_to_conversation(conversation_id: str, message: Dict[str, Any
 @router.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = None):
     """WebSocket连接端点"""
-    await websocket.accept()
-    
-    # 验证用户身份（简化版，实际应使用JWT验证）
-    if not token:
-        await websocket.send_json({
-            "action": "error",
-            "data": {"message": "未提供认证令牌"}
-        })
-        await websocket.close()
-        return
-    
-    # 存储用户连接
-    # 注意：此处简化处理，实际应该是每个会话一个连接组
+    logger.info(f"新的WebSocket连接请求: user_id={user_id}")
     
     try:
-        # 等待客户端发送初始连接消息
-        connect_data = await websocket.receive_json()
+        await websocket.accept()
+        logger.info(f"WebSocket连接已接受: user_id={user_id}")
         
-        if not isinstance(connect_data, dict) or connect_data.get("action") != "connect":
+        # 验证用户身份（简化版，实际应使用JWT验证）
+        if not token:
+            logger.warning(f"WebSocket连接未提供认证令牌: user_id={user_id}")
             await websocket.send_json({
                 "action": "error",
-                "data": {"message": "无效的连接消息"}
+                "data": {"message": "未提供认证令牌"}
             })
             await websocket.close()
             return
         
-        # 获取会话ID
-        conversation_id = connect_data.get("conversation_id")
-        if not conversation_id:
-            await websocket.send_json({
-                "action": "error",
-                "data": {"message": "未提供会话ID"}
-            })
-            await websocket.close()
-            return
-        
-        # 将连接添加到会话
-        if conversation_id not in active_connections:
-            active_connections[conversation_id] = []
-        active_connections[conversation_id].append(websocket)
-        
-        # 将用户与会话关联
-        if user_id not in user_conversation_mapping:
-            user_conversation_mapping[user_id] = []
-        if conversation_id not in user_conversation_mapping[user_id]:
-            user_conversation_mapping[user_id].append(conversation_id)
-        
-        # 发送成功连接消息
-        await websocket.send_json({
-            "action": "connect",
-            "data": {"status": "connected"},
-            "conversation_id": conversation_id,
-            "timestamp": datetime.now().isoformat()
-        })
-        
-        # 通知其他连接用户有新用户加入
-        await broadcast_to_conversation(conversation_id, {
-            "action": "system",
-            "data": {"message": f"用户 {user_id} 已连接"},
-            "conversation_id": conversation_id,
-            "timestamp": datetime.now().isoformat()
-        })
-        
-        # 持续接收消息
-        while True:
-            data = await websocket.receive_json()
+        try:
+            # 等待客户端发送初始连接消息
+            logger.info(f"等待客户端初始连接消息: user_id={user_id}")
+            connect_data = await websocket.receive_json()
+            logger.info(f"收到初始连接消息: {connect_data}")
             
-            # 确保数据是字典
-            if not isinstance(data, dict):
+            if not isinstance(connect_data, dict) or connect_data.get("action") != "connect":
                 await websocket.send_json({
                     "action": "error",
-                    "data": {"message": "无效的消息格式"}
+                    "data": {"message": "无效的连接消息"}
                 })
-                continue
+                await websocket.close()
+                return
             
-            # 处理不同类型的消息
-            action = data.get("action")
+            # 获取会话ID
+            conversation_id = connect_data.get("conversation_id")
+            if not conversation_id:
+                await websocket.send_json({
+                    "action": "error",
+                    "data": {"message": "未提供会话ID"}
+                })
+                await websocket.close()
+                return
             
-            if action == "message":
-                # 处理消息发送
-                message_data = data.get("data", {})
-                
-                # 创建消息ID
-                message_id = f"msg_{uuid4().hex}"
-                
-                # 构建完整消息
-                complete_message = {
-                    "action": "message",
-                    "data": {
-                        "id": message_id,
-                        "content": message_data.get("content", ""),
-                        "type": message_data.get("type", "text"),
-                        "sender_id": user_id,
-                        "sender_type": message_data.get("sender_type", "user"),
-                        "is_read": False,
-                        "is_important": False
-                    },
-                    "conversation_id": conversation_id,
-                    "timestamp": datetime.now().isoformat()
-                }
-                
-                # 广播消息给所有连接的用户
-                await broadcast_to_conversation(conversation_id, complete_message)
-                
-                # 保存消息到数据库
+            # 将连接添加到会话
+            if conversation_id not in active_connections:
+                active_connections[conversation_id] = []
+            active_connections[conversation_id].append(websocket)
+            
+            # 将用户与会话关联
+            if user_id not in user_conversation_mapping:
+                user_conversation_mapping[user_id] = []
+            if conversation_id not in user_conversation_mapping[user_id]:
+                user_conversation_mapping[user_id].append(conversation_id)
+            
+            # 发送成功连接消息
+            await websocket.send_json({
+                "action": "connect",
+                "data": {"status": "connected"},
+                "conversation_id": conversation_id,
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            # 通知其他连接用户有新用户加入
+            await broadcast_to_conversation(conversation_id, {
+                "action": "system",
+                "data": {"message": f"用户 {user_id} 已连接"},
+                "conversation_id": conversation_id,
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            # 持续接收消息
+            while True:
                 try:
-                    # 创建同步数据库会话
-                    from app.db.base import SessionLocal
-                    db = SessionLocal()
+                    data = await websocket.receive_json()
+                    logger.info(f"收到WebSocket消息: {data}")
                     
-                    # 验证会话是否存在
-                    conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
-                    if conversation:
-                        # 创建新消息
-                        new_message = Message(
-                            id=message_id,
-                            conversation_id=conversation_id,
-                            content=message_data.get("content", ""),
-                            type=message_data.get("type", "text"),
-                            sender_id=user_id,
-                            sender_type=message_data.get("sender_type", "user"),
-                            is_read=False,
-                            is_important=False
-                        )
+                    # 确保数据是字典
+                    if not isinstance(data, dict):
+                        await websocket.send_json({
+                            "action": "error",
+                            "data": {"message": "无效的消息格式"}
+                        })
+                        continue
+                    
+                    # 处理不同类型的消息
+                    action = data.get("action")
+                    
+                    if action == "message":
+                        # 处理消息发送
+                        message_data = data.get("data", {})
                         
-                        db.add(new_message)
+                        # 创建消息ID
+                        message_id = f"msg_{uuid4().hex}"
                         
-                        # 更新会话最后更新时间
-                        conversation.updated_at = datetime.now()
+                        # 构建完整消息
+                        complete_message = {
+                            "action": "message",
+                            "data": {
+                                "id": message_id,
+                                "content": message_data.get("content", ""),
+                                "type": message_data.get("type", "text"),
+                                "sender_id": user_id,
+                                "sender_type": message_data.get("sender_type", "user"),
+                                "is_read": False,
+                                "is_important": False
+                            },
+                            "conversation_id": conversation_id,
+                            "timestamp": datetime.now().isoformat()
+                        }
                         
-                        db.commit()
-                        logger.info(f"消息已保存到数据库: {message_id}")
+                        # 广播消息给所有连接的用户
+                        await broadcast_to_conversation(conversation_id, complete_message)
                         
-                        # 检查是否需要AI自动回复
-                        # 获取AI接管状态（如果AI接管设置为False则由顾问接管）
-                        is_ai_controlled = True  # 默认由AI处理
-                        
-                        # 获取最近的会话历史
-                        conversation_history = db.query(Message).filter(
-                            Message.conversation_id == conversation_id
-                        ).order_by(Message.timestamp.desc()).limit(10).all()
-                        
-                        # 转换为AI服务需要的格式
-                        history_list = []
-                        for msg in conversation_history:
-                            history_list.append({
-                                "content": msg.content,
-                                "sender_type": msg.sender_type,
-                                "timestamp": msg.timestamp.isoformat()
-                            })
-                        
-                        # 判断是否由AI回复
-                        if is_ai_controlled:
-                            # 获取AI服务
-                            ai_service = get_ai_service()
+                        # 保存消息到数据库
+                        try:
+                            # 创建同步数据库会话
+                            from app.db.base import SessionLocal
+                            db = SessionLocal()
                             
-                            # 生成AI回复
-                            ai_response = await ai_service.get_response(
-                                message_data.get("content", ""), 
-                                history_list
-                            )
+                            # 验证会话是否存在
+                            conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+                            if conversation:
+                                # 创建新消息
+                                new_message = Message(
+                                    id=message_id,
+                                    conversation_id=conversation_id,
+                                    content=message_data.get("content", ""),
+                                    type=message_data.get("type", "text"),
+                                    sender_id=user_id,
+                                    sender_type=message_data.get("sender_type", "user"),
+                                    is_read=False,
+                                    is_important=False
+                                )
+                                
+                                db.add(new_message)
+                                
+                                # 更新会话最后更新时间
+                                conversation.updated_at = datetime.now()
+                                
+                                db.commit()
+                                logger.info(f"消息已保存到数据库: {message_id}")
+                                
+                                # 检查是否需要AI自动回复
+                                # 获取AI接管状态（如果AI接管设置为False则由顾问接管）
+                                is_ai_controlled = True  # 默认由AI处理
+                                
+                                # 获取最近的会话历史
+                                conversation_history = db.query(Message).filter(
+                                    Message.conversation_id == conversation_id
+                                ).order_by(Message.timestamp.desc()).limit(10).all()
+                                
+                                # 转换为AI服务需要的格式
+                                history_list = []
+                                for msg in conversation_history:
+                                    history_list.append({
+                                        "content": msg.content,
+                                        "sender_type": msg.sender_type,
+                                        "timestamp": msg.timestamp.isoformat()
+                                    })
+                                
+                                # 判断是否由AI回复
+                                if is_ai_controlled:
+                                    # 获取AI服务
+                                    ai_service = get_ai_service()
+                                    
+                                    # 生成AI回复
+                                    ai_response = await ai_service.get_response(
+                                        message_data.get("content", ""), 
+                                        history_list
+                                    )
+                                    
+                                    # 创建AI回复消息
+                                    ai_message = Message(
+                                        id=ai_response["id"],
+                                        conversation_id=conversation_id,
+                                        content=ai_response["content"],
+                                        type="text",
+                                        sender_id="ai",
+                                        sender_type="ai",
+                                        timestamp=datetime.now()
+                                    )
+                                    
+                                    db.add(ai_message)
+                                    db.commit()
+                                    
+                                    # 广播AI回复消息
+                                    await broadcast_to_conversation(conversation_id, {
+                                        "action": "message",
+                                        "data": {
+                                            "id": ai_message.id,
+                                            "content": ai_message.content,
+                                            "type": ai_message.type,
+                                            "sender_id": ai_message.sender_id,
+                                            "sender_type": ai_message.sender_type,
+                                            "is_read": False,
+                                            "is_important": False
+                                        },
+                                        "conversation_id": conversation_id,
+                                        "timestamp": datetime.now().isoformat()
+                                    })
+                                    
+                                    logger.info(f"AI回复已生成并广播: {ai_message.id}")
+                                
+                            else:
+                                logger.error(f"会话不存在: {conversation_id}")
+                        except Exception as e:
+                            logger.error(f"保存消息到数据库时出错: {e}")
+                        finally:
+                            db.close()
+                        
+                    elif action == "typing":
+                        # 处理正在输入状态
+                        await broadcast_to_conversation(conversation_id, {
+                            "action": "typing",
+                            "data": {"is_typing": data.get("data", {}).get("is_typing", False)},
+                            "sender_id": user_id,
+                            "conversation_id": conversation_id,
+                            "timestamp": datetime.now().isoformat()
+                        })
+                        
+                    elif action == "read":
+                        # 处理已读消息
+                        message_ids = data.get("data", {}).get("message_ids", [])
+                        
+                        # 更新数据库中的消息状态
+                        try:
+                            # 创建同步数据库会话
+                            from app.db.base import SessionLocal
+                            db = SessionLocal()
                             
-                            # 创建AI回复消息
-                            ai_message = Message(
-                                id=ai_response["id"],
-                                conversation_id=conversation_id,
-                                content=ai_response["content"],
-                                type="text",
-                                sender_id="ai",
-                                sender_type="ai",
-                                timestamp=datetime.now()
-                            )
+                            # 更新消息状态
+                            for message_id in message_ids:
+                                message = db.query(Message).filter(Message.id == message_id).first()
+                                if message:
+                                    message.is_read = True
                             
-                            db.add(ai_message)
                             db.commit()
-                            
-                            # 广播AI回复消息
-                            await broadcast_to_conversation(conversation_id, {
-                                "action": "message",
-                                "data": {
-                                    "id": ai_message.id,
-                                    "content": ai_message.content,
-                                    "type": ai_message.type,
-                                    "sender_id": ai_message.sender_id,
-                                    "sender_type": ai_message.sender_type,
-                                    "is_read": False,
-                                    "is_important": False
-                                },
-                                "conversation_id": conversation_id,
-                                "timestamp": datetime.now().isoformat()
-                            })
-                            
-                            logger.info(f"AI回复已生成并广播: {ai_message.id}")
+                            logger.info(f"已更新消息已读状态: {message_ids}")
+                        except Exception as e:
+                            logger.error(f"更新消息已读状态时出错: {e}")
+                        finally:
+                            db.close()
                         
+                        # 广播已读状态
+                        await broadcast_to_conversation(conversation_id, {
+                            "action": "read",
+                            "data": {"message_ids": message_ids},
+                            "sender_id": user_id,
+                            "conversation_id": conversation_id,
+                            "timestamp": datetime.now().isoformat()
+                        })
+                        
+                    elif action == "disconnect":
+                        # 用户主动断开连接
+                        break
+                    
+                    elif action == "ping":
+                        # 处理心跳消息
+                        logger.debug(f"收到心跳消息: user_id={user_id}, conversation_id={conversation_id}")
+                        await websocket.send_json({
+                            "action": "pong",
+                            "timestamp": datetime.now().isoformat()
+                        })
+                    
                     else:
-                        logger.error(f"会话不存在: {conversation_id}")
+                        # 未知操作
+                        await websocket.send_json({
+                            "action": "error",
+                            "data": {"message": f"未知操作: {action}"}
+                        })
+                except WebSocketDisconnect:
+                    logger.info(f"WebSocket连接断开: user_id={user_id}, conversation_id={conversation_id}")
+                    break
+                except json.JSONDecodeError:
+                    logger.error(f"无效的JSON数据: user_id={user_id}")
+                    await websocket.send_json({
+                        "action": "error",
+                        "data": {"message": "无效的JSON数据"}
+                    })
                 except Exception as e:
-                    logger.error(f"保存消息到数据库时出错: {e}")
-                finally:
-                    db.close()
-                
-            elif action == "typing":
-                # 处理正在输入状态
-                await broadcast_to_conversation(conversation_id, {
-                    "action": "typing",
-                    "data": {"is_typing": data.get("data", {}).get("is_typing", False)},
-                    "sender_id": user_id,
-                    "conversation_id": conversation_id,
-                    "timestamp": datetime.now().isoformat()
-                })
-                
-            elif action == "read":
-                # 处理已读消息
-                message_ids = data.get("data", {}).get("message_ids", [])
-                
-                # 更新数据库中的消息状态
-                try:
-                    # 创建同步数据库会话
-                    from app.db.base import SessionLocal
-                    db = SessionLocal()
-                    
-                    # 更新消息状态
-                    for message_id in message_ids:
-                        message = db.query(Message).filter(Message.id == message_id).first()
-                        if message:
-                            message.is_read = True
-                    
-                    db.commit()
-                    logger.info(f"已更新消息已读状态: {message_ids}")
-                except Exception as e:
-                    logger.error(f"更新消息已读状态时出错: {e}")
-                finally:
-                    db.close()
-                
-                # 广播已读状态
-                await broadcast_to_conversation(conversation_id, {
-                    "action": "read",
-                    "data": {"message_ids": message_ids},
-                    "sender_id": user_id,
-                    "conversation_id": conversation_id,
-                    "timestamp": datetime.now().isoformat()
-                })
-                
-            elif action == "disconnect":
-                # 用户主动断开连接
-                break
-            
-            else:
-                # 未知操作
+                    logger.error(f"处理WebSocket消息时出错: {str(e)}")
+                    await websocket.send_json({
+                        "action": "error",
+                        "data": {"message": f"处理消息时出错: {str(e)}"}
+                    })
+        except WebSocketDisconnect:
+            logger.info(f"WebSocket连接在初始化阶段断开: user_id={user_id}")
+        except json.JSONDecodeError:
+            logger.error(f"初始化阶段收到无效的JSON数据: user_id={user_id}")
+            await websocket.send_json({
+                "action": "error",
+                "data": {"message": "无效的JSON数据"}
+            })
+        except Exception as e:
+            logger.error(f"WebSocket处理时出错: {str(e)}")
+            try:
                 await websocket.send_json({
                     "action": "error",
-                    "data": {"message": f"未知操作: {action}"}
+                    "data": {"message": f"服务器错误: {str(e)}"}
                 })
-    
-    except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected for user: {user_id}")
-    except Exception as e:
-        logger.error(f"WebSocket error: {e}")
-    finally:
-        # 清理连接
-        if conversation_id in active_connections and websocket in active_connections[conversation_id]:
-            active_connections[conversation_id].remove(websocket)
-            if not active_connections[conversation_id]:
-                del active_connections[conversation_id]
+            except:
+                logger.error("无法发送错误消息到WebSocket")
+        finally:
+            # 清理连接
+            try:
+                # 从活动连接中移除
+                if 'conversation_id' in locals() and conversation_id in active_connections:
+                    if websocket in active_connections[conversation_id]:
+                        active_connections[conversation_id].remove(websocket)
+                    
+                    # 如果会话没有活动连接，则删除会话记录
+                    if not active_connections[conversation_id]:
+                        del active_connections[conversation_id]
                 
-        # 清理用户会话映射
-        if user_id in user_conversation_mapping:
-            if conversation_id in user_conversation_mapping[user_id]:
-                user_conversation_mapping[user_id].remove(conversation_id)
-                if not user_conversation_mapping[user_id]:
-                    del user_conversation_mapping[user_id]
-        
-        logger.info(f"WebSocket connection removed for user: {user_id}")
+                # 从用户会话映射中移除
+                if user_id in user_conversation_mapping and 'conversation_id' in locals():
+                    if conversation_id in user_conversation_mapping[user_id]:
+                        user_conversation_mapping[user_id].remove(conversation_id)
+                    
+                    # 如果用户没有活动会话，则删除用户记录
+                    if not user_conversation_mapping[user_id]:
+                        del user_conversation_mapping[user_id]
+                
+                # 通知其他用户有用户离开
+                if 'conversation_id' in locals() and conversation_id in active_connections:
+                    await broadcast_to_conversation(conversation_id, {
+                        "action": "system",
+                        "data": {"message": f"用户 {user_id} 已断开连接"},
+                        "conversation_id": conversation_id,
+                        "timestamp": datetime.now().isoformat()
+                    })
+            except Exception as e:
+                logger.error(f"清理WebSocket连接时出错: {str(e)}")
+    except Exception as e:
+        logger.error(f"WebSocket连接初始化失败: {str(e)}")
+        try:
+            await websocket.close()
+        except:
+            pass
 
 
 @router.post("/conversations", response_model=ConversationSchema, status_code=status.HTTP_201_CREATED)

@@ -30,6 +30,7 @@ def create_system_settings(db: Session) -> SystemSettings:
         maxTokens=2000,
         temperature=0.7,
         enabled=True,
+        provider="openai",  # 明确指定提供商为OpenAI
         system_settings_id=db_system_settings.id
     )
     db.add(default_model)
@@ -93,8 +94,17 @@ def create_ai_model_config(
     if existing_model:
         raise ValueError(f"模型名称 '{model_config.modelName}' 已存在")
     
+    # 确保provider字段有值
+    model_data = model_config.model_dump()
+    if "provider" not in model_data or not model_data["provider"]:
+        model_data["provider"] = "openai"  # 默认值
+    
+    # 如果是Dify提供商，确保appId字段有值
+    if model_data.get("provider") == "dify" and not model_data.get("appId"):
+        raise ValueError("Dify提供商必须提供appId")
+    
     db_model_config = AIModelConfig(
-        **model_config.model_dump(),
+        **model_data,
         system_settings_id=system_settings.id
     )
     db.add(db_model_config)
@@ -115,6 +125,11 @@ def update_ai_model_config(
     
     # 更新非空字段
     update_data = model_update.model_dump(exclude_unset=True)
+    
+    # 如果要将提供商更改为Dify，但没有提供appId
+    if update_data.get("provider") == "dify" and not (update_data.get("appId") or db_model.appId):
+        raise ValueError("Dify提供商必须提供appId")
+    
     for key, value in update_data.items():
         if value is not None:  # 只更新非None值
             setattr(db_model, key, value)

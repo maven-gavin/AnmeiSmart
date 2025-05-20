@@ -10,7 +10,7 @@ let chatMessages: Record<string, Message[]> = { ...mockMessages };
 let conversations: Conversation[] = [...mockConversations];
 
 // API基础URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 // 当前顾问信息（模拟从登录状态获取）
 const consultantInfo = {
@@ -37,6 +37,8 @@ let isConnecting = false;
 let messageQueue: any[] = [];
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
+let heartbeatInterval: NodeJS.Timeout | null = null;
+const HEARTBEAT_INTERVAL = 30000; // 30秒发送一次心跳
 
 // 消息回调处理函数
 type MessageCallback = (message: any) => void;
@@ -76,8 +78,20 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
   // 建立连接
   try {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsHost = process.env.NEXT_PUBLIC_WS_URL || window.location.host;
-    const wsUrl = `${wsProtocol}//${wsHost}/api/v1/chat/ws/${userId}?token=${token}`;
+    const wsHost = process.env.NEXT_PUBLIC_WS_URL || 'localhost:8000';
+    const wsUrl = `${wsProtocol}//${wsHost}/api/v1/chat/ws/${userId}?token=${encodeURIComponent(token)}`;
+    
+    console.log('尝试连接WebSocket:', wsUrl);
+    
+    // 在建立连接前关闭已有连接
+    if (socket) {
+      try {
+        socket.close();
+        console.log('关闭已有WebSocket连接');
+      } catch (err) {
+        console.warn('关闭已有连接时出错:', err);
+      }
+    }
     
     socket = new WebSocket(wsUrl);
     
@@ -89,22 +103,62 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
       
       // 发送连接消息
       if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({
+        const connectMsg = {
           action: 'connect',
           conversation_id: conversationId,
           timestamp: new Date().toISOString()
-        }));
+        };
+        console.log('发送WebSocket连接消息:', connectMsg);
+        socket.send(JSON.stringify(connectMsg));
       }
       
       // 发送队列中的消息
       while (messageQueue.length > 0 && socket && socket.readyState === WebSocket.OPEN) {
         const message = messageQueue.shift();
+        console.log('发送队列中的消息:', message);
         socket.send(JSON.stringify(message));
       }
+      
+      // 启动心跳检测
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+      }
+      
+      heartbeatInterval = setInterval(() => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          console.log('发送WebSocket心跳');
+          socket.send(JSON.stringify({
+            action: 'ping',
+            timestamp: new Date().toISOString()
+          }));
+        } else {
+          if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
+          }
+          
+          // 如果连接已关闭但状态未更新，尝试重连
+          if (connectionStatus !== ConnectionStatus.DISCONNECTED && 
+              connectionStatus !== ConnectionStatus.ERROR) {
+            console.log('心跳检测到连接已关闭，更新状态');
+            connectionStatus = ConnectionStatus.DISCONNECTED;
+            
+            // 尝试重连
+            if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+              reconnectAttempts++;
+              console.log(`心跳触发重连 (尝试 ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+              setTimeout(() => {
+                initializeWebSocket(userId, conversationId);
+              }, 1000);
+            }
+          }
+        }
+      }, HEARTBEAT_INTERVAL);
     };
     
     socket.onmessage = (event) => {
       try {
+        console.log('收到WebSocket消息:', event.data);
         const data = JSON.parse(event.data);
         handleWebSocketMessage(data);
       } catch (error) {
@@ -114,21 +168,41 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
     
     socket.onerror = (error) => {
       console.error('WebSocket错误:', error);
+      // 添加更详细的错误信息
+      console.error('WebSocket状态:', socket?.readyState);
+      console.error('WebSocket URL:', wsUrl);
+      console.error('用户ID:', userId);
+      console.error('会话ID:', conversationId);
+      
+      // 检查网络连接
+      console.log('检查网络连接:', navigator.onLine ? '在线' : '离线');
+      
       connectionStatus = ConnectionStatus.ERROR;
       isConnecting = false;
     };
     
-    socket.onclose = () => {
-      console.log('WebSocket连接已关闭');
+    socket.onclose = (event) => {
+      console.log(`WebSocket连接已关闭: 代码=${event.code}, 原因=${event.reason || '未提供'}, 是否干净关闭=${event.wasClean}`);
       connectionStatus = ConnectionStatus.DISCONNECTED;
       isConnecting = false;
+      
+      // 清除心跳
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+      }
       
       // 尝试重连
       if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
         reconnectAttempts++;
+        const delay = 1000 * Math.pow(2, reconnectAttempts); // 指数退避重连
+        console.log(`${delay}ms后尝试重连 (尝试 ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+        
         setTimeout(() => {
           initializeWebSocket(userId, conversationId);
-        }, 1000 * Math.pow(2, reconnectAttempts)); // 指数退避重连
+        }, delay);
+      } else {
+        console.error(`达到最大重连尝试次数 (${MAX_RECONNECT_ATTEMPTS}), 停止重连`);
       }
     };
   } catch (error) {
@@ -141,6 +215,12 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
 // 处理接收到的WebSocket消息
 const handleWebSocketMessage = (data: any) => {
   const { action, conversation_id } = data;
+  
+  // 处理心跳响应
+  if (action === 'pong') {
+    console.log('收到WebSocket心跳响应:', data.timestamp);
+    return; // 心跳响应不需要进一步处理
+  }
   
   // 调用对应action的回调函数
   if (action && messageCallbacks[action]) {
@@ -226,6 +306,12 @@ export const sendWebSocketMessage = (message: any) => {
 
 // 关闭WebSocket连接
 export const closeWebSocketConnection = () => {
+  // 清除心跳
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
+  
   if (socket) {
     socket.close();
     socket = null;
