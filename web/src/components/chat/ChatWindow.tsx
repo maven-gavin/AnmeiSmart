@@ -95,9 +95,6 @@ export default function ChatWindow() {
   const [recommendedFAQs, setRecommendedFAQs] = useState(allFAQs.slice(0, 3))
   const [searchQuery, setSearchQuery] = useState('')
   
-  // 使用模拟数据服务中的聊天消息
-  const currentConversationMessages = getConversationMessages(currentConversationId) || []
-  
   // WebSocket连接状态
   const [wsStatus, setWsStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
   
@@ -150,7 +147,7 @@ export default function ChatWindow() {
     }
     
     const normalizedTerm = term.toLowerCase()
-    const results = currentConversationMessages.filter(msg => 
+    const results = messages.filter(msg => 
       typeof msg.content === 'string' && 
       msg.content.toLowerCase().includes(normalizedTerm) &&
       msg.type === 'text' // 只搜索文本消息
@@ -415,7 +412,7 @@ export default function ChatWindow() {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
     }
-  }, [showImportantOnly ? importantMessages : currentConversationMessages])
+  }, [showImportantOnly ? importantMessages : messages])
   
   // 处理图片上传
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -547,13 +544,13 @@ export default function ChatWindow() {
   
   // 基于聊天记录推荐FAQ
   const recommendFAQsBasedOnChat = () => {
-    if (currentConversationMessages.length === 0) {
+    if (messages.length === 0) {
       setRecommendedFAQs(allFAQs.slice(0, 3))
       return
     }
     
     // 获取最近的5条消息用于分析
-    const recentMessages = currentConversationMessages
+    const recentMessages = messages
       .slice(-5)
       .map(msg => msg.content)
       .join(' ')
@@ -684,7 +681,7 @@ export default function ChatWindow() {
   // 初始化时基于对话智能推荐FAQ
   useEffect(() => {
     recommendFAQsBasedOnChat()
-  }, [currentConversationMessages])
+  }, [messages])
   
   // 清理效果
   useEffect(() => {
