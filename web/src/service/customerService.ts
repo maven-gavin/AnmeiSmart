@@ -2,7 +2,6 @@ import { authService } from './authService';
 import { mockTreatments, mockTreatmentPlans, mockAppointments, mockCustomerMessages } from './customerMockData';
 import { CustomerAppointment, Treatment, TreatmentPlan } from '@/types/customer';
 import { Message } from '@/types/chat';
-import { getConversationMessages, sendTextMessage } from './chatService';
 
 class CustomerService {
   // 获取当前顾客的治疗记录

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { type Message, type Conversation } from '@/types/chat'
 import { 
@@ -20,10 +20,11 @@ import {
   removeMessageCallback,
   ConnectionStatus,
   getConnectionStatus,
-  getConversations
+  getConversations,
+  getOrCreateConversation
 } from '@/service/chatService'
 import { useAuth } from '@/contexts/AuthContext'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 
 // 模拟完整的FAQ数据
 const allFAQs = [
@@ -38,12 +39,15 @@ const allFAQs = [
 ];
 
 export default function ChatWindow() {
+  // 使用路由导航
+  const router = useRouter();
+  
   // 获取URL参数
   const searchParams = useSearchParams()
   
-  // 当前对话ID - 从URL参数获取，如果不存在则默认为'1'
-  const [currentConversationId, setCurrentConversationId] = useState<string>(
-    searchParams?.get('conversationId') || '1'
+  // 当前对话ID - 从URL参数获取，如果不存在则为null
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(
+    searchParams?.get('conversationId') || null
   )
   
   // 获取身份验证上下文
@@ -98,33 +102,140 @@ export default function ChatWindow() {
   // WebSocket连接状态
   const [wsStatus, setWsStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
   
-  // 监听URL参数变化
+  // 会话初始化处理
   useEffect(() => {
-    const conversationId = searchParams?.get('conversationId')
-    if (conversationId) {
-      setCurrentConversationId(conversationId)
-      console.log(`会话ID从URL参数更新: ${conversationId}`)
-      
-      // 重新初始化WebSocket连接
-      if (user) {
-        console.log(`重新初始化WebSocket连接: 用户ID=${user.id}, 会话ID=${conversationId}`)
-        initializeWebSocket(user.id, conversationId)
+    const initializeChat = async () => {
+      try {
+        if (!user) return;
+        
+        setIsLoading(true);
+        console.log('ChatWindow初始化开始...');
+        
+        // 从URL获取会话ID
+        const conversationId = searchParams?.get('conversationId');
+        
+        if (conversationId) {
+          // 如果URL中有会话ID，直接使用
+          console.log(`使用URL中的会话ID: ${conversationId}`);
+          setCurrentConversationId(conversationId);
+          
+          // 获取消息，添加超时处理
+          const fetchMessagesWithTimeout = async () => {
+            const timeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('获取消息超时')), 8000); // 增加超时时间
+            });
+            
+            try {
+              // Promise.race 确保超时后不再等待
+              await Promise.race([
+                fetchMessages(),
+                timeoutPromise
+              ]);
+            } catch (error: any) {
+              console.error('获取消息失败或超时:', error);
+              // 超时后设置loading为false避免无限加载
+              setIsLoading(false);
+              
+              // 如果是因为超时，设置空消息列表
+              if (error.message === '获取消息超时') {
+                setMessages([]);
+              }
+            }
+          };
+          
+          // 初始化WebSocket连接
+          initializeWebSocket(user.id, conversationId);
+          
+          await fetchMessagesWithTimeout();
+        } else {
+          console.log('URL中未找到会话ID，获取或创建会话');
+          
+          // 添加超时处理
+          const createConversationWithTimeout = async () => {
+            const timeoutPromise = new Promise<Conversation>((_, reject) => {
+              setTimeout(() => reject(new Error('创建会话超时')), 8000); // 增加超时时间
+            });
+            
+            try {
+              // Promise.race 确保超时后不再等待
+              const conversation = await Promise.race<Conversation>([
+                getOrCreateConversation(),
+                timeoutPromise
+              ]);
+              
+              console.log('获取或创建的会话:', conversation);
+              
+              // 更新当前会话ID
+              setCurrentConversationId(conversation.id);
+              
+              // 使用新会话ID更新URL (使用replace避免在历史记录中创建新条目)
+              router.replace(`?conversationId=${conversation.id}`);
+              
+              // 初始化WebSocket连接
+              initializeWebSocket(user.id, conversation.id);
+              
+              // 获取消息
+              try {
+                const msgs = await getConversationMessages(conversation.id);
+                setMessages(msgs);
+              } catch (error) {
+                console.error('获取消息失败:', error);
+                setMessages([]);
+              } finally {
+                setIsLoading(false);
+              }
+            } catch (error: any) {
+              console.error('创建会话失败或超时:', error);
+              setIsLoading(false);
+            }
+          };
+          
+          await createConversationWithTimeout();
+        }
+      } catch (error) {
+        console.error('初始化聊天时出错:', error);
+        setIsLoading(false);
+      } finally {
+        // 确保无论如何都会设置loading为false
+        setIsLoading(false);
       }
-      
-      // 重新获取消息
-      fetchMessages()
-    } else {
-      console.log('URL中未找到会话ID，使用默认值:', currentConversationId)
-    }
-  }, [searchParams, user])
+    };
+    
+    // 只在组件挂载时或user/searchParams变化时执行初始化
+    initializeChat();
+    
+    // 组件卸载时关闭WebSocket连接
+    return () => {
+      console.log('ChatWindow组件卸载，关闭WebSocket连接');
+      if (currentConversationId) {
+        console.log(`关闭会话 ${currentConversationId} 的WebSocket连接`);
+      }
+      closeWebSocketConnection();
+    };
+  }, [user, searchParams, router]);
   
-  // 获取当前会话消息
+  // 获取当前会话消息 - 更新以支持可能为null的会话ID
   const fetchMessages = async () => {
     try {
+      if (!currentConversationId) return;
+      
       setIsLoading(true);
       const messages = await getConversationMessages(currentConversationId);
       setMessages(messages);
       await fetchImportantMessages();
+      
+      // 检查顾问接管状态
+      const isConsultantModeActive = isConsultantMode(currentConversationId);
+      setIsConsultantTakeover(isConsultantModeActive);
+      console.log(`会话 ${currentConversationId} 顾问接管状态: ${isConsultantModeActive}`);
+      
+      // 获取会话列表
+      try {
+        const convs = await getConversations();
+        setConversations(convs);
+      } catch (error) {
+        console.error('获取会话列表出错:', error);
+      }
     } catch (error) {
       console.error('获取消息出错:', error);
     } finally {
@@ -132,9 +243,11 @@ export default function ChatWindow() {
     }
   };
   
-  // 获取重点消息
+  // 获取重点消息 - 更新以支持可能为null的会话ID
   const fetchImportantMessages = async () => {
     try {
+      if (!currentConversationId) return;
+      
       const allMessages = await getConversationMessages(currentConversationId);
       const important = allMessages.filter(msg => msg.isImportant);
       setImportantMessages(important);
@@ -142,28 +255,6 @@ export default function ChatWindow() {
       console.error('获取重点消息出错:', error);
     }
   };
-  
-  // 初始获取消息
-  useEffect(() => {
-    console.log(`初始化会话消息，会话ID: ${currentConversationId}`);
-    fetchMessages();
-    
-    // 获取会话列表
-    const loadConversations = async () => {
-      try {
-        const convs = await getConversations();
-        setConversations(convs);
-      } catch (error) {
-        console.error('获取会话列表出错:', error);
-      }
-    };
-    loadConversations();
-    
-    // 检查顾问接管状态
-    const isConsultantModeActive = isConsultantMode(currentConversationId);
-    setIsConsultantTakeover(isConsultantModeActive);
-    console.log(`会话 ${currentConversationId} 顾问接管状态: ${isConsultantModeActive}`);
-  }, [currentConversationId]);
   
   // 插入FAQ内容
   const insertFAQ = (faq: { question: string, answer: string }) => {
@@ -173,7 +264,7 @@ export default function ChatWindow() {
   
   // 搜索聊天记录
   const searchChatMessages = (term: string) => {
-    if (!term.trim()) {
+    if (!term.trim() || !currentConversationId) {
       setSearchResults([])
       setSelectedMessageId(null)
       return
@@ -259,111 +350,147 @@ export default function ChatWindow() {
   
   // 切换消息重点标记
   const toggleMessageImportant = (messageId: string, currentStatus: boolean = false) => {
-    const updatedMessage = markMessageAsImportant(currentConversationId, messageId, !currentStatus)
+    if (!currentConversationId) return null;
+    
+    // 更新重点状态
+    const updatedMessage = markMessageAsImportant(currentConversationId, messageId, !currentStatus);
     
     if (updatedMessage) {
-      // 更新显示
-      fetchMessages()
-      
-      // 如果取消标记且当前在"仅显示重点"模式，则更新
-      if (showImportantOnly && !updatedMessage.isImportant) {
-        fetchImportantMessages()
-      }
+      // 刷新消息和重点消息列表
+      fetchMessages();
+      fetchImportantMessages();
     }
   }
   
   // 切换是否只显示重点消息
   const toggleShowImportantOnly = () => {
-    setShowImportantOnly(!showImportantOnly)
-    // 如果切换到只显示重点，刷新重点消息列表
+    if (!currentConversationId) return;
+    
+    setShowImportantOnly(!showImportantOnly);
+    
     if (!showImportantOnly) {
-      fetchImportantMessages()
+      // 显示重点消息
+      fetchImportantMessages();
+    } else {
+      // 恢复显示所有消息
+      fetchMessages();
     }
   }
   
-  // 发送文本消息并获取AI回复
+  // 更新handleSendTextMessage函数，处理会话ID为null的情况
   const handleSendTextMessage = async () => {
-    if (!message.trim()) return
+    if (!message.trim() || isLoading) return;
     
+    // 如果没有会话ID，创建一个新会话
+    if (!currentConversationId) {
+      try {
+        const conversation = await getOrCreateConversation();
+        setCurrentConversationId(conversation.id);
+        router.push(`/customer/chat?conversationId=${conversation.id}`);
+        
+        // 初始化WebSocket连接
+        if (user) {
+          initializeWebSocket(user.id, conversation.id);
+        }
+        
+        // 延迟发送消息，确保WebSocket连接已建立
+        setTimeout(async () => {
+          await sendMessageWithId(conversation.id);
+        }, 500);
+      } catch (error) {
+        console.error('创建会话失败:', error);
+      }
+    } else {
+      await sendMessageWithId(currentConversationId);
+    }
+  };
+  
+  // 封装发送消息的逻辑
+  const sendMessageWithId = async (conversationId: string) => {
     try {
-      setIsLoading(true)
-      console.log(`发送文本消息，会话ID: ${currentConversationId}, 消息内容: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`)
+      setIsLoading(true);
       
-      // 发送消息
-      const userMessage = await sendTextMessage(currentConversationId, message)
+      // 发送用户消息
+      const userMessage = await sendTextMessage(conversationId, message);
+      
+      // 更新本地消息列表
+      setMessages(prev => [...prev, userMessage]);
       
       // 清空输入框
-      setMessage('')
-      
-      // 刷新消息列表
-      fetchMessages()
+      setMessage('');
       
       // 滚动到底部
-      scrollToBottom()
+      scrollToBottom();
       
-      // 如果不是顾问模式，则获取AI回复
-      if (!isConsultantMode(currentConversationId)) {
-        // 获取AI回复
-        const aiMessage = await getAIResponse(currentConversationId, userMessage)
-        if (aiMessage) {
-          // 刷新消息列表
-          fetchMessages()
+      // 在顾问未接管的情况下获取AI回复
+      if (!isConsultantTakeover) {
+        setTimeout(async () => {
+          // 获取AI回复
+          const aiResponse = await getAIResponse(conversationId, userMessage);
           
-          // 滚动到底部
-          scrollToBottom()
-        }
+          if (aiResponse) {
+            // 更新本地消息列表
+            setMessages(prev => [...prev, aiResponse]);
+            
+            // 滚动到底部
+            scrollToBottom();
+          }
+          
+          setIsLoading(false);
+        }, 1000);
+      } else {
+        setIsLoading(false);
       }
     } catch (error) {
-      console.error('发送消息失败:', error)
-    } finally {
-      setIsLoading(false)
+      console.error('发送消息失败:', error);
+      setIsLoading(false);
     }
-  }
+  };
   
   // 发送图片消息
   const handleSendImageMessage = async () => {
-    if (!imagePreview) return
+    if (!imagePreview || !currentConversationId) return;
     
-    setIsLoading(true)
+    setIsLoading(true);
     try {
       // 发送图片消息
-      await sendImageMessage(currentConversationId, imagePreview)
+      await sendImageMessage(currentConversationId, imagePreview);
       
       // 清除图片预览
-      setImagePreview(null)
+      setImagePreview(null);
       if (fileInputRef.current) {
-        fileInputRef.current.value = ''
+        fileInputRef.current.value = '';
       }
       
       // 更新消息列表
-      fetchMessages()
+      fetchMessages();
     } catch (error) {
-      console.error('发送图片失败:', error)
+      console.error('发送图片失败:', error);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
   
   // 发送语音消息
   const handleSendVoiceMessage = async () => {
-    if (!audioPreview) return
+    if (!audioPreview || !currentConversationId) return;
     
-    setIsLoading(true)
+    setIsLoading(true);
     try {
       // 发送语音消息
-      await sendVoiceMessage(currentConversationId, audioPreview)
+      await sendVoiceMessage(currentConversationId, audioPreview);
       
       // 清除语音预览
-      setAudioPreview(null)
+      setAudioPreview(null);
       
       // 更新消息列表
-      fetchMessages()
+      fetchMessages();
     } catch (error) {
-      console.error('发送语音失败:', error)
+      console.error('发送语音失败:', error);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
   
   // 发送消息（统一入口）
   const handleSendMessage = async () => {
@@ -385,14 +512,11 @@ export default function ChatWindow() {
     }
   };
   
-  // 监听WebSocket消息并更新状态
+  // 监听WebSocket消息并更新状态 - 独立的useEffect
   useEffect(() => {
-    if (!user) return;
+    if (!user || !currentConversationId) return;
     
-    console.log(`ChatWindow初始化WebSocket: 用户ID=${user.id}, 会话ID=${currentConversationId}`);
-    
-    // 初始化WebSocket连接
-    initializeWebSocket(user.id, currentConversationId);
+    console.log(`设置WebSocket消息监听: 用户ID=${user.id}, 会话ID=${currentConversationId}`);
     
     // 监听WebSocket消息
     const handleMessage = async (data: any) => {
@@ -415,6 +539,16 @@ export default function ChatWindow() {
     addMessageCallback('message', handleMessage);
     addMessageCallback('system', handleMessage);
     
+    // 组件卸载时清理
+    return () => {
+      console.log(`移除WebSocket消息回调, 会话ID: ${currentConversationId}`);
+      removeMessageCallback('message', handleMessage);
+      removeMessageCallback('system', handleMessage);
+    };
+  }, [user, currentConversationId]);
+  
+  // 监听连接状态
+  useEffect(() => {
     // 检查连接状态
     const checkConnectionStatus = () => {
       const status = getConnectionStatus();
@@ -427,12 +561,16 @@ export default function ChatWindow() {
     
     // 组件卸载时清理
     return () => {
-      console.log(`ChatWindow组件卸载，清理WebSocket资源，会话ID: ${currentConversationId}`);
-      removeMessageCallback('message', handleMessage);
-      removeMessageCallback('system', handleMessage);
       clearInterval(statusInterval);
-      closeWebSocketConnection();
     };
+  }, [currentConversationId]);
+  
+  // 重新连接WebSocket的函数 - 为了在组件其他部分访问
+  const reconnectWebSocket = useCallback(() => {
+    if (user && currentConversationId) {
+      console.log(`手动重新连接WebSocket: 用户ID=${user.id}, 会话ID=${currentConversationId}`);
+      initializeWebSocket(user.id, currentConversationId);
+    }
   }, [user, currentConversationId]);
   
   // 新消息自动滚动到底部
@@ -727,18 +865,28 @@ export default function ChatWindow() {
   
   // 切换顾问接管状态
   const toggleConsultantMode = () => {
-    if (isConsultantTakeover) {
-      // 切换回AI助手
-      if (switchBackToAI(currentConversationId)) {
-        setIsConsultantTakeover(false)
-        fetchMessages()
+    if (!currentConversationId) return;
+    
+    try {
+      // 切换顾问模式
+      if (isConsultantTakeover) {
+        // 切回AI模式
+        const success = switchBackToAI(currentConversationId);
+        if (success) {
+          setIsConsultantTakeover(false);
+        }
+      } else {
+        // 启用顾问模式
+        const success = takeoverConversation(currentConversationId);
+        if (success) {
+          setIsConsultantTakeover(true);
+        }
       }
-    } else {
-      // 顾问接管
-      if (takeoverConversation(currentConversationId)) {
-        setIsConsultantTakeover(true)
-        fetchMessages()
-      }
+      
+      // 刷新消息
+      fetchMessages();
+    } catch (error) {
+      console.error('切换顾问模式失败:', error);
     }
   }
 
@@ -857,9 +1005,7 @@ export default function ChatWindow() {
             <div className="flex items-center justify-center">
               <span>连接服务器失败</span>
               <button 
-                onClick={() => {
-                  if (user) initializeWebSocket(user.id, currentConversationId);
-                }}
+                onClick={reconnectWebSocket}
                 className="ml-2 text-sm text-red-600 hover:text-red-800 underline"
               >
                 重新连接
@@ -869,9 +1015,7 @@ export default function ChatWindow() {
             <div className="flex items-center justify-center">
               <span>未连接到服务器</span>
               <button 
-                onClick={() => {
-                  if (user) initializeWebSocket(user.id, currentConversationId);
-                }}
+                onClick={reconnectWebSocket}
                 className="ml-2 text-sm text-gray-600 hover:text-gray-800 underline"
               >
                 连接

@@ -62,8 +62,8 @@ let connectionStatus = ConnectionStatus.DISCONNECTED;
 export const initializeWebSocket = (userId: string, conversationId: string) => {
   // 如果传入的会话ID为空，使用一个安全默认值
   if (!conversationId) {
-    console.error('初始化WebSocket时会话ID为空，使用默认值"1"');
-    conversationId = "1";
+    console.error('初始化WebSocket时会话ID为空，无法创建连接');
+    return;
   }
 
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
@@ -106,11 +106,27 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
     
     console.log(`尝试连接WebSocket: 用户ID=${userId}, 会话ID=${conversationId}, URL=${wsUrl}`);
     
+    // 添加连接超时处理
+    const connectionTimeoutId = setTimeout(() => {
+      if (connectionStatus === ConnectionStatus.CONNECTING) {
+        console.error('WebSocket连接超时');
+        connectionStatus = ConnectionStatus.ERROR;
+        isConnecting = false;
+        
+        // 如果socket存在但尚未连接，则关闭它
+        if (socket && socket.readyState === WebSocket.CONNECTING) {
+          socket.close();
+          socket = null;
+        }
+      }
+    }, 10000); // 10秒连接超时
+    
     socket = new WebSocket(wsUrl);
     // 保存会话ID到socket对象以便后续检查
     socket._conversationId = conversationId;
     
     socket.onopen = () => {
+      clearTimeout(connectionTimeoutId); // 清除连接超时
       console.log(`WebSocket连接已建立，会话ID: ${conversationId}`);
       connectionStatus = ConnectionStatus.CONNECTED;
       isConnecting = false;
@@ -183,6 +199,7 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
     };
     
     socket.onerror = (error) => {
+      clearTimeout(connectionTimeoutId); // 清除连接超时
       console.error('WebSocket错误:', error);
       // 添加更详细的错误信息
       console.error('WebSocket状态:', socket?.readyState);
@@ -195,9 +212,20 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
       
       connectionStatus = ConnectionStatus.ERROR;
       isConnecting = false;
+      
+      // 如果离线，添加网络恢复监听
+      if (!navigator.onLine) {
+        const handleOnline = () => {
+          console.log('网络已恢复，尝试重新连接WebSocket');
+          window.removeEventListener('online', handleOnline);
+          initializeWebSocket(userId, conversationId);
+        };
+        window.addEventListener('online', handleOnline);
+      }
     };
     
     socket.onclose = (event) => {
+      clearTimeout(connectionTimeoutId); // 清除连接超时
       console.log(`WebSocket连接已关闭: 代码=${event.code}, 原因=${event.reason || '未提供'}, 是否干净关闭=${event.wasClean}`);
       connectionStatus = ConnectionStatus.DISCONNECTED;
       isConnecting = false;
@@ -215,7 +243,21 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
         console.log(`${delay}ms后尝试重连 (尝试 ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
         
         setTimeout(() => {
-          initializeWebSocket(userId, conversationId);
+          // 在重连前检查页面是否仍然存在和网络状态
+          if (document.visibilityState === 'visible' && navigator.onLine) {
+            initializeWebSocket(userId, conversationId);
+          } else {
+            console.log('页面不可见或无网络连接，暂停重连');
+            // 页面重新可见时重连
+            const handleVisibilityChange = () => {
+              if (document.visibilityState === 'visible' && navigator.onLine) {
+                console.log('页面重新可见，尝试重连');
+                document.removeEventListener('visibilitychange', handleVisibilityChange);
+                initializeWebSocket(userId, conversationId);
+              }
+            };
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+          }
         }, delay);
       } else {
         console.error(`达到最大重连尝试次数 (${MAX_RECONNECT_ATTEMPTS}), 停止重连`);
@@ -653,17 +695,51 @@ export const getConversationMessages = async (conversationId: string): Promise<M
       return cachedMessages;
     }
     
-    // 从后端API获取消息
-    const response = await fetch(`${API_BASE_URL}/chat/conversations/${conversationId}/messages`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+    // 创建带超时的fetch请求
+    const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 3000) => {
+      const controller = new AbortController();
+      const { signal } = controller;
+      
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      
+      try {
+        const response = await fetch(url, {
+          ...options,
+          signal
+        });
+        
+        clearTimeout(timeoutId);
+        return response;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
       }
-    });
+    };
+    
+    // 从后端API获取消息，添加超时处理
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/chat/conversations/${conversationId}/messages`, 
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      },
+      5000 // 5秒超时
+    );
     
     if (!response.ok) {
-      throw new Error(`获取消息失败: ${response.status}`);
+      // 处理错误响应
+      const status = response.status;
+      
+      // 处理401认证错误
+      if (status === 401) {
+        console.error("认证失败，Token可能已过期");
+        throw new Error(`401 Unauthorized: Token已过期`);
+      }
+      
+      throw new Error(`获取消息失败: ${status}`);
     }
     
     const messages = await response.json();
@@ -690,7 +766,18 @@ export const getConversationMessages = async (conversationId: string): Promise<M
     return formattedMessages;
   } catch (error) {
     console.error(`获取会话消息出错:`, error);
-    // 出错时返回缓存数据
+    
+    // 如果是AbortError，则是超时
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      console.error('获取消息请求超时');
+    }
+    
+    // 如果是认证错误，不返回缓存数据，而是抛出异常
+    if (error instanceof Error && error.message.includes('401')) {
+      throw error;
+    }
+    
+    // 其他错误时返回缓存数据
     return cachedMessages;
   }
 };
@@ -702,7 +789,7 @@ export const getConversations = async (): Promise<Conversation[]> => {
     const token = authService.getToken();
     if (!token) {
       console.error("未登录，无法获取会话列表");
-      return conversations;
+      return [];
     }
     
     // 从后端API获取会话列表
@@ -714,8 +801,18 @@ export const getConversations = async (): Promise<Conversation[]> => {
       }
     });
     
+    // 处理错误响应
     if (!response.ok) {
-      throw new Error(`获取会话列表失败: ${response.status}`);
+      const status = response.status;
+      const errorText = await response.text().catch(() => '');
+      
+      // 处理401认证错误
+      if (status === 401) {
+        console.error("认证失败，Token可能已过期");
+        throw new Error(`401 Unauthorized: Token已过期`);
+      }
+      
+      throw new Error(`获取会话列表失败: ${status} ${errorText}`);
     }
     
     const data = await response.json();
@@ -724,9 +821,14 @@ export const getConversations = async (): Promise<Conversation[]> => {
     const formattedConversations: Conversation[] = await Promise.all(data.map(async (conv: any) => {
       // 获取最后一条消息
       let lastMessage: Message | undefined;
-      const messages = await getConversationMessages(conv.id);
-      if (messages.length > 0) {
-        lastMessage = messages[messages.length - 1];
+      try {
+        const messages = await getConversationMessages(conv.id);
+        if (messages.length > 0) {
+          lastMessage = messages[messages.length - 1];
+        }
+      } catch (error) {
+        console.error(`获取会话${conv.id}的消息失败:`, error);
+        // 如果获取消息失败，继续处理其他数据
       }
       
       return {
@@ -750,7 +852,11 @@ export const getConversations = async (): Promise<Conversation[]> => {
     return formattedConversations;
   } catch (error) {
     console.error(`获取会话列表出错:`, error);
-    // 出错时返回缓存数据
+    // 如果是认证错误，不返回缓存数据，而是抛出异常
+    if (error instanceof Error && error.message.includes('401')) {
+      throw error;
+    }
+    // 其他错误返回缓存数据
     return conversations;
   }
 };
@@ -881,4 +987,167 @@ export const switchBackToAI = (conversationId: string): boolean => {
 // 是否处于顾问模式
 export const isConsultantMode = (conversationId: string): boolean => {
   return !!consultantTakeover[conversationId];
+};
+
+// 创建新会话
+export const createConversation = async (customerId?: string): Promise<Conversation> => {
+  try {
+    // 获取认证令牌
+    const token = authService.getToken();
+    if (!token) {
+      throw new Error("未登录，无法创建会话");
+    }
+    
+    // 使用当前用户ID或提供的客户ID
+    const userId = customerId || authService.getCurrentUserId();
+    if (!userId) {
+      throw new Error("用户ID不存在");
+    }
+    
+    // 发送创建会话请求
+    const response = await fetch(`${API_BASE_URL}/chat/conversations`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        customer_id: userId,
+        title: `咨询会话 ${new Date().toLocaleDateString()}`
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`创建会话失败: ${response.status}`);
+    }
+    
+    const newConversation = await response.json();
+    
+    // 格式化会话对象
+    const formattedConversation: Conversation = {
+      id: newConversation.id,
+      title: newConversation.title,
+      user: {
+        id: userId,
+        name: newConversation.customer?.username || "未知用户",
+        avatar: newConversation.customer?.avatar || '/avatars/user.png',
+        tags: []
+      },
+      unreadCount: 0,
+      updatedAt: newConversation.updated_at
+    };
+    
+    // 更新本地会话列表
+    conversations.unshift(formattedConversation);
+    
+    // 初始化WebSocket连接
+    const user = authService.getCurrentUser();
+    if (user) {
+      initializeWebSocket(user.id, formattedConversation.id);
+    }
+    
+    return formattedConversation;
+  } catch (error) {
+    console.error("创建会话失败:", error);
+    throw error;
+  }
+};
+
+// 获取最近的会话
+export const getRecentConversation = async (): Promise<Conversation | null> => {
+  try {
+    // 先获取所有会话
+    const allConversations = await getConversations();
+    
+    // 如果没有会话，返回null
+    if (!allConversations || allConversations.length === 0) {
+      return null;
+    }
+    
+    // 按更新时间排序，返回最近的会话
+    return allConversations.sort((a, b) => {
+      const dateA = new Date(a.updatedAt || '').getTime();
+      const dateB = new Date(b.updatedAt || '').getTime();
+      return dateB - dateA;
+    })[0];
+  } catch (error) {
+    console.error("获取最近会话失败:", error);
+    return null;
+  }
+};
+
+// 获取或创建会话
+export const getOrCreateConversation = async (): Promise<Conversation> => {
+  try {
+    // 先尝试获取最近的会话
+    const recentConversation = await getRecentConversation();
+    
+    // 检查最近会话是否存在且活跃
+    if (recentConversation) {
+      // 获取会话的最后活跃时间
+      const lastActive = new Date(recentConversation.updatedAt || '').getTime();
+      const now = new Date().getTime();
+      const hoursDifference = (now - lastActive) / (1000 * 60 * 60);
+      
+      // 如果会话在24小时内有活动，则使用该会话
+      if (hoursDifference < 24) {
+        return recentConversation;
+      }
+    }
+    
+    // 如果没有最近活跃的会话，创建新会话
+    return await createConversation();
+  } catch (error) {
+    console.error("获取或创建会话失败:", error);
+    throw error;
+  }
+};
+
+// 获取会话详情
+export const getConversationDetails = async (conversationId: string): Promise<Conversation | null> => {
+  try {
+    // 获取认证令牌
+    const token = authService.getToken();
+    if (!token) {
+      console.error("未登录，无法获取会话详情");
+      return null;
+    }
+    
+    // 从后端API获取会话详情
+    const response = await fetch(`${API_BASE_URL}/chat/conversations/${conversationId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`获取会话详情失败: ${response.status}`);
+    }
+    
+    const conv = await response.json();
+    
+    // 获取最后一条消息
+    const messages = await getConversationMessages(conversationId);
+    const lastMessage = messages.length > 0 ? messages[messages.length - 1] : undefined;
+    
+    // 格式化会话对象
+    return {
+      id: conv.id,
+      title: conv.title,
+      user: {
+        id: conv.customer_id,
+        name: conv.customer?.username || "未知用户",
+        avatar: conv.customer?.avatar || '/avatars/user.png',
+        tags: []
+      },
+      lastMessage,
+      unreadCount: 0,
+      updatedAt: conv.updated_at
+    };
+  } catch (error) {
+    console.error(`获取会话详情出错:`, error);
+    return null;
+  }
 }; 

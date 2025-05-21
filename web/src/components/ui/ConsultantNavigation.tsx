@@ -3,17 +3,22 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/service/utils';
+import { useCallback } from 'react';
+import { getConversations } from '@/service/chatService';
+import { useRouter } from 'next/navigation';
 
 interface NavItemProps {
   href: string;
   icon: React.ReactNode;
   label: string;
   isActive: boolean;
+  onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 }
 
-const NavItem = ({ href, icon, label, isActive }: NavItemProps) => (
+const NavItem = ({ href, icon, label, isActive, onClick }: NavItemProps) => (
   <Link
     href={href}
+    onClick={onClick}
     className={cn(
       "flex h-32 flex-col items-center justify-center gap-2 rounded-lg border border-gray-100 bg-white p-4 shadow-sm transition-all hover:border-orange-200 hover:bg-orange-50",
       isActive && "border-orange-500 bg-orange-50"
@@ -31,6 +36,32 @@ const NavItem = ({ href, icon, label, isActive }: NavItemProps) => (
 
 export default function ConsultantNavigation() {
   const pathname = usePathname();
+  const router = useRouter();
+  
+  // 处理智能客服点击，检查并选择会话
+  const handleChatClick = useCallback(async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault(); // 阻止默认链接行为
+    
+    try {
+      console.log('获取会话列表以选择合适的会话');
+      // 获取会话列表
+      const conversations = await getConversations();
+      
+      if (conversations && conversations.length > 0) {
+        // 如果有会话，直接导航到第一个会话
+        console.log('找到现有会话，跳转到:', conversations[0].id);
+        router.push(`/consultant/chat?conversationId=${conversations[0].id}`);
+      } else {
+        // 如果没有会话，导航到聊天页面，让聊天窗口组件创建一个新会话
+        console.log('没有找到会话，前往聊天页面创建新会话');
+        router.push('/consultant/chat');
+      }
+    } catch (error) {
+      console.error('处理会话时出错:', error);
+      // 出错时也导航到聊天页面
+      router.push('/consultant/chat');
+    }
+  }, [router]);
 
   return (
     <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -43,6 +74,7 @@ export default function ConsultantNavigation() {
         }
         label="智能客服"
         isActive={pathname.includes('/consultant/chat')}
+        onClick={handleChatClick}
       />
       <NavItem
         href="/consultant/simulation"

@@ -284,3 +284,82 @@ export const roleOptions = [
     icon: 'user',
   },
 ];
+
+// 处理请求错误，如果是401错误尝试刷新token，如果刷新失败则登出
+export const handleApiError = async (error: any): Promise<void> => {
+  // 检查是否是网络请求错误
+  if (error && error.response && error.response.status === 401) {
+    console.log('收到401错误，尝试刷新Token');
+    try {
+      // 尝试刷新token
+      await authService.refreshToken();
+    } catch (refreshError) {
+      // 刷新失败，强制登出
+      console.error('刷新Token失败，执行登出:', refreshError);
+      authService.logout();
+      // 如果在浏览器环境，重定向到登录页
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+    }
+  }
+};
+
+// 包装API请求，自动处理401错误
+export const apiRequest = async (url: string, options: RequestInit = {}): Promise<Response> => {
+  const token = await authService.getValidToken();
+  
+  if (!token) {
+    // 没有有效token，直接登出并重定向
+    authService.logout();
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
+    throw new Error('未登录或Token无效');
+  }
+  
+  // 添加认证头
+  const headers = {
+    ...options.headers,
+    'Authorization': `Bearer ${token}`,
+  };
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
+    
+    // 检查响应状态
+    if (response.status === 401) {
+      // 尝试刷新token
+      try {
+        const newToken = await authService.refreshToken();
+        
+        // 使用新token重试请求
+        const retryResponse = await fetch(url, {
+          ...options,
+          headers: {
+            ...options.headers,
+            'Authorization': `Bearer ${newToken}`,
+          },
+        });
+        
+        return retryResponse;
+      } catch (error) {
+        // 刷新失败，登出并重定向
+        authService.logout();
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+        throw new Error('Token刷新失败，请重新登录');
+      }
+    }
+    
+    return response;
+  } catch (error) {
+    // 处理网络错误等
+    console.error('API请求失败:', error);
+    throw error;
+  }
+};

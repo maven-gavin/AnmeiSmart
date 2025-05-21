@@ -25,8 +25,9 @@ export interface Message {
 
 export interface Conversation {
   id: string;
+  title?: string;
   user: User;
-  lastMessage: Message;
+  lastMessage?: Message;
   unreadCount: number;
   updatedAt: string;
 }
