@@ -38,3 +38,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# test
+/src/__tests__/e2e/chat/test-utils.ts
+/playwright-report
