@@ -5,7 +5,7 @@ from app.core.security import get_password_hash, verify_password
 from app.schemas.user import UserCreate, UserUpdate
 from app.db.models.user import User, Role, Customer, Doctor, Consultant, Operator, Administrator
 
-async def get(db: Session, id: int) -> Optional[User]:
+async def get(db: Session, id: str) -> Optional[User]:
     """根据ID获取用户"""
     return db.query(User).filter(User.id == id).first() 
 
@@ -257,7 +257,7 @@ async def update(
     db.refresh(db_obj)
     return db_obj
 
-async def remove(db: Session, *, id: int) -> Optional[User]:
+async def remove(db: Session, *, id: str) -> Optional[User]:
     """删除用户"""
     user = db.query(User).filter(User.id == id).first()
     if user:
@@ -274,14 +274,14 @@ async def authenticate(db: Session, *, email: str, password: str) -> Optional[Us
         return None
     return user
 
-async def get_user_roles(db: Session, *, user_id: int) -> List[str]:
+async def get_user_roles(db: Session, *, user_id: str) -> List[str]:
     """获取用户角色名列表"""
     user = await get(db, id=user_id)
     if not user:
         return []
     return [role.name for role in user.roles]
 
-async def add_role_to_user(db: Session, *, user_id: int, role_name: str) -> Optional[User]:
+async def add_role_to_user(db: Session, *, user_id: str, role_name: str) -> Optional[User]:
     """为用户添加角色"""
     user = await get(db, id=user_id)
     if not user:
@@ -322,7 +322,7 @@ async def add_role_to_user(db: Session, *, user_id: int, role_name: str) -> Opti
     db.refresh(user)
     return user
 
-async def remove_role_from_user(db: Session, *, user_id: int, role_name: str) -> Optional[User]:
+async def remove_role_from_user(db: Session, *, user_id: str, role_name: str) -> Optional[User]:
     """从用户中移除角色"""
     user = await get(db, id=user_id)
     if not user:

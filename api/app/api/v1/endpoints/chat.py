@@ -13,7 +13,7 @@ from app.schemas.chat import (
     ConversationCreate, Conversation as ConversationSchema,
     MessageCreate, Message as MessageSchema,
     CustomerProfile as CustomerProfileSchema,
-    WebSocketMessage
+    WebSocketMessage, MessageSender
 )
 from app.core.security import get_current_user, check_role_permission
 from app.services.ai import get_ai_service
@@ -596,20 +596,42 @@ async def get_conversations(
     current_user: User = Depends(get_current_user)
 ):
     """获取当前用户的所有会话"""
+    logger.info(f"获取用户会话列表: user_id={current_user.id}, email={current_user.email}")
+    
     # 检查用户角色
     user_role = getattr(current_user, "_active_role", None)
+    user_roles = [role.name for role in current_user.roles] if current_user.roles else []
     
+    logger.debug(f"用户角色: 活跃角色={user_role}, 所有角色={user_roles}")
+    
+    # 根据角色过滤会话
     if user_role == "customer":
-        # 顾客只能看到自己的会话
-        query = db.query(Conversation).filter(Conversation.customer_id == current_user.id)
+        # 客户只能看到自己的会话
+        conversations = db.query(Conversation).filter(
+            Conversation.customer_id == current_user.id
+        ).order_by(Conversation.updated_at.desc()).offset(skip).limit(limit).all()
+    elif user_role in ["consultant", "doctor", "admin", "operator"]:
+        # 顾问、医生、管理员可以看到所有会话
+        conversations = db.query(Conversation).order_by(
+            Conversation.updated_at.desc()
+        ).offset(skip).limit(limit).all()
     else:
-        # 顾问、医生等可以看到所有会话
-        query = db.query(Conversation)
+        # 未知角色
+        logger.warning(f"未知用户角色: {user_role}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权限访问会话列表"
+        )
     
-    # 分页查询
-    conversations = query.offset(skip).limit(limit).all()
+    logger.info(f"查询结果: 找到 {len(conversations)} 个会话")
     
-    return conversations
+    # 使用辅助函数构建响应
+    result_conversations = []
+    for conversation in conversations:
+        conv_data = convert_conversation_to_schema(conversation, db)
+        result_conversations.append(conv_data)
+    
+    return result_conversations
 
 
 @router.get("/conversations/{conversation_id}", response_model=ConversationSchema)
@@ -619,24 +641,36 @@ async def get_conversation(
     current_user: User = Depends(get_current_user)
 ):
     """获取指定会话"""
-    conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+    logger.info(f"获取会话详情: conversation_id={conversation_id}, user_id={current_user.id}, email={current_user.email}")
     
+    # 验证会话存在
+    conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
     if not conversation:
+        logger.warning(f"会话不存在: conversation_id={conversation_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="会话不存在"
         )
     
-    # 检查用户角色和访问权限
+    # 检查用户权限
     user_role = getattr(current_user, "_active_role", None)
-    
     if user_role == "customer" and conversation.customer_id != current_user.id:
+        logger.warning(f"访问权限不足: user_id={current_user.id}, role={user_role}, 会话所属客户={conversation.customer_id}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="无权访问此会话"
         )
     
-    return conversation
+    # 获取会话最后一条消息
+    last_message = db.query(Message).filter(
+        Message.conversation_id == conversation_id
+    ).order_by(Message.timestamp.desc()).first()
+    
+    # 使用辅助函数构建API响应格式
+    response = convert_conversation_to_schema(conversation, db)
+    
+    logger.info(f"访问会话成功: conversation_id={conversation_id}")
+    return response
 
 
 @router.get("/conversations/{conversation_id}/messages", response_model=List[MessageSchema])
@@ -648,9 +682,12 @@ async def get_conversation_messages(
     current_user: User = Depends(get_current_user)
 ):
     """获取会话消息"""
+    logger.info(f"获取会话消息: conversation_id={conversation_id}, user_id={current_user.id}, email={current_user.email}")
+    
     # 验证会话存在
     conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
     if not conversation:
+        logger.warning(f"会话不存在: conversation_id={conversation_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="会话不存在"
@@ -658,19 +695,32 @@ async def get_conversation_messages(
     
     # 检查用户访问权限
     user_role = getattr(current_user, "_active_role", None)
+    user_roles = [role.name for role in current_user.roles] if current_user.roles else []
+    logger.debug(f"用户角色: 活跃角色={user_role}, 所有角色={user_roles}, 会话所属客户: {conversation.customer_id}")
     
     if user_role == "customer" and conversation.customer_id != current_user.id:
+        logger.warning(f"访问权限不足: user_id={current_user.id}, role={user_role}, 尝试访问会话 {conversation_id}，但该会话属于客户 {conversation.customer_id}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="无权访问此会话"
         )
     
     # 获取消息，按时间排序
+    logger.debug(f"查询会话消息: conversation_id={conversation_id}, skip={skip}, limit={limit}")
     messages = db.query(Message).filter(
         Message.conversation_id == conversation_id
     ).order_by(Message.timestamp).offset(skip).limit(limit).all()
     
-    return messages
+    logger.info(f"查询结果: 找到 {len(messages)} 条消息")
+    
+    # 使用辅助函数转换消息格式
+    result_messages = []
+    for message in messages:
+        # 转换消息为API响应格式
+        message_dict = convert_message_to_schema(message)
+        result_messages.append(message_dict)
+    
+    return result_messages
 
 
 @router.post("/conversations/{conversation_id}/messages", response_model=MessageSchema)
@@ -681,21 +731,24 @@ async def create_message(
     current_user: User = Depends(get_current_user)
 ):
     """创建新消息"""
+    logger.info(f"创建新消息: conversation_id={conversation_id}, user_id={current_user.id}, email={current_user.email}")
+    
     # 验证会话存在
     conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
     if not conversation:
+        logger.warning(f"会话不存在: conversation_id={conversation_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="会话不存在"
         )
     
-    # 检查用户访问权限
+    # 检查用户权限
     user_role = getattr(current_user, "_active_role", None)
-    
     if user_role == "customer" and conversation.customer_id != current_user.id:
+        logger.warning(f"权限不足: user_id={current_user.id}, role={user_role}, 会话客户ID={conversation.customer_id}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="无权访问此会话"
+            detail="无权在此会话中发送消息"
         )
     
     # 创建新消息
@@ -705,16 +758,21 @@ async def create_message(
         content=message_in.content,
         type=message_in.type,
         sender_id=current_user.id,
-        sender_type=user_role or "system"
+        sender_type=user_role or "user",
+        is_read=False,
+        is_important=message_in.is_important
     )
     
+    # 保存到数据库
     db.add(new_message)
-    
-    # 更新会话最后更新时间
-    conversation.updated_at = datetime.now()
-    
     db.commit()
     db.refresh(new_message)
+    
+    # 更新会话的更新时间
+    conversation.updated_at = datetime.now()
+    db.commit()
+    
+    logger.info(f"消息创建成功: message_id={new_message.id}")
     
     # 如果存在WebSocket连接，广播消息
     if conversation_id in active_connections:
@@ -734,10 +792,93 @@ async def create_message(
             "timestamp": datetime.now().isoformat()
         })
     
-    return new_message
+    # 使用辅助函数构建符合 MessageSchema 的响应
+    message_response = convert_message_to_schema(new_message)
+    
+    return message_response
 
 # 添加一个健康检查端点，用于测试API可用性
 @router.get("/health")
 async def health_check():
     """健康检查端点"""
-    return {"status": "ok", "timestamp": datetime.now().isoformat()} 
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+# 辅助函数：将数据库消息模型转换为API响应格式
+def convert_message_to_schema(message):
+    """
+    将数据库消息模型转换为API响应格式
+    
+    Args:
+        message: 数据库消息模型
+        
+    Returns:
+        dict: API响应格式的消息
+    """
+    if not message:
+        return None
+    
+    # 处理发送者信息
+    if message.sender_id and message.sender:
+        sender = MessageSender(
+            id=message.sender_id,
+            name=message.sender.username if hasattr(message.sender, 'username') else "未知用户",
+            avatar=message.sender.avatar if hasattr(message.sender, 'avatar') else None,
+            type=message.sender_type
+        )
+    else:
+        # 如果没有发送者信息（可能是系统消息）
+        sender = MessageSender(
+            id=message.sender_id or "system",
+            name="系统" if message.sender_type == "system" else "AI助手" if message.sender_type == "ai" else "未知用户",
+            avatar=None,
+            type=message.sender_type
+        )
+    
+    # 创建一个字典表示消息
+    return {
+        "id": message.id,
+        "conversation_id": message.conversation_id,
+        "content": message.content,
+        "type": message.type,
+        "sender": sender,
+        "timestamp": message.timestamp,
+        "is_read": message.is_read,
+        "is_important": message.is_important
+    }
+
+# 辅助函数：将数据库会话模型转换为API响应格式
+def convert_conversation_to_schema(conversation, db=None):
+    """
+    将数据库会话模型转换为API响应格式
+    
+    Args:
+        conversation: 数据库会话模型
+        db: 数据库会话对象，用于加载最后一条消息（如果未提供，则不加载）
+        
+    Returns:
+        dict: API响应格式的会话
+    """
+    if not conversation:
+        return None
+    
+    # 构建会话数据
+    result = {
+        "id": conversation.id,
+        "title": conversation.title,
+        "customer_id": conversation.customer_id,
+        "created_at": conversation.created_at,
+        "updated_at": conversation.updated_at,
+        "is_active": conversation.is_active,
+        "last_message": None
+    }
+    
+    # 如果提供了数据库会话，加载最后一条消息
+    if db:
+        last_message = db.query(Message).filter(
+            Message.conversation_id == conversation.id
+        ).order_by(Message.timestamp.desc()).first()
+        
+        if last_message:
+            result["last_message"] = convert_message_to_schema(last_message)
+    
+    return result 

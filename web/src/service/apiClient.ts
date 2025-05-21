@@ -47,10 +47,15 @@ export const apiClient = {
       'Content-Type': 'application/json',
     };
 
-    // 添加身份验证头
-    const token = authService.getToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    // 添加身份验证头 - 使用 getValidToken 确保获取有效令牌
+    try {
+      const token = await authService.getValidToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.error('获取有效令牌失败:', error);
+      // 令牌问题不阻止无需认证的请求继续进行
     }
 
     const options: RequestInit = {
@@ -75,11 +80,21 @@ export const apiClient = {
           // 使用新令牌重试请求
           headers['Authorization'] = `Bearer ${newToken}`;
           const retryOptions = { ...options, headers };
-          return await fetch(url, retryOptions);
+          const retryResponse = await fetch(url, retryOptions);
+          
+          // 如果重试也返回401，则可能是权限问题而非令牌过期
+          if (retryResponse.status === 401) {
+            // 清除会话并重定向到登录页
+            authService.logout();
+            redirectToLogin('登录已过期或权限不足，请重新登录');
+            throw new Error('无权访问此资源');
+          }
+          
+          return retryResponse as ApiResponse<T>;
         } catch (refreshError) {
           // 刷新令牌失败，清除会话并重定向到登录页
           authService.logout();
-          window.location.href = '/login';
+          redirectToLogin('会话已过期，请重新登录');
           throw new Error('会话已过期，请重新登录');
         }
       }
@@ -151,34 +166,8 @@ export const apiClient = {
    * @returns 认证令牌
    */
   async getAuthToken(): Promise<string | null> {
-    try {
-      // 获取当前令牌
-      const token = authService.getToken();
-      
-      if (!token) {
-        return null;
-      }
-      
-      // 在这里可以添加令牌过期检查逻辑，如果过期，则刷新令牌
-      // 简单的JWT过期检查
-      const isTokenExpired = this.isTokenExpired(token);
-      
-      if (isTokenExpired) {
-        // 令牌已过期，尝试刷新
-        try {
-          return await authService.refreshToken();
-        } catch (error) {
-          // 刷新令牌失败，重定向到登录页
-          redirectToLogin('登录已过期，请重新登录');
-          return null;
-        }
-      }
-      
-      return token;
-    } catch (error) {
-      console.error('获取认证令牌失败:', error);
-      return null;
-    }
+    // 直接使用 authService 的 getValidToken 方法
+    return authService.getValidToken();
   },
 
   /**
@@ -187,21 +176,7 @@ export const apiClient = {
    * @returns 是否过期
    */
   isTokenExpired(token: string): boolean {
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
-      
-      const { exp } = JSON.parse(jsonPayload);
-      const currentTime = Math.floor(Date.now() / 1000);
-      
-      return exp < currentTime;
-    } catch (error) {
-      // 解析失败，视为已过期，需要重新登录
-      console.error('JWT解析失败:', error);
-      return true;
-    }
+    // 直接使用 authService 的 isTokenExpired 方法
+    return authService.isTokenExpired(token);
   }
 }; 

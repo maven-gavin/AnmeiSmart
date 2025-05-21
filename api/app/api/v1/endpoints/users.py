@@ -85,7 +85,7 @@ async def update_user_me(
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def read_user_by_id(
-    user_id: int,
+    user_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> UserResponse:
@@ -100,7 +100,7 @@ async def read_user_by_id(
 
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
-    user_id: int,
+    user_id: str,
     user_in: UserUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

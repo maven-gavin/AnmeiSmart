@@ -3,17 +3,22 @@
 安美智享智能医美服务系统 - 数据扩展初始化脚本
 用于初始化测试和示例数据
 """
+
 import os
 import sys
+
+# 将项目根目录添加到Python路径
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# 先导入 bcrypt 补丁修复 passlib 问题
+from app.core.bcrypt_patch import *
+
 import asyncio
 import logging
 import argparse
 from sqlalchemy import inspect
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from pathlib import Path
-
-# 将项目根目录添加到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 try:
     from sqlalchemy.orm import Session
@@ -21,6 +26,9 @@ try:
     from app.db.base import get_db, engine
     from app.crud import crud_user
     from app.schemas.user import UserCreate, CustomerBase, DoctorBase, ConsultantBase, OperatorBase, AdministratorBase
+    from app.db.uuid_utils import (
+        user_id, role_id, conversation_id, message_id, profile_id, system_id, model_id
+    )
 except ImportError as e:
     print(f"导入错误: {e}")
     print("请确保所有必要的依赖已安装: pip install -r requirements.txt")
@@ -34,6 +42,7 @@ logger = logging.getLogger(__name__)
 MOCK_USERS = [
     # 医生示例数据
     {
+        "id": "usr_doctor1",
         "email": "zhang@example.com",
         "username": "张医生",
         "password": "123456@Test",
@@ -52,6 +61,7 @@ MOCK_USERS = [
     },
     # 顾问示例数据
     {
+        "id": "usr_consultant1",
         "email": "li@example.com",
         "username": "李顾问",
         "password": "123456@Test",
@@ -65,6 +75,7 @@ MOCK_USERS = [
     },
     # 运营示例数据
     {
+        "id": "usr_operator1",
         "email": "wang@example.com",
         "username": "王运营",
         "password": "123456@Test",
@@ -78,6 +89,7 @@ MOCK_USERS = [
     },
     # 顾客示例数据
     {
+        "id": "usr_customer1",
         "email": "customer1@example.com",
         "username": "李小姐",
         "password": "123456@Test",
@@ -91,6 +103,7 @@ MOCK_USERS = [
         )
     },
     {
+        "id": "usr_customer2",
         "email": "customer2@example.com",
         "username": "王先生",
         "password": "123456@Test",
@@ -118,24 +131,44 @@ def print_success():
     """打印成功消息"""
     print("\n测试数据初始化完成！")
 
-def check_extension_tables_exist() -> bool:
-    """检查扩展表是否存在"""
+def check_extension_tables_exist():
+    """检查扩展表是否存在
+    
+    Returns:
+        bool: 扩展表是否存在
+    """
     inspector = inspect(engine)
     tables = inspector.get_table_names()
-    required_tables = ["customers", "doctors", "consultants", "operators", "administrators"]
-    return all(table in tables for table in required_tables)
+    required_tables = [
+        "users", "roles", "user_roles", "customers", "doctors", "consultants", 
+        "operators", "administrators", "system_settings"
+    ]
+    
+    for table in required_tables:
+        if table not in tables:
+            logger.warning(f"必要的表未找到: {table}")
+            return False
+    
+    logger.info("所有必要的表都存在")
+    return True
 
-async def create_mock_users(db: Session, force_update: bool = False) -> None:
+async def create_mock_users(db: Session, force_update: bool = False) -> Dict[str, User]:
     """创建测试用户数据
     
     Args:
         db: 数据库会话
         force_update: 是否强制更新现有数据
+        
+    Returns:
+        Dict[str, User]: 用户ID到用户对象的映射
     """
     logger.info("创建测试用户数据")
     
+    users_map = {}  # 用于存储用户ID到用户对象的映射
+    
     for user_data in MOCK_USERS:
         # 提取角色和扩展信息
+        user_id_value = user_data.pop("id", None) or user_id()
         roles = user_data.get("roles", ["customer"])
         doctor_info = user_data.pop("doctor_info", None)
         consultant_info = user_data.pop("consultant_info", None)
@@ -148,6 +181,7 @@ async def create_mock_users(db: Session, force_update: bool = False) -> None:
         
         if not user:
             logger.info(f"创建测试用户: {user_data['email']}")
+            user_data["id"] = user_id_value
             user_in = UserCreate(**user_data)
             user = await crud_user.create(db, obj_in=user_in)
         else:
@@ -160,17 +194,21 @@ async def create_mock_users(db: Session, force_update: bool = False) -> None:
             operator_info, administrator_info,
             force_update
         )
+        
+        # 将用户添加到映射
+        users_map[user_id_value] = user
     
     logger.info("测试用户创建完成")
+    return users_map
 
 async def update_user_extended_info(
     db: Session, 
     user: User, 
-    doctor_info: DoctorBase = None,
-    consultant_info: ConsultantBase = None,
-    customer_info: CustomerBase = None,
-    operator_info: OperatorBase = None,
-    administrator_info: AdministratorBase = None,
+    doctor_info: Optional[DoctorBase] = None,
+    consultant_info: Optional[ConsultantBase] = None,
+    customer_info: Optional[CustomerBase] = None,
+    operator_info: Optional[OperatorBase] = None,
+    administrator_info: Optional[AdministratorBase] = None,
     force_update: bool = False
 ) -> None:
     """更新用户的扩展信息
@@ -197,7 +235,7 @@ async def update_user_extended_info(
             doctor = user.doctor
             logger.info(f"  - 更新医生扩展信息")
             
-        for key, value in doctor_info.dict().items():
+        for key, value in doctor_info.model_dump().items():
             if value is not None:
                 setattr(doctor, key, value)
         
@@ -211,7 +249,7 @@ async def update_user_extended_info(
             consultant = user.consultant
             logger.info(f"  - 更新顾问扩展信息")
             
-        for key, value in consultant_info.dict().items():
+        for key, value in consultant_info.model_dump().items():
             if value is not None:
                 setattr(consultant, key, value)
         
@@ -225,7 +263,7 @@ async def update_user_extended_info(
             customer = user.customer
             logger.info(f"  - 更新顾客扩展信息")
             
-        for key, value in customer_info.dict().items():
+        for key, value in customer_info.model_dump().items():
             if value is not None:
                 setattr(customer, key, value)
         
@@ -239,7 +277,7 @@ async def update_user_extended_info(
             operator = user.operator
             logger.info(f"  - 更新运营人员扩展信息")
             
-        for key, value in operator_info.dict().items():
+        for key, value in operator_info.model_dump().items():
             if value is not None:
                 setattr(operator, key, value)
         
@@ -253,80 +291,323 @@ async def update_user_extended_info(
             administrator = user.administrator
             logger.info(f"  - 更新管理员扩展信息")
             
-        for key, value in administrator_info.dict().items():
+        for key, value in administrator_info.model_dump().items():
             if value is not None:
                 setattr(administrator, key, value)
                 
-    # 提交更改
     db.commit()
-    db.refresh(user)
 
 async def create_system_test_data(db: Session) -> None:
     """创建系统测试数据，比如聊天记录、系统设置等"""
     logger.info("创建系统测试数据")
     
-    # 在这里添加创建系统测试数据的代码
-    # 例如创建示例聊天记录、示例系统设置等
+    # 创建测试会话数据
+    await create_test_conversations(db)
     
     logger.info("系统测试数据创建完成")
 
+async def create_test_conversations(db: Session) -> None:
+    """
+    创建测试会话和消息数据
+    """
+    from app.db.models.chat import Conversation, Message, CustomerProfile
+    from app.db.uuid_utils import conversation_id, message_id, profile_id
+    from datetime import datetime, timedelta
+    
+    logger.info("创建测试会话和消息数据")
+    
+    # 获取测试顾客用户
+    customer1 = db.query(User).filter(User.email == "customer1@example.com").first()
+    customer2 = db.query(User).filter(User.email == "customer2@example.com").first()
+    
+    # 获取AI助手ID (使用一个固定值)
+    ai_id = "usr_ai_assistant"
+    
+    # 获取顾问
+    consultant = db.query(User).filter(User.email == "li@example.com").first()
+    
+    if not customer1 or not customer2:
+        logger.warning("找不到测试顾客用户，跳过创建会话数据")
+        return
+    
+    # 创建AI用户（如果不存在）
+    ai_user = db.query(User).filter(User.id == ai_id).first()
+    if not ai_user:
+        logger.info("创建AI助手用户")
+        ai_user = User(
+            id=ai_id,
+            email="ai@example.com",
+            username="AI助手",
+            hashed_password="$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",  # 密码: 123456@Test
+            avatar="/avatars/ai.png",
+            is_active=True
+        )
+        db.add(ai_user)
+        db.commit()
+    
+    # 创建或获取客户档案
+    profile1 = db.query(CustomerProfile).filter(CustomerProfile.user_id == customer1.id).first()
+    if not profile1:
+        logger.info(f"为客户 {customer1.username} 创建档案")
+        profile1 = CustomerProfile(
+            id=profile_id(),
+            user_id=customer1.id,
+            medical_history="无重大疾病史，2年前做过双眼皮手术",
+            allergies="对青霉素过敏",
+            preferences="偏好自然风格，不喜欢夸张效果",
+            tags="双眼皮,鼻整形,敏感肌"
+        )
+        db.add(profile1)
+    
+    profile2 = db.query(CustomerProfile).filter(CustomerProfile.user_id == customer2.id).first()
+    if not profile2:
+        logger.info(f"为客户 {customer2.username} 创建档案")
+        profile2 = CustomerProfile(
+            id=profile_id(),
+            user_id=customer2.id,
+            medical_history="有高血压，定期服药控制",
+            allergies="无已知过敏",
+            preferences="喜欢韩式风格，追求精致效果",
+            tags="瘦脸针,玻尿酸,皮肤保养"
+        )
+        db.add(profile2)
+    
+    db.commit()
+    
+    # 创建测试会话
+    conv1 = db.query(Conversation).filter(
+        Conversation.customer_id == customer1.id,
+        Conversation.title == "面部护理咨询"
+    ).first()
+    
+    if not conv1:
+        logger.info(f"为客户 {customer1.username} 创建测试会话")
+        conv1 = Conversation(
+            id=conversation_id(),
+            title="面部护理咨询",
+            customer_id=customer1.id,
+            is_active=True
+        )
+        db.add(conv1)
+        db.commit()
+        
+        # 添加测试消息
+        messages1 = [
+            {
+                "sender_id": customer1.id,
+                "sender_type": "customer",
+                "content": "你好，我想咨询一下面部护理的问题",
+                "type": "text",
+                "timestamp": datetime.now() - timedelta(hours=2)
+            },
+            {
+                "sender_id": ai_id,
+                "sender_type": "ai",
+                "content": "您好！很高兴为您提供面部护理方面的咨询。请问您有什么具体的问题或者困扰吗？",
+                "type": "text",
+                "timestamp": datetime.now() - timedelta(hours=2, minutes=1)
+            },
+            {
+                "sender_id": customer1.id,
+                "sender_type": "customer",
+                "content": "我的皮肤比较敏感，想知道有什么适合敏感肌的护肤品推荐",
+                "type": "text",
+                "timestamp": datetime.now() - timedelta(hours=2, minutes=3)
+            },
+            {
+                "sender_id": ai_id,
+                "sender_type": "ai",
+                "content": "针对敏感肌肤，我建议您选择温和无刺激的产品。以下是几点建议：\n\n"
+                           "1. 选择标有\"适合敏感肌\"的产品\n"
+                           "2. 避免含有酒精、香料和色素的产品\n"
+                           "3. 寻找含有芦荟、燕麦、神经酰胺等成分的产品\n"
+                           "4. 优先考虑医学护肤品牌如薇诺娜、理肤泉、雅漾等\n\n"
+                           "使用新产品时，建议先在手腕内侧做皮肤测试，观察24小时无不良反应后再使用。",
+                "type": "text",
+                "timestamp": datetime.now() - timedelta(hours=2, minutes=4)
+            },
+            {
+                "sender_id": customer1.id,
+                "sender_type": "customer",
+                "content": "谢谢建议，我还想问一下敏感肌是否适合做果酸换肤？",
+                "type": "text",
+                "timestamp": datetime.now() - timedelta(hours=1)
+            },
+            {
+                "sender_id": ai_id,
+                "sender_type": "ai",
+                "content": "关于敏感肌是否适合果酸换肤，需要谨慎考虑：\n\n"
+                           "敏感肌肤通常不建议直接使用高浓度果酸产品，风险较高。但在专业医师指导下，低浓度的果酸处理是可能的。\n\n"
+                           "建议：\n"
+                           "1. 先咨询专业皮肤科医生\n"
+                           "2. 从最低浓度(5%-10%)开始尝试\n"
+                           "3. 进行皮肤耐受性测试\n"
+                           "4. 注意做好防晒措施\n\n"
+                           "如果您确实想尝试果酸换肤，我们医疗中心可以安排专业医师为您评估皮肤状况后，制定个性化的温和换肤方案。",
+                "type": "text",
+                "timestamp": datetime.now() - timedelta(hours=1, minutes=1)
+            }
+        ]
+        
+        for msg_data in messages1:
+            msg = Message(
+                id=message_id(),
+                conversation_id=conv1.id,
+                **msg_data
+            )
+            db.add(msg)
+        
+        db.commit()
+    
+    # 创建第二个测试会话
+    conv2 = db.query(Conversation).filter(
+        Conversation.customer_id == customer2.id,
+        Conversation.title == "瘦脸针咨询"
+    ).first()
+    
+    if not conv2:
+        logger.info(f"为客户 {customer2.username} 创建测试会话")
+        conv2 = Conversation(
+            id=conversation_id(),
+            title="瘦脸针咨询",
+            customer_id=customer2.id,
+            is_active=True
+        )
+        db.add(conv2)
+        db.commit()
+        
+        # 添加测试消息
+        messages2 = [
+            {
+                "sender_id": customer2.id,
+                "sender_type": "customer",
+                "content": "你好，我想了解一下瘦脸针的相关信息",
+                "type": "text",
+                "timestamp": datetime.now() - timedelta(days=1, hours=3)
+            },
+            {
+                "sender_id": ai_id,
+                "sender_type": "ai",
+                "content": "您好！很高兴为您提供瘦脸针的相关信息。瘦脸针主要是注射肉毒素，通过减弱咬肌的收缩力来达到瘦脸效果。请问您有什么具体想了解的呢？",
+                "type": "text",
+                "timestamp": datetime.now() - timedelta(days=1, hours=3, minutes=1)
+            },
+            {
+                "sender_id": customer2.id,
+                "sender_type": "customer",
+                "content": "瘦脸针的效果能维持多久？有什么副作用吗？",
+                "type": "text",
+                "timestamp": datetime.now() - timedelta(days=1, hours=3, minutes=3)
+            },
+            {
+                "sender_id": ai_id,
+                "sender_type": "ai",
+                "content": "关于瘦脸针：\n\n"
+                           "效果持续时间：\n"
+                           "- 一般持续4-6个月\n"
+                           "- 个体差异较大，首次注射可能时间短些\n"
+                           "- 多次注射后效果可能延长\n\n"
+                           "可能的副作用：\n"
+                           "- 注射部位暂时肿胀、淤青\n"
+                           "- 少数人可能出现不对称\n"
+                           "- 极少数情况下有头痛、过敏反应\n"
+                           "- 个别出现口水减少\n\n"
+                           "注意事项：\n"
+                           "- 孕妇、哺乳期女性不建议使用\n"
+                           "- 神经肌肉疾病患者禁用\n"
+                           "- 注射后24小时内避免按摩注射区域\n"
+                           "- 2周内避免剧烈运动\n\n"
+                           "您有其他关于瘦脸针的问题吗？",
+                "type": "text",
+                "timestamp": datetime.now() - timedelta(days=1, hours=3, minutes=4)
+            },
+            {
+                "sender_id": consultant.id,
+                "sender_type": "consultant",
+                "content": "您好！我是李顾问，很高兴为您提供更专业的咨询服务。注意到您对瘦脸针很感兴趣，我们医疗中心近期有瘦脸针优惠活动，可以为您提供个性化方案和价格咨询。如果您有意向，可以预约面诊，我将亲自为您服务。",
+                "type": "text",
+                "timestamp": datetime.now() - timedelta(days=1, hours=2)
+            },
+            {
+                "sender_id": customer2.id,
+                "sender_type": "customer",
+                "content": "谢谢顾问，我想再多了解一下，瘦脸针和瘦脸导入哪个效果更好呢？",
+                "type": "text",
+                "timestamp": datetime.now() - timedelta(days=1, hours=1)
+            },
+            {
+                "sender_id": ai_id,
+                "sender_type": "ai",
+                "content": "瘦脸针与瘦脸导入的比较：\n\n瘦脸针(肉毒素注射)：\n- 原理：通过肌肉松弛达到瘦脸效果\n- 适用人群：咬肌发达者\n- 见效时间：7-14天开始见效\n- 持久性：4-6个月\n- 优势：效果明显，过程快速\n- 风险：需要专业医生操作\n\n瘦脸导入(电离子导入)：\n- 原理：通过电流促进活性成分吸收\n- 适用人群：轻度浮肿、想保养的人群\n- 见效时间：需多次治疗累积\n- 持久性：需持续保养\n- 优势：无创、舒适、风险低\n- 风险：效果相对温和\n\n选择建议：\n- 咬肌发达选择瘦脸针\n- 轻度改善选择导入技术\n- 最佳效果可考虑组合使用\n\n建议您与专业医生面诊评估，根据您的脸型特点选择最适合的方案。",
+                "type": "text",
+                "timestamp": datetime.now() - timedelta(days=1, hours=1, minutes=1)
+            }
+        ]
+        
+        for msg_data in messages2:
+            msg = Message(
+                id=message_id(),
+                conversation_id=conv2.id,
+                **msg_data
+            )
+            db.add(msg)
+        
+        db.commit()
+    
+    logger.info("测试会话和消息数据创建完成")
+
 async def seed_db_async(force_update: bool = False) -> None:
-    """异步初始化测试数据
+    """异步数据库种子函数
     
     Args:
         force_update: 是否强制更新现有数据
     """
-    logger.info("初始化系统测试数据")
+    # 检查扩展表是否存在
+    if not check_extension_tables_exist():
+        logger.error("扩展表不存在，请先运行 init_db.py 初始化基础数据和表结构")
+        return
     
     # 获取数据库会话
     db = next(get_db())
     
-    # 检查扩展表是否存在
-    if not check_extension_tables_exist():
-        logger.error("扩展表不存在，请先运行 init_db.py 应用迁移")
-        return
-    
-    # 创建测试用户
-    await create_mock_users(db, force_update)
-    
-    # 创建系统测试数据
-    await create_system_test_data(db)
-    
-    logger.info("系统测试数据初始化完成")
+    try:
+        # 创建测试用户数据
+        await create_mock_users(db, force_update)
+        
+        # 创建系统测试数据
+        await create_system_test_data(db)
+        
+    except Exception as e:
+        logger.error(f"初始化数据时出错: {e}")
+        raise
+    finally:
+        db.close()
 
 def seed_db(force_update: bool = False) -> None:
-    """同步包装初始化测试数据函数
+    """数据库种子函数
     
     Args:
         force_update: 是否强制更新现有数据
     """
-    try:
-        asyncio.run(seed_db_async(force_update))
-    except Exception as e:
-        logger.error(f"初始化测试数据时出错: {e}")
-        raise e
+    # 运行异步函数
+    asyncio.run(seed_db_async(force_update))
 
 def main():
-    """脚本入口点"""
-    # 添加命令行参数
-    parser = argparse.ArgumentParser(description="测试数据初始化脚本")
-    parser.add_argument("--force", action="store_true", help="强制更新现有数据")
+    """脚本入口函数"""
+    parser = argparse.ArgumentParser(description="数据扩展初始化工具")
+    parser.add_argument("--force", action="store_true", help="强制更新现有测试数据")
     parser.add_argument("--clean", action="store_true", help="清除现有测试数据后重新创建")
     args = parser.parse_args()
     
-    print_banner()
-    
     try:
-        if args.clean:
-            # 在此添加清除测试数据的代码
-            print("清除现有测试数据...")
-            # TODO: 实现清除测试数据的功能
-            
+        # 执行数据库种子函数
         seed_db(args.force)
-        print_success()
+        
+        print("\n数据扩展初始化完成！")
+        print("现在可以启动API服务: cd .. && uvicorn main:app --reload")
+        
     except Exception as e:
-        print(f"\n初始化测试数据过程中发生错误: {e}")
-        print("请检查配置和连接信息后重试。")
+        print(f"\n初始化过程中发生错误: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

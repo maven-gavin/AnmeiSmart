@@ -58,7 +58,7 @@ async def read_roles(
 
 @router.get("/{role_id}", response_model=RoleResponse)
 async def read_role(
-    role_id: int,
+    role_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> RoleResponse:
@@ -77,7 +77,7 @@ async def read_role(
 
 @router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_role(
-    role_id: int,
+    role_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:

@@ -118,19 +118,52 @@ export default function ChatWindow() {
     }
   }, [searchParams, user])
   
+  // 获取当前会话消息
+  const fetchMessages = async () => {
+    try {
+      setIsLoading(true);
+      const messages = await getConversationMessages(currentConversationId);
+      setMessages(messages);
+      await fetchImportantMessages();
+    } catch (error) {
+      console.error('获取消息出错:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // 获取重点消息
+  const fetchImportantMessages = async () => {
+    try {
+      const allMessages = await getConversationMessages(currentConversationId);
+      const important = allMessages.filter(msg => msg.isImportant);
+      setImportantMessages(important);
+    } catch (error) {
+      console.error('获取重点消息出错:', error);
+    }
+  };
+  
   // 初始获取消息
   useEffect(() => {
-    console.log(`初始化会话消息，会话ID: ${currentConversationId}`)
-    fetchMessages()
+    console.log(`初始化会话消息，会话ID: ${currentConversationId}`);
+    fetchMessages();
     
     // 获取会话列表
-    setConversations(getConversations())
+    const loadConversations = async () => {
+      try {
+        const convs = await getConversations();
+        setConversations(convs);
+      } catch (error) {
+        console.error('获取会话列表出错:', error);
+      }
+    };
+    loadConversations();
     
     // 检查顾问接管状态
-    const isConsultantModeActive = isConsultantMode(currentConversationId)
-    setIsConsultantTakeover(isConsultantModeActive)
-    console.log(`会话 ${currentConversationId} 顾问接管状态: ${isConsultantModeActive}`)
-  }, [currentConversationId])
+    const isConsultantModeActive = isConsultantMode(currentConversationId);
+    setIsConsultantTakeover(isConsultantModeActive);
+    console.log(`会话 ${currentConversationId} 顾问接管状态: ${isConsultantModeActive}`);
+  }, [currentConversationId]);
   
   // 插入FAQ内容
   const insertFAQ = (faq: { question: string, answer: string }) => {
@@ -222,17 +255,6 @@ export default function ChatWindow() {
     setSearchTerm('')
     setSearchResults([])
     setSelectedMessageId(null)
-  }
-  
-  // 获取当前会话消息
-  const fetchMessages = () => {
-    setMessages(getConversationMessages(currentConversationId))
-    fetchImportantMessages()
-  }
-  
-  // 获取重点消息
-  const fetchImportantMessages = () => {
-    setImportantMessages(getImportantMessages(currentConversationId))
   }
   
   // 切换消息重点标记
@@ -373,14 +395,20 @@ export default function ChatWindow() {
     initializeWebSocket(user.id, currentConversationId);
     
     // 监听WebSocket消息
-    const handleMessage = (data: any) => {
+    const handleMessage = async (data: any) => {
       console.log(`ChatWindow收到WebSocket消息:`, data);
       if (data.conversation_id !== currentConversationId) {
         console.log(`收到的消息会话ID(${data.conversation_id})与当前会话ID(${currentConversationId})不匹配`);
         return; // 如果消息不属于当前会话，不处理
       }
+      
       // 收到消息后刷新消息列表
-      fetchMessages();
+      await fetchMessages();
+      
+      // 滚动到底部
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
     };
     
     // 添加消息回调

@@ -1,5 +1,4 @@
 import { Message, Conversation, CustomerProfile } from "@/types/chat";
-import { mockMessages, mockConversations, mockCustomerProfiles } from "./mockData";
 import { v4 as uuidv4 } from 'uuid';
 import { authService } from "./authService";
 
@@ -9,37 +8,37 @@ interface CustomWebSocket extends WebSocket {
 }
 
 // 保存运行时的消息数据（会话ID -> 消息数组）
-let chatMessages: Record<string, Message[]> = { ...mockMessages };
+const chatMessages: Record<string, Message[]> = {}; // 移除模拟数据初始化，改为空对象
 
 // 保存运行时的会话数据
-let conversations: Conversation[] = [...mockConversations];
+let conversations: Conversation[] = []; // 移除模拟数据初始化，改为空数组
 
 // API基础URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
 
-// 当前顾问信息（模拟从登录状态获取）
-const consultantInfo = {
-  id: '2',
-  name: '李顾问',
-  avatar: '/avatars/consultant1.png',
-  type: 'consultant' as const,
-};
-
 // AI信息
 const aiInfo = {
-  id: 'ai1',
+  id: 'ai_assistant',
   name: 'AI助手',
   avatar: '/avatars/ai.png',
   type: 'ai' as const,
 };
 
+// 系统用户信息（用于系统消息等）
+const systemInfo = {
+  id: 'system',
+  name: '系统',
+  avatar: '/avatars/system.png',
+  type: 'system' as const,
+};
+
 // 保存AI状态（会话ID -> 是否由顾问接管）
-let consultantTakeover: Record<string, boolean> = {};
+const consultantTakeover: Record<string, boolean> = {};
 
 // WebSocket连接
 let socket: CustomWebSocket | null = null;
 let isConnecting = false;
-let messageQueue: any[] = [];
+const messageQueue: any[] = [];
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 let heartbeatInterval: NodeJS.Timeout | null = null;
@@ -229,99 +228,46 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
   }
 };
 
-// 处理接收到的WebSocket消息
+// 同步聊天数据，确保多端一致性
+export const syncChatData = async (conversationId: string): Promise<void> => {
+  try {
+    console.log(`同步会话数据: ${conversationId}`);
+    
+    // 重新获取会话数据
+    await getConversations();
+    
+    // 重新获取消息数据
+    await getConversationMessages(conversationId);
+    
+    console.log(`会话数据同步完成: ${conversationId}`);
+  } catch (error) {
+    console.error(`会话数据同步出错:`, error);
+  }
+};
+
+// 修改handleWebSocketMessage函数，增加数据同步逻辑
 const handleWebSocketMessage = (data: any) => {
-  const { action, conversation_id } = data;
-  console.log(`处理WebSocket消息: 动作=${action}, 会话ID=${conversation_id}`);
-  
-  // 处理心跳响应
-  if (action === 'pong') {
-    console.log('收到WebSocket心跳响应:', data.timestamp);
-    return; // 心跳响应不需要进一步处理
-  }
-  
-  // 调用对应action的回调函数
-  if (action && messageCallbacks[action]) {
-    console.log(`找到${messageCallbacks[action].length}个${action}动作的回调函数`);
-    messageCallbacks[action].forEach(callback => {
-      try {
-        callback(data);
-      } catch (error) {
-        console.error(`执行${action}回调时出错:`, error);
-      }
-    });
-  } else {
-    console.log(`没有找到${action}动作的回调函数`);
-  }
-  
-  // 处理消息动作
-  if (action === 'message') {
-    const { data: messageData, conversation_id: convId } = data;
+  try {
+    const { action, conversation_id } = data;
     
-    if (!convId) {
-      console.error('收到的消息没有会话ID');
-      return;
+    // 如果是消息相关的动作，触发同步
+    if (action === 'message' || action === 'connect') {
+      // 异步同步数据，不阻塞消息处理
+      syncChatData(conversation_id).catch(console.error);
     }
     
-    // 确保会话消息数组存在
-    if (!chatMessages[convId]) {
-      chatMessages[convId] = [];
-      console.log(`为会话 ${convId} 创建新的消息数组`);
+    // 调用注册的回调函数
+    if (action && action in messageCallbacks) {
+      messageCallbacks[action].forEach(callback => {
+        try {
+          callback(data);
+        } catch (callbackError) {
+          console.error(`执行回调函数出错: ${callbackError}`);
+        }
+      });
     }
-    
-    // 避免重复消息
-    const existingMessage = chatMessages[convId].find(msg => 
-      msg.timestamp === data.timestamp && 
-      msg.content === messageData.content && 
-      msg.sender.type === messageData.sender_type
-    );
-    
-    if (existingMessage) {
-      console.log(`跳过重复消息:`, existingMessage);
-      return;
-    }
-    
-    // 构建消息对象
-    const message: Message = {
-      id: `m_${uuidv4()}`,
-      content: messageData.content,
-      type: messageData.type || 'text',
-      sender: {
-        id: messageData.sender_id || 'unknown',
-        type: messageData.sender_type || 'unknown',
-        name: messageData.sender_name || '未知用户',
-        avatar: messageData.sender_avatar || '/avatars/default.png',
-      },
-      timestamp: data.timestamp || new Date().toISOString(),
-    };
-    
-    console.log(`为会话 ${convId} 添加新消息:`, message);
-    
-    // 添加到消息列表
-    chatMessages[convId].push(message);
-    
-    // 更新会话最后一条消息和未读数
-    const conversationIndex = conversations.findIndex(conv => conv.id === convId);
-    if (conversationIndex >= 0) {
-      // 根据发送者类型决定是否增加未读计数
-      let unreadCount = conversations[conversationIndex].unreadCount;
-      
-      // 如果是其他人的消息，增加未读计数
-      if (message.sender.id !== authService.getCurrentUserId()) {
-        unreadCount += 1;
-      }
-      
-      // 更新会话信息
-      conversations[conversationIndex] = {
-        ...conversations[conversationIndex],
-        lastMessage: message,
-        updatedAt: message.timestamp,
-        unreadCount: unreadCount
-      };
-      console.log(`已更新会话 ${convId} 的最后一条消息和未读计数`);
-    } else {
-      console.log(`未找到会话记录，ID: ${convId}`);
-    }
+  } catch (error) {
+    console.error(`处理WebSocket消息出错: ${error}`);
   }
 };
 
@@ -564,16 +510,22 @@ export const sendTextMessage = async (conversationId: string, content: string): 
 
 // 发送图片消息
 export const sendImageMessage = async (conversationId: string, imageUrl: string): Promise<Message> => {
+  // 获取当前用户
+  const currentUser = authService.getCurrentUser();
+  if (!currentUser) {
+    throw new Error('用户未登录');
+  }
+  
   // 创建图片消息
   const imageMessage: Message = {
     id: `m_${uuidv4()}`,
     content: imageUrl,
     type: 'image',
     sender: {
-      id: consultantInfo.id,
-      type: consultantInfo.type,
-      name: consultantInfo.name,
-      avatar: consultantInfo.avatar,
+      id: currentUser.id,
+      type: currentUser.currentRole || 'customer',
+      name: currentUser.name,
+      avatar: currentUser.avatar || '/avatars/user.png',
     },
     timestamp: new Date().toISOString(),
   };
@@ -604,16 +556,22 @@ export const sendImageMessage = async (conversationId: string, imageUrl: string)
 
 // 发送语音消息
 export const sendVoiceMessage = async (conversationId: string, audioUrl: string): Promise<Message> => {
+  // 获取当前用户
+  const currentUser = authService.getCurrentUser();
+  if (!currentUser) {
+    throw new Error('用户未登录');
+  }
+  
   // 创建语音消息
   const voiceMessage: Message = {
     id: `m_${uuidv4()}`,
     content: audioUrl,
     type: 'voice',
     sender: {
-      id: consultantInfo.id,
-      type: consultantInfo.type,
-      name: consultantInfo.name,
-      avatar: consultantInfo.avatar,
+      id: currentUser.id,
+      type: currentUser.currentRole || 'customer',
+      name: currentUser.name, 
+      avatar: currentUser.avatar || '/avatars/user.png',
     },
     timestamp: new Date().toISOString(),
   };
@@ -683,13 +641,118 @@ export const getAIResponse = async (conversationId: string, userMessage: Message
 };
 
 // 获取会话消息
-export const getConversationMessages = (conversationId: string): Message[] => {
-  return chatMessages[conversationId] || [];
+export const getConversationMessages = async (conversationId: string): Promise<Message[]> => {
+  // 如果有本地缓存，先返回缓存数据
+  const cachedMessages = chatMessages[conversationId] || [];
+  
+  try {
+    // 获取认证令牌
+    const token = authService.getToken();
+    if (!token) {
+      console.error("未登录，无法获取会话消息");
+      return cachedMessages;
+    }
+    
+    // 从后端API获取消息
+    const response = await fetch(`${API_BASE_URL}/chat/conversations/${conversationId}/messages`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`获取消息失败: ${response.status}`);
+    }
+    
+    const messages = await response.json();
+    
+    // 转换格式，适配前端格式
+    const formattedMessages: Message[] = messages.map((msg: any) => ({
+      id: msg.id,
+      content: msg.content,
+      type: msg.type,
+      sender: {
+        id: msg.sender.id,
+        name: msg.sender.name,
+        avatar: msg.sender.avatar || (msg.sender.type === 'ai' ? aiInfo.avatar : '/avatars/user.png'),
+        type: msg.sender.type,
+      },
+      timestamp: msg.timestamp,
+      isImportant: msg.is_important || false,
+      isRead: msg.is_read || false
+    }));
+    
+    // 更新本地缓存
+    chatMessages[conversationId] = formattedMessages;
+    
+    return formattedMessages;
+  } catch (error) {
+    console.error(`获取会话消息出错:`, error);
+    // 出错时返回缓存数据
+    return cachedMessages;
+  }
 };
 
 // 获取所有会话
-export const getConversations = (): Conversation[] => {
-  return conversations;
+export const getConversations = async (): Promise<Conversation[]> => {
+  try {
+    // 获取认证令牌
+    const token = authService.getToken();
+    if (!token) {
+      console.error("未登录，无法获取会话列表");
+      return conversations;
+    }
+    
+    // 从后端API获取会话列表
+    const response = await fetch(`${API_BASE_URL}/chat/conversations`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`获取会话列表失败: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // 转换格式，适配前端格式
+    const formattedConversations: Conversation[] = await Promise.all(data.map(async (conv: any) => {
+      // 获取最后一条消息
+      let lastMessage: Message | undefined;
+      const messages = await getConversationMessages(conv.id);
+      if (messages.length > 0) {
+        lastMessage = messages[messages.length - 1];
+      }
+      
+      return {
+        id: conv.id,
+        title: conv.title,
+        user: {
+          id: conv.customer_id,
+          name: conv.customer?.username || "未知用户",
+          avatar: conv.customer?.avatar || '/avatars/user.png',
+          tags: []
+        },
+        lastMessage: lastMessage,
+        unreadCount: 0, // TODO: 实现未读消息计数
+        updatedAt: conv.updated_at
+      };
+    }));
+    
+    // 更新本地缓存
+    conversations = formattedConversations;
+    
+    return formattedConversations;
+  } catch (error) {
+    console.error(`获取会话列表出错:`, error);
+    // 出错时返回缓存数据
+    return conversations;
+  }
 };
 
 // 标记消息为重点
@@ -721,16 +784,42 @@ export const getImportantMessages = (conversationId: string): Message[] => {
 };
 
 // 获取客户档案
-export const getCustomerProfile = (customerId: string): CustomerProfile | null => {
-  return mockCustomerProfiles[customerId] || null;
+export const getCustomerProfile = async (customerId: string): Promise<CustomerProfile | null> => {
+  try {
+    // 获取认证令牌
+    const token = authService.getToken();
+    if (!token) {
+      console.error("未登录，无法获取客户档案");
+      return null;
+    }
+    
+    // 从后端API获取客户档案
+    const response = await fetch(`${API_BASE_URL}/customers/${customerId}/profile`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`获取客户档案失败: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error(`获取客户档案出错:`, error);
+    return null;
+  }
 };
 
 // 获取客户历史咨询记录
-export const getCustomerConsultationHistory = (customerId: string): CustomerProfile['consultationHistory'] => {
-  const profile = mockCustomerProfiles[customerId];
+export const getCustomerConsultationHistory = async (customerId: string): Promise<CustomerProfile['consultationHistory']> => {
+  const profile = await getCustomerProfile(customerId);
   if (!profile) return [];
   
-  return profile.consultationHistory;
+  return profile.consultationHistory || [];
 };
 
 // 顾问接管会话

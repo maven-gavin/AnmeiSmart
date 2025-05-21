@@ -9,11 +9,11 @@ class RoleBase(BaseModel):
 
 class RoleCreate(RoleBase):
     """角色创建模型"""
-    pass
+    pass    
 
 class RoleResponse(RoleBase):
     """API响应中的角色模型"""
-    id: int
+    id: str
 
     @classmethod
     def from_orm(cls, role):
@@ -94,7 +94,7 @@ class ExtendedUserInfo(BaseModel):
 
 class UserResponse(UserBase):
     """API响应中的用户模型"""
-    id: int
+    id: str
     created_at: datetime
     roles: List[str] = []
     active_role: Optional[str] = None

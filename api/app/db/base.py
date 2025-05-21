@@ -53,6 +53,9 @@ def with_db(func):
 
 # 初始化数据库
 def init_db():
+    # 导入基础模型类
+    from app.db.models.base_model import BaseModel
+    
     # 在这里导入模型，避免循环导入
     from app.db.models.user import User, Role
     from app.db.models.chat import Conversation, Message, CustomerProfile
@@ -63,6 +66,7 @@ def init_db():
 @with_db
 def create_initial_roles(db: Session):
     from app.db.models.user import Role
+    from app.db.uuid_utils import role_id
     
     # 角色列表
     roles = ["customer", "consultant", "doctor", "operator", "admin"]
@@ -71,7 +75,7 @@ def create_initial_roles(db: Session):
     for role_name in roles:
         role = db.query(Role).filter(Role.name == role_name).first()
         if not role:
-            role = Role(name=role_name)
+            role = Role(id=role_id(), name=role_name)
             db.add(role)
     
     db.commit()
@@ -81,12 +85,15 @@ def create_initial_roles(db: Session):
 @with_db
 def create_initial_system_settings(db: Session):
     from app.db.models.system import SystemSettings, AIModelConfig
+    from app.db.uuid_utils import system_id, model_id
     
     # 检查是否已存在系统设置
     system_settings = db.query(SystemSettings).first()
     if not system_settings:
         # 创建默认系统设置
+        settings_id = system_id()
         system_settings = SystemSettings(
+            id=settings_id,
             siteName="安美智能咨询系统",
             logoUrl="/logo.png",
             defaultModelId="GPT-4",
@@ -99,14 +106,15 @@ def create_initial_system_settings(db: Session):
         
         # 创建默认AI模型配置
         default_model = AIModelConfig(
+            id=model_id(),
             modelName="GPT-4",
             apiKey="sk-••••••••••••••••••••••••",  # 实际部署时应使用环境变量或安全存储
             baseUrl="https://api.openai.com/v1",
-            maxTokens=2000,
+            maxTokens="2000",
             temperature=0.7,
             enabled=True,
             provider="openai",
-            system_settings_id=system_settings.id
+            system_settings_id=settings_id
         )
         db.add(default_model)
         db.commit()
