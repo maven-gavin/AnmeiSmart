@@ -102,13 +102,78 @@ export default function ChatWindow() {
   // WebSocket连接状态
   const [wsStatus, setWsStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
   
-  // 会话初始化处理
+  // 使用ref追踪组件是否已挂载
+  const mounted = useRef(true);
+  
+  // 监听会话ID变化，重新初始化聊天和WebSocket连接
+  useEffect(() => {
+    // 防止首次渲染或无用户时执行
+    if (!user || !currentConversationId) return;
+    
+    console.log(`会话ID变化，重新初始化聊天: ${currentConversationId}`);
+    setIsLoading(true);
+    
+    // 创建AbortController用于取消操作
+    const abortController = new AbortController();
+    
+    // 关闭之前的WebSocket连接
+    closeWebSocketConnection();
+    
+    // 初始化新的WebSocket连接
+    initializeWebSocket(user.id, currentConversationId);
+    
+    // 获取新会话的消息
+    const loadMessages = async () => {
+      try {
+        // 如果已取消，不继续加载
+        if (abortController.signal.aborted) return;
+        
+        const messages = await getConversationMessages(currentConversationId);
+        
+        // 再次检查是否取消，避免在长时间请求后设置过时状态
+        if (abortController.signal.aborted) return;
+        
+        setMessages(messages);
+        
+        // 获取重点消息
+        const allMessages = messages;
+        const important = allMessages.filter(msg => msg.isImportant);
+        setImportantMessages(important);
+        
+        // 检查顾问接管状态
+        const isConsultantModeActive = isConsultantMode(currentConversationId);
+        setIsConsultantTakeover(isConsultantModeActive);
+        console.log(`会话 ${currentConversationId} 顾问接管状态: ${isConsultantModeActive}`);
+      } catch (error) {
+        // 如果已取消，不处理错误
+        if (abortController.signal.aborted) return;
+        
+        console.error('获取消息失败:', error);
+        setMessages([]);
+      } finally {
+        // 如果已取消，不设置加载状态
+        if (!abortController.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    };
+    
+    loadMessages();
+    
+    // 组件卸载或会话ID变化时关闭WebSocket连接并取消进行中的请求
+    return () => {
+      console.log(`会话ID变化或组件卸载，关闭WebSocket连接: ${currentConversationId}`);
+      abortController.abort();
+      closeWebSocketConnection();
+    };
+  }, [currentConversationId, user]);
+  
+  // 初始化聊天 - 仅在组件首次挂载时执行一次
   useEffect(() => {
     const initializeChat = async () => {
       try {
         if (!user) return;
         
-        setIsLoading(true);
         console.log('ChatWindow初始化开始...');
         
         // 从URL获取会话ID
@@ -118,42 +183,14 @@ export default function ChatWindow() {
           // 如果URL中有会话ID，直接使用
           console.log(`使用URL中的会话ID: ${conversationId}`);
           setCurrentConversationId(conversationId);
-          
-          // 获取消息，添加超时处理
-          const fetchMessagesWithTimeout = async () => {
-            const timeoutPromise = new Promise((_, reject) => {
-              setTimeout(() => reject(new Error('获取消息超时')), 8000); // 增加超时时间
-            });
-            
-            try {
-              // Promise.race 确保超时后不再等待
-              await Promise.race([
-                fetchMessages(),
-                timeoutPromise
-              ]);
-            } catch (error: any) {
-              console.error('获取消息失败或超时:', error);
-              // 超时后设置loading为false避免无限加载
-              setIsLoading(false);
-              
-              // 如果是因为超时，设置空消息列表
-              if (error.message === '获取消息超时') {
-                setMessages([]);
-              }
-            }
-          };
-          
-          // 初始化WebSocket连接
-          initializeWebSocket(user.id, conversationId);
-          
-          await fetchMessagesWithTimeout();
+          // 不在这里获取消息和初始化WebSocket，由会话ID监听effect处理
         } else {
           console.log('URL中未找到会话ID，获取或创建会话');
           
           // 添加超时处理
           const createConversationWithTimeout = async () => {
             const timeoutPromise = new Promise<Conversation>((_, reject) => {
-              setTimeout(() => reject(new Error('创建会话超时')), 8000); // 增加超时时间
+              setTimeout(() => reject(new Error('创建会话超时')), 15000); // 增加超时时间
             });
             
             try {
@@ -165,28 +202,24 @@ export default function ChatWindow() {
               
               console.log('获取或创建的会话:', conversation);
               
+              // 检查组件是否仍然挂载
+              if (!mounted.current) {
+                console.log('组件已卸载，不更新状态');
+                return;
+              }
+              
               // 更新当前会话ID
               setCurrentConversationId(conversation.id);
               
               // 使用新会话ID更新URL (使用replace避免在历史记录中创建新条目)
-              router.replace(`?conversationId=${conversation.id}`);
+              router.replace(`?conversationId=${conversation.id}`, { scroll: false });
               
-              // 初始化WebSocket连接
-              initializeWebSocket(user.id, conversation.id);
-              
-              // 获取消息
-              try {
-                const msgs = await getConversationMessages(conversation.id);
-                setMessages(msgs);
-              } catch (error) {
-                console.error('获取消息失败:', error);
-                setMessages([]);
-              } finally {
-                setIsLoading(false);
-              }
+              // 不在这里获取消息和初始化WebSocket，由会话ID监听effect处理
             } catch (error: any) {
               console.error('创建会话失败或超时:', error);
-              setIsLoading(false);
+              if (mounted.current) {
+                setIsLoading(false);
+              }
             }
           };
           
@@ -194,25 +227,89 @@ export default function ChatWindow() {
         }
       } catch (error) {
         console.error('初始化聊天时出错:', error);
-        setIsLoading(false);
-      } finally {
-        // 确保无论如何都会设置loading为false
-        setIsLoading(false);
+        if (mounted.current) {
+          setIsLoading(false);
+        }
       }
     };
     
-    // 只在组件挂载时或user/searchParams变化时执行初始化
+    // 只在组件挂载时执行一次初始化
     initializeChat();
     
     // 组件卸载时关闭WebSocket连接
     return () => {
       console.log('ChatWindow组件卸载，关闭WebSocket连接');
-      if (currentConversationId) {
-        console.log(`关闭会话 ${currentConversationId} 的WebSocket连接`);
-      }
+      mounted.current = false;
       closeWebSocketConnection();
     };
-  }, [user, searchParams, router]);
+  }, [router, searchParams, user]); // 更新依赖数组
+  
+  // 监听WebSocket消息 - 依赖于currentConversationId
+  useEffect(() => {
+    if (!user || !currentConversationId) return;
+    
+    console.log(`设置WebSocket消息监听: 用户ID=${user.id}, 会话ID=${currentConversationId}`);
+    
+    // 创建AbortController用于取消操作
+    const abortController = new AbortController();
+    
+    // 监听WebSocket消息
+    const handleMessage = async (data: any) => {
+      // 如果已取消，不处理消息
+      if (abortController.signal.aborted) return;
+      
+      // 确保只处理当前会话的消息
+      if (!data.conversation_id || data.conversation_id !== currentConversationId) {
+        console.log(`忽略非当前会话的消息: ${data.conversation_id} vs ${currentConversationId}`);
+        return;
+      }
+      
+      console.log(`ChatWindow收到当前会话的WebSocket消息:`, data);
+      
+      // 收到消息后刷新消息列表
+      try {
+        // 如果已取消，不继续处理
+        if (abortController.signal.aborted) return;
+        
+        const messages = await getConversationMessages(currentConversationId);
+        
+        // 再次检查是否取消，避免设置过时状态
+        if (abortController.signal.aborted) return;
+        
+        setMessages(messages);
+        
+        // 如果显示重点消息，也更新重点消息列表
+        if (showImportantOnly) {
+          const important = messages.filter(msg => msg.isImportant);
+          setImportantMessages(important);
+        }
+        
+        // 滚动到底部
+        setTimeout(() => {
+          scrollToBottom();
+        }, 100);
+      } catch (error) {
+        // 如果已取消，不处理错误
+        if (abortController.signal.aborted) return;
+        
+        console.error('更新消息失败:', error);
+      }
+    };
+    
+    // 添加消息回调
+    addMessageCallback('message', handleMessage);
+    addMessageCallback('system', handleMessage);
+    addMessageCallback('connect', handleMessage);
+    
+    // 组件卸载或会话ID变化时移除回调
+    return () => {
+      console.log(`移除WebSocket消息回调, 会话ID: ${currentConversationId}`);
+      abortController.abort();
+      removeMessageCallback('message', handleMessage);
+      removeMessageCallback('system', handleMessage);
+      removeMessageCallback('connect', handleMessage);
+    };
+  }, [currentConversationId, user, showImportantOnly]);
   
   // 获取当前会话消息 - 更新以支持可能为null的会话ID
   const fetchMessages = async () => {
@@ -386,7 +483,9 @@ export default function ChatWindow() {
       try {
         const conversation = await getOrCreateConversation();
         setCurrentConversationId(conversation.id);
-        router.push(`/customer/chat?conversationId=${conversation.id}`);
+        
+        // 使用replace代替push避免创建历史记录
+        router.replace(`?conversationId=${conversation.id}`, { scroll: false });
         
         // 初始化WebSocket连接
         if (user) {
@@ -410,6 +509,24 @@ export default function ChatWindow() {
     try {
       setIsLoading(true);
       
+      // 检查WebSocket连接状态
+      const wsCurrentStatus = getConnectionStatus();
+      if (wsCurrentStatus !== ConnectionStatus.CONNECTED) {
+        console.log(`WebSocket未连接，尝试重新连接：当前状态=${wsCurrentStatus}`);
+        
+        // 如果未连接，尝试初始化连接
+        if (user) {
+          // 关闭可能存在的旧连接
+          closeWebSocketConnection();
+          
+          // 初始化新连接
+          initializeWebSocket(user.id, conversationId);
+          
+          // 等待连接建立
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+      }
+      
       // 发送用户消息
       const userMessage = await sendTextMessage(conversationId, message);
       
@@ -424,9 +541,16 @@ export default function ChatWindow() {
       
       // 在顾问未接管的情况下获取AI回复
       if (!isConsultantTakeover) {
-        setTimeout(async () => {
-          // 获取AI回复
-          const aiResponse = await getAIResponse(conversationId, userMessage);
+        // 获取AI回复前不重置加载状态
+        
+        try {
+          // 获取AI回复，增加超时处理
+          const aiResponsePromise = getAIResponse(conversationId, userMessage);
+          const timeoutPromise = new Promise<null>((_, reject) => 
+            setTimeout(() => reject(new Error('获取AI回复超时')), 15000)
+          );
+          
+          const aiResponse = await Promise.race([aiResponsePromise, timeoutPromise]);
           
           if (aiResponse) {
             // 更新本地消息列表
@@ -435,15 +559,22 @@ export default function ChatWindow() {
             // 滚动到底部
             scrollToBottom();
           }
-          
+        } catch (error) {
+          console.error('获取AI回复失败:', error);
+          // 可以在这里添加失败提示
+        } finally {
           setIsLoading(false);
-        }, 1000);
+        }
       } else {
+        // 顾问模式下立即重置加载状态
         setIsLoading(false);
       }
     } catch (error) {
       console.error('发送消息失败:', error);
       setIsLoading(false);
+      
+      // 显示错误提示
+      // 这里可以添加错误处理，如显示错误消息等
     }
   };
   
@@ -492,18 +623,23 @@ export default function ChatWindow() {
     }
   };
   
-  // 发送消息（统一入口）
+  // 通用发送消息函数，处理文本、图片和语音
   const handleSendMessage = async () => {
-    if (isLoading) return
-    
-    if (audioPreview) {
-      await handleSendVoiceMessage()
-    } else if (imagePreview) {
-      await handleSendImageMessage()
-    } else if (message.trim()) {
-      await handleSendTextMessage()
+    // 防止重复发送
+    if (isLoading) {
+      console.log('消息正在发送中，请稍候...');
+      return;
     }
-  }
+    
+    // 根据消息类型调用相应的发送函数
+    if (imagePreview) {
+      await handleSendImageMessage();
+    } else if (audioPreview) {
+      await handleSendVoiceMessage();
+    } else {
+      await handleSendTextMessage();
+    }
+  };
   
   // 滚动到底部
   const scrollToBottom = () => {
@@ -511,41 +647,6 @@ export default function ChatWindow() {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   };
-  
-  // 监听WebSocket消息并更新状态 - 独立的useEffect
-  useEffect(() => {
-    if (!user || !currentConversationId) return;
-    
-    console.log(`设置WebSocket消息监听: 用户ID=${user.id}, 会话ID=${currentConversationId}`);
-    
-    // 监听WebSocket消息
-    const handleMessage = async (data: any) => {
-      console.log(`ChatWindow收到WebSocket消息:`, data);
-      if (data.conversation_id !== currentConversationId) {
-        console.log(`收到的消息会话ID(${data.conversation_id})与当前会话ID(${currentConversationId})不匹配`);
-        return; // 如果消息不属于当前会话，不处理
-      }
-      
-      // 收到消息后刷新消息列表
-      await fetchMessages();
-      
-      // 滚动到底部
-      setTimeout(() => {
-        scrollToBottom();
-      }, 100);
-    };
-    
-    // 添加消息回调
-    addMessageCallback('message', handleMessage);
-    addMessageCallback('system', handleMessage);
-    
-    // 组件卸载时清理
-    return () => {
-      console.log(`移除WebSocket消息回调, 会话ID: ${currentConversationId}`);
-      removeMessageCallback('message', handleMessage);
-      removeMessageCallback('system', handleMessage);
-    };
-  }, [user, currentConversationId]);
   
   // 监听连接状态
   useEffect(() => {

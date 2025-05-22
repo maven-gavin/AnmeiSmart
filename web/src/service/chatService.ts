@@ -44,6 +44,12 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 let heartbeatInterval: NodeJS.Timeout | null = null;
 const HEARTBEAT_INTERVAL = 30000; // 30秒发送一次心跳
 
+// 添加用于跟踪最后连接的会话ID
+let lastConnectedConversationId: string | null = null;
+
+// 用于取消连接尝试的计时器
+let connectionDebounceTimer: NodeJS.Timeout | null = null;
+
 // 消息回调处理函数
 type MessageCallback = (message: any) => void;
 const messageCallbacks: Record<string, MessageCallback[]> = {};
@@ -60,14 +66,39 @@ let connectionStatus = ConnectionStatus.DISCONNECTED;
 
 // 初始化WebSocket连接
 export const initializeWebSocket = (userId: string, conversationId: string) => {
-  // 如果传入的会话ID为空，使用一个安全默认值
-  if (!conversationId) {
-    console.error('初始化WebSocket时会话ID为空，无法创建连接');
-    return;
+  // 输入验证
+  if (!userId || !conversationId) {
+    console.error('初始化WebSocket失败: 用户ID或会话ID为空', { userId, conversationId });
+    return () => {}; // 返回空的取消函数
   }
+  
+  // 防抖，避免频繁切换会话时的重复连接尝试
+  if (connectionDebounceTimer) {
+    clearTimeout(connectionDebounceTimer);
+  }
+  
+  // 使用延迟启动连接
+  connectionDebounceTimer = setTimeout(() => {
+    // 开始实际的连接过程
+    establishWebSocketConnection(userId, conversationId);
+  }, 100);
+  
+  // 返回取消函数
+  return () => {
+    if (connectionDebounceTimer) {
+      clearTimeout(connectionDebounceTimer);
+      connectionDebounceTimer = null;
+    }
+  };
+};
 
+// 实际建立WebSocket连接的函数
+const establishWebSocketConnection = (userId: string, conversationId: string) => {
+  // 标记当前会话ID，用于防止在会话切换过程中发生的重复连接
+  let isCancelled = false;
+  
+  // 如果已经连接到相同的会话，则不需要重新连接
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
-    // 如果已经连接到相同的会话，则不需要重新连接
     if (socket._conversationId === conversationId) {
       console.log(`WebSocket已连接到会话${conversationId}，不需要重新连接`);
       return;
@@ -75,7 +106,6 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
       console.log(`WebSocket已连接到会话${socket._conversationId}，但需要切换到会话${conversationId}，关闭当前连接`);
       try {
         closeWebSocketConnection();
-        console.log('关闭已有WebSocket连接以切换会话');
       } catch (err) {
         console.warn('关闭已有连接时出错:', err);
       }
@@ -87,9 +117,13 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
     return; // 防止多次同时连接
   }
   
+  // 更新最后连接的会话ID
+  lastConnectedConversationId = conversationId;
+  
   isConnecting = true;
   connectionStatus = ConnectionStatus.CONNECTING;
   
+  // 在连接开始时获取token，避免连接过程中token失效
   const token = authService.getToken();
   if (!token) {
     console.error('无法建立WebSocket连接：未登录');
@@ -108,6 +142,8 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
     
     // 添加连接超时处理
     const connectionTimeoutId = setTimeout(() => {
+      if (isCancelled) return;
+      
       if (connectionStatus === ConnectionStatus.CONNECTING) {
         console.error('WebSocket连接超时');
         connectionStatus = ConnectionStatus.ERROR;
@@ -126,6 +162,23 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
     socket._conversationId = conversationId;
     
     socket.onopen = () => {
+      // 检查会话ID是否仍然是最新的
+      if (lastConnectedConversationId !== conversationId) {
+        console.log(`WebSocket连接已建立，但会话ID已变更 (${conversationId} -> ${lastConnectedConversationId})，关闭连接`);
+        socket?.close();
+        clearTimeout(connectionTimeoutId);
+        isConnecting = false;
+        return;
+      }
+      
+      if (isCancelled) {
+        console.log(`WebSocket连接已建立，但会话已被取消，关闭连接，会话ID: ${conversationId}`);
+        socket?.close();
+        clearTimeout(connectionTimeoutId);
+        isConnecting = false;
+        return;
+      }
+      
       clearTimeout(connectionTimeoutId); // 清除连接超时
       console.log(`WebSocket连接已建立，会话ID: ${conversationId}`);
       connectionStatus = ConnectionStatus.CONNECTED;
@@ -143,11 +196,25 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
         socket.send(JSON.stringify(connectMsg));
       }
       
-      // 发送队列中的消息
-      while (messageQueue.length > 0 && socket && socket.readyState === WebSocket.OPEN) {
-        const message = messageQueue.shift();
-        console.log('发送队列中的消息:', message);
-        socket.send(JSON.stringify(message));
+      // 发送队列中的消息，只发送当前会话的消息
+      if (messageQueue.length > 0) {
+        console.log(`处理消息队列，当前有${messageQueue.length}条消息`);
+        const currentSessionMessages = messageQueue.filter(msg => msg.conversation_id === conversationId);
+        const otherSessionMessages = messageQueue.filter(msg => msg.conversation_id !== conversationId);
+        
+        // 移除其他会话的消息
+        if (otherSessionMessages.length > 0) {
+          console.log(`丢弃${otherSessionMessages.length}条其他会话的消息`);
+          messageQueue.length = 0;
+          messageQueue.push(...currentSessionMessages);
+        }
+        
+        // 发送当前会话的消息
+        while (messageQueue.length > 0 && socket && socket.readyState === WebSocket.OPEN) {
+          const message = messageQueue.shift();
+          console.log('发送队列中的消息:', message);
+          socket.send(JSON.stringify(message));
+        }
       }
       
       // 启动心跳检测
@@ -168,27 +235,19 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
             clearInterval(heartbeatInterval);
             heartbeatInterval = null;
           }
-          
-          // 如果连接已关闭但状态未更新，尝试重连
-          if (connectionStatus !== ConnectionStatus.DISCONNECTED && 
-              connectionStatus !== ConnectionStatus.ERROR) {
-            console.log('心跳检测到连接已关闭，更新状态');
-            connectionStatus = ConnectionStatus.DISCONNECTED;
-            
-            // 尝试重连
-            if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-              reconnectAttempts++;
-              console.log(`心跳触发重连 (尝试 ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
-              setTimeout(() => {
-                initializeWebSocket(userId, conversationId);
-              }, 1000);
-            }
-          }
         }
       }, HEARTBEAT_INTERVAL);
     };
     
     socket.onmessage = (event) => {
+      // 检查会话ID是否仍然是最新的
+      if (lastConnectedConversationId !== conversationId) {
+        console.log(`收到WebSocket消息，但会话ID已变更，忽略消息`);
+        return;
+      }
+      
+      if (isCancelled) return;
+      
       try {
         console.log('收到WebSocket消息:', event.data);
         const data = JSON.parse(event.data);
@@ -199,6 +258,8 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
     };
     
     socket.onerror = (error) => {
+      if (isCancelled) return;
+      
       clearTimeout(connectionTimeoutId); // 清除连接超时
       console.error('WebSocket错误:', error);
       // 添加更详细的错误信息
@@ -212,19 +273,11 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
       
       connectionStatus = ConnectionStatus.ERROR;
       isConnecting = false;
-      
-      // 如果离线，添加网络恢复监听
-      if (!navigator.onLine) {
-        const handleOnline = () => {
-          console.log('网络已恢复，尝试重新连接WebSocket');
-          window.removeEventListener('online', handleOnline);
-          initializeWebSocket(userId, conversationId);
-        };
-        window.addEventListener('online', handleOnline);
-      }
     };
     
     socket.onclose = (event) => {
+      if (isCancelled) return;
+      
       clearTimeout(connectionTimeoutId); // 清除连接超时
       console.log(`WebSocket连接已关闭: 代码=${event.code}, 原因=${event.reason || '未提供'}, 是否干净关闭=${event.wasClean}`);
       connectionStatus = ConnectionStatus.DISCONNECTED;
@@ -236,35 +289,35 @@ export const initializeWebSocket = (userId: string, conversationId: string) => {
         heartbeatInterval = null;
       }
       
-      // 尝试重连
-      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-        reconnectAttempts++;
-        const delay = 1000 * Math.pow(2, reconnectAttempts); // 指数退避重连
-        console.log(`${delay}ms后尝试重连 (尝试 ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
-        
-        setTimeout(() => {
-          // 在重连前检查页面是否仍然存在和网络状态
-          if (document.visibilityState === 'visible' && navigator.onLine) {
-            initializeWebSocket(userId, conversationId);
-          } else {
-            console.log('页面不可见或无网络连接，暂停重连');
-            // 页面重新可见时重连
-            const handleVisibilityChange = () => {
-              if (document.visibilityState === 'visible' && navigator.onLine) {
-                console.log('页面重新可见，尝试重连');
-                document.removeEventListener('visibilitychange', handleVisibilityChange);
-                initializeWebSocket(userId, conversationId);
-              }
-            };
-            document.addEventListener('visibilitychange', handleVisibilityChange);
-          }
-        }, delay);
-      } else {
-        console.error(`达到最大重连尝试次数 (${MAX_RECONNECT_ATTEMPTS}), 停止重连`);
+      // 只有在非用户主动关闭的情况下尝试重连
+      if (event.code !== 1000 && event.code !== 1001) {
+        // 检查是否仍然是最新的会话ID
+        if (lastConnectedConversationId === conversationId && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+          reconnectAttempts++;
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000); // 指数退避，最大30秒
+          console.log(`将在${delay}ms后尝试重连，尝试次数: ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+          
+          setTimeout(() => {
+            if (lastConnectedConversationId === conversationId) {
+              console.log(`尝试重新连接WebSocket，会话ID: ${conversationId}`);
+              establishWebSocketConnection(userId, conversationId);
+            } else {
+              console.log(`不再重连到会话${conversationId}，因为当前会话已变为${lastConnectedConversationId}`);
+            }
+          }, delay);
+        }
       }
     };
+    
+    // 返回取消函数，可以用于组件卸载或会话切换时取消连接
+    return () => {
+      console.log(`标记WebSocket连接为已取消，会话ID: ${conversationId}`);
+      isCancelled = true;
+      clearTimeout(connectionTimeoutId);
+      // 不主动关闭连接，让onopen处理器决定是否关闭
+    };
   } catch (error) {
-    console.error('初始化WebSocket时出错:', error);
+    console.error('建立WebSocket连接时出错:', error);
     connectionStatus = ConnectionStatus.ERROR;
     isConnecting = false;
   }
@@ -406,17 +459,43 @@ export const closeWebSocketConnection = () => {
     heartbeatInterval = null;
   }
   
+  // 清除连接防抖计时器
+  if (connectionDebounceTimer) {
+    clearTimeout(connectionDebounceTimer);
+    connectionDebounceTimer = null;
+  }
+  
+  // 获取当前连接的会话ID便于日志
+  const currentConversationId = socket?._conversationId;
+  
   if (socket) {
     try {
-      socket.close();
+      // 记录关闭时的状态
+      const previousReadyState = socket.readyState;
+      
+      // 只有在连接或连接中的状态才需要关闭
+      if (previousReadyState === WebSocket.OPEN || previousReadyState === WebSocket.CONNECTING) {
+        console.log(`关闭WebSocket连接，会话ID: ${currentConversationId}, 状态: ${previousReadyState}`);
+        socket.close();
+      } else {
+        console.log(`WebSocket已经处于关闭状态，会话ID: ${currentConversationId}, 状态: ${previousReadyState}`);
+      }
     } catch (error) {
       console.error('关闭WebSocket连接时出错:', error);
     }
     socket = null;
+  } else {
+    console.log('WebSocket连接不存在，无需关闭');
   }
+  
   connectionStatus = ConnectionStatus.DISCONNECTED;
   isConnecting = false;
-  console.log('WebSocket连接已关闭');
+  
+  // 清空消息队列，避免切换会话时发送旧消息
+  if (messageQueue.length > 0) {
+    console.log(`清空消息队列，丢弃${messageQueue.length}条消息`);
+    messageQueue.length = 0;
+  }
 };
 
 // 获取连接状态

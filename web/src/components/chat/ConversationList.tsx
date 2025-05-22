@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/service/utils'
 import { getConversations } from '@/service/chatService'
@@ -16,6 +16,12 @@ export default function ConversationList() {
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const { logout } = useAuth()
+  
+  // 引用跟踪上次选择的ID，避免连续多次切换同一会话导致的问题
+  const lastSelectedIdRef = useRef<string>(initialSelectedId);
+  
+  // 添加一个标志，在导航期间防止重复选择
+  const isNavigatingRef = useRef(false);
   
   // 加载会话列表
   const loadConversations = async () => {
@@ -41,9 +47,32 @@ export default function ConversationList() {
   
   // 处理会话选择
   const handleConversationSelect = (conversationId: string) => {
-    setSelectedId(conversationId)
-    // 更新URL参数，不刷新页面
-    router.push(`?conversationId=${conversationId}`, { scroll: false })
+    // 如果已经选中该会话，不做任何操作
+    if (selectedId === conversationId || lastSelectedIdRef.current === conversationId) {
+      console.log(`会话${conversationId}已经选中，不重复加载`);
+      return;
+    }
+    
+    // 如果正在导航中，不允许多次点击
+    if (isNavigatingRef.current) {
+      console.log('正在导航中，忽略重复点击');
+      return;
+    }
+    
+    // 设置导航标志
+    isNavigatingRef.current = true;
+    
+    // 更新选中状态
+    setSelectedId(conversationId);
+    lastSelectedIdRef.current = conversationId;
+    
+    // 更新URL参数，不刷新页面，使用replace而非push避免创建新的历史记录
+    router.replace(`?conversationId=${conversationId}`, { scroll: false });
+    
+    // 500ms后重置导航标志，防止短时间内多次切换
+    setTimeout(() => {
+      isNavigatingRef.current = false;
+    }, 500);
   }
   
   // 监听URL参数变化
@@ -51,6 +80,7 @@ export default function ConversationList() {
     const conversationId = searchParams?.get('conversationId')
     if (conversationId) {
       setSelectedId(conversationId)
+      lastSelectedIdRef.current = conversationId;
     }
   }, [searchParams])
   
@@ -118,6 +148,8 @@ export default function ConversationList() {
                 'flex w-full items-center space-x-3 border-b border-gray-100 p-3 text-left hover:bg-orange-50',
                 selectedId === conversation.id && 'bg-orange-50'
               )}
+              // 在导航过程中禁用按钮，防止多次点击
+              disabled={isNavigatingRef.current}
             >
               <div className="relative flex-shrink-0">
                 <img
