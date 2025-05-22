@@ -154,30 +154,74 @@ export const authService = {
     }
     
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token }),
-      });
+      // 添加重试逻辑
+      let retryCount = 0;
+      const maxRetries = 3;
       
-      if (!response.ok) {
-        throw new Error('刷新令牌失败');
+      while (retryCount < maxRetries) {
+        try {
+          console.log('尝试刷新令牌，当前尝试次数:', retryCount + 1);
+          
+          // 只发送令牌本身，不包含用户ID
+          const response = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              token: token,
+              // 确保不发送其他可能导致类型错误的字段
+            }),
+            // 添加超时设置
+            signal: AbortSignal.timeout(5000), // 5秒超时
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: '刷新令牌失败' }));
+            throw new Error(errorData.detail || '刷新令牌失败');
+          }
+          
+          const data = await response.json();
+          const newToken = data.access_token;
+          
+          // 更新本地存储中的令牌
+          if (isBrowser) {
+            localStorage.setItem('auth_token', newToken);
+          }
+          
+          console.log('令牌刷新成功');
+          return newToken;
+        } catch (err) {
+          retryCount++;
+          // 捕获并记录详细错误信息
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          console.warn(`刷新令牌失败，尝试重试 ${retryCount}/${maxRetries}:`, errorMessage);
+          
+          // 最后一次尝试失败则抛出错误
+          if (retryCount >= maxRetries) {
+            if (err instanceof Error) {
+              throw new Error(`无法刷新令牌: ${err.message}`);
+            } else {
+              throw new Error(`无法刷新令牌: ${String(err)}`);
+            }
+          }
+          
+          // 等待一段时间再重试
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+        }
       }
       
-      const data = await response.json();
-      const newToken = data.access_token;
-      
-      // 更新本地存储中的令牌
-      if (isBrowser) {
-        localStorage.setItem('auth_token', newToken);
-      }
-      
-      return newToken;
+      // 这行代码不应该被执行，但为了类型安全
+      throw new Error('刷新令牌失败，已达到最大重试次数');
     } catch (error) {
-      // 刷新令牌失败，清除用户状态
-      this.logout();
+      console.error('刷新令牌失败:', error);
+      // 记录详细的错误信息
+      if (error instanceof Error) {
+        console.error('错误详情:', error.message);
+      }
+      
+      // 刷新令牌失败，但不要立即清除用户状态
+      // 我们在AuthContext中决定是否登出
       throw error;
     }
   },

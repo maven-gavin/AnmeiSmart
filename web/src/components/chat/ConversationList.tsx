@@ -6,6 +6,7 @@ import { cn } from '@/service/utils'
 import { getConversations } from '@/service/chatService'
 import { Conversation } from '@/types/chat'
 import { useAuth } from '@/contexts/AuthContext'
+import { authService } from '@/service/authService'
 
 export default function ConversationList() {
   const searchParams = useSearchParams()
@@ -29,24 +30,48 @@ export default function ConversationList() {
   // 加载会话列表
   const loadConversations = async () => {
     try {
-      setLoading(true)
-      const data = await getConversations()
-      setConversations(data)
-      setError(null)
+      setLoading(true);
+      
+      // 检查用户是否登录
+      if (!authService.isLoggedIn()) {
+        console.error('用户未登录，无法获取会话列表');
+        // 不立即设置空会话列表，保留现有状态，避免闪烁
+        setError('会话加载失败，请刷新页面');
+        return;
+      }
+      
+      const data = await getConversations();
+      
+      // 只有在成功获取到数据时才更新状态
+      if (data && data.length > 0) {
+        setConversations(data);
+        setError(null);
+      } else if (data && data.length === 0) {
+        // 获取到空数据时，显示暂无会话
+        setConversations([]);
+        setError(null);
+      } else {
+        // 如果没有获取到有效数据但没有抛出错误，保持现有会话列表
+        console.warn('获取会话列表返回了无效数据，保留现有状态');
+        // 如果当前会话列表为空，则设置错误信息
+        if (conversations.length === 0) {
+          setError('获取会话列表失败，请稍后再试');
+        }
+      }
     } catch (err) {
-      console.error('获取会话列表失败:', err)
+      console.error('获取会话列表失败:', err);
       // 如果收到401错误，可能是token过期，执行登出操作
       if (err instanceof Error && err.message.includes('401')) {
-        console.log('Token已过期，跳转到登录页')
-        await logout()
+        console.log('Token已过期，跳转到登录页');
+        await logout();
       } else {
-        setError('获取会话列表失败')
+        // 非认证错误时，保留现有会话列表，避免闪烁
+        setError('获取会话列表失败');
       }
-      setConversations([])
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
   
   // 处理会话选择
   const handleConversationSelect = (conversationId: string) => {
@@ -98,13 +123,29 @@ export default function ConversationList() {
     loadConversations()
   }, [])
   
-  // 定期刷新会话列表
+  // 定期刷新会话列表，调整频率降低刷新次数
   useEffect(() => {
     const intervalId = setInterval(() => {
-      loadConversations()
-    }, 30000) // 每30秒刷新一次
+      // 只有在页面可见时才刷新
+      if (document.visibilityState === 'visible') {
+        loadConversations()
+      }
+    }, 60000) // 每60秒刷新一次
     
-    return () => clearInterval(intervalId)
+    // 处理页面可见性变化事件
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // 页面重新变为可见时刷新一次
+        loadConversations()
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    return () => {
+      clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [])
   
   // 显示加载状态
@@ -112,6 +153,7 @@ export default function ConversationList() {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
+        <span className="ml-2 text-gray-500">加载会话列表...</span>
       </div>
     )
   }
@@ -122,7 +164,10 @@ export default function ConversationList() {
       <div className="flex h-full flex-col items-center justify-center p-4 text-center">
         <div className="text-red-500 mb-4">{error}</div>
         <button
-          onClick={loadConversations}
+          onClick={() => {
+            console.log('手动重试加载会话列表');
+            loadConversations();
+          }}
           className="rounded-md bg-orange-500 px-4 py-2 text-white hover:bg-orange-600"
         >
           重试
@@ -144,9 +189,20 @@ export default function ConversationList() {
       
       {/* 会话列表 */}
       <div className="flex-1 overflow-y-auto">
-        {conversations.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-gray-500">
-            暂无会话
+        {conversations.length === 0 && loading ? (
+          <div className="flex h-full items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
+            <span className="ml-2 text-gray-500">加载会话列表...</span>
+          </div>
+        ) : conversations.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center text-gray-500">
+            <p>暂无会话</p>
+            <button
+              onClick={loadConversations}
+              className="mt-4 rounded-md bg-orange-500 px-4 py-2 text-white hover:bg-orange-600"
+            >
+              刷新
+            </button>
           </div>
         ) : (
           conversations.map(conversation => (

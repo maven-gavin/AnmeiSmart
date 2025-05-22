@@ -6,11 +6,14 @@ import ChatLayout from '@/components/chat/ChatLayout'
 import ChatWindow from '@/components/chat/ChatWindow'
 import ConversationList from '@/components/chat/ConversationList'
 import CustomerProfile from '@/components/chat/CustomerProfile'
-import { getConversations } from '@/service/chatService';
+import { getConversations, createConversation } from '@/service/chatService';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { useAuth } from '@/contexts/AuthContext';
+import { authService } from '@/service/authService';
 
 export default function ChatPageClient() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,33 +50,69 @@ export default function ChatPageClient() {
     }
   }, [conversationId]);
 
+  // 初始化聊天页面和会话
   useEffect(() => {
-    // 防止在同一渲染周期内多次执行初始化
-    if (isInitializedRef.current) {
+    // 等待认证完成
+    if (authLoading) {
+      console.log('认证加载中，等待认证完成...');
       return;
     }
     
+    // 检查登录状态
+    if (!authService.isLoggedIn()) {
+      console.log('用户未登录，不执行初始化');
+      return;
+    }
+    
+    // 防止在同一渲染周期内多次执行初始化
+    if (isInitializedRef.current) {
+      console.log('已初始化，跳过重复初始化');
+      return;
+    }
+    
+    // 设置加载状态
+    if (!isLoading) {
+      setIsLoading(true);
+    }
+    
+    console.log('开始初始化聊天页面...');
+    
     const initializeChat = async () => {
       try {
+        // 先检查URL中是否有会话ID
         if (!conversationId) {
-          // 如果URL中没有会话ID，获取第一个会话并重定向
+          console.log('URL中没有会话ID，尝试获取会话列表');
+          
+          // 如果URL中没有会话ID，获取会话列表
           const conversations = await getConversations();
           
           if (conversations && conversations.length > 0) {
+            // 有会话时，选择第一个
             const firstConversationId = conversations[0].id;
-            console.log(`未指定会话ID，重定向到第一个会话: ${firstConversationId}`);
+            console.log(`找到会话列表，重定向到第一个会话: ${firstConversationId}`);
             
-            // 如果上一次处理的会话ID与当前需要重定向的不同，则执行重定向
-            if (lastProcessedConversationIdRef.current !== firstConversationId) {
-              lastProcessedConversationIdRef.current = firstConversationId;
-              router.replace(`?conversationId=${firstConversationId}`, { scroll: false });
-            }
+            // 记录处理的会话ID
+            lastProcessedConversationIdRef.current = firstConversationId;
+            router.replace(`?conversationId=${firstConversationId}`, { scroll: false });
           } else {
-            console.error('没有可用的会话');
-            setError('没有可用的会话');
+            // 没有会话时，创建一个新会话
+            console.log('没有可用的会话，创建新会话');
+            try {
+              // 创建新会话
+              const newConversation = await createConversation();
+              console.log(`创建了新会话: ${newConversation.id}`);
+              
+              // 记录处理的会话ID
+              lastProcessedConversationIdRef.current = newConversation.id;
+              router.replace(`?conversationId=${newConversation.id}`, { scroll: false });
+            } catch (createErr) {
+              console.error('创建会话失败:', createErr);
+              setError('无法创建新会话，请刷新页面重试');
+            }
           }
         } else {
           // 记录当前处理的会话ID
+          console.log(`URL中有会话ID: ${conversationId}`);
           lastProcessedConversationIdRef.current = conversationId;
         }
       } catch (err) {
@@ -88,7 +127,7 @@ export default function ChatPageClient() {
     
     initializeChat();
     
-    // 设置超时，如果5秒后仍在加载，则认为出现了问题
+    // 设置超时，如果10秒后仍在加载，则认为出现了问题
     const timeoutId = setTimeout(() => {
       if (isLoading) {
         console.log('加载超时，重置状态');
@@ -97,12 +136,26 @@ export default function ChatPageClient() {
           setError('加载超时，请刷新页面重试');
         }
       }
-    }, 5000);
+    }, 10000); // 10秒超时
     
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [conversationId, router, isLoading, error]);
+  }, [conversationId, router, isLoading, error, authLoading, user]);
+  
+  // 监听认证状态变化，重置初始化状态
+  useEffect(() => {
+    if (!authLoading && user && isInitializedRef.current) {
+      // 如果认证状态变化（例如令牌刷新后），但不重新初始化
+      console.log('认证状态变化，但保持初始化状态');
+    }
+    
+    // 如果用户登出，重置初始化状态
+    if (!authLoading && !user) {
+      console.log('用户已登出，重置初始化状态');
+      isInitializedRef.current = false;
+    }
+  }, [authLoading, user]);
   
   // 强制稳定的布局结构，避免加载过程中的闪烁
   return (
@@ -112,10 +165,16 @@ export default function ChatPageClient() {
         conversationList={<ConversationList />}
         chatWindow={
           <div className="relative h-full w-full">
-            <ChatWindow 
-              key={conversationId || 'empty'}
-              conversationId={conversationId || ''}
-            />
+            {conversationId ? (
+              <ChatWindow 
+                key={conversationId}
+                conversationId={conversationId}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-gray-400">
+                正在加载会话...
+              </div>
+            )}
             
             {/* 会话切换指示器 */}
             {isSwitchingConversation && (
@@ -127,11 +186,11 @@ export default function ChatPageClient() {
             )}
           </div>
         }
-        customerProfile={<CustomerProfile conversationId={conversationId || ''} />}
+        customerProfile={conversationId ? <CustomerProfile conversationId={conversationId} /> : null}
       />
       
       {/* 全屏加载状态覆盖层 */}
-      {isLoading && (
+      {(isLoading || authLoading) && (
         <div className="absolute inset-0 bg-white bg-opacity-70 flex items-center justify-center z-50">
           <div className="flex flex-col items-center">
             <LoadingSpinner size="large" />
@@ -146,7 +205,11 @@ export default function ChatPageClient() {
           <div className="bg-white p-6 rounded-lg shadow-lg max-w-md text-center">
             <div className="text-red-500 text-lg mb-4">{error}</div>
             <button
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                setError(null);
+                isInitializedRef.current = false;
+                window.location.reload();
+              }}
               className="rounded-md bg-orange-500 px-4 py-2 text-white hover:bg-orange-600"
             >
               刷新页面

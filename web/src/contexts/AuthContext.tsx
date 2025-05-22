@@ -44,8 +44,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('Token刷新成功');
         } catch (err) {
           console.error('Token刷新失败，需要重新登录', err);
-          // 刷新失败，执行登出操作
-          await logout();
+          
+          // 确保只在无法恢复的错误时才登出
+          if (err instanceof Error && 
+              (err.message.includes('无效的令牌') || 
+               err.message.includes('已达到最大重试次数'))) {
+            console.log('认证错误无法恢复，执行登出');
+            await logout();
+          } else {
+            console.warn('认证错误可能是暂时的，不立即登出');
+            // 设置错误状态，但不立即登出
+            setError('认证会话暂时异常，请稍后再试');
+            
+            // 5分钟后再次尝试
+            setTimeout(validateAndRefreshToken, 5 * 60 * 1000);
+          }
         }
       }
     } catch (err) {
@@ -91,8 +104,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 只有在第一次加载时执行初始化
     initAuth();
     
-    // 设置定时器，定期检查token
-    const interval = setInterval(validateAndRefreshToken, 5 * 60 * 1000); // 每5分钟检查一次
+    // 设置定时器，定期检查token，减少检查频率避免频繁刷新
+    const interval = setInterval(validateAndRefreshToken, 10 * 60 * 1000); // 每10分钟检查一次
     setTokenCheckInterval(interval);
     
     return () => {
@@ -140,6 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await authService.logout();
       setUser(null);
       setToken(null);
+      setError(null); // 清除可能存在的错误状态
       
       // 清除token检查定时器
       if (tokenCheckInterval) {
@@ -149,6 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // 重定向到登录页
       if (!pathname.startsWith('/login')) {
+        console.log('用户已登出，重定向到登录页');
         router.push('/login');
       }
     } catch (err) {
