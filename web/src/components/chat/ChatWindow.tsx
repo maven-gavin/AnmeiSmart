@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { type Message, type Conversation } from '@/types/chat'
 import { 
@@ -21,7 +21,8 @@ import {
   ConnectionStatus,
   getConnectionStatus,
   getConversations,
-  getOrCreateConversation
+  getOrCreateConversation,
+  syncConsultantTakeoverStatus
 } from '@/service/chatService'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSearchParams, useRouter } from 'next/navigation'
@@ -106,8 +107,31 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   // WebSocket连接状态
   const [wsStatus, setWsStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
   
+  // 添加网络错误状态
+  const [networkError, setNetworkError] = useState<string | null>(null);
+  
   // 使用ref追踪组件是否已挂载
   const mounted = useRef(true);
+  
+  // 添加消息发送状态，与通用的isLoading分开
+  const [isSending, setIsSending] = useState(false);
+  
+  // 添加一个函数来根据时间戳格式化日期，以便分组显示
+  const formatMessageDate = (timestamp: string): string => {
+    const date = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    // 格式化日期: 今天/昨天/具体日期
+    if (date.toDateString() === today.toDateString()) {
+      return '今天';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return '昨天';
+    } else {
+      return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+    }
+  };
   
   // 监听会话ID变化，重新初始化聊天和WebSocket连接
   useEffect(() => {
@@ -176,7 +200,11 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           // 如果已取消，不处理错误
           if (abortController.signal.aborted) return;
           
-          console.error('获取消息失败:', error);
+          if (error instanceof Error && error.message.includes('超时')) {
+            console.error('获取消息超时:', error);
+          } else {
+            console.error('获取消息出错:', error);
+          }
           setMessages([]);
     } finally {
           // 如果已取消，不设置加载状态
@@ -295,7 +323,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       
       console.log(`ChatWindow收到当前会话的WebSocket消息:`, data);
       
-      // 收到消息后刷新消息列表
+      // 收到消息后静默刷新消息列表，不显示加载状态
       try {
         // 如果已取消，不继续处理
         if (abortController.signal.aborted) return;
@@ -346,14 +374,28 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       if (!currentConversationId) return;
       
       setIsLoading(true);
-      const messages = await getConversationMessages(currentConversationId);
-      setMessages(messages);
-      await fetchImportantMessages();
+      setNetworkError(null); // 清除之前的错误
+      
+      // 获取消息
+      try {
+        const messages = await getConversationMessages(currentConversationId);
+        setMessages(messages);
+        await fetchImportantMessages();
+      } catch (error) {
+        console.error('获取消息出错:', error);
+        setNetworkError('加载消息失败，请重试');
+        // 继续执行，尝试同步其他状态
+      }
     
-    // 检查顾问接管状态
-    const isConsultantModeActive = isConsultantMode(currentConversationId);
-    setIsConsultantTakeover(isConsultantModeActive);
-    console.log(`会话 ${currentConversationId} 顾问接管状态: ${isConsultantModeActive}`);
+      // 检查顾问接管状态
+      try {
+        // 使用新的同步函数
+        const isConsultantModeActive = await syncConsultantTakeoverStatus(currentConversationId);
+        setIsConsultantTakeover(isConsultantModeActive);
+        console.log(`会话 ${currentConversationId} 顾问接管状态: ${isConsultantModeActive}`);
+      } catch (error) {
+        console.error('同步顾问状态失败:', error);
+      }
       
       // 获取会话列表
       try {
@@ -363,7 +405,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         console.error('获取会话列表出错:', error);
       }
     } catch (error) {
-      console.error('获取消息出错:', error);
+      console.error('获取数据出错:', error);
     } finally {
       setIsLoading(false);
     }
@@ -503,40 +545,49 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     }
   }
   
-  // 更新handleSendTextMessage函数，处理会话ID为null的情况
+  // 更新handleSendTextMessage函数，使用isSending代替isLoading
   const handleSendTextMessage = async () => {
-    if (!message.trim() || isLoading) return;
+    if (!message.trim() || isSending) return;
     
     // 如果没有会话ID，创建一个新会话
     if (!currentConversationId) {
       try {
+        setIsSending(true);
         const conversation = await getOrCreateConversation();
         setCurrentConversationId(conversation.id);
         
         // 使用replace代替push避免创建历史记录
         router.replace(`?conversationId=${conversation.id}`, { scroll: false });
         
+        // 关闭可能存在的旧连接
+        closeWebSocketConnection();
+        
         // 初始化WebSocket连接
         if (user) {
+          console.log(`为新创建的会话初始化WebSocket连接: ${conversation.id}`);
           initializeWebSocket(user.id, conversation.id);
+          
+          // 等待连接建立
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
         
         // 延迟发送消息，确保WebSocket连接已建立
         setTimeout(async () => {
           await sendMessageWithId(conversation.id);
-        }, 500);
+        }, 800);
       } catch (error) {
         console.error('创建会话失败:', error);
+        setIsSending(false);
       }
     } else {
       await sendMessageWithId(currentConversationId);
     }
   };
   
-  // 封装发送消息的逻辑
+  // 修改sendMessageWithId函数，使用isSending代替isLoading
   const sendMessageWithId = async (conversationId: string) => {
     try {
-      setIsLoading(true);
+      setIsSending(true);
       
       // 检查WebSocket连接状态
       const wsCurrentStatus = getConnectionStatus();
@@ -570,7 +621,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       
       // 在顾问未接管的情况下获取AI回复
       if (!isConsultantTakeover) {
-        // 获取AI回复前不重置加载状态
+        // 获取AI回复前不重置发送状态
         
         try {
           // 获取AI回复，增加超时处理
@@ -585,33 +636,33 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
             // 更新本地消息列表
             setMessages(prev => [...prev, aiResponse]);
           
-          // 滚动到底部
+            // 滚动到底部
             scrollToBottom();
-      }
-    } catch (error) {
+          }
+        } catch (error) {
           console.error('获取AI回复失败:', error);
           // 可以在这里添加失败提示
-    } finally {
-          setIsLoading(false);
+        } finally {
+          setIsSending(false);
         }
       } else {
-        // 顾问模式下立即重置加载状态
-        setIsLoading(false);
+        // 顾问模式下立即重置发送状态
+        setIsSending(false);
       }
     } catch (error) {
       console.error('发送消息失败:', error);
-      setIsLoading(false);
+      setIsSending(false);
       
       // 显示错误提示
       // 这里可以添加错误处理，如显示错误消息等
     }
   };
   
-  // 发送图片消息
+  // 修改handleSendImageMessage和handleSendVoiceMessage函数，使用isSending
   const handleSendImageMessage = async () => {
-    if (!imagePreview || !currentConversationId) return;
+    if (!imagePreview || !currentConversationId || isSending) return;
     
-    setIsLoading(true);
+    setIsSending(true);
     try {
       // 发送图片消息
       await sendImageMessage(currentConversationId, imagePreview);
@@ -622,20 +673,20 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         fileInputRef.current.value = '';
       }
       
-      // 更新消息列表
-      fetchMessages();
+      // 更新消息列表，使用静默加载模式
+      silentFetchMessages();
     } catch (error) {
       console.error('发送图片失败:', error);
     } finally {
-      setIsLoading(false);
+      setIsSending(false);
     }
   };
   
-  // 发送语音消息
+  // 修改handleSendVoiceMessage函数
   const handleSendVoiceMessage = async () => {
-    if (!audioPreview || !currentConversationId) return;
+    if (!audioPreview || !currentConversationId || isSending) return;
     
-    setIsLoading(true);
+    setIsSending(true);
     try {
       // 发送语音消息
       await sendVoiceMessage(currentConversationId, audioPreview);
@@ -643,19 +694,19 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       // 清除语音预览
       setAudioPreview(null);
       
-      // 更新消息列表
-      fetchMessages();
+      // 更新消息列表，使用静默加载模式
+      silentFetchMessages();
     } catch (error) {
       console.error('发送语音失败:', error);
     } finally {
-      setIsLoading(false);
+      setIsSending(false);
     }
   };
   
-  // 通用发送消息函数，处理文本、图片和语音
+  // 修改handleSendMessage函数
   const handleSendMessage = async () => {
     // 防止重复发送
-    if (isLoading) {
+    if (isSending) {
       console.log('消息正在发送中，请稍候...');
       return;
     }
@@ -677,23 +728,63 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     }
   };
   
-  // 监听连接状态
+  // 监听WebSocket状态
   useEffect(() => {
     // 检查连接状态
     const checkConnectionStatus = () => {
       const status = getConnectionStatus();
+      const previousStatus = wsStatus;
       setWsStatus(status);
-      console.log(`当前WebSocket连接状态: ${status}, 会话ID: ${currentConversationId}`);
+      
+      // 如果WebSocket从断开到已连接，主动刷新消息，但不显示加载状态
+      if (status === ConnectionStatus.CONNECTED && previousStatus !== ConnectionStatus.CONNECTED) {
+        console.log(`WebSocket重新连接成功，自动刷新消息，会话ID: ${currentConversationId}`);
+        if (currentConversationId) {
+          // 使用静默加载方式，不设置加载状态
+          silentFetchMessages();
+        }
+      }
     };
     
-    const statusInterval = setInterval(checkConnectionStatus, 5000);
+    const statusInterval = setInterval(checkConnectionStatus, 3000);
     checkConnectionStatus(); // 立即检查一次
     
     // 组件卸载时清理
     return () => {
       clearInterval(statusInterval);
     };
-  }, [currentConversationId]);
+  }, [currentConversationId]); // 依赖项中不包含wsStatus，避免循环依赖
+  
+  // 静默获取消息函数，不设置加载状态
+  const silentFetchMessages = async () => {
+    try {
+      if (!currentConversationId) return;
+      
+      // 不设置加载状态，避免显示"发送中"
+      
+      // 获取消息
+      try {
+        const messages = await getConversationMessages(currentConversationId);
+        setMessages(messages);
+        
+        // 获取重点消息
+        const important = messages.filter(msg => msg.isImportant);
+        setImportantMessages(important);
+        
+        // 也尝试同步顾问接管状态，但忽略错误
+        try {
+          const isConsultantModeActive = await syncConsultantTakeoverStatus(currentConversationId);
+          setIsConsultantTakeover(isConsultantModeActive);
+        } catch (error) {
+          console.error('同步顾问状态失败:', error);
+        }
+      } catch (error) {
+        console.error('静默获取消息出错:', error);
+      }
+    } catch (error) {
+      console.error('静默获取数据出错:', error);
+    }
+  };
   
   // 重新连接WebSocket的函数 - 为了在组件其他部分访问
   const reconnectWebSocket = useCallback(() => {
@@ -936,32 +1027,36 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     let avatar = msg.sender.avatar || '/avatars/default.png';
     let isSelf = false;
     
-    // 处理特殊角色
+    // 首先检查是否是当前用户发送的消息，不管角色是什么
+    if (user && msg.sender.id === user.id) {
+      name = '我';
+      isSelf = true;
+      avatar = user.avatar || '/avatars/user.png';
+      return { name, avatar, isSelf };
+    }
+    
+    // 如果不是当前用户，再根据角色类型处理
     if (msg.sender.type === 'ai') {
       name = 'AI助手';
       avatar = '/avatars/ai.png';
     } else if (msg.sender.type === 'consultant') {
       name = msg.sender.name || '顾问';
       avatar = msg.sender.avatar || '/avatars/consultant1.png';
-      // 如果当前用户是顾问，标记为"我"
-      if (isConsultant) {
-        name = '我';
-        isSelf = true;
-      }
+    } else if (msg.sender.type === 'doctor') {
+      name = msg.sender.name || '医生';
+      avatar = msg.sender.avatar || '/avatars/doctor1.png';
     } else if (msg.sender.type === 'customer' || msg.sender.type === 'user') {
       // 处理客户/用户消息
       const conversation = conversations.find(c => c.id === currentConversationId);
       
       if (isCustomer) {
-        // 顾客视角
-        name = '我';
-        isSelf = true;
-        avatar = user?.avatar || '/avatars/user.png';
+        // 顾客视角 - 这里已经在上面处理过自己发送的消息了，所以这里处理的是其他顾客
+        name = msg.sender.name || conversation?.user.name || '未知用户';
+        avatar = msg.sender.avatar || conversation?.user.avatar || '/avatars/user.png';
       } else if (conversation) {
         // 顾问视角 - 优先使用消息中的发送者名称，再使用会话中的用户名称
         name = msg.sender.name || conversation.user.name || '未知用户';
         avatar = msg.sender.avatar || conversation.user.avatar || '/avatars/user.png';
-        console.log(`客户消息，显示名称: ${name}，原始名称: ${msg.sender.name}, 会话用户名: ${conversation.user.name}`);
       }
     }
     
@@ -1024,6 +1119,28 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   // 显示连接状态
   const connectionStatus = getConnectionStatus();
   const isConnected = connectionStatus === ConnectionStatus.CONNECTED;
+
+  // 在render部分中使用分组后的消息
+  const messageGroups = useMemo(() => {
+    const messagesToGroup = showImportantOnly ? importantMessages : messages;
+    const groups: { date: string; messages: Message[] }[] = [];
+    
+    // 按日期分组，但不做去重处理
+    messagesToGroup.forEach((msg: Message) => {
+      const dateStr = formatMessageDate(msg.timestamp);
+      
+      // 查找或创建日期组
+      let group = groups.find(g => g.date === dateStr);
+      if (!group) {
+        group = { date: dateStr, messages: [] };
+        groups.push(group);
+      }
+      
+      group.messages.push(msg);
+    });
+    
+    return groups;
+  }, [showImportantOnly, importantMessages, messages]);
 
   return (
     <div className="flex h-full flex-col">
@@ -1156,6 +1273,19 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         </div>
       )}
       
+      {/* 网络错误提示 */}
+      {networkError && (
+        <div className="mx-4 my-2 rounded-md bg-red-50 p-3 text-center">
+          <p className="text-sm text-red-600 mb-2">{networkError}</p>
+          <button 
+            onClick={() => fetchMessages()}
+            className="px-3 py-1 text-xs font-medium text-red-600 bg-red-100 rounded-md hover:bg-red-200"
+          >
+            重新加载
+          </button>
+        </div>
+      )}
+      
       {/* 聊天记录 */}
       <div 
         ref={chatContainerRef}
@@ -1188,107 +1318,119 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           </div>
         )}
 
-        {/* 显示消息列表 */}
-        {(showImportantOnly ? importantMessages : messages).map(msg => {
-          const { name, avatar, isSelf } = getSenderInfo(msg);
-          
-          return (
-            <div
-              key={msg.id}
-              id={`message-${msg.id}`}
-              className={`flex ${isSelf ? 'justify-end' : 'justify-start'} items-end space-x-2 ${
-                selectedMessageId === msg.id ? 'bg-yellow-50 -mx-2 px-2 py-1 rounded-lg' : ''
-              }`}
-            >
-              {/* 非自己发送的消息显示头像 */}
-              {!isSelf && (
-                <img 
-                  src={avatar} 
-                  alt={name} 
-                  className="h-8 w-8 rounded-full"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.onerror = null;
-                    const nameInitial = name.charAt(0);
-                    target.style.display = 'flex';
-                    target.style.backgroundColor = '#FF9800';
-                    target.style.color = '#FFFFFF';
-                    target.style.justifyContent = 'center';
-                    target.style.alignItems = 'center';
-                    target.src = 'data:image/svg+xml;charset=UTF-8,' + 
-                      encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"></svg>');
-                    setTimeout(() => {
-                      target.parentElement!.innerHTML = `<div class="h-8 w-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style="background-color: #FF9800">${nameInitial}</div>`;
-                    }, 0);
-                  }}
-                />
-              )}
+        {/* 显示分组后的消息列表 */}
+        {messageGroups.map((group, groupIndex) => (
+          <div key={group.date} className="space-y-4">
+            {/* 日期分隔符 */}
+            <div className="flex items-center justify-center my-4">
+              <div className="h-px flex-grow bg-gray-200"></div>
+              <div className="mx-4 text-xs text-gray-500">{group.date}</div>
+              <div className="h-px flex-grow bg-gray-200"></div>
+            </div>
+            
+            {/* 当前日期组的消息 */}
+            {group.messages.map(msg => {
+              const { name, avatar, isSelf } = getSenderInfo(msg);
               
-              <div className={`flex max-w-[75%] flex-col ${isSelf ? 'items-end' : 'items-start'}`}>
-                {/* 发送者名称 */}
-                <span className="mb-1 text-xs text-gray-500">{name}</span>
-                
-                {/* 消息内容气泡 */}
-                <div 
-                  className={`relative rounded-lg p-3 ${
-                    isSelf
-                      ? 'bg-orange-500 text-white'
-                      : msg.sender.type === 'ai'
-                        ? 'bg-gray-100 text-gray-800'
-                        : 'bg-white border border-gray-200 text-gray-800'
+              return (
+                <div
+                  key={msg.id}
+                  id={`message-${msg.id}`}
+                  className={`flex ${isSelf ? 'justify-end' : 'justify-start'} items-end space-x-2 ${
+                    selectedMessageId === msg.id ? 'bg-yellow-50 -mx-2 px-2 py-1 rounded-lg' : ''
                   }`}
                 >
-                  {renderMessageContent(msg)}
+                  {/* 非自己发送的消息显示头像 */}
+                  {!isSelf && (
+                    <img 
+                      src={avatar} 
+                      alt={name} 
+                      className="h-8 w-8 rounded-full"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.onerror = null;
+                        const nameInitial = name.charAt(0);
+                        target.style.display = 'flex';
+                        target.style.backgroundColor = '#FF9800';
+                        target.style.color = '#FFFFFF';
+                        target.style.justifyContent = 'center';
+                        target.style.alignItems = 'center';
+                        target.src = 'data:image/svg+xml;charset=UTF-8,' + 
+                          encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"></svg>');
+                        setTimeout(() => {
+                          target.parentElement!.innerHTML = `<div class="h-8 w-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style="background-color: #FF9800">${nameInitial}</div>`;
+                        }, 0);
+                      }}
+                    />
+                  )}
                   
-                  {/* 重点标记 */}
-                  <button
-                    onClick={() => toggleMessageImportant(msg.id, msg.isImportant)}
-                    className={`absolute -right-1.5 -top-1.5 rounded-full p-0.5 ${
-                      msg.isImportant ? 'bg-yellow-400 text-white' : 'bg-gray-200 text-gray-500'
-                    }`}
-                  >
-                      <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path 
-                          fillRule="evenodd" 
-                          d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" 
-                          clipRule="evenodd" 
-                        />
-                    </svg>
-                  </button>
-                  
-                  {/* 消息时间 */}
-                  <div className={`mt-1 text-right text-xs ${isSelf ? 'text-white text-opacity-75' : 'text-gray-500'}`}>
-                    {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                  <div className={`flex max-w-[75%] flex-col ${isSelf ? 'items-end' : 'items-start'}`}>
+                    {/* 发送者名称 */}
+                    <span className="mb-1 text-xs text-gray-500">{name}</span>
+                    
+                    {/* 消息内容气泡 */}
+                    <div 
+                      className={`relative rounded-lg p-3 ${
+                        isSelf
+                          ? 'bg-orange-500 text-white'
+                          : msg.sender.type === 'ai'
+                            ? 'bg-gray-100 text-gray-800'
+                            : 'bg-white border border-gray-200 text-gray-800'
+                      }`}
+                    >
+                      {renderMessageContent(msg)}
+                      
+                      {/* 重点标记 */}
+                      <button
+                        onClick={() => toggleMessageImportant(msg.id, msg.isImportant)}
+                        className={`absolute -right-1.5 -top-1.5 rounded-full p-0.5 ${
+                          msg.isImportant ? 'bg-yellow-400 text-white' : 'bg-gray-200 text-gray-500'
+                        }`}
+                      >
+                          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path 
+                              fillRule="evenodd" 
+                              d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" 
+                              clipRule="evenodd" 
+                            />
+                        </svg>
+                      </button>
+                      
+                      {/* 消息时间 */}
+                      <div className={`mt-1 text-right text-xs ${isSelf ? 'text-white text-opacity-75' : 'text-gray-500'}`}>
+                        {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                      </div>
+                    </div>
                   </div>
+                  
+                  {/* 自己发送的消息显示头像 */}
+                  {isSelf && (
+                    <img 
+                      src={avatar} 
+                      alt={name} 
+                      className="h-8 w-8 rounded-full"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.onerror = null;
+                        const nameInitial = name.charAt(0);
+                        target.style.display = 'flex';
+                        target.style.backgroundColor = '#FF9800';
+                        target.style.color = '#FFFFFF';
+                        target.style.justifyContent = 'center';
+                        target.style.alignItems = 'center';
+                        target.src = 'data:image/svg+xml;charset=UTF-8,' + 
+                          encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"></svg>');
+                        setTimeout(() => {
+                          target.parentElement!.innerHTML = `<div class="h-8 w-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style="background-color: #FF9800">${nameInitial}</div>`;
+                        }, 0);
+                      }}
+                    />
+                  )}
                 </div>
-              </div>
-              
-              {/* 自己发送的消息显示头像 */}
-              {isSelf && (
-                <img 
-                  src={avatar} 
-                  alt={name} 
-                  className="h-8 w-8 rounded-full"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.onerror = null;
-                    const nameInitial = name.charAt(0);
-                    target.style.display = 'flex';
-                    target.style.backgroundColor = '#FF9800';
-                    target.style.color = '#FFFFFF';
-                    target.style.justifyContent = 'center';
-                    target.style.alignItems = 'center';
-                    target.src = 'data:image/svg+xml;charset=UTF-8,' + 
-                      encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"></svg>');
-                    setTimeout(() => {
-                      target.parentElement!.innerHTML = `<div class="h-8 w-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style="background-color: #FF9800">${nameInitial}</div>`;
-                    }, 0);
-                  }}
-                />
-              )}
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        ))}
         
         {showImportantOnly && importantMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-32 text-gray-500">
@@ -1603,7 +1745,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 016 0v6a3 3 0 01-3 3z"
               />
             </svg>
           </button>
@@ -1615,7 +1757,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
               onChange={e => setMessage(e.target.value)}
               placeholder="输入消息..."
               className="flex-1 rounded-lg border border-gray-200 px-4 py-2 focus:border-orange-500 focus:outline-none"
-              disabled={isRecording || isLoading}
+              disabled={isRecording || isSending}
               onKeyPress={e => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
@@ -1625,10 +1767,10 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
             />
             <Button
               onClick={handleSendMessage}
-              disabled={isRecording || isLoading || (!message.trim() && !imagePreview && !audioPreview)}
-              className={isLoading ? 'opacity-70 cursor-not-allowed' : ''}
+              disabled={isRecording || isSending || (!message.trim() && !imagePreview && !audioPreview)}
+              className={isSending ? 'opacity-70 cursor-not-allowed' : ''}
             >
-              {isLoading ? (
+              {isSending ? (
                 <span className="flex items-center">
                   <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

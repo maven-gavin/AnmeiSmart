@@ -64,6 +64,9 @@ export enum ConnectionStatus {
 
 let connectionStatus = ConnectionStatus.DISCONNECTED;
 
+// 保存已处理的消息ID，避免重复处理
+const processedMessageIds = new Set<string>();
+
 // 初始化WebSocket连接
 export const initializeWebSocket = (userId: string, conversationId: string) => {
   if (!userId || !conversationId) {
@@ -132,12 +135,13 @@ const establishWebSocketConnection = (userId: string, conversationId: string) =>
     try {
       // 获取令牌
       const token = authService.getToken();
+      let tokenToUse = token;
       
       if (!token) {
         console.warn('无法获取令牌，尝试自动登录或刷新令牌');
         // 尝试通过 getValidToken 获取或刷新令牌
-        const validToken = await authService.getValidToken();
-        if (!validToken) {
+        tokenToUse = await authService.getValidToken();
+        if (!tokenToUse) {
           console.error('无法建立WebSocket连接：未能获取有效令牌');
           connectionStatus = ConnectionStatus.ERROR;
           isConnecting = false;
@@ -148,7 +152,7 @@ const establishWebSocketConnection = (userId: string, conversationId: string) =>
       // 构建WebSocket URL
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsHost = process.env.NEXT_PUBLIC_WS_URL || 'localhost:8000';
-      const wsUrl = `${wsProtocol}//${wsHost}/api/v1/chat/ws/${userId}?token=${encodeURIComponent(token || '')}&conversation_id=${conversationId}`;
+      const wsUrl = `${wsProtocol}//${wsHost}/api/v1/chat/ws/${userId}?token=${encodeURIComponent(tokenToUse || '')}&conversation_id=${conversationId}`;
       
       console.log(`尝试连接WebSocket: 用户ID=${userId}, 会话ID=${conversationId}`);
       
@@ -249,6 +253,14 @@ const establishWebSocketConnection = (userId: string, conversationId: string) =>
             }
           }
         }, HEARTBEAT_INTERVAL);
+        
+        // 重连成功后主动同步数据
+        if (reconnectAttempts > 0) {
+          console.log(`WebSocket重连成功，同步会话数据，会话ID: ${conversationId}`);
+          syncChatData(conversationId).catch(err => 
+            console.error(`重连后同步数据失败: ${err}`)
+          );
+        }
       };
       
       socket.onmessage = (event) => {
@@ -364,15 +376,21 @@ export const syncChatData = async (conversationId: string): Promise<void> => {
   }
 };
 
-// 修改handleWebSocketMessage函数，增加数据同步逻辑
+// 修改handleWebSocketMessage函数，避免类型错误
 const handleWebSocketMessage = (data: any) => {
   try {
-    const { action, conversation_id } = data;
+    // 检查基本动作类型
+    const action = data.action;
     
-    // 如果是消息相关的动作，触发同步
-    if (action === 'message' || action === 'connect') {
-      // 异步同步数据，不阻塞消息处理
-      syncChatData(conversation_id).catch(console.error);
+    // 检查必要的会话ID
+    if (data.conversation_id) {
+      // 如果是消息相关的动作，触发同步
+      if (action === 'message' || action === 'connect') {
+        // 异步同步数据，不阻塞消息处理
+        syncChatData(data.conversation_id).catch(error => 
+          console.error(`同步会话数据失败: ${error}`)
+        );
+      }
     }
     
     // 调用注册的回调函数
@@ -596,7 +614,10 @@ export const sendTextMessage = async (conversationId: string, content: string): 
     throw new Error('用户未登录');
   }
   
-  console.log(`发送文本消息: 会话ID=${conversationId}, 用户ID=${currentUser.id}, 角色=${currentUser.currentRole}`);
+  // 确保使用用户的当前角色，避免角色混淆
+  const userRole = currentUser.currentRole || 'customer';
+  
+  console.log(`发送文本消息: 会话ID=${conversationId}, 用户ID=${currentUser.id}, 角色=${userRole}`);
   console.log(`WebSocket状态: ${connectionStatus}, 连接状态: ${socket?.readyState}`);
   
   // 创建用户消息
@@ -606,7 +627,7 @@ export const sendTextMessage = async (conversationId: string, content: string): 
     type: 'text',
     sender: {
       id: currentUser.id,
-      type: currentUser.currentRole || 'customer',
+      type: userRole, // 明确使用当前角色
       name: currentUser.name,
       avatar: '/avatars/user.png', // 应使用用户头像
     },
@@ -641,13 +662,13 @@ export const sendTextMessage = async (conversationId: string, content: string): 
     data: {
       content,
       type: 'text',
-      sender_type: currentUser.currentRole || 'customer'
+      sender_type: userRole // 明确使用当前角色
     },
     conversation_id: conversationId,
     timestamp: new Date().toISOString()
   };
   
-  console.log(`准备通过WebSocket发送消息，会话ID: ${conversationId}`, wsMessage);
+  console.log(`准备通过WebSocket发送消息，会话ID: ${conversationId}, 角色: ${userRole}`, wsMessage);
   sendWebSocketMessage(wsMessage);
   
   return userMessage;
@@ -1098,6 +1119,23 @@ export const takeoverConversation = (conversationId: string): boolean => {
   }
   chatMessages[conversationId].push(systemMessage);
   
+  // 发送接管状态到后端，确保多端同步
+  try {
+    const token = authService.getToken();
+    if (token) {
+      fetch(`${API_BASE_URL}/chat/conversations/${conversationId}/takeover`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ is_ai_controlled: false }) // false表示顾问接管
+      }).catch(err => console.error('发送接管状态到后端失败:', err));
+    }
+  } catch (error) {
+    console.error('设置接管状态失败:', error);
+  }
+  
   return true;
 };
 
@@ -1125,6 +1163,23 @@ export const switchBackToAI = (conversationId: string): boolean => {
     chatMessages[conversationId] = [];
   }
   chatMessages[conversationId].push(systemMessage);
+  
+  // 发送接管状态到后端，确保多端同步
+  try {
+    const token = authService.getToken();
+    if (token) {
+      fetch(`${API_BASE_URL}/chat/conversations/${conversationId}/takeover`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ is_ai_controlled: true }) // true表示AI接管
+      }).catch(err => console.error('发送接管状态到后端失败:', err));
+    }
+  } catch (error) {
+    console.error('设置接管状态失败:', error);
+  }
   
   return true;
 };
@@ -1294,5 +1349,51 @@ export const getConversationDetails = async (conversationId: string): Promise<Co
   } catch (error) {
     console.error(`获取会话详情出错:`, error);
     return null;
+  }
+};
+
+// 同步顾问接管状态
+export const syncConsultantTakeoverStatus = async (conversationId: string): Promise<boolean> => {
+  try {
+    // 获取认证令牌
+    const token = authService.getToken();
+    if (!token) {
+      console.error("未登录，无法获取顾问接管状态");
+      return isConsultantMode(conversationId);
+    }
+    
+    // 尝试从后端API获取会话状态
+    try {
+      const response = await fetch(`${API_BASE_URL}/chat/conversations/${conversationId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`获取会话详情失败: ${response.status}`);
+      }
+      
+      const convData = await response.json();
+      
+      // 检查会话是否包含控制状态字段
+      if (convData && 'is_ai_controlled' in convData) {
+        // 更新本地状态 - 注意这里的逻辑反转:
+        // is_ai_controlled = true 表示AI控制 (顾问未接管)
+        // is_ai_controlled = false 表示顾问控制 (顾问已接管)
+        consultantTakeover[conversationId] = !convData.is_ai_controlled;
+        console.log(`已同步会话${conversationId}的顾问接管状态: ${!convData.is_ai_controlled}`);
+      }
+    } catch (error) {
+      console.error(`获取会话接管状态失败:`, error);
+      // 如果API不支持，使用本地状态
+    }
+    
+    return isConsultantMode(conversationId);
+  } catch (error) {
+    console.error("同步顾问接管状态失败:", error);
+    return isConsultantMode(conversationId);
   }
 }; 
