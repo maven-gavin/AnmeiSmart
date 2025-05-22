@@ -18,23 +18,14 @@ export default function HistoryConsultation({ customerId, onClose }: HistoryCons
   
   // 获取历史咨询记录
   useEffect(() => {
-    const fetchHistory = async () => {
-      setLoading(true);
-      try {
-        // 模拟API调用延迟
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // 获取历史咨询记录
-        const history = getCustomerConsultationHistory(customerId);
-        setConsultationHistory(history);
-      } catch (error) {
-        console.error('获取历史咨询记录失败:', error);
-      } finally {
-        setLoading(false);
-      }
+    const loadConsultationHistory = async () => {
+      const history = await getCustomerConsultationHistory(customerId);
+      setConsultationHistory(await history);
     };
     
-    fetchHistory();
+    if (customerId) {
+      loadConsultationHistory();
+    }
   }, [customerId]);
   
   // 根据时间筛选历史记录

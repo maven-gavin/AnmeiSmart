@@ -1,11 +1,11 @@
 import { Message, Conversation, CustomerProfile } from "@/types/chat";
 import { v4 as uuidv4 } from 'uuid';
 import { authService } from "./authService";
-
-// 扩展WebSocket接口，添加自定义属性
-interface CustomWebSocket extends WebSocket {
-  _conversationId?: string;
-}
+// 引入新的WebSocket客户端架构
+import { getWebSocketClient, ConnectionStatus } from './websocket';
+import { SenderType } from './websocket/types';
+import { TextMessageHandler } from './websocket/handlers/textHandler';
+import { SystemMessageHandler } from './websocket/handlers/systemHandler';
 
 // 保存运行时的消息数据（会话ID -> 消息数组）
 const chatMessages: Record<string, Message[]> = {}; // 移除模拟数据初始化，改为空对象
@@ -35,14 +35,8 @@ const systemInfo = {
 // 保存AI状态（会话ID -> 是否由顾问接管）
 const consultantTakeover: Record<string, boolean> = {};
 
-// WebSocket连接
-let socket: CustomWebSocket | null = null;
-let isConnecting = false;
+// 消息队列，用于离线消息存储
 const messageQueue: any[] = [];
-let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 5;
-let heartbeatInterval: NodeJS.Timeout | null = null;
-const HEARTBEAT_INTERVAL = 30000; // 30秒发送一次心跳
 
 // 添加用于跟踪最后连接的会话ID
 let lastConnectedConversationId: string | null = null;
@@ -54,310 +48,129 @@ let connectionDebounceTimer: NodeJS.Timeout | null = null;
 type MessageCallback = (message: any) => void;
 const messageCallbacks: Record<string, MessageCallback[]> = {};
 
-// WebSocket连接状态
-export enum ConnectionStatus {
-  DISCONNECTED = 'disconnected',
-  CONNECTING = 'connecting',
-  CONNECTED = 'connected',
-  ERROR = 'error'
-}
-
-let connectionStatus = ConnectionStatus.DISCONNECTED;
-
 // 保存已处理的消息ID，避免重复处理
 const processedMessageIds = new Set<string>();
 
-// 初始化WebSocket连接
-export const initializeWebSocket = (userId: string, conversationId: string) => {
-  if (!userId || !conversationId) {
-    console.error('初始化WebSocket失败: 缺少用户ID或会话ID');
-    return;
-  }
-  
-  console.log(`初始化WebSocket连接: 用户ID=${userId}, 会话ID=${conversationId}`);
-  
-  // 检查认证状态
-  if (!authService.isLoggedIn()) {
-    console.error('初始化WebSocket失败: 用户未登录');
-    return;
-  }
-  
-  // 设置重试次数上限，避免无限重试
-  reconnectAttempts = 0;
-  
-  // 关闭现有连接
-  if (socket) {
-    try {
-      console.log('关闭现有WebSocket连接');
-      closeWebSocketConnection();
-    } catch (err) {
-      console.warn('关闭现有连接时出错:', err);
+// 初始化WebSocket客户端
+// 注意：这是一个懒加载的函数，只有在第一次调用时才会初始化WebSocket客户端
+const initializeWebSocketClient = () => {
+  try {
+    // 获取协议
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = process.env.NEXT_PUBLIC_WS_URL || 'localhost:8000';
+    const baseUrl = `${wsProtocol}//${wsHost}/api/v1/chat/ws`;
+    
+    // 获取客户端实例
+    const wsClient = getWebSocketClient({
+      url: baseUrl,
+      reconnectAttempts: 5,
+      reconnectInterval: 1000,
+      heartbeatInterval: 30000,
+      connectionTimeout: 10000,
+      debug: process.env.NODE_ENV === 'development'
+    });
+    
+    // 注册消息处理器
+    wsClient.registerHandler(new TextMessageHandler());
+    wsClient.registerHandler(new SystemMessageHandler());
+    
+    // 添加处理器的回调
+    const textHandler = wsClient.getHandlers().find(h => h.getName() === 'TextMessageHandler');
+    if (textHandler) {
+      textHandler.addCallback('message', (data) => {
+        console.log('收到文本消息:', data);
+        handleWebSocketMessage(data);
+      });
     }
+    
+    const systemHandler = wsClient.getHandlers().find(h => h.getName() === 'SystemMessageHandler');
+    if (systemHandler) {
+      systemHandler.addCallback('system', (data) => {
+        console.log('收到系统消息:', data);
+        handleWebSocketMessage(data);
+      });
+    }
+    
+    return wsClient;
+  } catch (error) {
+    console.error('初始化WebSocket客户端失败:', error);
+    throw error;
   }
-  
-  // 建立新连接
-  return establishWebSocketConnection(userId, conversationId);
 };
 
-// 实际建立WebSocket连接的函数
-const establishWebSocketConnection = (userId: string, conversationId: string) => {
-  // 标记当前会话ID，用于防止在会话切换过程中发生的重复连接
-  let isCancelled = false;
-  
-  // 如果已经连接到相同的会话，则不需要重新连接
-  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
-    if (socket._conversationId === conversationId) {
-      console.log(`WebSocket已连接到会话${conversationId}，不需要重新连接`);
-      return;
-    } else {
-      console.log(`WebSocket已连接到会话${socket._conversationId}，但需要切换到会话${conversationId}，关闭当前连接`);
-      try {
-        closeWebSocketConnection();
-      } catch (err) {
-        console.warn('关闭已有连接时出错:', err);
-      }
-    }
+// 获取WebSocket客户端实例
+const getWsClient = () => {
+  try {
+    return getWebSocketClient();
+  } catch (error) {
+    // 如果客户端尚未初始化，则初始化它
+    return initializeWebSocketClient();
   }
-  
-  if (isConnecting) {
-    console.log('WebSocket正在连接中，请稍候...');
-    return; // 防止多次同时连接
-  }
-  
-  // 更新最后连接的会话ID
-  lastConnectedConversationId = conversationId;
-  
-  isConnecting = true;
-  connectionStatus = ConnectionStatus.CONNECTING;
-  
-  // 使用验证后的有效token，而不是直接获取
-  const getValidTokenAndConnect = async () => {
-    try {
-      // 获取令牌
-      const token = authService.getToken();
-      let tokenToUse = token;
-      
-      if (!token) {
-        console.warn('无法获取令牌，尝试自动登录或刷新令牌');
-        // 尝试通过 getValidToken 获取或刷新令牌
-        tokenToUse = await authService.getValidToken();
-        if (!tokenToUse) {
-          console.error('无法建立WebSocket连接：未能获取有效令牌');
-          connectionStatus = ConnectionStatus.ERROR;
-          isConnecting = false;
-          return;
-        }
-      }
-      
-      // 构建WebSocket URL
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsHost = process.env.NEXT_PUBLIC_WS_URL || 'localhost:8000';
-      const wsUrl = `${wsProtocol}//${wsHost}/api/v1/chat/ws/${userId}?token=${encodeURIComponent(tokenToUse || '')}&conversation_id=${conversationId}`;
-      
-      console.log(`尝试连接WebSocket: 用户ID=${userId}, 会话ID=${conversationId}`);
-      
-      // 添加连接超时处理
-      const connectionTimeoutId = setTimeout(() => {
-        if (isCancelled) return;
-        
-        if (connectionStatus === ConnectionStatus.CONNECTING) {
-          console.error('WebSocket连接超时');
-          connectionStatus = ConnectionStatus.ERROR;
-          isConnecting = false;
-          
-          // 如果socket存在但尚未连接，则关闭它
-          if (socket && socket.readyState === WebSocket.CONNECTING) {
-            socket.close();
-            socket = null;
-          }
-        }
-      }, 10000); // 10秒连接超时
-      
-      socket = new WebSocket(wsUrl);
-      // 保存会话ID到socket对象以便后续检查
-      socket._conversationId = conversationId;
-      
-      socket.onopen = () => {
-        // 检查会话ID是否仍然是最新的
-        if (lastConnectedConversationId !== conversationId) {
-          console.log(`WebSocket连接已建立，但会话ID已变更 (${conversationId} -> ${lastConnectedConversationId})，关闭连接`);
-          socket?.close();
-          clearTimeout(connectionTimeoutId);
-          isConnecting = false;
-          return;
-        }
-        
-        if (isCancelled) {
-          console.log(`WebSocket连接已建立，但会话已被取消，关闭连接，会话ID: ${conversationId}`);
-          socket?.close();
-          clearTimeout(connectionTimeoutId);
-          isConnecting = false;
-          return;
-        }
-        
-        clearTimeout(connectionTimeoutId); // 清除连接超时
-        console.log(`WebSocket连接已建立，会话ID: ${conversationId}`);
-        connectionStatus = ConnectionStatus.CONNECTED;
-        isConnecting = false;
-        reconnectAttempts = 0;
-        
-        // 发送连接消息
-        if (socket && socket.readyState === WebSocket.OPEN) {
-          const connectMsg = {
-            action: 'connect',
-            conversation_id: conversationId,
-            timestamp: new Date().toISOString()
-          };
-          console.log('发送WebSocket连接消息:', connectMsg);
-          socket.send(JSON.stringify(connectMsg));
-        }
-        
-        // 发送队列中的消息，只发送当前会话的消息
-        if (messageQueue.length > 0) {
-          console.log(`处理消息队列，当前有${messageQueue.length}条消息`);
-          const currentSessionMessages = messageQueue.filter(msg => msg.conversation_id === conversationId);
-          const otherSessionMessages = messageQueue.filter(msg => msg.conversation_id !== conversationId);
-          
-          // 移除其他会话的消息
-          if (otherSessionMessages.length > 0) {
-            console.log(`丢弃${otherSessionMessages.length}条其他会话的消息`);
-            messageQueue.length = 0;
-            messageQueue.push(...currentSessionMessages);
-          }
-          
-          // 发送当前会话的消息
-          while (messageQueue.length > 0 && socket && socket.readyState === WebSocket.OPEN) {
-            const message = messageQueue.shift();
-            console.log('发送队列中的消息:', message);
-            socket.send(JSON.stringify(message));
-          }
-        }
-        
-        // 启动心跳检测
-        if (heartbeatInterval) {
-          clearInterval(heartbeatInterval);
-        }
-        
-        heartbeatInterval = setInterval(() => {
-          if (socket && socket.readyState === WebSocket.OPEN) {
-            // 心跳消息中也包含会话ID
-            socket.send(JSON.stringify({
-              action: 'ping',
-              conversation_id: conversationId,
-              timestamp: new Date().toISOString()
-            }));
-          } else {
-            if (heartbeatInterval) {
-              clearInterval(heartbeatInterval);
-              heartbeatInterval = null;
-            }
-          }
-        }, HEARTBEAT_INTERVAL);
-        
-        // 重连成功后主动同步数据
-        if (reconnectAttempts > 0) {
-          console.log(`WebSocket重连成功，同步会话数据，会话ID: ${conversationId}`);
-          syncChatData(conversationId).catch(err => 
-            console.error(`重连后同步数据失败: ${err}`)
-          );
-        }
-      };
-      
-      socket.onmessage = (event) => {
-        // 检查会话ID是否仍然是最新的
-        if (lastConnectedConversationId !== conversationId) {
-          console.log(`收到WebSocket消息，但会话ID已变更，忽略消息`);
-          return;
-        }
-        
-        if (isCancelled) return;
-        
-        try {
-          console.log('收到WebSocket消息:', event.data);
-          const data = JSON.parse(event.data);
-          handleWebSocketMessage(data);
-        } catch (error) {
-          console.error('处理WebSocket消息时出错:', error);
-        }
-      };
-      
-      socket.onerror = (error) => {
-        if (isCancelled) return;
-        
-        clearTimeout(connectionTimeoutId); // 清除连接超时
-        console.error('WebSocket错误:', error);
-        // 添加更详细的错误信息
-        console.error('WebSocket状态:', socket?.readyState);
-        console.error('WebSocket URL:', wsUrl);
-        console.error('用户ID:', userId);
-        console.error('会话ID:', conversationId);
-        
-        // 检查网络连接
-        console.log('检查网络连接:', navigator.onLine ? '在线' : '离线');
-        
-        connectionStatus = ConnectionStatus.ERROR;
-        isConnecting = false;
-      };
-      
-      socket.onclose = (event) => {
-        if (isCancelled) return;
-        
-        clearTimeout(connectionTimeoutId); // 清除连接超时
-        console.log(`WebSocket连接已关闭: 代码=${event.code}, 原因=${event.reason || '未提供'}, 是否干净关闭=${event.wasClean}`);
-        connectionStatus = ConnectionStatus.DISCONNECTED;
-        isConnecting = false;
-        
-        // 清除心跳
-        if (heartbeatInterval) {
-          clearInterval(heartbeatInterval);
-          heartbeatInterval = null;
-        }
-        
-        // 只有在非用户主动关闭的情况下尝试重连
-        if (event.code !== 1000 && event.code !== 1001) {
-          // 检查是否仍然是最新的会话ID
-          if (lastConnectedConversationId === conversationId && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-            reconnectAttempts++;
-            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000); // 指数退避，最大30秒
-            console.log(`将在${delay}ms后尝试重连，尝试次数: ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
-            
-            setTimeout(() => {
-              if (lastConnectedConversationId === conversationId) {
-                console.log(`尝试重新连接WebSocket，会话ID: ${conversationId}`);
-                establishWebSocketConnection(userId, conversationId);
-              } else {
-                console.log(`不再重连到会话${conversationId}，因为当前会话已变为${lastConnectedConversationId}`);
-              }
-            }, delay);
-          }
-        }
-      };
-      
-      // 返回取消函数，可以用于组件卸载或会话切换时取消连接
-      return () => {
-        console.log(`标记WebSocket连接为已取消，会话ID: ${conversationId}`);
-        isCancelled = true;
-        clearTimeout(connectionTimeoutId);
-        // 不主动关闭连接，让onopen处理器决定是否关闭
-      };
-    } catch (error) {
-      console.error('获取令牌或建立连接时出错:', error);
-      connectionStatus = ConnectionStatus.ERROR;
-      isConnecting = false;
-      
-      // 延迟后重试连接
-      setTimeout(() => {
-        if (lastConnectedConversationId === conversationId) {
-          console.log('尝试重新建立WebSocket连接');
-          establishWebSocketConnection(userId, conversationId);
-        }
-      }, 5000); // 5秒后重试
-    }
-  };
-  
-  // 启动连接流程
-  getValidTokenAndConnect();
 };
+
+/**
+ * 初始化WebSocket连接
+ * @param userId 用户ID
+ * @param conversationId 会话ID
+ */
+export function initializeWebSocket(userId: string, conversationId: string): void {
+  try {
+    // 获取当前用户信息和角色
+    const token = authService.getToken() || '';
+    const userRole = authService.getCurrentUserRole() || '';
+    
+    // 创建WebSocket客户端
+    const wsClient = getWebSocketClient({
+      url: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:8000/ws',
+      reconnectAttempts: 5,
+      reconnectInterval: 2000,
+      heartbeatInterval: 30000,
+      debug: false
+    });
+
+    // 准备连接参数
+    const connectionParams = {
+      userId,
+      conversationId,
+      token,
+      // 将UserRole映射到SenderType
+      userType: mapUserRoleToSenderType(userRole)
+    };
+    
+    console.log('初始化WebSocket连接:', connectionParams);
+    
+    // 连接到WebSocket服务器
+    wsClient.connect(connectionParams)
+      .then(() => {
+        console.log('WebSocket连接成功');
+        // 连接成功回调
+      })
+      .catch(error => {
+        console.error('WebSocket连接失败:', error);
+        // 连接失败回调
+      });
+  } catch (error) {
+    console.error('初始化WebSocket连接出错:', error);
+  }
+}
+
+/**
+ * 将UserRole映射到SenderType
+ * @param role 用户角色
+ * @returns 对应的SenderType
+ */
+function mapUserRoleToSenderType(role: string): SenderType {
+  switch (role) {
+    case 'customer':
+      return SenderType.CUSTOMER;
+    case 'consultant':
+      return SenderType.CONSULTANT;
+    case 'doctor':
+      return SenderType.DOCTOR;
+    default:
+      return SenderType.USER;
+  }
+}
 
 // 同步聊天数据，确保多端一致性
 export const syncChatData = async (conversationId: string): Promise<void> => {
@@ -435,21 +248,21 @@ export const sendWebSocketMessage = (message: any) => {
   
   const conversationId = message.conversation_id;
   
-  // 尝试通过WebSocket发送消息
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    try {
-      console.log(`WebSocket已连接，直接发送消息到会话 ${conversationId}`);
-      
-      // 检查当前socket的会话ID是否与要发送的消息会话ID一致
-      if (socket._conversationId !== conversationId) {
-        console.warn(`当前WebSocket连接的会话ID(${socket._conversationId})与要发送消息的会话ID(${conversationId})不一致，将重新连接`);
-        // 关闭当前连接并重新建立连接
-        closeWebSocketConnection();
+  try {
+    // 获取WebSocket客户端
+    const wsClient = getWsClient();
+    
+    // 检查WebSocket连接状态
+    if (wsClient.isConnected()) {
+      // 检查当前连接的会话ID是否匹配
+      const params = wsClient.getConnectionParams();
+      if (params.conversationId !== conversationId) {
+        console.warn(`当前WebSocket连接的会话ID(${params.conversationId})与要发送消息的会话ID(${conversationId})不一致，将重新连接`);
         
         // 将消息加入队列
         messageQueue.push(message);
         
-        // 尝试为正确的会话建立连接
+        // 重新连接正确的会话
         const user = authService.getCurrentUser();
         if (user) {
           initializeWebSocket(user.id, conversationId);
@@ -458,80 +271,50 @@ export const sendWebSocketMessage = (message: any) => {
         return false;
       }
       
-      const messageString = JSON.stringify(message);
-      socket.send(messageString);
-      return true;
-    } catch (error) {
-      console.error('发送WebSocket消息时出错:', error);
-      // 发送失败，将消息加入队列
+      // 发送消息
+      return wsClient.sendMessage(message);
+    } else {
+      // WebSocket未连接，将消息加入队列
+      console.log(`WebSocket未连接，将消息加入队列`);
       messageQueue.push(message);
       
-      // 尝试重新连接
+      // 尝试连接
       const user = authService.getCurrentUser();
-      if (user) {
-        console.log(`发送失败，尝试重新连接WebSocket，会话ID: ${conversationId}`);
-        setTimeout(() => {
-          initializeWebSocket(user.id, conversationId);
-        }, 1000);
-      }
-      return false;
-    }
-  } else {
-    console.log(`WebSocket未连接或未就绪，将消息加入队列`);
-    // 如果连接未建立，将消息加入队列
-    messageQueue.push(message);
-    
-    // 尝试建立连接
-    if (connectionStatus === ConnectionStatus.DISCONNECTED && !isConnecting) {
-      const user = authService.getCurrentUser();
-      console.log(`尝试为用户${user?.id}建立WebSocket连接，会话ID: ${conversationId}`);
       if (user) {
         initializeWebSocket(user.id, conversationId);
       }
+      
+      return false;
     }
+  } catch (error) {
+    console.error('发送WebSocket消息失败:', error);
+    
+    // 将消息加入队列
+    messageQueue.push(message);
+    
     return false;
   }
 };
 
 // 关闭WebSocket连接
 export const closeWebSocketConnection = () => {
-  // 清除心跳
-  if (heartbeatInterval) {
-    clearInterval(heartbeatInterval);
-    heartbeatInterval = null;
-  }
-  
   // 清除连接防抖计时器
   if (connectionDebounceTimer) {
     clearTimeout(connectionDebounceTimer);
     connectionDebounceTimer = null;
   }
   
-  // 获取当前连接的会话ID便于日志
-  const currentConversationId = socket?._conversationId;
-  
-  if (socket) {
-    try {
-      // 记录关闭时的状态
-      const previousReadyState = socket.readyState;
-      
-      // 只有在连接或连接中的状态才需要关闭
-      if (previousReadyState === WebSocket.OPEN || previousReadyState === WebSocket.CONNECTING) {
-        console.log(`关闭WebSocket连接，会话ID: ${currentConversationId}, 状态: ${previousReadyState}`);
-        socket.close();
-      } else {
-        console.log(`WebSocket已经处于关闭状态，会话ID: ${currentConversationId}, 状态: ${previousReadyState}`);
-      }
-    } catch (error) {
-      console.error('关闭WebSocket连接时出错:', error);
-    }
-    socket = null;
-  } else {
-    console.log('WebSocket连接不存在，无需关闭');
+  try {
+    // 获取WebSocket客户端
+    const wsClient = getWsClient();
+    
+    // 断开连接
+    wsClient.disconnect();
+    
+    console.log('WebSocket连接已关闭');
+  } catch (error) {
+    console.error('关闭WebSocket连接时出错:', error);
   }
-  
-  connectionStatus = ConnectionStatus.DISCONNECTED;
-  isConnecting = false;
   
   // 清空消息队列，避免切换会话时发送旧消息
   if (messageQueue.length > 0) {
@@ -542,7 +325,12 @@ export const closeWebSocketConnection = () => {
 
 // 获取连接状态
 export const getConnectionStatus = () => {
-  return connectionStatus;
+  try {
+    const wsClient = getWsClient();
+    return wsClient.getConnectionStatus();
+  } catch (error) {
+    return ConnectionStatus.DISCONNECTED;
+  }
 };
 
 // 生成模拟AI回复
@@ -618,7 +406,7 @@ export const sendTextMessage = async (conversationId: string, content: string): 
   const userRole = currentUser.currentRole || 'customer';
   
   console.log(`发送文本消息: 会话ID=${conversationId}, 用户ID=${currentUser.id}, 角色=${userRole}`);
-  console.log(`WebSocket状态: ${connectionStatus}, 连接状态: ${socket?.readyState}`);
+  console.log(`WebSocket状态: ${getConnectionStatus()}, 连接状态: ${getWsClient().isConnected()}`);
   
   // 创建用户消息
   const userMessage: Message = {

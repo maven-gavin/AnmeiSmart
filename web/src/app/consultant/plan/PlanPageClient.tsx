@@ -26,6 +26,9 @@ import {
   createPersonalizedPlan, updatePersonalizedPlan 
 } from '@/service/consultantService';
 import { PersonalizedPlan } from '@/types/consultant';
+import { useAuth } from '@/contexts/AuthContext';
+import { getConnectionStatus } from '@/service/chatService';
+import { ConnectionStatus } from '@/service/websocket';
 
 // 新方案的表单数据类型
 interface PlanFormData {

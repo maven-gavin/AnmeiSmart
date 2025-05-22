@@ -22,6 +22,9 @@ import {
   getProjectTypes, uploadAndSimulate, 
   getAllSimulations 
 } from '@/service/consultantService';
+import { useAuth } from '@/contexts/AuthContext';
+import { getConnectionStatus } from '@/service/chatService';
+import { ConnectionStatus } from '@/service/websocket';
 
 export default function SimulationPageClient() {
   const [selectedSimulation, setSelectedSimulation] = useState<SimulationImage | null>(null);
@@ -360,7 +363,7 @@ export default function SimulationPageClient() {
                   >
                     {isUploading ? (
                       <>
-                        <LoadingSpinner className="mr-2 h-4 w-4" />
+                        <LoadingSpinner className="mr-2 h-4 w-4" fullScreen={false} />
                         处理中...
                       </>
                     ) : '生成模拟效果'}

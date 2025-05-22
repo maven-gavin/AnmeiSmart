@@ -17,26 +17,27 @@ export default function RiskNotesViewer({ customerId, onClose }: RiskNotesViewer
   const [loading, setLoading] = useState(true);
   const [filterSeverity, setFilterSeverity] = useState<RiskSeverity>('all');
   const [selectedRisk, setSelectedRisk] = useState<CustomerProfile['riskNotes'][0] | null>(null);
+  const [readRisks, setReadRisks] = useState<boolean[]>([]);
   
   // 获取客户档案
   useEffect(() => {
-    const fetchProfile = async () => {
-      setLoading(true);
+    const fetchCustomerProfile = async () => {
       try {
-        // 模拟API调用延迟
-        await new Promise(resolve => setTimeout(resolve, 300));
+        const customerProfile = await getCustomerProfile(customerId);
+        setProfile(await customerProfile);
         
-        // 获取客户档案
-        const customerProfile = getCustomerProfile(customerId);
-        setProfile(customerProfile);
+        // 更新已读状态
+        if (customerProfile?.riskNotes) {
+          setReadRisks(customerProfile.riskNotes.map(() => false));
+        }
       } catch (error) {
         console.error('获取客户档案失败:', error);
-      } finally {
-        setLoading(false);
       }
     };
     
-    fetchProfile();
+    if (customerId) {
+      fetchCustomerProfile();
+    }
   }, [customerId]);
   
   // 过滤风险

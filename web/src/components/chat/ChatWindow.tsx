@@ -18,12 +18,13 @@ import {
   closeWebSocketConnection,
   addMessageCallback,
   removeMessageCallback,
-  ConnectionStatus,
   getConnectionStatus,
   getConversations,
   getOrCreateConversation,
   syncConsultantTakeoverStatus
 } from '@/service/chatService'
+// 从新的WebSocket架构导入ConnectionStatus
+import { ConnectionStatus } from '@/service/websocket'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSearchParams, useRouter } from 'next/navigation'
 
