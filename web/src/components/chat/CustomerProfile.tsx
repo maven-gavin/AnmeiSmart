@@ -6,9 +6,10 @@ import { mockCustomerProfiles } from '@/service/mockData';
 
 interface CustomerProfileProps {
   customerId?: string;
+  conversationId?: string;
 }
 
-export default function CustomerProfile({ customerId = '101' }: CustomerProfileProps) {
+export default function CustomerProfile({ customerId = '101', conversationId }: CustomerProfileProps) {
   const [profile, setProfile] = useState<ICustomerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'basic' | 'history' | 'risk'>('basic');
@@ -23,14 +24,15 @@ export default function CustomerProfile({ customerId = '101' }: CustomerProfileP
       // 模拟API调用延迟
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      // 从模拟数据中获取
+      // 如果有会话ID，可以根据会话ID获取客户信息
+      // 这里仍使用 customerId 进行模拟，实际应用中可以使用 conversationId 查询
       const profileData = mockCustomerProfiles[customerId];
       setProfile(profileData || null);
       setLoading(false);
     };
     
     fetchProfile();
-  }, [customerId]);
+  }, [customerId, conversationId]);
   
   // 打开历史咨询详情
   const openHistoryDetail = (history: ICustomerProfile['consultationHistory'][0]) => {

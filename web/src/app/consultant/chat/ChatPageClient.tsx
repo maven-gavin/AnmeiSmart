@@ -15,13 +15,38 @@ export default function ChatPageClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // 会话切换状态
+  const [isSwitchingConversation, setIsSwitchingConversation] = useState(false);
+  const prevConversationIdRef = useRef<string | null>(null);
+  
   // 跟踪初始化状态，避免重复初始化
   const isInitializedRef = useRef(false);
   
-  // 检查URL中是否有会话ID参数
+  // 保存上次处理的会话ID
+  const lastProcessedConversationIdRef = useRef<string | null>(null);
   const conversationId = searchParams?.get('conversationId');
-  
-  // 如果没有会话ID，获取会话列表并选择第一个
+
+  // 当会话ID变化时，显示切换状态
+  useEffect(() => {
+    if (!conversationId || !prevConversationIdRef.current) {
+      prevConversationIdRef.current = conversationId;
+      return;
+    }
+    
+    if (conversationId !== prevConversationIdRef.current) {
+      // 显示切换状态
+      setIsSwitchingConversation(true);
+      
+      // 300ms后隐藏切换状态
+      const timer = setTimeout(() => {
+        setIsSwitchingConversation(false);
+        prevConversationIdRef.current = conversationId;
+      }, 300);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [conversationId]);
+
   useEffect(() => {
     // 防止在同一渲染周期内多次执行初始化
     if (isInitializedRef.current) {
@@ -31,91 +56,104 @@ export default function ChatPageClient() {
     const initializeChat = async () => {
       try {
         if (!conversationId) {
-          setIsLoading(true);
-          isInitializedRef.current = true;
+          // 如果URL中没有会话ID，获取第一个会话并重定向
+          const conversations = await getConversations();
           
-          // 添加超时处理
-          const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error('获取会话列表超时')), 8000);
-          });
-          
-          // 获取会话列表，带超时处理
-          const conversationsPromise = getConversations();
-          
-          try {
-            // 等待会话列表或超时
-            const conversations = await Promise.race([conversationsPromise, timeoutPromise]);
+          if (conversations && conversations.length > 0) {
+            const firstConversationId = conversations[0].id;
+            console.log(`未指定会话ID，重定向到第一个会话: ${firstConversationId}`);
             
-            // 如果有会话，选择第一个
-            if (conversations && conversations.length > 0) {
-              console.log('找到会话列表，选择第一个:', conversations[0].id);
-              
-              // 重定向到带会话ID的URL，使用replace避免创建历史记录
-              router.replace(`/consultant/chat?conversationId=${conversations[0].id}`, { scroll: false });
-            } else {
-              console.log('没有找到会话，需要创建一个');
-              // 这种情况下让ChatWindow自己创建会话
-              setIsLoading(false);
+            // 如果上一次处理的会话ID与当前需要重定向的不同，则执行重定向
+            if (lastProcessedConversationIdRef.current !== firstConversationId) {
+              lastProcessedConversationIdRef.current = firstConversationId;
+              router.replace(`?conversationId=${firstConversationId}`, { scroll: false });
             }
-          } catch (error) {
-            console.error('获取会话列表超时或失败:', error);
-            // 超时或失败时，让ChatWindow自己创建会话
-            setIsLoading(false);
+          } else {
+            console.error('没有可用的会话');
+            setError('没有可用的会话');
           }
         } else {
-          // 已有会话ID，直接渲染
-          setIsLoading(false);
+          // 记录当前处理的会话ID
+          lastProcessedConversationIdRef.current = conversationId;
         }
-      } catch (error) {
-        console.error('初始化聊天页面出错:', error);
-        setError('加载会话列表失败');
+      } catch (err) {
+        console.error('初始化聊天失败:', err);
+        setError('加载会话失败，请刷新页面重试');
+      } finally {
+        // 设置初始化标志，防止重复初始化
+        isInitializedRef.current = true;
         setIsLoading(false);
       }
     };
     
     initializeChat();
     
-    // 组件卸载时清理
+    // 设置超时，如果5秒后仍在加载，则认为出现了问题
+    const timeoutId = setTimeout(() => {
+      if (isLoading) {
+        console.log('加载超时，重置状态');
+        setIsLoading(false);
+        if (!error) {
+          setError('加载超时，请刷新页面重试');
+        }
+      }
+    }, 5000);
+    
     return () => {
-      isInitializedRef.current = false;
+      clearTimeout(timeoutId);
     };
-  }, [conversationId, router]);
+  }, [conversationId, router, isLoading, error]);
   
-  // 显示加载状态
-  if (isLoading && !conversationId) {
-    return (
-      <div className="fixed inset-0 flex h-screen w-full items-center justify-center bg-white z-50">
-        <LoadingSpinner />
-        <span className="ml-2 text-gray-600">加载会话列表...</span>
-      </div>
-    );
-  }
-  
-  // 显示错误状态
-  if (error) {
-    return (
-      <div className="flex h-screen w-full flex-col items-center justify-center">
-        <div className="text-red-500 mb-4">{error}</div>
-        <button
-          onClick={() => {
-            setError(null);
-            setIsLoading(true);
-            isInitializedRef.current = false;
-            router.refresh();
-          }}
-          className="rounded-md bg-orange-500 px-4 py-2 text-white hover:bg-orange-600"
-        >
-          重试
-        </button>
-      </div>
-    );
-  }
-  
+  // 强制稳定的布局结构，避免加载过程中的闪烁
   return (
-    <ChatLayout
-      conversationList={<ConversationList />}
-      chatWindow={<ChatWindow />}
-      customerProfile={<CustomerProfile />}
-    />
-  )
+    <div className="h-full w-full relative">
+      {/* 主聊天布局 - 即使在加载时也保持固定结构 */}
+      <ChatLayout
+        conversationList={<ConversationList />}
+        chatWindow={
+          <div className="relative h-full w-full">
+            <ChatWindow 
+              key={conversationId || 'empty'}
+              conversationId={conversationId || ''}
+            />
+            
+            {/* 会话切换指示器 */}
+            {isSwitchingConversation && (
+              <div className="absolute inset-0 bg-gray-50 bg-opacity-50 flex items-center justify-center z-10">
+                <div className="h-1 w-64 bg-gray-200 rounded overflow-hidden">
+                  <div className="h-full bg-orange-500 animate-loading-bar"></div>
+                </div>
+              </div>
+            )}
+          </div>
+        }
+        customerProfile={<CustomerProfile conversationId={conversationId || ''} />}
+      />
+      
+      {/* 全屏加载状态覆盖层 */}
+      {isLoading && (
+        <div className="absolute inset-0 bg-white bg-opacity-70 flex items-center justify-center z-50">
+          <div className="flex flex-col items-center">
+            <LoadingSpinner size="large" />
+            <p className="mt-4 text-gray-600">加载中...</p>
+          </div>
+        </div>
+      )}
+      
+      {/* 错误信息覆盖层 */}
+      {error && (
+        <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md text-center">
+            <div className="text-red-500 text-lg mb-4">{error}</div>
+            <button
+              onClick={() => window.location.reload()}
+              className="rounded-md bg-orange-500 px-4 py-2 text-white hover:bg-orange-600"
+            >
+              刷新页面
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 } 

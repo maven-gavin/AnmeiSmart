@@ -38,16 +38,20 @@ const allFAQs = [
   { id: 'faq8', question: '光子嫩肤后多久可以化妆?', answer: '一般建议术后24小时内不化妆，48小时后可轻微化妆。', tags: ['光子嫩肤', '化妆', '术后'] },
 ];
 
-export default function ChatWindow() {
+interface ChatWindowProps {
+  conversationId?: string;
+}
+
+export default function ChatWindow({ conversationId }: ChatWindowProps) {
   // 使用路由导航
   const router = useRouter();
   
   // 获取URL参数
   const searchParams = useSearchParams()
   
-  // 当前对话ID - 从URL参数获取，如果不存在则为null
+  // 当前对话ID - 从props或URL参数获取，如果不存在则为null
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(
-    searchParams?.get('conversationId') || null
+    conversationId || searchParams?.get('conversationId') || null
   )
   
   // 获取身份验证上下文
@@ -111,54 +115,79 @@ export default function ChatWindow() {
     if (!user || !currentConversationId) return;
     
     console.log(`会话ID变化，重新初始化聊天: ${currentConversationId}`);
-    setIsLoading(true);
     
     // 创建AbortController用于取消操作
     const abortController = new AbortController();
     
+    // 立即设置加载状态
+    setIsLoading(true);
+    
     // 关闭之前的WebSocket连接
     closeWebSocketConnection();
     
-    // 初始化新的WebSocket连接
-    initializeWebSocket(user.id, currentConversationId);
+    // 清空当前消息，避免显示上一个会话的消息
+    setMessages([]);
+    setImportantMessages([]);
     
-    // 获取新会话的消息
-    const loadMessages = async () => {
-      try {
-        // 如果已取消，不继续加载
-        if (abortController.signal.aborted) return;
-        
-        const messages = await getConversationMessages(currentConversationId);
-        
-        // 再次检查是否取消，避免在长时间请求后设置过时状态
-        if (abortController.signal.aborted) return;
-        
-        setMessages(messages);
-        
-        // 获取重点消息
-        const allMessages = messages;
-        const important = allMessages.filter(msg => msg.isImportant);
-        setImportantMessages(important);
-        
-        // 检查顾问接管状态
-        const isConsultantModeActive = isConsultantMode(currentConversationId);
-        setIsConsultantTakeover(isConsultantModeActive);
-        console.log(`会话 ${currentConversationId} 顾问接管状态: ${isConsultantModeActive}`);
-      } catch (error) {
-        // 如果已取消，不处理错误
-        if (abortController.signal.aborted) return;
-        
-        console.error('获取消息失败:', error);
-        setMessages([]);
-      } finally {
-        // 如果已取消，不设置加载状态
-        if (!abortController.signal.aborted) {
-          setIsLoading(false);
+    // 延迟非常短的时间后初始化新的WebSocket连接，确保前一个连接已完全关闭
+    setTimeout(() => {
+      // 如果已取消，不继续处理
+      if (abortController.signal.aborted) return;
+      
+      // 初始化新的WebSocket连接
+      initializeWebSocket(user.id, currentConversationId);
+      
+      // 获取新会话的消息
+      const loadMessages = async () => {
+        try {
+          // 如果已取消，不继续加载
+          if (abortController.signal.aborted) return;
+          
+          const messages = await getConversationMessages(currentConversationId);
+          
+          // 再次检查是否取消，避免在长时间请求后设置过时状态
+          if (abortController.signal.aborted) return;
+          
+          // 设置消息
+          setMessages(messages);
+          
+          // 获取重点消息
+          const important = messages.filter(msg => msg.isImportant);
+          setImportantMessages(important);
+          
+          // 检查顾问接管状态
+          const isConsultantModeActive = isConsultantMode(currentConversationId);
+          setIsConsultantTakeover(isConsultantModeActive);
+          console.log(`会话 ${currentConversationId} 顾问接管状态: ${isConsultantModeActive}`);
+          
+          // 获取最新会话列表以更新上下文
+          try {
+            const convs = await getConversations();
+            setConversations(convs);
+          } catch (convError) {
+            console.error('获取会话列表出错:', convError);
+          }
+          
+          // 消息加载完成后滚动到底部
+          setTimeout(() => {
+            scrollToBottom();
+          }, 100);
+        } catch (error) {
+          // 如果已取消，不处理错误
+          if (abortController.signal.aborted) return;
+          
+          console.error('获取消息失败:', error);
+          setMessages([]);
+        } finally {
+          // 如果已取消，不设置加载状态
+          if (!abortController.signal.aborted) {
+            setIsLoading(false);
+          }
         }
-      }
-    };
-    
-    loadMessages();
+      };
+      
+      loadMessages();
+    }, 50);
     
     // 组件卸载或会话ID变化时关闭WebSocket连接并取消进行中的请求
     return () => {

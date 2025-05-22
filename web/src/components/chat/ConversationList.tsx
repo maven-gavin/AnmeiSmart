@@ -23,6 +23,9 @@ export default function ConversationList() {
   // 添加一个标志，在导航期间防止重复选择
   const isNavigatingRef = useRef(false);
   
+  // 记录点击中的会话ID，用于显示加载效果
+  const [clickingConversationId, setClickingConversationId] = useState<string | null>(null);
+  
   // 加载会话列表
   const loadConversations = async () => {
     try {
@@ -59,30 +62,36 @@ export default function ConversationList() {
       return;
     }
     
-    // 设置导航标志
-    isNavigatingRef.current = true;
+    // 设置点击状态，提供即时反馈
+    setClickingConversationId(conversationId);
     
-    // 更新选中状态
+    // 立即更新选中状态，提高响应性
     setSelectedId(conversationId);
     lastSelectedIdRef.current = conversationId;
     
-    // 更新URL参数，不刷新页面，使用replace而非push避免创建新的历史记录
+    // 设置导航标志但减少阻塞时间
+    isNavigatingRef.current = true;
+    
+    // 使用 replace 更新 URL 并传递 scroll: false 选项以避免滚动
     router.replace(`?conversationId=${conversationId}`, { scroll: false });
     
-    // 500ms后重置导航标志，防止短时间内多次切换
+    // 减少导航标志的重置时间，提高响应性
     setTimeout(() => {
       isNavigatingRef.current = false;
-    }, 500);
+      setClickingConversationId(null); // 重置点击状态
+    }, 300);
   }
   
   // 监听URL参数变化
   useEffect(() => {
     const conversationId = searchParams?.get('conversationId')
-    if (conversationId) {
+    if (conversationId && conversationId !== selectedId) {
+      console.log(`URL参数变化，更新选中会话: ${conversationId}`);
       setSelectedId(conversationId)
       lastSelectedIdRef.current = conversationId;
+      setClickingConversationId(null); // 确保重置点击状态
     }
-  }, [searchParams])
+  }, [searchParams, selectedId])
   
   // 初始加载会话列表
   useEffect(() => {
@@ -145,12 +154,23 @@ export default function ConversationList() {
               key={conversation.id}
               onClick={() => handleConversationSelect(conversation.id)}
               className={cn(
-                'flex w-full items-center space-x-3 border-b border-gray-100 p-3 text-left hover:bg-orange-50',
-                selectedId === conversation.id && 'bg-orange-50'
+                'flex w-full items-center space-x-3 border-b border-gray-100 p-3 text-left transition-all',
+                selectedId === conversation.id ? 'bg-orange-50 font-medium' : 'hover:bg-orange-50 active:bg-orange-100',
+                clickingConversationId === conversation.id && 'bg-orange-100 relative overflow-hidden',
+                isNavigatingRef.current && conversation.id !== clickingConversationId && 'opacity-70'
               )}
-              // 在导航过程中禁用按钮，防止多次点击
+              // 仅在明确导航中时禁用按钮
               disabled={isNavigatingRef.current}
             >
+              {/* 点击加载指示器 - 仅在点击的会话上显示 */}
+              {clickingConversationId === conversation.id && (
+                <div className="absolute inset-0 overflow-hidden">
+                  <div className="absolute bottom-0 left-0 h-1 w-full bg-orange-100">
+                    <div className="animate-loading-bar h-full bg-orange-500"></div>
+                  </div>
+                </div>
+              )}
+              
               <div className="relative flex-shrink-0">
                 <img
                   src={conversation.user.avatar}
@@ -171,7 +191,7 @@ export default function ConversationList() {
                     target.src = 'data:image/svg+xml;charset=UTF-8,' + 
                       encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"></svg>');
                     setTimeout(() => {
-                      (target.parentNode as HTMLElement).innerHTML = `<div class="h-12 w-12 rounded-full flex items-center justify-center text-white font-bold" style="background-color: #FF9800">${nameInitial}</div>`;
+                      (target.parentNode as HTMLElement).innerHTML = `<div class="h-12 w-12 rounded-full flex items-center justify-center text-white text-sm font-bold" style="background-color: #FF9800">${nameInitial}</div>`;
                     }, 0);
                   }}
                 />
