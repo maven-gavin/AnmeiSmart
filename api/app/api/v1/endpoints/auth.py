@@ -109,8 +109,8 @@ async def refresh_token(
                 detail="无效的刷新令牌",
             )
         
-        # 获取用户信息
-        user = await crud_user.get(db, id=int(user_id))
+        # 获取用户信息 - 直接使用用户ID，不转换为整数
+        user = await crud_user.get(db, id=user_id)
         if not user or not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

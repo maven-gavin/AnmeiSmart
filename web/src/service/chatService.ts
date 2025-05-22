@@ -130,28 +130,25 @@ const establishWebSocketConnection = (userId: string, conversationId: string) =>
   // 使用验证后的有效token，而不是直接获取
   const getValidTokenAndConnect = async () => {
     try {
-      // 先检查是否已登录
-      if (!authService.isLoggedIn()) {
-        console.error('用户未登录，无法建立WebSocket连接');
-        connectionStatus = ConnectionStatus.ERROR;
-        isConnecting = false;
-        return;
-      }
-      
-      // 直接使用存储的令牌，避免刷新令牌可能导致的问题
+      // 获取令牌
       const token = authService.getToken();
       
       if (!token) {
-        console.error('无法建立WebSocket连接：未获取到令牌');
-        connectionStatus = ConnectionStatus.ERROR;
-        isConnecting = false;
-        return;
+        console.warn('无法获取令牌，尝试自动登录或刷新令牌');
+        // 尝试通过 getValidToken 获取或刷新令牌
+        const validToken = await authService.getValidToken();
+        if (!validToken) {
+          console.error('无法建立WebSocket连接：未能获取有效令牌');
+          connectionStatus = ConnectionStatus.ERROR;
+          isConnecting = false;
+          return;
+        }
       }
       
       // 构建WebSocket URL
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsHost = process.env.NEXT_PUBLIC_WS_URL || 'localhost:8000';
-      const wsUrl = `${wsProtocol}//${wsHost}/api/v1/chat/ws/${userId}?token=${encodeURIComponent(token)}&conversation_id=${conversationId}`;
+      const wsUrl = `${wsProtocol}//${wsHost}/api/v1/chat/ws/${userId}?token=${encodeURIComponent(token || '')}&conversation_id=${conversationId}`;
       
       console.log(`尝试连接WebSocket: 用户ID=${userId}, 会话ID=${conversationId}`);
       
