@@ -260,7 +260,9 @@ export default function ConversationList() {
               
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-medium truncate">{conversation.user.name}</h4>
+                  <h4 className="font-medium truncate">
+                    {conversation.user.name || '未知用户'}
+                  </h4>
                   <span className="text-xs text-gray-500 flex-shrink-0 ml-1">
                     {new Date(conversation.updatedAt).toLocaleTimeString()}
                   </span>

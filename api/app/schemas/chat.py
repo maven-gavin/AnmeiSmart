@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List, Literal
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MessageSender(BaseModel):
@@ -49,13 +49,33 @@ class ConversationCreate(ConversationBase):
 
 class Conversation(ConversationBase):
     """会话完整模型"""
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,  # 允许使用别名
+        json_schema_extra={
+            "example": {
+                "id": "conv_123456",
+                "title": "咨询会话",
+                "customer_id": "usr_123456",
+                "created_at": "2025-05-21T14:37:57.708339",
+                "updated_at": "2025-05-21T14:37:57.708339",
+                "is_active": True,
+                "customer": {
+                    "id": "usr_123456",
+                    "username": "王先生",
+                    "email": "example@example.com",
+                    "avatar": "/avatars/user.png"
+                }
+            }
+        }
+    )
 
     id: str
     last_message: Optional[Message] = None
     created_at: datetime
     updated_at: datetime
     is_active: bool = True
+    customer: Optional[dict] = Field(None, description="客户信息")
 
 
 class CustomerProfileBase(BaseModel):

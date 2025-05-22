@@ -2,7 +2,7 @@ import json
 import logging
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from datetime import datetime
 from uuid import uuid4
 
@@ -609,10 +609,14 @@ async def get_conversations(
         # 客户只能看到自己的会话
         conversations = db.query(Conversation).filter(
             Conversation.customer_id == current_user.id
+        ).options(
+            joinedload(Conversation.customer)  # 确保预加载客户信息
         ).order_by(Conversation.updated_at.desc()).offset(skip).limit(limit).all()
     elif user_role in ["consultant", "doctor", "admin", "operator"]:
         # 顾问、医生、管理员可以看到所有会话
-        conversations = db.query(Conversation).order_by(
+        conversations = db.query(Conversation).options(
+            joinedload(Conversation.customer)  # 确保预加载客户信息
+        ).order_by(
             Conversation.updated_at.desc()
         ).offset(skip).limit(limit).all()
     else:
@@ -628,8 +632,29 @@ async def get_conversations(
     # 使用辅助函数构建响应
     result_conversations = []
     for conversation in conversations:
+        # 确保客户信息存在
+        if conversation.customer_id and not conversation.customer:
+            logger.warning(f"会话 {conversation.id} 的客户信息未预加载，尝试手动加载")
+            conversation.customer = db.query(User).filter(User.id == conversation.customer_id).first()
+        
         conv_data = convert_conversation_to_schema(conversation, db)
+        # 记录最终转换后的数据，以便调试
+        logger.debug(f"转换后的会话数据: {conv_data}")
+        
+        # 确保customer字段存在于结果中
+        if "customer" not in conv_data and conversation.customer:
+            logger.warning(f"会话 {conversation.id} 转换后缺少customer字段，手动添加")
+            conv_data["customer"] = {
+                "id": conversation.customer.id,
+                "username": conversation.customer.username,
+                "email": conversation.customer.email,
+                "avatar": conversation.customer.avatar
+            }
+        
         result_conversations.append(conv_data)
+    
+    # 打印最终响应前的数据
+    logger.info(f"即将返回会话列表，数据示例: {result_conversations[0] if result_conversations else 'None'}")
     
     return result_conversations
 
@@ -871,6 +896,43 @@ def convert_conversation_to_schema(conversation, db=None):
         "is_active": conversation.is_active,
         "last_message": None
     }
+    
+    # 获取客户信息
+    customer_data = None
+    
+    if conversation.customer:
+        # 直接使用关联的customer对象（如果已加载）
+        customer = conversation.customer
+        customer_data = {
+            "id": customer.id,
+            "username": customer.username,
+            "email": customer.email,
+            "avatar": customer.avatar
+        }
+        result["customer"] = customer_data
+        logger.debug(f"已从关联对象加载会话 {conversation.id} 的客户信息: {customer.username}")
+    elif db and conversation.customer_id:
+        # 如果关联对象未加载但传递了数据库会话，则查询客户信息
+        from app.db.models.user import User
+        customer = db.query(User).filter(User.id == conversation.customer_id).first()
+        if customer:
+            # 将客户信息添加到结果中
+            customer_data = {
+                "id": customer.id,
+                "username": customer.username,
+                "email": customer.email,
+                "avatar": customer.avatar
+            }
+            result["customer"] = customer_data
+            # 记录日志，确认客户信息已正确加载
+            logger.debug(f"已从数据库加载会话 {conversation.id} 的客户信息: {customer.username}")
+        else:
+            logger.warning(f"未找到会话 {conversation.id} 的客户信息，客户ID: {conversation.customer_id}")
+    else:
+        logger.warning(f"无法加载会话 {conversation.id} 的客户信息: customer_id={conversation.customer_id}, db={'已提供' if db else '未提供'}")
+    
+    # 记录最终的customer数据用于调试
+    logger.info(f"会话 {conversation.id} 最终客户数据: {customer_data}")
     
     # 如果提供了数据库会话，加载最后一条消息
     if db:

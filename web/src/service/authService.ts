@@ -83,6 +83,16 @@ export const authService = {
 
   // 登出
   async logout(): Promise<void> {
+    // 如果存在chatService模块，关闭WebSocket连接
+    try {
+      // 使用动态导入避免循环依赖
+      const { closeWebSocketConnection } = await import('./chatService');
+      closeWebSocketConnection();
+      console.log('WebSocket连接已关闭');
+    } catch (error) {
+      console.error('关闭WebSocket连接失败:', error);
+    }
+    
     // 清除本地存储的用户信息和 token
     if (isBrowser) {
       localStorage.removeItem('auth_user');

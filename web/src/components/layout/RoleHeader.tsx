@@ -9,6 +9,7 @@ export default function RoleHeader() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   
   // 在组件挂载时确保当前用户信息是最新的
   useEffect(() => {
@@ -44,10 +45,18 @@ export default function RoleHeader() {
   
   const handleLogout = async () => {
     try {
+      // 添加loading状态
+      setIsLoggingOut(true);
+      // 等待logout完成
       await authService.logout();
-      window.location.href = '/';
+      // 登出成功后跳转到登录页
+      window.location.href = '/login';
     } catch (error) {
       console.error('登出失败', error);
+      // 即使出错也尝试跳转到登录页
+      window.location.href = '/login';
+    } finally {
+      setIsLoggingOut(false);
     }
   };
   
@@ -130,8 +139,16 @@ export default function RoleHeader() {
                   <button
                     onClick={handleLogout}
                     className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-orange-50"
+                    disabled={isLoggingOut}
                   >
-                    退出登录
+                    {isLoggingOut ? (
+                      <div className="flex items-center">
+                        <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
+                        <span>退出中...</span>
+                      </div>
+                    ) : (
+                      "退出登录"
+                    )}
                   </button>
                 </div>
               </div>

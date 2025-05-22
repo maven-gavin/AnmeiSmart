@@ -899,6 +899,7 @@ export const getConversations = async (): Promise<Conversation[]> => {
     }
     
     // 从后端API获取会话列表
+    console.log('开始获取会话列表，API地址:', `${API_BASE_URL}/chat/conversations`);
     const response = await fetch(`${API_BASE_URL}/chat/conversations`, {
       method: 'GET',
       headers: {
@@ -921,7 +922,36 @@ export const getConversations = async (): Promise<Conversation[]> => {
       throw new Error(`获取会话列表失败: ${status} ${errorText}`);
     }
     
+    // 克隆response以便打印
+    const responseClone = response.clone();
+    
+    // 打印原始响应内容
+    try {
+      const rawData = await responseClone.text();
+      console.log('会话列表原始响应数据(文本格式):', rawData);
+      
+      // 尝试解析为JSON以更易读
+      try {
+        const jsonData = JSON.parse(rawData);
+        console.log('会话列表原始响应数据(JSON格式):', jsonData);
+        
+        // 深度分析每个会话对象的结构
+        if (Array.isArray(jsonData)) {
+          jsonData.forEach((conv, index) => {
+            console.log(`分析会话[${index}]的结构:`, conv);
+            console.log(`会话[${index}]的customer属性:`, conv.customer);
+            console.log(`会话[${index}]的属性列表:`, Object.keys(conv));
+          });
+        }
+      } catch (jsonError) {
+        console.error('响应不是有效的JSON格式:', jsonError);
+      }
+    } catch (textError) {
+      console.error('读取响应体失败:', textError);
+    }
+    
     const data = await response.json();
+    console.log('会话列表原始数据(解析后):', data);
     
     // 转换格式，适配前端格式
     const formattedConversations: Conversation[] = await Promise.all(data.map(async (conv: any) => {
@@ -937,14 +967,26 @@ export const getConversations = async (): Promise<Conversation[]> => {
         // 如果获取消息失败，继续处理其他数据
       }
       
+      // 详细记录客户信息日志，帮助调试
+      console.log(`会话 ${conv.id} 原始客户数据:`, JSON.stringify(conv.customer));
+      
+      // 确保customer数据完整性，并提供有意义的默认值
+      let customerName = "未知用户";
+      if (conv.customer) {
+        customerName = conv.customer.username || "未知用户";
+        console.log(`会话 ${conv.id} 客户名称(来自customer对象): ${customerName}`);
+      } else {
+        console.log(`会话 ${conv.id} 缺少customer对象`);
+      }
+      
       return {
         id: conv.id,
         title: conv.title,
         user: {
           id: conv.customer_id,
-          name: conv.customer?.username || "未知用户",
+          name: customerName,
           avatar: conv.customer?.avatar || '/avatars/user.png',
-          tags: []
+          tags: conv.customer?.tags ? (typeof conv.customer.tags === 'string' ? conv.customer.tags.split(',') : conv.customer.tags) : []
         },
         lastMessage: lastMessage,
         unreadCount: 0, // TODO: 实现未读消息计数

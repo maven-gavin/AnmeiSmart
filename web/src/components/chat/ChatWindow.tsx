@@ -958,9 +958,10 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         isSelf = true;
         avatar = user?.avatar || '/avatars/user.png';
       } else if (conversation) {
-        // 顾问视角
-        name = conversation.user.name;
-        avatar = conversation.user.avatar;
+        // 顾问视角 - 优先使用消息中的发送者名称，再使用会话中的用户名称
+        name = msg.sender.name || conversation.user.name || '未知用户';
+        avatar = msg.sender.avatar || conversation.user.avatar || '/avatars/user.png';
+        console.log(`客户消息，显示名称: ${name}，原始名称: ${msg.sender.name}, 会话用户名: ${conversation.user.name}`);
       }
     }
     
