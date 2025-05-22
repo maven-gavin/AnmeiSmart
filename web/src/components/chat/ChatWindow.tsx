@@ -145,78 +145,65 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     const abortController = new AbortController();
     
     // 立即设置加载状态
-      setIsLoading(true);
-    
-    // 关闭之前的WebSocket连接
-    closeWebSocketConnection();
+    setIsLoading(true);
     
     // 清空当前消息，避免显示上一个会话的消息
     setMessages([]);
     setImportantMessages([]);
     
-    // 延迟非常短的时间后初始化新的WebSocket连接，确保前一个连接已完全关闭
-    setTimeout(() => {
-      // 如果已取消，不继续处理
-      if (abortController.signal.aborted) return;
-      
-      // 初始化新的WebSocket连接
-      initializeWebSocket(user.id, currentConversationId);
-      
-      // 获取新会话的消息
-      const loadMessages = async () => {
-        try {
-          // 如果已取消，不继续加载
-          if (abortController.signal.aborted) return;
-          
-      const messages = await getConversationMessages(currentConversationId);
-          
-          // 再次检查是否取消，避免在长时间请求后设置过时状态
-          if (abortController.signal.aborted) return;
-          
-          // 设置消息
-      setMessages(messages);
-          
-          // 获取重点消息
-          const important = messages.filter(msg => msg.isImportant);
-          setImportantMessages(important);
-          
-          // 检查顾问接管状态
-          const isConsultantModeActive = isConsultantMode(currentConversationId);
-          setIsConsultantTakeover(isConsultantModeActive);
-          console.log(`会话 ${currentConversationId} 顾问接管状态: ${isConsultantModeActive}`);
-          
-          // 获取最新会话列表以更新上下文
-          try {
-            const convs = await getConversations();
-            setConversations(convs);
-          } catch (convError) {
-            console.error('获取会话列表出错:', convError);
-          }
-          
-          // 消息加载完成后滚动到底部
-          setTimeout(() => {
-            scrollToBottom();
-          }, 100);
-    } catch (error) {
-          // 如果已取消，不处理错误
-          if (abortController.signal.aborted) return;
-          
-          if (error instanceof Error && error.message.includes('超时')) {
-            console.error('获取消息超时:', error);
-          } else {
-            console.error('获取消息出错:', error);
-          }
-          setMessages([]);
-    } finally {
-          // 如果已取消，不设置加载状态
-          if (!abortController.signal.aborted) {
-      setIsLoading(false);
-    }
+    // 获取新会话的消息
+    const loadMessages = async () => {
+      try {
+        // 如果已取消，不继续加载
+        if (abortController.signal.aborted) return;
+        
+        // 先获取消息，然后再初始化WebSocket连接
+        const messages = await getConversationMessages(currentConversationId);
+        
+        // 再次检查是否取消，避免在长时间请求后设置过时状态
+        if (abortController.signal.aborted) return;
+        
+        // 设置消息
+        setMessages(messages);
+        
+        // 获取重点消息
+        const important = messages.filter(msg => msg.isImportant);
+        setImportantMessages(important);
+        
+        // 检查顾问接管状态
+        const isConsultantModeActive = isConsultantMode(currentConversationId);
+        setIsConsultantTakeover(isConsultantModeActive);
+        console.log(`会话 ${currentConversationId} 顾问接管状态: ${isConsultantModeActive}`);
+        
+        // 获取最新会话列表以更新上下文 (移除此处，避免重复请求)
+        
+        // 消息加载完成后滚动到底部
+        setTimeout(() => {
+          scrollToBottom();
+        }, 100);
+
+        // 仅在消息加载完成后，关闭之前的WebSocket连接并初始化新的连接
+        closeWebSocketConnection();
+        initializeWebSocket(user.id, currentConversationId);
+      } catch (error) {
+        // 如果已取消，不处理错误
+        if (abortController.signal.aborted) return;
+        
+        if (error instanceof Error && error.message.includes('超时')) {
+          console.error('获取消息超时:', error);
+        } else {
+          console.error('获取消息出错:', error);
         }
-      };
-      
-      loadMessages();
-    }, 50);
+        setMessages([]);
+      } finally {
+        // 如果已取消，不设置加载状态
+        if (!abortController.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    };
+    
+    loadMessages();
   
     // 组件卸载或会话ID变化时关闭WebSocket连接并取消进行中的请求
     return () => {
@@ -229,7 +216,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   // 初始化聊天 - 仅在组件首次挂载时执行一次
   useEffect(() => {
     const initializeChat = async () => {
-    try {
+      try {
         if (!user) return;
         
         console.log('ChatWindow初始化开始...');
@@ -244,52 +231,74 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           // 不在这里获取消息和初始化WebSocket，由会话ID监听effect处理
         } else {
           console.log('URL中未找到会话ID，获取或创建会话');
+          setIsLoading(true);
           
-          // 添加超时处理
-          const createConversationWithTimeout = async () => {
-            const timeoutPromise = new Promise<Conversation>((_, reject) => {
-              setTimeout(() => reject(new Error('创建会话超时')), 15000); // 增加超时时间
-            });
+          // 添加超时和重试处理
+          const createConversationWithRetry = async (maxRetries = 3) => {
+            let lastError = null;
             
-            try {
-              // Promise.race 确保超时后不再等待
-              const conversation = await Promise.race<Conversation>([
-                getOrCreateConversation(),
-                timeoutPromise
-              ]);
-              
-              console.log('获取或创建的会话:', conversation);
-              
-              // 检查组件是否仍然挂载
-              if (!mounted.current) {
-                console.log('组件已卸载，不更新状态');
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+              try {
+                console.log(`尝试获取或创建会话 (尝试 ${attempt}/${maxRetries})...`);
+                
+                // Promise.race 确保超时后不再等待
+                const timeoutPromise = new Promise<Conversation>((_, reject) => {
+                  setTimeout(() => reject(new Error('创建会话超时')), 10000); // 10秒超时
+                });
+                
+                const conversation = await Promise.race<Conversation>([
+                  getOrCreateConversation(),
+                  timeoutPromise
+                ]);
+                
+                console.log('成功获取或创建会话:', conversation);
+                
+                // 检查组件是否仍然挂载
+                if (!mounted.current) {
+                  console.log('组件已卸载，不更新状态');
+                  return;
+                }
+                
+                // 更新当前会话ID
+                setCurrentConversationId(conversation.id);
+                
+                // 使用新会话ID更新URL (使用replace避免在历史记录中创建新条目)
+                router.replace(`?conversationId=${conversation.id}`, { scroll: false });
+                
+                // 请求成功，跳出重试循环
                 return;
+              } catch (error: any) {
+                lastError = error;
+                console.error(`创建会话失败 (尝试 ${attempt}/${maxRetries}):`, error);
+                
+                // 如果不是最后一次尝试，则等待一段时间后重试
+                if (attempt < maxRetries) {
+                  const retryDelay = 1000 * attempt; // 递增延迟
+                  console.log(`将在 ${retryDelay}ms 后重试...`);
+                  await new Promise(resolve => setTimeout(resolve, retryDelay));
+                }
               }
-              
-              // 更新当前会话ID
-              setCurrentConversationId(conversation.id);
-              
-              // 使用新会话ID更新URL (使用replace避免在历史记录中创建新条目)
-              router.replace(`?conversationId=${conversation.id}`, { scroll: false });
-              
-              // 不在这里获取消息和初始化WebSocket，由会话ID监听effect处理
-            } catch (error: any) {
-              console.error('创建会话失败或超时:', error);
-              if (mounted.current) {
-                setIsLoading(false);
-              }
+            }
+            
+            // 如果所有尝试都失败，显示错误状态
+            console.error(`已重试 ${maxRetries} 次，无法创建会话`, lastError);
+            
+            if (mounted.current) {
+              setIsLoading(false);
+              setNetworkError('无法创建会话，请刷新页面重试');
             }
           };
           
-          await createConversationWithTimeout();
+          await createConversationWithRetry();
         }
-    } catch (error) {
+      } catch (error) {
         console.error('初始化聊天时出错:', error);
         if (mounted.current) {
           setIsLoading(false);
+          setNetworkError('聊天初始化失败，请刷新页面重试');
         }
-    }
-  };
+      }
+    };
   
     // 只在组件挂载时执行一次初始化
     initializeChat();
@@ -1278,12 +1287,30 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       {networkError && (
         <div className="mx-4 my-2 rounded-md bg-red-50 p-3 text-center">
           <p className="text-sm text-red-600 mb-2">{networkError}</p>
-          <button 
-            onClick={() => fetchMessages()}
-            className="px-3 py-1 text-xs font-medium text-red-600 bg-red-100 rounded-md hover:bg-red-200"
-          >
-            重新加载
-          </button>
+          <div className="flex justify-center space-x-2">
+            <button 
+              onClick={() => {
+                setNetworkError(null);
+                if (currentConversationId) {
+                  fetchMessages();
+                } else {
+                  // 重新尝试获取会话
+                  router.replace('/customer/chat');
+                }
+              }}
+              className="px-3 py-1 text-xs font-medium text-red-600 bg-red-100 rounded-md hover:bg-red-200"
+            >
+              重新加载
+            </button>
+            {!currentConversationId && (
+              <button
+                onClick={() => router.push('/')}
+                className="px-3 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                返回首页
+              </button>
+            )}
+          </div>
         </div>
       )}
       

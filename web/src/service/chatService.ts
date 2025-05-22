@@ -51,6 +51,16 @@ const messageCallbacks: Record<string, MessageCallback[]> = {};
 // 保存已处理的消息ID，避免重复处理
 const processedMessageIds = new Set<string>();
 
+// 添加请求防抖标志，按会话ID跟踪
+const isRequestingMessages: Record<string, boolean> = {};
+const lastMessagesRequestTime: Record<string, number> = {};
+const MESSAGES_CACHE_TIME = 5000; // 5秒缓存时间
+
+// 添加请求防抖标志
+let isRequestingConversations = false;
+let lastConversationsRequestTime = 0;
+const CONVERSATIONS_CACHE_TIME = 10000; // 10秒缓存时间
+
 // 初始化WebSocket客户端
 // 注意：这是一个懒加载的函数，只有在第一次调用时才会初始化WebSocket客户端
 const initializeWebSocketClient = () => {
@@ -596,10 +606,26 @@ export const getAIResponse = async (conversationId: string, userMessage: Message
 
 // 获取会话消息
 export const getConversationMessages = async (conversationId: string): Promise<Message[]> => {
-  // 如果有本地缓存，先返回缓存数据
+  // 检查是否已有针对该会话的请求正在进行
+  if (isRequestingMessages[conversationId]) {
+    console.log(`已有获取会话(${conversationId})消息请求正在进行，返回缓存数据`);
+    return chatMessages[conversationId] || [];
+  }
+  
+  // 如果有本地缓存，检查缓存是否在有效期内
+  const now = Date.now();
   const cachedMessages = chatMessages[conversationId] || [];
+  if (cachedMessages.length > 0 && lastMessagesRequestTime[conversationId] && 
+      (now - lastMessagesRequestTime[conversationId]) < MESSAGES_CACHE_TIME) {
+    console.log(`使用会话(${conversationId})消息缓存数据，距上次请求时间:`, 
+               now - lastMessagesRequestTime[conversationId], 'ms');
+    return cachedMessages;
+  }
   
   try {
+    // 设置请求标志
+    isRequestingMessages[conversationId] = true;
+    
     // 获取认证令牌
     const token = authService.getToken();
     if (!token) {
@@ -675,6 +701,9 @@ export const getConversationMessages = async (conversationId: string): Promise<M
     // 更新本地缓存
     chatMessages[conversationId] = formattedMessages;
     
+    // 更新请求时间戳
+    lastMessagesRequestTime[conversationId] = Date.now();
+    
     return formattedMessages;
   } catch (error) {
     console.error(`获取会话消息出错:`, error);
@@ -691,12 +720,31 @@ export const getConversationMessages = async (conversationId: string): Promise<M
     
     // 其他错误时返回缓存数据
     return cachedMessages;
+  } finally {
+    // 重置请求标志
+    isRequestingMessages[conversationId] = false;
   }
 };
 
 // 获取所有会话
 export const getConversations = async (): Promise<Conversation[]> => {
+  // 检查是否已有请求正在进行
+  if (isRequestingConversations) {
+    console.log('已有获取会话请求正在进行，返回缓存数据');
+    return conversations;
+  }
+  
+  // 检查缓存是否在有效期内
+  const now = Date.now();
+  if (conversations.length > 0 && (now - lastConversationsRequestTime) < CONVERSATIONS_CACHE_TIME) {
+    console.log('使用会话缓存数据，距上次请求时间:', now - lastConversationsRequestTime, 'ms');
+    return conversations;
+  }
+  
   try {
+    // 设置请求标志
+    isRequestingConversations = true;
+    
     // 获取认证令牌
     const token = authService.getToken();
     if (!token) {
@@ -764,9 +812,9 @@ export const getConversations = async (): Promise<Conversation[]> => {
       // 获取最后一条消息
       let lastMessage: Message | undefined;
       try {
-        const messages = await getConversationMessages(conv.id);
-        if (messages.length > 0) {
-          lastMessage = messages[messages.length - 1];
+        // 避免为每个会话单独请求消息
+        if (chatMessages[conv.id] && chatMessages[conv.id].length > 0) {
+          lastMessage = chatMessages[conv.id][chatMessages[conv.id].length - 1];
         }
       } catch (error) {
         console.error(`获取会话${conv.id}的消息失败:`, error);
@@ -803,6 +851,9 @@ export const getConversations = async (): Promise<Conversation[]> => {
     // 更新本地缓存
     conversations = formattedConversations;
     
+    // 更新请求时间戳
+    lastConversationsRequestTime = Date.now();
+    
     return formattedConversations;
   } catch (error) {
     console.error(`获取会话列表出错:`, error);
@@ -812,6 +863,9 @@ export const getConversations = async (): Promise<Conversation[]> => {
     }
     // 其他错误返回缓存数据
     return conversations;
+  } finally {
+    // 重置请求标志
+    isRequestingConversations = false;
   }
 };
 
@@ -977,6 +1031,12 @@ export const isConsultantMode = (conversationId: string): boolean => {
   return !!consultantTakeover[conversationId];
 };
 
+// 生成短会话ID (确保不超过36个字符)
+const generateShortId = () => {
+  // 不使用前缀，直接生成适合长度的UUID
+  return uuidv4().replace(/-/g, '').substring(0, 32);
+};
+
 // 创建新会话
 export const createConversation = async (customerId?: string): Promise<Conversation> => {
   try {
@@ -992,6 +1052,16 @@ export const createConversation = async (customerId?: string): Promise<Conversat
       throw new Error("用户ID不存在");
     }
     
+    console.log('创建新会话，用户ID:', userId);
+    
+    // 准备请求数据，不需要自己生成会话ID，后端会生成符合格式的ID
+    const requestData = {
+      customer_id: userId,
+      title: `咨询会话 ${new Date().toLocaleDateString('zh-CN')}`
+    };
+    
+    console.log('创建会话请求数据:', requestData);
+    
     // 发送创建会话请求
     const response = await fetch(`${API_BASE_URL}/chat/conversations`, {
       method: 'POST',
@@ -999,17 +1069,17 @@ export const createConversation = async (customerId?: string): Promise<Conversat
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        customer_id: userId,
-        title: `咨询会话 ${new Date().toLocaleDateString()}`
-      })
+      body: JSON.stringify(requestData)
     });
     
     if (!response.ok) {
-      throw new Error(`创建会话失败: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`创建会话失败: ${response.status}`, errorText);
+      throw new Error(`创建会话失败: ${response.status} - ${errorText}`);
     }
     
     const newConversation = await response.json();
+    console.log('服务器返回的新会话:', newConversation);
     
     // 格式化会话对象
     const formattedConversation: Conversation = {
@@ -1027,12 +1097,6 @@ export const createConversation = async (customerId?: string): Promise<Conversat
     
     // 更新本地会话列表
     conversations.unshift(formattedConversation);
-    
-    // 初始化WebSocket连接
-    const user = authService.getCurrentUser();
-    if (user) {
-      initializeWebSocket(user.id, formattedConversation.id);
-    }
     
     return formattedConversation;
   } catch (error) {
@@ -1067,23 +1131,46 @@ export const getRecentConversation = async (): Promise<Conversation | null> => {
 // 获取或创建会话
 export const getOrCreateConversation = async (): Promise<Conversation> => {
   try {
-    // 先尝试获取最近的会话
-    const recentConversation = await getRecentConversation();
+    console.log('尝试获取现有会话或创建新会话...');
     
-    // 检查最近会话是否存在且活跃
-    if (recentConversation) {
-      // 获取会话的最后活跃时间
-      const lastActive = new Date(recentConversation.updatedAt || '').getTime();
-      const now = new Date().getTime();
-      const hoursDifference = (now - lastActive) / (1000 * 60 * 60);
+    try {
+      // 先尝试获取会话列表，可能会抛出异常
+      const allConversations = await getConversations();
+      console.log(`成功获取会话列表，共 ${allConversations.length} 个会话`);
       
-      // 如果会话在24小时内有活动，则使用该会话
-      if (hoursDifference < 24) {
-        return recentConversation;
+      // 检查最近会话是否存在且活跃
+      if (allConversations && allConversations.length > 0) {
+        // 按更新时间排序，获取最新的会话
+        const sortedConversations = [...allConversations].sort((a, b) => {
+          const dateA = new Date(a.updatedAt || '').getTime();
+          const dateB = new Date(b.updatedAt || '').getTime();
+          return dateB - dateA;
+        });
+        
+        const recentConversation = sortedConversations[0];
+        console.log('找到最近的会话:', recentConversation.id);
+        
+        // 获取会话的最后活跃时间
+        const lastActive = new Date(recentConversation.updatedAt || '').getTime();
+        const now = new Date().getTime();
+        const hoursDifference = (now - lastActive) / (1000 * 60 * 60);
+        
+        // 如果会话在24小时内有活动，则使用该会话
+        if (hoursDifference < 24) {
+          console.log(`该会话活跃于 ${hoursDifference.toFixed(2)} 小时前，复用该会话`);
+          return recentConversation;
+        } else {
+          console.log(`该会话活跃于 ${hoursDifference.toFixed(2)} 小时前，需要创建新会话`);
+        }
+      } else {
+        console.log('没有找到现有会话，将创建新会话');
       }
+    } catch (error) {
+      console.error('获取会话列表时出错，将尝试创建新会话:', error);
     }
     
     // 如果没有最近活跃的会话，创建新会话
+    console.log('开始创建新会话...');
     return await createConversation();
   } catch (error) {
     console.error("获取或创建会话失败:", error);
