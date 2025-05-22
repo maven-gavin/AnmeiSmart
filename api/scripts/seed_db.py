@@ -38,11 +38,11 @@ except ImportError as e:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 示例测试用户数据
+# 示例测试用户数据 - 确保ID格式一致
 MOCK_USERS = [
     # 医生示例数据
     {
-        "id": "usr_doctor1",
+        "id": user_id(),  # 使用函数生成统一格式的ID
         "email": "zhang@example.com",
         "username": "张医生",
         "password": "123456@Test",
@@ -61,7 +61,7 @@ MOCK_USERS = [
     },
     # 顾问示例数据
     {
-        "id": "usr_consultant1",
+        "id": user_id(),  # 使用函数生成统一格式的ID
         "email": "li@example.com",
         "username": "李顾问",
         "password": "123456@Test",
@@ -75,7 +75,7 @@ MOCK_USERS = [
     },
     # 运营示例数据
     {
-        "id": "usr_operator1",
+        "id": user_id(),  # 使用函数生成统一格式的ID
         "email": "wang@example.com",
         "username": "王运营",
         "password": "123456@Test",
@@ -89,7 +89,7 @@ MOCK_USERS = [
     },
     # 顾客示例数据
     {
-        "id": "usr_customer1",
+        "id": user_id(),  # 使用函数生成统一格式的ID
         "email": "customer1@example.com",
         "username": "李小姐",
         "password": "123456@Test",
@@ -103,7 +103,7 @@ MOCK_USERS = [
         )
     },
     {
-        "id": "usr_customer2",
+        "id": user_id(),  # 使用函数生成统一格式的ID
         "email": "customer2@example.com",
         "username": "王先生",
         "password": "123456@Test",
@@ -320,8 +320,8 @@ async def create_test_conversations(db: Session) -> None:
     customer1 = db.query(User).filter(User.email == "customer1@example.com").first()
     customer2 = db.query(User).filter(User.email == "customer2@example.com").first()
     
-    # 获取AI助手ID (使用一个固定值)
-    ai_id = "usr_ai_assistant"
+    # 获取AI助手ID - 使用统一的ID生成方式
+    ai_id = user_id()
     
     # 获取顾问
     consultant = db.query(User).filter(User.email == "li@example.com").first()
@@ -330,12 +330,15 @@ async def create_test_conversations(db: Session) -> None:
         logger.warning("找不到测试顾客用户，跳过创建会话数据")
         return
     
+    if not consultant:
+        logger.warning("找不到顾问用户，跳过创建含顾问的消息")
+    
     # 创建AI用户（如果不存在）
-    ai_user = db.query(User).filter(User.id == ai_id).first()
+    ai_user = db.query(User).filter(User.username == "AI助手").first()
     if not ai_user:
         logger.info("创建AI助手用户")
         ai_user = User(
-            id=ai_id,
+            id=ai_id,  # 使用统一生成的ID
             email="ai@example.com",
             username="AI助手",
             hashed_password="$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",  # 密码: 123456@Test
@@ -344,6 +347,12 @@ async def create_test_conversations(db: Session) -> None:
         )
         db.add(ai_user)
         db.commit()
+        db.refresh(ai_user)  # 刷新以获取数据库分配的ID
+        ai_id = ai_user.id
+    else:
+        ai_id = ai_user.id
+    
+    logger.info(f"AI助手ID: {ai_id}")
     
     # 创建或获取客户档案
     profile1 = db.query(CustomerProfile).filter(CustomerProfile.user_id == customer1.id).first()
@@ -391,7 +400,7 @@ async def create_test_conversations(db: Session) -> None:
         db.add(conv1)
         db.commit()
         
-        # 添加测试消息
+        # 添加测试消息 - 确保发送者ID格式一致且逻辑连贯
         messages1 = [
             {
                 "sender_id": customer1.id,
@@ -520,29 +529,34 @@ async def create_test_conversations(db: Session) -> None:
                            "您有其他关于瘦脸针的问题吗？",
                 "type": "text",
                 "timestamp": datetime.now() - timedelta(days=1, hours=3, minutes=4)
-            },
-            {
+            }
+        ]
+        
+        # 仅当顾问存在时添加顾问消息
+        if consultant:
+            messages2.append({
                 "sender_id": consultant.id,
                 "sender_type": "consultant",
                 "content": "您好！我是李顾问，很高兴为您提供更专业的咨询服务。注意到您对瘦脸针很感兴趣，我们医疗中心近期有瘦脸针优惠活动，可以为您提供个性化方案和价格咨询。如果您有意向，可以预约面诊，我将亲自为您服务。",
                 "type": "text",
                 "timestamp": datetime.now() - timedelta(days=1, hours=2)
-            },
-            {
+            })
+            
+            messages2.append({
                 "sender_id": customer2.id,
                 "sender_type": "customer",
                 "content": "谢谢顾问，我想再多了解一下，瘦脸针和瘦脸导入哪个效果更好呢？",
                 "type": "text",
                 "timestamp": datetime.now() - timedelta(days=1, hours=1)
-            },
-            {
+            })
+            
+            messages2.append({
                 "sender_id": ai_id,
                 "sender_type": "ai",
                 "content": "瘦脸针与瘦脸导入的比较：\n\n瘦脸针(肉毒素注射)：\n- 原理：通过肌肉松弛达到瘦脸效果\n- 适用人群：咬肌发达者\n- 见效时间：7-14天开始见效\n- 持久性：4-6个月\n- 优势：效果明显，过程快速\n- 风险：需要专业医生操作\n\n瘦脸导入(电离子导入)：\n- 原理：通过电流促进活性成分吸收\n- 适用人群：轻度浮肿、想保养的人群\n- 见效时间：需多次治疗累积\n- 持久性：需持续保养\n- 优势：无创、舒适、风险低\n- 风险：效果相对温和\n\n选择建议：\n- 咬肌发达选择瘦脸针\n- 轻度改善选择导入技术\n- 最佳效果可考虑组合使用\n\n建议您与专业医生面诊评估，根据您的脸型特点选择最适合的方案。",
                 "type": "text",
                 "timestamp": datetime.now() - timedelta(days=1, hours=1, minutes=1)
-            }
-        ]
+            })
         
         for msg_data in messages2:
             msg = Message(

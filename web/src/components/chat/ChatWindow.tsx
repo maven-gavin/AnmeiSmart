@@ -120,7 +120,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     const abortController = new AbortController();
     
     // 立即设置加载状态
-    setIsLoading(true);
+      setIsLoading(true);
     
     // 关闭之前的WebSocket连接
     closeWebSocketConnection();
@@ -143,13 +143,13 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           // 如果已取消，不继续加载
           if (abortController.signal.aborted) return;
           
-          const messages = await getConversationMessages(currentConversationId);
+      const messages = await getConversationMessages(currentConversationId);
           
           // 再次检查是否取消，避免在长时间请求后设置过时状态
           if (abortController.signal.aborted) return;
           
           // 设置消息
-          setMessages(messages);
+      setMessages(messages);
           
           // 获取重点消息
           const important = messages.filter(msg => msg.isImportant);
@@ -172,23 +172,23 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           setTimeout(() => {
             scrollToBottom();
           }, 100);
-        } catch (error) {
+    } catch (error) {
           // 如果已取消，不处理错误
           if (abortController.signal.aborted) return;
           
           console.error('获取消息失败:', error);
           setMessages([]);
-        } finally {
+    } finally {
           // 如果已取消，不设置加载状态
           if (!abortController.signal.aborted) {
-            setIsLoading(false);
-          }
+      setIsLoading(false);
+    }
         }
       };
       
       loadMessages();
     }, 50);
-    
+  
     // 组件卸载或会话ID变化时关闭WebSocket连接并取消进行中的请求
     return () => {
       console.log(`会话ID变化或组件卸载，关闭WebSocket连接: ${currentConversationId}`);
@@ -200,7 +200,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   // 初始化聊天 - 仅在组件首次挂载时执行一次
   useEffect(() => {
     const initializeChat = async () => {
-      try {
+    try {
         if (!user) return;
         
         console.log('ChatWindow初始化开始...');
@@ -254,14 +254,14 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           
           await createConversationWithTimeout();
         }
-      } catch (error) {
+    } catch (error) {
         console.error('初始化聊天时出错:', error);
         if (mounted.current) {
           setIsLoading(false);
         }
-      }
-    };
-    
+    }
+  };
+  
     // 只在组件挂载时执行一次初始化
     initializeChat();
     
@@ -286,7 +286,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     const handleMessage = async (data: any) => {
       // 如果已取消，不处理消息
       if (abortController.signal.aborted) return;
-      
+    
       // 确保只处理当前会话的消息
       if (!data.conversation_id || data.conversation_id !== currentConversationId) {
         console.log(`忽略非当前会话的消息: ${data.conversation_id} vs ${currentConversationId}`);
@@ -349,11 +349,11 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       const messages = await getConversationMessages(currentConversationId);
       setMessages(messages);
       await fetchImportantMessages();
-      
-      // 检查顾问接管状态
-      const isConsultantModeActive = isConsultantMode(currentConversationId);
-      setIsConsultantTakeover(isConsultantModeActive);
-      console.log(`会话 ${currentConversationId} 顾问接管状态: ${isConsultantModeActive}`);
+    
+    // 检查顾问接管状态
+    const isConsultantModeActive = isConsultantMode(currentConversationId);
+    setIsConsultantTakeover(isConsultantModeActive);
+    console.log(`会话 ${currentConversationId} 顾问接管状态: ${isConsultantModeActive}`);
       
       // 获取会话列表
       try {
@@ -584,14 +584,14 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           if (aiResponse) {
             // 更新本地消息列表
             setMessages(prev => [...prev, aiResponse]);
-            
-            // 滚动到底部
+          
+          // 滚动到底部
             scrollToBottom();
-          }
-        } catch (error) {
+      }
+    } catch (error) {
           console.error('获取AI回复失败:', error);
           // 可以在这里添加失败提示
-        } finally {
+    } finally {
           setIsLoading(false);
         }
       } else {
@@ -999,13 +999,13 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     
     try {
       // 切换顾问模式
-      if (isConsultantTakeover) {
+    if (isConsultantTakeover) {
         // 切回AI模式
         const success = switchBackToAI(currentConversationId);
         if (success) {
           setIsConsultantTakeover(false);
-        }
-      } else {
+      }
+    } else {
         // 启用顾问模式
         const success = takeoverConversation(currentConversationId);
         if (success) {
