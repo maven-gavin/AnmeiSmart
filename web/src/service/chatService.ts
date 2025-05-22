@@ -1031,12 +1031,6 @@ export const isConsultantMode = (conversationId: string): boolean => {
   return !!consultantTakeover[conversationId];
 };
 
-// 生成短会话ID (确保不超过36个字符)
-const generateShortId = () => {
-  // 不使用前缀，直接生成适合长度的UUID
-  return uuidv4().replace(/-/g, '').substring(0, 32);
-};
-
 // 创建新会话
 export const createConversation = async (customerId?: string): Promise<Conversation> => {
   try {
@@ -1054,7 +1048,7 @@ export const createConversation = async (customerId?: string): Promise<Conversat
     
     console.log('创建新会话，用户ID:', userId);
     
-    // 准备请求数据，不需要自己生成会话ID，后端会生成符合格式的ID
+    // 准备请求数据，由后端生成会话ID
     const requestData = {
       customer_id: userId,
       title: `咨询会话 ${new Date().toLocaleDateString('zh-CN')}`
@@ -1169,9 +1163,34 @@ export const getOrCreateConversation = async (): Promise<Conversation> => {
       console.error('获取会话列表时出错，将尝试创建新会话:', error);
     }
     
-    // 如果没有最近活跃的会话，创建新会话
+    // 如果没有最近活跃的会话，创建新会话，添加重试逻辑
     console.log('开始创建新会话...');
-    return await createConversation();
+    
+    // 添加重试逻辑
+    const maxRetries = 3;
+    let lastError = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`尝试创建会话 (尝试 ${attempt}/${maxRetries})...`);
+        const newConversation = await createConversation();
+        console.log(`会话创建成功: ${newConversation.id}`);
+        return newConversation;
+      } catch (error) {
+        lastError = error;
+        console.error(`创建会话失败 (尝试 ${attempt}/${maxRetries}):`, error);
+        
+        if (attempt < maxRetries) {
+          // 等待一段时间后重试
+          const retryDelay = 1000 * attempt; // 递增延迟
+          console.log(`将在 ${retryDelay}ms 后重试...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+      }
+    }
+    
+    // 如果所有重试都失败，抛出最后一个错误
+    throw lastError || new Error("创建会话失败，请稍后再试");
   } catch (error) {
     console.error("获取或创建会话失败:", error);
     throw error;

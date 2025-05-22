@@ -157,14 +157,15 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         // 如果已取消，不继续加载
         if (abortController.signal.aborted) return;
         
-        // 先获取消息，然后再初始化WebSocket连接
+        // 先获取消息
         const messages = await getConversationMessages(currentConversationId);
         
         // 再次检查是否取消，避免在长时间请求后设置过时状态
         if (abortController.signal.aborted) return;
         
-        // 设置消息
+        // 设置消息并移除加载状态
         setMessages(messages);
+        setIsLoading(false);
         
         // 获取重点消息
         const important = messages.filter(msg => msg.isImportant);
@@ -175,16 +176,19 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         setIsConsultantTakeover(isConsultantModeActive);
         console.log(`会话 ${currentConversationId} 顾问接管状态: ${isConsultantModeActive}`);
         
-        // 获取最新会话列表以更新上下文 (移除此处，避免重复请求)
-        
         // 消息加载完成后滚动到底部
         setTimeout(() => {
           scrollToBottom();
         }, 100);
 
-        // 仅在消息加载完成后，关闭之前的WebSocket连接并初始化新的连接
-        closeWebSocketConnection();
-        initializeWebSocket(user.id, currentConversationId);
+        // 延迟初始化WebSocket连接
+        setTimeout(() => {
+          if (mounted.current && !abortController.signal.aborted) {
+            console.log(`延迟初始化WebSocket连接: ${currentConversationId}`);
+            closeWebSocketConnection();
+            initializeWebSocket(user.id, currentConversationId);
+          }
+        }, 500); // 延迟500ms连接WebSocket
       } catch (error) {
         // 如果已取消，不处理错误
         if (abortController.signal.aborted) return;
@@ -195,11 +199,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           console.error('获取消息出错:', error);
         }
         setMessages([]);
-      } finally {
-        // 如果已取消，不设置加载状态
-        if (!abortController.signal.aborted) {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
       }
     };
     
@@ -259,6 +259,11 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
                   return;
                 }
                 
+                // 验证获取到的会话ID是否有效
+                if (!conversation || !conversation.id) {
+                  throw new Error('获取到的会话ID无效');
+                }
+                
                 // 更新当前会话ID
                 setCurrentConversationId(conversation.id);
                 
@@ -285,7 +290,19 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
             
             if (mounted.current) {
               setIsLoading(false);
-              setNetworkError('无法创建会话，请刷新页面重试');
+              
+              // 为不同类型的错误提供具体的错误消息
+              if (lastError instanceof Error) {
+                if (lastError.message.includes('超时')) {
+                  setNetworkError('创建会话超时，请检查网络连接并重试');
+                } else if (lastError.message.includes('value too long')) {
+                  setNetworkError('服务器数据格式问题，请联系管理员');
+                } else {
+                  setNetworkError(`无法创建会话: ${lastError.message}`);
+                }
+              } else {
+                setNetworkError('无法创建会话，请刷新页面重试');
+              }
             }
           };
           
@@ -295,7 +312,11 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         console.error('初始化聊天时出错:', error);
         if (mounted.current) {
           setIsLoading(false);
-          setNetworkError('聊天初始化失败，请刷新页面重试');
+          if (error instanceof Error) {
+            setNetworkError(`聊天初始化失败: ${error.message}`);
+          } else {
+            setNetworkError('聊天初始化失败，请刷新页面重试');
+          }
         }
       }
     };
@@ -754,6 +775,20 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           silentFetchMessages();
         }
       }
+      
+      // 如果WebSocket连接断开且之前是已连接状态，尝试重新连接
+      if (status === ConnectionStatus.DISCONNECTED && previousStatus === ConnectionStatus.CONNECTED) {
+        console.log(`WebSocket连接断开，将尝试重新连接`);
+        if (currentConversationId && user) {
+          // 延迟3秒后重新连接
+          setTimeout(() => {
+            if (mounted.current && getConnectionStatus() === ConnectionStatus.DISCONNECTED) {
+              console.log(`尝试重新连接WebSocket: ${currentConversationId}`);
+              initializeWebSocket(user.id, currentConversationId);
+            }
+          }, 3000);
+        }
+      }
     };
     
     const statusInterval = setInterval(checkConnectionStatus, 3000);
@@ -763,7 +798,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     return () => {
       clearInterval(statusInterval);
     };
-  }, [currentConversationId]); // 依赖项中不包含wsStatus，避免循环依赖
+  }, [currentConversationId, user]); // 添加user到依赖项
   
   // 静默获取消息函数，不设置加载状态
   const silentFetchMessages = async () => {
@@ -1295,21 +1330,34 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
                   fetchMessages();
                 } else {
                   // 重新尝试获取会话
-                  router.replace('/customer/chat');
+                  setIsLoading(true);
+                  const initializeChat = async () => {
+                    try {
+                      // 尝试获取或创建会话
+                      const conversation = await getOrCreateConversation();
+                      setCurrentConversationId(conversation.id);
+                      router.replace(`?conversationId=${conversation.id}`, { scroll: false });
+                      fetchMessages();
+                    } catch (error) {
+                      console.error('重新初始化聊天失败:', error);
+                      setNetworkError('初始化聊天失败，请刷新页面重试');
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  };
+                  initializeChat();
                 }
               }}
               className="px-3 py-1 text-xs font-medium text-red-600 bg-red-100 rounded-md hover:bg-red-200"
             >
               重新加载
             </button>
-            {!currentConversationId && (
-              <button
-                onClick={() => router.push('/')}
-                className="px-3 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
-              >
-                返回首页
-              </button>
-            )}
+            <button
+              onClick={() => router.push('/customer')}
+              className="px-3 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
+            >
+              返回首页
+            </button>
           </div>
         </div>
       )}
