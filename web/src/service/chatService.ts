@@ -129,6 +129,12 @@ export function initializeWebSocket(userId: string, conversationId: string): voi
     const token = authService.getToken() || '';
     const userRole = authService.getCurrentUserRole() || '';
     
+    // 如果token无效，不尝试连接
+    if (!token) {
+      console.log('Token无效或不存在，不尝试WebSocket连接');
+      return;
+    }
+    
     // 创建WebSocket客户端
     const wsClient = getWebSocketClient({
       url: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:8000/ws',
@@ -154,10 +160,27 @@ export function initializeWebSocket(userId: string, conversationId: string): voi
       .then(() => {
         console.log('WebSocket连接成功');
         // 连接成功回调
+        lastConnectedConversationId = conversationId;
       })
       .catch(error => {
-        console.error('WebSocket连接失败:', error);
-        // 连接失败回调
+        if (error.message && error.message.includes('401')) {
+          console.error('WebSocket连接失败: 认证失败 (401)');
+          // 认证失败，可能是token过期，清除连接防抖计时器
+          if (connectionDebounceTimer) {
+            clearTimeout(connectionDebounceTimer);
+            connectionDebounceTimer = null;
+          }
+        } else {
+          console.error('WebSocket连接失败:', error);
+          // 非认证错误，设置延迟重连
+          if (!connectionDebounceTimer) {
+            connectionDebounceTimer = setTimeout(() => {
+              console.log('尝试重新连接WebSocket...');
+              initializeWebSocket(userId, conversationId);
+              connectionDebounceTimer = null;
+            }, 5000); // 5秒后重试
+          }
+        }
       });
   } catch (error) {
     console.error('初始化WebSocket连接出错:', error);
@@ -318,10 +341,14 @@ export const closeWebSocketConnection = () => {
     // 获取WebSocket客户端
     const wsClient = getWsClient();
     
-    // 断开连接
-    wsClient.disconnect();
-    
-    console.log('WebSocket连接已关闭');
+    // 检查连接状态
+    if (wsClient.isConnected()) {
+      // 断开连接
+      wsClient.disconnect();
+      console.log('WebSocket连接已关闭');
+    } else {
+      console.log('WebSocket未连接，无需关闭');
+    }
   } catch (error) {
     console.error('关闭WebSocket连接时出错:', error);
   }
@@ -331,6 +358,9 @@ export const closeWebSocketConnection = () => {
     console.log(`清空消息队列，丢弃${messageQueue.length}条消息`);
     messageQueue.length = 0;
   }
+  
+  // 清除最后连接的会话ID
+  lastConnectedConversationId = null;
 };
 
 // 获取连接状态

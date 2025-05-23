@@ -324,13 +324,109 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     // 只在组件挂载时执行一次初始化
     initializeChat();
     
+    // 添加页面可见性变化监听器
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('页面变为可见，检查WebSocket连接');
+        if (user && currentConversationId && wsStatus !== ConnectionStatus.CONNECTED) {
+          console.log('页面可见且WebSocket未连接，尝试重新连接');
+          reconnectWebSocket();
+        }
+      } else if (document.visibilityState === 'hidden') {
+        console.log('页面变为隐藏，关闭WebSocket连接');
+        closeWebSocketConnection();
+      }
+    };
+    
+    // 添加页面可见性监听
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
     // 组件卸载时关闭WebSocket连接
     return () => {
       console.log('ChatWindow组件卸载，关闭WebSocket连接');
       mounted.current = false;
       closeWebSocketConnection();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [router, searchParams, user]); // 更新依赖数组
+  
+  // 监听WebSocket状态
+  useEffect(() => {
+    // 检查连接状态
+    const checkConnectionStatus = () => {
+      const status = getConnectionStatus();
+      const previousStatus = wsStatus;
+      setWsStatus(status);
+      
+      // 如果WebSocket从断开到已连接，主动刷新消息，但不显示加载状态
+      if (status === ConnectionStatus.CONNECTED && previousStatus !== ConnectionStatus.CONNECTED) {
+        console.log(`WebSocket重新连接成功，自动刷新消息，会话ID: ${currentConversationId}`);
+        if (currentConversationId) {
+          // 使用静默加载方式，不设置加载状态
+          silentFetchMessages();
+        }
+      }
+      
+      // 如果WebSocket连接断开且之前是已连接状态，尝试重新连接
+      if (status === ConnectionStatus.DISCONNECTED && previousStatus === ConnectionStatus.CONNECTED) {
+        console.log(`WebSocket连接断开，将尝试重新连接`);
+        if (currentConversationId && user && document.visibilityState === 'visible') {
+          // 仅在页面可见时尝试重连
+          // 延迟3秒后重新连接
+          setTimeout(() => {
+            if (mounted.current && getConnectionStatus() === ConnectionStatus.DISCONNECTED && document.visibilityState === 'visible') {
+              console.log(`尝试重新连接WebSocket: ${currentConversationId}`);
+              initializeWebSocket(user.id, currentConversationId);
+            }
+          }, 3000);
+        }
+      }
+    };
+    
+    // 定时检查连接状态
+    const statusInterval = setInterval(checkConnectionStatus, 5000); // 增加检查间隔到5秒
+    checkConnectionStatus(); // 立即检查一次
+    
+    // 组件卸载时清理
+    return () => {
+      clearInterval(statusInterval);
+    };
+  }, [currentConversationId, user]); // 添加user到依赖项
+  
+  // 重新连接WebSocket的函数 - 为了在组件其他部分访问
+  const reconnectWebSocket = useCallback(() => {
+    if (user && currentConversationId) {
+      console.log(`手动重新连接WebSocket: 用户ID=${user.id}, 会话ID=${currentConversationId}`);
+      
+      // 先清除之前的连接
+      closeWebSocketConnection();
+      
+      // 延迟一点时间再连接，确保之前的连接已完全关闭
+      setTimeout(() => {
+        // 再次检查组件是否仍然挂载
+        if (mounted.current) {
+          initializeWebSocket(user.id, currentConversationId);
+        }
+      }, 300);
+    }
+  }, [user, currentConversationId]);
+  
+  // 监听窗口焦点变化
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('窗口获得焦点，检查WebSocket连接');
+      if (user && currentConversationId && wsStatus !== ConnectionStatus.CONNECTED && document.visibilityState === 'visible') {
+        console.log('窗口获得焦点且WebSocket未连接，尝试重新连接');
+        reconnectWebSocket();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [reconnectWebSocket, wsStatus, user, currentConversationId]);
   
   // 监听WebSocket消息 - 依赖于currentConversationId
   useEffect(() => {
@@ -759,47 +855,6 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     }
   };
   
-  // 监听WebSocket状态
-  useEffect(() => {
-    // 检查连接状态
-    const checkConnectionStatus = () => {
-      const status = getConnectionStatus();
-      const previousStatus = wsStatus;
-      setWsStatus(status);
-      
-      // 如果WebSocket从断开到已连接，主动刷新消息，但不显示加载状态
-      if (status === ConnectionStatus.CONNECTED && previousStatus !== ConnectionStatus.CONNECTED) {
-        console.log(`WebSocket重新连接成功，自动刷新消息，会话ID: ${currentConversationId}`);
-        if (currentConversationId) {
-          // 使用静默加载方式，不设置加载状态
-          silentFetchMessages();
-        }
-      }
-      
-      // 如果WebSocket连接断开且之前是已连接状态，尝试重新连接
-      if (status === ConnectionStatus.DISCONNECTED && previousStatus === ConnectionStatus.CONNECTED) {
-        console.log(`WebSocket连接断开，将尝试重新连接`);
-        if (currentConversationId && user) {
-          // 延迟3秒后重新连接
-          setTimeout(() => {
-            if (mounted.current && getConnectionStatus() === ConnectionStatus.DISCONNECTED) {
-              console.log(`尝试重新连接WebSocket: ${currentConversationId}`);
-              initializeWebSocket(user.id, currentConversationId);
-            }
-          }, 3000);
-        }
-      }
-    };
-    
-    const statusInterval = setInterval(checkConnectionStatus, 3000);
-    checkConnectionStatus(); // 立即检查一次
-    
-    // 组件卸载时清理
-    return () => {
-      clearInterval(statusInterval);
-    };
-  }, [currentConversationId, user]); // 添加user到依赖项
-  
   // 静默获取消息函数，不设置加载状态
   const silentFetchMessages = async () => {
     try {
@@ -830,14 +885,6 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       console.error('静默获取数据出错:', error);
     }
   };
-  
-  // 重新连接WebSocket的函数 - 为了在组件其他部分访问
-  const reconnectWebSocket = useCallback(() => {
-    if (user && currentConversationId) {
-      console.log(`手动重新连接WebSocket: 用户ID=${user.id}, 会话ID=${currentConversationId}`);
-      initializeWebSocket(user.id, currentConversationId);
-    }
-  }, [user, currentConversationId]);
   
   // 新消息自动滚动到底部
   useEffect(() => {
