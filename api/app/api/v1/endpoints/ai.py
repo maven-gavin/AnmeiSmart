@@ -22,6 +22,17 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
+def get_user_role(user: User) -> str:
+    """获取用户的当前角色"""
+    if hasattr(user, '_active_role') and user._active_role:
+        return user._active_role
+    elif user.roles:
+        return user.roles[0].name
+    else:
+        return 'customer'  # 默认角色
+
+
 @router.post("/chat", response_model=MessageInfo)
 async def get_ai_response(
     message_data: MessageCreate,
@@ -34,7 +45,7 @@ async def get_ai_response(
     try:
         chat_service = ChatService(db)
         message_service = MessageService(db)
-        user_role = getattr(current_user, 'role', 'customer')
+        user_role = get_user_role(current_user)
         
         # 验证会话存在和权限
         conversation = chat_service.get_conversation_by_id(
@@ -88,8 +99,6 @@ async def get_ai_response(
         
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
-        logger.error(f"AI回复生成失败: {e}")
-        raise HTTPException(status_code=500, detail="生成AI回复时发生错误") 
+        logger.error(f"AI回复失败: {e}")
+        raise HTTPException(status_code=500, detail="AI回复失败") 

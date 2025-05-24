@@ -1,4 +1,4 @@
-import { Message, Conversation, CustomerProfile } from "@/types/chat";
+import { Message, Conversation, CustomerProfile, Customer } from "@/types/chat";
 import { v4 as uuidv4 } from 'uuid';
 import { authService } from "./authService";
 // 引入新的WebSocket客户端架构
@@ -1319,5 +1319,148 @@ export const syncConsultantTakeoverStatus = async (conversationId: string): Prom
   } catch (error) {
     console.error("同步顾问接管状态失败:", error);
     return isConsultantMode(conversationId);
+  }
+};
+
+// 更新会话标题
+export const updateConversationTitle = async (conversationId: string, title: string): Promise<void> => {
+  try {
+    // 获取认证令牌
+    const token = authService.getToken();
+    if (!token) {
+      throw new Error("未登录，无法更新会话标题");
+    }
+    
+    // 发送更新请求到后端API
+    const response = await fetch(`${API_BASE_URL}/chat/conversations/${conversationId}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        title: title.trim()
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`更新会话标题失败: ${response.status}`);
+    }
+    
+    // 更新本地缓存中的会话标题
+    conversations = conversations.map(conv => 
+      conv.id === conversationId 
+        ? { ...conv, title: title.trim() }
+        : conv
+    );
+    
+    console.log(`会话标题更新成功: ${conversationId} -> ${title}`);
+  } catch (error) {
+    console.error(`更新会话标题失败:`, error);
+    throw error;
+  }
+};
+
+// 获取客户列表（顾问端使用）
+export const getCustomerList = async (): Promise<Customer[]> => {
+  try {
+    // 获取认证令牌
+    const token = authService.getToken();
+    if (!token) {
+      throw new Error("未登录，无法获取客户列表");
+    }
+    
+    // 从后端API获取客户列表
+    const response = await fetch(`${API_BASE_URL}/chat/customers`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`获取客户列表失败: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // 格式化客户数据
+    const customers: Customer[] = data.map((customer: any) => ({
+      id: customer.id,
+      name: customer.username || customer.name || "未知用户",
+      avatar: customer.avatar || '/avatars/user.png',
+      isOnline: customer.is_online || false,
+      lastMessage: customer.last_message?.content || '',
+      lastMessageTime: customer.last_message?.created_at || customer.updated_at,
+      unreadCount: customer.unread_count || 0,
+      tags: customer.tags || [],
+      priority: customer.priority || 'medium'
+    }));
+    
+    return customers;
+  } catch (error) {
+    console.error(`获取客户列表失败:`, error);
+    throw error;
+  }
+};
+
+// 获取指定客户的会话列表
+export const getCustomerConversations = async (customerId: string): Promise<Conversation[]> => {
+  try {
+    // 获取认证令牌
+    const token = authService.getToken();
+    if (!token) {
+      throw new Error("未登录，无法获取客户会话");
+    }
+    
+    // 从后端API获取客户会话列表
+    const response = await fetch(`${API_BASE_URL}/chat/customers/${customerId}/conversations`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`获取客户会话失败: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // 格式化会话数据
+    const conversations: Conversation[] = data.map((conv: any) => ({
+      id: conv.id,
+      title: conv.title,
+      user: {
+        id: conv.customer_id,
+        name: conv.customer?.username || "未知用户",
+        avatar: conv.customer?.avatar || '/avatars/user.png',
+        tags: conv.customer?.tags || []
+      },
+      lastMessage: conv.last_message ? {
+        id: conv.last_message.id,
+        content: conv.last_message.content,
+        type: conv.last_message.type || 'text',
+        sender: {
+          id: conv.last_message.sender_id,
+          type: conv.last_message.sender_type,
+          name: conv.last_message.sender_name || "未知",
+          avatar: conv.last_message.sender_avatar || '/avatars/user.png'
+        },
+        timestamp: conv.last_message.created_at,
+        isRead: conv.last_message.is_read,
+        isImportant: conv.last_message.is_important
+      } : undefined,
+      unreadCount: conv.unread_count || 0,
+      updatedAt: conv.updated_at,
+      status: conv.status
+    }));
+    
+    return conversations;
+  } catch (error) {
+    console.error(`获取客户会话失败:`, error);
+    throw error;
   }
 }; 

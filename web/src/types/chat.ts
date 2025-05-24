@@ -5,6 +5,18 @@ export interface User {
   tags: string[];
 }
 
+export interface Customer {
+  id: string;
+  name: string;
+  avatar: string;
+  isOnline: boolean;
+  lastMessage?: string;
+  lastMessageTime?: string;
+  unreadCount: number;
+  tags?: string[];
+  priority?: 'low' | 'medium' | 'high';
+}
+
 export type SenderType = 'user' | 'consultant' | 'doctor' | 'ai' | 'system' | 'customer' | 'operator' | 'admin';
 
 export interface Message {

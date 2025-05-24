@@ -13,10 +13,12 @@ class Conversation(BaseModel):
     id = Column(String(36), primary_key=True, default=conversation_id)
     title = Column(String, nullable=False)
     customer_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    assigned_consultant_id = Column(String(36), ForeignKey("users.id"), nullable=True)
     is_active = Column(Boolean, default=True)
 
     # 关联关系
     customer = relationship("User", backref="conversations", foreign_keys=[customer_id])
+    assigned_consultant = relationship("User", foreign_keys=[assigned_consultant_id])
     messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
 
 

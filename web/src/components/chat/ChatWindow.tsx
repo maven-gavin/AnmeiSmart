@@ -51,10 +51,17 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   // 获取URL参数
   const searchParams = useSearchParams()
   
-  // 当前对话ID - 从props或URL参数获取，如果不存在则为null
+  // 当前对话ID - 优先使用props传入的conversationId，其次是URL参数
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(
     conversationId || searchParams?.get('conversationId') || null
   )
+  
+  // 监听props中的conversationId变化
+  useEffect(() => {
+    if (conversationId !== undefined) {
+      setCurrentConversationId(conversationId);
+    }
+  }, [conversationId]);
   
   // 获取身份验证上下文
   const { user } = useAuth();

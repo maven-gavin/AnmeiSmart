@@ -1,6 +1,6 @@
 ---
 description: 
-globs: 
+globs: **/*.tsx
 alwaysApply: false
 ---
 ---
@@ -12,6 +12,7 @@ alwaysApply: false
 # React 规则
 
 ## 组件结构
+- 优先采用shadcn/ui组件库
 - 优先使用函数组件而非类组件
 - 保持组件小巧且专注
 - 将可复用逻辑提取到自定义 hook 中
@@ -81,5 +82,4 @@ alwaysApply: false
 - 实现适当的目录结构
 - 保持样式靠近组件
 - 使用适当的导入/导出
-
 - 记录复杂的组件逻辑

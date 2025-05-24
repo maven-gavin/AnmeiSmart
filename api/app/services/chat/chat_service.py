@@ -13,6 +13,7 @@ from app.schemas.chat import ConversationCreate, ConversationInfo
 from app.core.events import event_bus, EventTypes, create_user_event
 from .message_service import MessageService
 from .ai_response_service import AIResponseService
+from .conversation_matcher import ConversationMatcher
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ class ChatService:
         self.db = db
         self.message_service = MessageService(db)
         self.ai_response_service = AIResponseService(db)
+        self.conversation_matcher = ConversationMatcher(db)
         
         # 订阅WebSocket事件
         event_bus.subscribe_async(EventTypes.WS_CONNECT, self.handle_user_connect)
@@ -47,7 +49,8 @@ class ChatService:
         self,
         title: str,
         customer_id: str,
-        creator_id: str
+        creator_id: str,
+        auto_assign_consultant: bool = True
     ) -> Conversation:
         """创建新会话"""
         logger.info(f"创建会话: title={title}, customer_id={customer_id}, creator_id={creator_id}")
@@ -67,14 +70,38 @@ class ChatService:
             is_active=True
         )
         
+        # 如果启用自动分配顾问
+        if auto_assign_consultant:
+            # 获取客户标签
+            customer_tags = getattr(customer, 'tags', []) or []
+            
+            # 使用匹配器找到最佳顾问
+            best_consultant_id = self.conversation_matcher.find_best_consultant(
+                customer_id=customer_id,
+                conversation_content=title or "",
+                customer_tags=customer_tags
+            )
+            
+            if best_consultant_id:
+                new_conversation.assigned_consultant_id = best_consultant_id
+                logger.info(f"会话已分配给顾问: {best_consultant_id}")
+        
         self.db.add(new_conversation)
         self.db.commit()
         self.db.refresh(new_conversation)
         
         # 创建系统欢迎消息
+        welcome_message = "会话已创建，欢迎开始对话！"
+        if new_conversation.assigned_consultant_id:
+            consultant = self.db.query(User).filter(
+                User.id == new_conversation.assigned_consultant_id
+            ).first()
+            consultant_name = consultant.username if consultant else "顾问"
+            welcome_message = f"会话已创建，已为您分配专属顾问{consultant_name}，稍后将为您服务！"
+        
         await self.message_service.create_message(
             conversation_id=new_conversation.id,
-            content="会话已创建，欢迎开始对话！",
+            content=welcome_message,
             message_type="system",
             sender_id=creator_id,
             sender_type="system"
@@ -140,13 +167,45 @@ class ChatService:
         message_type: str,
         sender_id: str,
         sender_type: str,
-        is_important: bool = False
+        is_important: bool = False,
+        auto_assign_on_first_message: bool = True
     ) -> Message:
         """发送消息"""
         # 验证会话存在和权限
         conversation = self.get_conversation_by_id(conversation_id, sender_id, sender_type)
         if not conversation:
             raise ValueError(f"会话不存在或无权访问: {conversation_id}")
+        
+        # 如果是客户的第一条消息且会话未分配顾问，自动分配
+        if (auto_assign_on_first_message and 
+            sender_type == 'customer' and 
+            not conversation.assigned_consultant_id):
+            
+            # 检查是否是第一条用户消息
+            existing_user_messages = self.db.query(Message).filter(
+                Message.conversation_id == conversation_id,
+                Message.sender_type == 'customer'
+            ).count()
+            
+            if existing_user_messages == 0:  # 这是第一条用户消息
+                # 获取客户信息
+                customer = self.db.query(User).filter(User.id == conversation.customer_id).first()
+                customer_tags = getattr(customer, 'tags', []) if customer else []
+                
+                # 使用匹配器找到最佳顾问
+                best_consultant_id = self.conversation_matcher.find_best_consultant(
+                    customer_id=conversation.customer_id,
+                    conversation_content=content,
+                    customer_tags=customer_tags
+                )
+                
+                if best_consultant_id:
+                    # 分配顾问
+                    success = await self.conversation_matcher.assign_conversation_to_consultant(
+                        conversation_id, best_consultant_id
+                    )
+                    if success:
+                        logger.info(f"首条消息触发顾问分配: {conversation_id} -> {best_consultant_id}")
         
         # 创建消息
         message = await self.message_service.create_message(
@@ -229,24 +288,52 @@ class ChatService:
         # 获取未读消息数（如果有当前用户信息的话）
         unread_count = 0  # 这里可以根据需要计算
         
-        return {
+        # 构造符合ConversationInfo模型的返回数据
+        result = {
             "id": conversation.id,
             "title": conversation.title,
-            "customer": {
-                "id": conversation.customer.id,
-                "username": conversation.customer.username,
-                "avatar": conversation.customer.avatar
-            } if conversation.customer else None,
+            "customer_id": conversation.customer_id,  # 添加必需的customer_id字段
             "created_at": conversation.created_at,
             "updated_at": conversation.updated_at,
             "is_active": conversation.is_active,
-            "last_message": {
-                "content": last_message.content,
-                "timestamp": last_message.timestamp,
-                "sender_type": last_message.sender_type
-            } if last_message else None,
+            "customer": {
+                "id": conversation.customer.id,
+                "username": conversation.customer.username,
+                "avatar": conversation.customer.avatar or '/avatars/user.png'
+            } if conversation.customer else None,
             "unread_count": unread_count
         }
+        
+        # 如果有最后一条消息，按照MessageInfo模型格式化
+        if last_message:
+            # 获取发送者信息
+            sender_name = "系统"
+            if last_message.sender_type == "ai":
+                sender_name = "AI助手"
+            elif last_message.sender:
+                sender_name = last_message.sender.username
+            
+            sender_info = {
+                "id": last_message.sender_id or "system",
+                "name": sender_name,
+                "avatar": last_message.sender.avatar if last_message.sender else None,
+                "type": last_message.sender_type
+            }
+            
+            result["last_message"] = {
+                "id": last_message.id,
+                "conversation_id": last_message.conversation_id,
+                "content": last_message.content,
+                "type": last_message.type or "text",  # 确保有消息类型
+                "sender": sender_info,
+                "timestamp": last_message.timestamp,
+                "is_read": last_message.is_read,
+                "is_important": last_message.is_important
+            }
+        else:
+            result["last_message"] = None
+        
+        return result
     
     def search_conversations(
         self,

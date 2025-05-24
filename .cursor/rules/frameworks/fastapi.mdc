@@ -1,6 +1,6 @@
 ---
 description: 
-globs: 
+globs: **/*.py
 alwaysApply: false
 ---
 ---
@@ -13,7 +13,7 @@ alwaysApply: false
 
 - 为所有函数参数和返回值使用类型提示
 - 使用 Pydantic 模型进行请求和响应验证
-- 在路径操作装饰器中使用适当的 HTTP 方法（@app.get、@app.post 等）
+- 在路径操作装饰器中使用适当的 HTTP 方法（@router.get、@router.post 等）
 - 使用依赖注入实现共享逻辑，如数据库连接和身份验证
 - 使用后台任务（background tasks）进行非阻塞操作
 - 使用适当的状态码进行响应（201 表示创建，404 表示未找到等）
