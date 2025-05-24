@@ -1,0 +1,41 @@
+---
+description: 
+globs: **/schemas/*.py
+alwaysApply: false
+---
+### Schema 类命名规范
+1. 基础模型 (Base Models)
+* 格式：{领域名}Base
+* 示例：
+    * MessageBase - 消息基础模型
+    * ConversationBase - 会话基础模型
+    * CustomerProfileBase - 客户档案基础模型
+2. 创建请求模型 (Create Models)
+* 格式：{领域名}Create
+* 示例：
+    * MessageCreate - 创建消息的请求模型
+    * ConversationCreate - 创建会话的请求模型
+3. 完整信息模型 (Info Models)
+* 格式：{领域名}Info
+* 示例：
+    * MessageInfo - 消息完整模型
+    * ConversationInfo - 会话完整模型
+    * CustomerProfileInfo - 客户档案完整模型
+4. 特殊功能模型
+* 格式：{功能描述}{Model类型}
+* 示例：
+    * MessageSender - 消息发送者信息
+    * WebSocketMessage - WebSocket消息模型
+### 命名规范总结
+1. 一致性原则：同一领域的模型使用相同的前缀
+2. 功能明确：后缀清楚表明模型的用途
+    * Base - 基础字段，用于继承
+    * Create - 创建操作的输入模型
+    * Info - 完整的响应模型，包含所有字段
+3. 语义清晰：类名能直接反映其用途和包含的数据
+4. 避免冲突：与数据库模型类区分开来（数据库模型通常不带后缀）
+5. 这种命名规范的优势：
+可预测性：开发者能根据命名推断模型用途
+* 可维护性：清晰的分层便于代码维护
+
+* 可扩展性：容易添加新的模型类型（如 Update、Patch 等）

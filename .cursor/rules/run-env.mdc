@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+- 请在 PowerShell 运行， PowerShell 不支持 '&&' 符号
+- 请在 venv 虚拟环境 和 \api 目录下启动后端程序
+
+- 请在 \web 目录下启动前端程序

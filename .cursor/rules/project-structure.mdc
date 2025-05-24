@@ -3,8 +3,6 @@ description: 项目结构说明
 globs: 
 alwaysApply: false
 ---
-- 请生成 PowerShell 兼容的脚本, 在执行python相关命令时请在激活的虚拟环境中运行
-
 # 项目结构与导航规则
 
 本项目为医美智能服务系统，采用前后端分离、领域驱动设计，核心文档和代码结构如下：

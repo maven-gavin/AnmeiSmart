@@ -24,7 +24,7 @@ class MessageCreate(MessageBase):
     sender_type: Literal["customer", "consultant", "doctor", "ai", "system"]
 
 
-class Message(MessageBase):
+class MessageInfo(MessageBase):
     """消息完整模型"""
     model_config = ConfigDict(from_attributes=True)
 
@@ -47,7 +47,7 @@ class ConversationCreate(ConversationBase):
     pass
 
 
-class Conversation(ConversationBase):
+class ConversationInfo(ConversationBase):
     """会话完整模型"""
     model_config = ConfigDict(
         from_attributes=True,
@@ -71,7 +71,7 @@ class Conversation(ConversationBase):
     )
 
     id: str
-    last_message: Optional[Message] = None
+    last_message: Optional["MessageInfo"] = None
     created_at: datetime
     updated_at: datetime
     is_active: bool = True
@@ -86,7 +86,7 @@ class CustomerProfileBase(BaseModel):
     contact: Optional[str] = None
 
 
-class CustomerProfile(CustomerProfileBase):
+class CustomerProfileInfo(CustomerProfileBase):
     """客户档案完整模型"""
     model_config = ConfigDict(from_attributes=True)
 
