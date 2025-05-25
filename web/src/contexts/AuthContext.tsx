@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { AuthUser, UserRole } from '@/types/auth';
 import { authService } from '@/service/authService';
@@ -26,110 +26,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [tokenCheckInterval, setTokenCheckInterval] = useState<NodeJS.Timeout | null>(null);
 
-  // 校验并刷新Token
-  const validateAndRefreshToken = async () => {
+  // 校验并刷新Token，使用useCallback优化
+  const validateAndRefreshToken = useCallback(async () => {
     try {
-      const currentToken = authService.getToken();
+      // 使用authService.getValidToken代替手动检查和刷新逻辑
+      const validToken = await authService.getValidToken();
       
-      // 如果没有token，直接返回
-      if (!currentToken) return;
-      
-      // 检查token是否过期或即将过期
-      if (authService.isTokenExpired(currentToken)) {
-        console.log('Token已过期或即将过期，尝试刷新');
-        try {
-          // 尝试刷新token
-          const newToken = await authService.refreshToken();
-          setToken(newToken);
-          console.log('Token刷新成功');
-        } catch (err) {
-          console.error('Token刷新失败，需要重新登录', err);
-          
-          // 确保只在无法恢复的错误时才登出
-          if (err instanceof Error && 
-              (err.message.includes('无效的令牌') || 
-               err.message.includes('已达到最大重试次数'))) {
-            console.log('认证错误无法恢复，执行登出');
-            await logout();
-          } else {
-            console.warn('认证错误可能是暂时的，不立即登出');
-            // 设置错误状态，但不立即登出
-            setError('认证会话暂时异常，请稍后再试');
-            
-            // 5分钟后再次尝试
-            setTimeout(validateAndRefreshToken, 5 * 60 * 1000);
-          }
+      // 如果返回有效token，更新状态
+      if (validToken) {
+        setToken(validToken);
+      } else {
+        // 如果没有有效token（refreshToken失败或没有token），清除用户状态
+        setUser(null);
+        setToken(null);
+        
+        // 如果不在登录页面，重定向到登录页
+        if (!pathname.startsWith('/login')) {
+          router.push('/login');
         }
       }
     } catch (err) {
       console.error('验证Token时出错', err);
+      setError('认证会话暂时异常，请稍后再试');
     }
-  };
+  }, [pathname, router]);
 
-  // 初始化时检查本地存储的认证信息
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const storedUser = authService.getCurrentUser();
-        const storedToken = authService.getToken();
-        
-        // 设置初始状态
-        setUser(storedUser);
-        setToken(storedToken);
-        
-        if (storedUser && storedToken) {
-          // 验证token有效性，但不要在这里重定向，避免闪烁
-          if (authService.isTokenExpired(storedToken)) {
-            console.log('存储的Token已过期，尝试刷新');
-            try {
-              // 尝试刷新token，但保持当前状态不变，避免闪烁
-              const newToken = await authService.refreshToken();
-              setToken(newToken);
-            } catch (err) {
-              console.error('Token刷新失败，需要重新登录', err);
-              // 刷新失败，清除认证信息，但不立即重定向
-              await authService.logout();
-              setUser(null);
-              setToken(null);
-            }
-          }
-        }
-      } catch (err) {
-        console.error('初始化认证状态失败', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // 只有在第一次加载时执行初始化
-    initAuth();
-    
-    // 设置定时器，定期检查token，减少检查频率避免频繁刷新
-    const interval = setInterval(validateAndRefreshToken, 10 * 60 * 1000); // 每10分钟检查一次
-    setTokenCheckInterval(interval);
-    
-    return () => {
-      // 清理定时器
-      if (tokenCheckInterval) {
-        clearInterval(tokenCheckInterval);
-      }
-    };
-  }, []);
-
-  // 添加单独的重定向逻辑，与初始化状态分离
-  useEffect(() => {
-    // 只有在确认加载完成后才检查重定向
-    if (!loading) {
-      const needsLogin = !user && !pathname.startsWith('/login');
-      if (needsLogin) {
-        console.log('用户未登录，重定向到登录页');
-        router.push('/login');
-      }
-    }
-  }, [user, loading, pathname, router]);
-
-  // 登录
-  const login = async (username: string, password: string) => {
+  // 登录函数，使用useCallback优化
+  const login = useCallback(async (username: string, password: string) => {
     setLoading(true);
     setError(null);
     
@@ -143,27 +66,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // 退出登录
-  const logout = async () => {
+  // 退出登录函数，使用useCallback优化
+  const logout = useCallback(async () => {
     setLoading(true);
     
     try {
       await authService.logout();
       setUser(null);
       setToken(null);
-      setError(null); // 清除可能存在的错误状态
+      setError(null);
       
-      // 清除token检查定时器
       if (tokenCheckInterval) {
         clearInterval(tokenCheckInterval);
         setTokenCheckInterval(null);
       }
       
-      // 重定向到登录页
       if (!pathname.startsWith('/login')) {
-        console.log('用户已登出，重定向到登录页');
         router.push('/login');
       }
     } catch (err) {
@@ -171,10 +91,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [pathname, router, tokenCheckInterval]);
 
-  // 切换角色
-  const switchRole = async (role: UserRole) => {
+  // 切换角色函数，使用useCallback优化
+  const switchRole = useCallback(async (role: UserRole) => {
     if (!user) {
       setError('用户未登录');
       return;
@@ -191,20 +111,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  // 初始化认证状态
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        const storedUser = authService.getCurrentUser();
+        // 使用getValidToken替代手动检查token有效性
+        const validToken = await authService.getValidToken();
+        
+        setUser(storedUser);
+        setToken(validToken);
+        
+        // 如果没有有效token但有存储的用户信息，清除用户信息
+        if (!validToken && storedUser) {
+          setUser(null);
+        }
+      } catch (err) {
+        console.error('初始化认证状态失败', err);
+        // 出错时清除状态
+        setUser(null);
+        setToken(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
+    
+    // 定期检查token
+    const interval = setInterval(validateAndRefreshToken, 10 * 60 * 1000);
+    setTokenCheckInterval(interval);
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [validateAndRefreshToken]);
+
+  // 路由保护逻辑
+  useEffect(() => {
+    if (!loading) {
+      const needsLogin = !user && !pathname.startsWith('/login');
+      if (needsLogin) {
+        router.push('/login');
+      }
+    }
+  }, [user, loading, pathname, router]);
+
+  // 使用useMemo优化Context值，避免不必要的重渲染
+  const contextValue = useMemo(() => ({
+    user,
+    token,
+    loading,
+    error,
+    login,
+    logout,
+    switchRole,
+  }), [user, token, loading, error, login, logout, switchRole]);
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        loading,
-        error,
-        login,
-        logout,
-        switchRole,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
@@ -215,7 +182,7 @@ export function useAuth() {
   const context = useContext(AuthContext);
   
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useAuth必须在AuthProvider内部使用');
   }
   
   return context;
@@ -235,9 +202,11 @@ export function withAuth<P extends object>(Component: React.ComponentType<P>) {
     }, [user, loading, router, pathname]);
     
     if (loading) {
-      return <div className="flex h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
-      </div>;
+      return (
+        <div className="flex h-screen items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
+        </div>
+      );
     }
     
     return user ? <Component {...props} /> : null;
