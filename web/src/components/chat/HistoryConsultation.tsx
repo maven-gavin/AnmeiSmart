@@ -20,7 +20,12 @@ export default function HistoryConsultation({ customerId, onClose }: HistoryCons
   useEffect(() => {
     const loadConsultationHistory = async () => {
       const history = await getCustomerConsultationHistory(customerId);
-      setConsultationHistory(await history);
+      // 按日期降序排序
+      const sortedHistory = [...history].sort((a, b) => 
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      setConsultationHistory(sortedHistory);
+      setLoading(false);
     };
     
     if (customerId) {
@@ -60,6 +65,11 @@ export default function HistoryConsultation({ customerId, onClose }: HistoryCons
         grouped[history.type] = [];
       }
       grouped[history.type].push(history);
+    });
+    
+    // 确保每个组内的记录也是按时间倒序排序的
+    Object.keys(grouped).forEach(type => {
+      grouped[type].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     });
     
     return grouped;

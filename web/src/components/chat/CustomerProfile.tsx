@@ -30,6 +30,14 @@ export default function CustomerProfile({ customerId = '101', conversationId }: 
         
         if (profileData) {
           console.log('获取客户档案成功:', profileData);
+          
+          // 确保咨询历史按时间倒序排序
+          if (profileData.consultationHistory && profileData.consultationHistory.length > 0) {
+            profileData.consultationHistory.sort((a, b) => 
+              new Date(b.date).getTime() - new Date(a.date).getTime()
+            );
+          }
+          
           setProfile(profileData);
         } else {
           setError('未找到客户档案');
