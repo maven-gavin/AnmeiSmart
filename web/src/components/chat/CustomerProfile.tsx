@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { type CustomerProfile as ICustomerProfile } from '@/types/chat';
-import { mockCustomerProfiles } from '@/service/mockData';
+import { getCustomerProfile } from '@/service/chatService';
 
 interface CustomerProfileProps {
   customerId?: string;
@@ -12,26 +12,44 @@ interface CustomerProfileProps {
 export default function CustomerProfile({ customerId = '101', conversationId }: CustomerProfileProps) {
   const [profile, setProfile] = useState<ICustomerProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'basic' | 'history' | 'risk'>('basic');
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedHistory, setSelectedHistory] = useState<ICustomerProfile['consultationHistory'][0] | null>(null);
   
-  // 模拟从API获取客户档案
+  // 从API获取客户档案
   useEffect(() => {
     const fetchProfile = async () => {
       setLoading(true);
+      setError(null);
       
-      // 模拟API调用延迟
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // 如果有会话ID，可以根据会话ID获取客户信息
-      // 这里仍使用 customerId 进行模拟，实际应用中可以使用 conversationId 查询
-      const profileData = mockCustomerProfiles[customerId];
-      setProfile(profileData || null);
-      setLoading(false);
+      try {
+        console.log(`开始获取客户档案，客户ID: ${customerId}`);
+        // 使用API获取客户档案
+        const profileData = await getCustomerProfile(customerId);
+        
+        if (profileData) {
+          console.log('获取客户档案成功:', profileData);
+          setProfile(profileData);
+        } else {
+          setError('未找到客户档案');
+          console.error('未找到客户档案');
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : '获取客户档案失败';
+        setError(errorMessage);
+        console.error('获取客户档案失败:', error);
+      } finally {
+        setLoading(false);
+      }
     };
     
-    fetchProfile();
+    if (customerId) {
+      fetchProfile();
+    } else {
+      setLoading(false);
+      setProfile(null);
+    }
   }, [customerId, conversationId]);
   
   // 打开历史咨询详情
@@ -50,6 +68,14 @@ export default function CustomerProfile({ customerId = '101', conversationId }: 
     return (
       <div className="flex h-full items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent"></div>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-gray-500">{error}</p>
       </div>
     );
   }

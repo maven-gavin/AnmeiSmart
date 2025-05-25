@@ -23,7 +23,8 @@ def init_db():
         # 导入所有模型以确保它们被包含在Base.metadata中
         from app.db.models.base_model import BaseModel
         from app.db.models.user import User, Role
-        from app.db.models.chat import Conversation, Message, CustomerProfile
+        from app.db.models.customer import Customer, CustomerProfile
+        from app.db.models.chat import Conversation, Message
         from app.db.models.system import SystemSettings, AIModelConfig
         
         # 导入和使用Base以创建所有表

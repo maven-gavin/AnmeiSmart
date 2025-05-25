@@ -22,10 +22,12 @@ from pathlib import Path
 
 try:
     from sqlalchemy.orm import Session
-    from app.db.models.user import User, Role, Customer, Doctor, Consultant, Operator, Administrator
+    from app.db.models.user import User, Role, Doctor, Consultant, Operator, Administrator
+    from app.db.models.customer import Customer, CustomerProfile
     from app.db.base import get_db, engine
     from app.crud import crud_user
-    from app.schemas.user import UserCreate, CustomerBase, DoctorBase, ConsultantBase, OperatorBase, AdministratorBase
+    from app.schemas.user import UserCreate, DoctorBase, ConsultantBase, OperatorBase, AdministratorBase
+    from app.schemas.customer import CustomerBase
     from app.db.uuid_utils import (
         user_id, role_id, conversation_id, message_id, profile_id, system_id, model_id
     )
@@ -254,18 +256,9 @@ async def update_user_extended_info(
                 setattr(consultant, key, value)
         
     # 更新顾客信息
-    if "customer" in roles and customer_info and (not user.customer or force_update):
-        if not user.customer:
-            customer = Customer(user_id=user.id)
-            db.add(customer)
-            logger.info(f"  - 添加顾客扩展信息")
-        else:
-            customer = user.customer
-            logger.info(f"  - 更新顾客扩展信息")
-            
-        for key, value in customer_info.model_dump().items():
-            if value is not None:
-                setattr(customer, key, value)
+    if "customer" in roles and customer_info:
+        # 使用单独的函数处理客户信息
+        await update_customer_info(db, user.id, customer_info, force_update)
         
     # 更新运营人员信息
     if "operator" in roles and operator_info and (not user.operator or force_update):
@@ -297,6 +290,40 @@ async def update_user_extended_info(
                 
     db.commit()
 
+async def update_customer_info(
+    db: Session,
+    user_id: str,
+    customer_info: CustomerBase,
+    force_update: bool = False
+) -> None:
+    """更新客户信息
+    
+    Args:
+        db: 数据库会话
+        user_id: 用户ID
+        customer_info: 客户信息
+        force_update: 是否强制更新现有数据
+    """
+    # 查找现有客户信息
+    customer = db.query(Customer).filter(Customer.user_id == user_id).first()
+    
+    # 如果不存在或强制更新
+    if not customer:
+        customer = Customer(user_id=user_id)
+        db.add(customer)
+        logger.info(f"  - 添加顾客扩展信息")
+    elif force_update:
+        logger.info(f"  - 更新顾客扩展信息")
+    else:
+        return  # 如果存在且不强制更新，则不做任何操作
+    
+    # 更新客户信息
+    for key, value in customer_info.model_dump().items():
+        if value is not None:
+            setattr(customer, key, value)
+    
+    db.commit()
+
 async def create_system_test_data(db: Session) -> None:
     """创建系统测试数据，比如聊天记录、系统设置等"""
     logger.info("创建系统测试数据")
@@ -310,7 +337,8 @@ async def create_test_conversations(db: Session) -> None:
     """
     创建测试会话和消息数据
     """
-    from app.db.models.chat import Conversation, Message, CustomerProfile
+    from app.db.models.chat import Conversation, Message
+    from app.db.models.customer import CustomerProfile
     from app.db.uuid_utils import conversation_id, message_id, profile_id
     from datetime import datetime, timedelta
     
@@ -354,30 +382,100 @@ async def create_test_conversations(db: Session) -> None:
     
     logger.info(f"AI助手ID: {ai_id}")
     
+    # 创建或获取客户信息
+    customer1_info = db.query(Customer).filter(Customer.user_id == customer1.id).first()
+    customer2_info = db.query(Customer).filter(Customer.user_id == customer2.id).first()
+    
+    if not customer1_info or not customer2_info:
+        logger.warning("找不到测试顾客扩展信息，无法创建档案")
+        return
+    
     # 创建或获取客户档案
-    profile1 = db.query(CustomerProfile).filter(CustomerProfile.user_id == customer1.id).first()
+    profile1 = db.query(CustomerProfile).filter(CustomerProfile.customer_id == customer1.id).first()
     if not profile1:
         logger.info(f"为客户 {customer1.username} 创建档案")
+        
+        # 李小姐的风险提示
+        risk_notes = [
+            {
+                "type": "药物过敏",
+                "description": "对青霉素有过敏反应，建议避免使用含青霉素的药物",
+                "level": "high"
+            },
+            {
+                "type": "敏感肌肤",
+                "description": "皮肤较敏感，过去对某些护肤品有过敏反应",
+                "level": "medium"
+            }
+        ]
+        
+        # 李小姐的咨询历史
+        consultation_history = [
+            {
+                "date": "2023-05-15",
+                "type": "面部护理",
+                "description": "咨询了敏感肌肤的护理方案，推荐了温和型护肤品，避免含有酒精和香料的产品。建议早晚使用温和洁面乳，保湿霜，以及防晒霜。"
+            },
+            {
+                "date": "2023-07-22",
+                "type": "双眼皮咨询",
+                "description": "讨论了双眼皮手术的可行性，分析了埋线双眼皮和切开双眼皮的利弊。基于客户眼部条件，建议考虑切开双眼皮以获得更持久的效果。安排了与整形外科医生的面诊。"
+            },
+            {
+                "date": "2023-10-08",
+                "type": "术后复查",
+                "description": "双眼皮手术后复查，恢复情况良好，轻微水肿属于正常现象。建议继续按医嘱护理，避免剧烈运动，定期复查。"
+            }
+        ]
+        
         profile1 = CustomerProfile(
             id=profile_id(),
-            user_id=customer1.id,
+            customer_id=customer1.id,
             medical_history="无重大疾病史，2年前做过双眼皮手术",
             allergies="对青霉素过敏",
             preferences="偏好自然风格，不喜欢夸张效果",
-            tags="双眼皮,鼻整形,敏感肌"
+            tags="双眼皮,鼻整形,敏感肌",
+            risk_notes=risk_notes,
+            consultation_history=consultation_history
         )
         db.add(profile1)
     
-    profile2 = db.query(CustomerProfile).filter(CustomerProfile.user_id == customer2.id).first()
+    profile2 = db.query(CustomerProfile).filter(CustomerProfile.customer_id == customer2.id).first()
     if not profile2:
         logger.info(f"为客户 {customer2.username} 创建档案")
+        
+        # 王先生的风险提示
+        risk_notes = [
+            {
+                "type": "高血压",
+                "description": "客户有高血压病史，当前处于药物控制状态，医美操作时需注意血压监测",
+                "level": "medium"
+            }
+        ]
+        
+        # 王先生的咨询历史
+        consultation_history = [
+            {
+                "date": "2023-06-10",
+                "type": "瘦脸针咨询",
+                "description": "咨询了瘦脸针的效果和持续时间。针对客户脸型和需求，建议在咬肌部位注射肉毒素，预计效果可持续4-6个月。已告知可能的副作用和注意事项。"
+            },
+            {
+                "date": "2023-11-30",
+                "type": "皮肤保养",
+                "description": "客户面部出现干燥和细纹问题，制定了针对性的护肤方案。建议使用含有透明质酸和肽的产品，早晚各一次，并进行适当的皮肤补水治疗。"
+            }
+        ]
+        
         profile2 = CustomerProfile(
             id=profile_id(),
-            user_id=customer2.id,
+            customer_id=customer2.id,
             medical_history="有高血压，定期服药控制",
             allergies="无已知过敏",
             preferences="喜欢韩式风格，追求精致效果",
-            tags="瘦脸针,玻尿酸,皮肤保养"
+            tags="瘦脸针,玻尿酸,皮肤保养",
+            risk_notes=risk_notes,
+            consultation_history=consultation_history
         )
         db.add(profile2)
     

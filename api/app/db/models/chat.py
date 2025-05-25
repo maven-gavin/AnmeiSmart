@@ -1,9 +1,9 @@
-from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, Enum
+from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, Enum, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
 from app.db.models.base_model import BaseModel
-from app.db.uuid_utils import conversation_id, message_id, profile_id
+from app.db.uuid_utils import conversation_id, message_id
 
 
 class Conversation(BaseModel):
@@ -38,19 +38,4 @@ class Message(BaseModel):
 
     # 关联关系
     conversation = relationship("Conversation", back_populates="messages")
-    sender = relationship("User", foreign_keys=[sender_id])
-
-
-class CustomerProfile(BaseModel):
-    """客户档案数据库模型，扩展用户信息"""
-    __tablename__ = "customer_profiles"
-
-    id = Column(String(36), primary_key=True, default=profile_id)
-    user_id = Column(String(36), ForeignKey("users.id"), unique=True, nullable=False)
-    medical_history = Column(Text, nullable=True)
-    allergies = Column(Text, nullable=True)  # 存储为JSON字符串
-    preferences = Column(Text, nullable=True)
-    tags = Column(Text, nullable=True)  # 存储为JSON字符串
-
-    # 关联关系
-    user = relationship("User", backref="profile", uselist=False) 
+    sender = relationship("User", foreign_keys=[sender_id]) 

@@ -5,8 +5,10 @@
 from . import user
 from . import chat
 from . import system
+from . import customer
 
 # 可以在这里添加导出特定模型类的快捷方式
-from .user import User, Role, Customer, Doctor, Consultant, Operator, Administrator
-from .chat import Conversation, Message, CustomerProfile
+from .user import User, Role, Doctor, Consultant, Operator, Administrator
+from .chat import Conversation, Message
+from .customer import Customer, CustomerProfile
 from .system import SystemSettings, AIModelConfig 

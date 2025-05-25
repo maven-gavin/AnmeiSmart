@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, Table, Text
+from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, Table, Text, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -47,18 +47,6 @@ class User(BaseModel):
     consultant = relationship("Consultant", back_populates="user", uselist=False, cascade="all, delete-orphan")
     operator = relationship("Operator", back_populates="user", uselist=False, cascade="all, delete-orphan")
     administrator = relationship("Administrator", back_populates="user", uselist=False, cascade="all, delete-orphan")
-
-class Customer(BaseModel):
-    """顾客特有信息表"""
-    __tablename__ = "customers"
-    
-    user_id = Column(String(36), ForeignKey("users.id"), unique=True, nullable=False)
-    medical_history = Column(Text, nullable=True)
-    allergies = Column(Text, nullable=True)
-    preferences = Column(Text, nullable=True)
-    
-    # 关联到基础用户表
-    user = relationship("User", back_populates="customer")
 
 class Doctor(BaseModel):
     """医生特有信息表"""

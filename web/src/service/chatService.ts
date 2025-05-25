@@ -937,7 +937,7 @@ export const getCustomerProfile = async (customerId: string): Promise<CustomerPr
       return null;
     }
     
-    // 从后端API获取客户档案
+    // 使用正确的RESTful风格路径获取客户档案
     const response = await fetch(`${API_BASE_URL}/customers/${customerId}/profile`, {
       method: 'GET',
       headers: {
@@ -947,6 +947,9 @@ export const getCustomerProfile = async (customerId: string): Promise<CustomerPr
     });
     
     if (!response.ok) {
+      console.error(`获取客户档案失败，状态码: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`错误详情: ${errorText}`);
       throw new Error(`获取客户档案失败: ${response.status}`);
     }
     
@@ -1370,8 +1373,8 @@ export const getCustomerList = async (): Promise<Customer[]> => {
       throw new Error("未登录，无法获取客户列表");
     }
     
-    // 从后端API获取客户列表
-    const response = await fetch(`${API_BASE_URL}/chat/customers`, {
+    // 从后端API获取客户列表，使用正确的RESTful路径
+    const response = await fetch(`${API_BASE_URL}/customers`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -1388,7 +1391,7 @@ export const getCustomerList = async (): Promise<Customer[]> => {
     // 格式化客户数据
     const customers: Customer[] = data.map((customer: any) => ({
       id: customer.id,
-      name: customer.username || customer.name || "未知用户",
+      name: customer.name || "未知用户",
       avatar: customer.avatar || '/avatars/user.png',
       isOnline: customer.is_online || false,
       lastMessage: customer.last_message?.content || '',
@@ -1414,8 +1417,8 @@ export const getCustomerConversations = async (customerId: string): Promise<Conv
       throw new Error("未登录，无法获取客户会话");
     }
     
-    // 从后端API获取客户会话列表
-    const response = await fetch(`${API_BASE_URL}/chat/customers/${customerId}/conversations`, {
+    // 从后端API获取客户会话列表，保持在聊天领域但路径更符合RESTful
+    const response = await fetch(`${API_BASE_URL}/chat/conversations?customer_id=${customerId}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,

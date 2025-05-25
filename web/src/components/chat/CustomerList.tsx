@@ -62,15 +62,19 @@ export default function CustomerList({
   // 处理客户选择
   const handleCustomerSelect = async (customer: Customer) => {
     try {
-      // 获取该客户的当前活跃会话
+      // 使用更新后的API获取该客户的会话列表
       const conversations = await getCustomerConversations(customer.id);
+      
+      // 找到活跃的会话或使用第一个会话
       const activeConversation = conversations.find(conv => conv.status === 'active') || conversations[0];
       
       if (onCustomerSelect) {
+        // 如果找到会话，传递会话ID；否则只传递客户ID
         onCustomerSelect(customer.id, activeConversation?.id);
       }
     } catch (error) {
       console.error('获取客户会话失败:', error);
+      // 出错时只传递客户ID
       if (onCustomerSelect) {
         onCustomerSelect(customer.id);
       }

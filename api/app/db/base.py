@@ -58,7 +58,8 @@ def init_db():
     
     # 在这里导入模型，避免循环导入
     from app.db.models.user import User, Role
-    from app.db.models.chat import Conversation, Message, CustomerProfile
+    from app.db.models.chat import Conversation, Message
+    from app.db.models.customer import Customer, CustomerProfile
     from app.db.models.system import SystemSettings, AIModelConfig
     Base.metadata.create_all(bind=engine)
 

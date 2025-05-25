@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 from typing import Any, Union, Optional
-from passlib.context import CryptContext
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -9,8 +8,7 @@ import logging
 
 from app.core.config import get_settings
 from app.db.base import get_db
-from app.crud import crud_user
-from app.db.models.user import User
+from app.core.password_utils import verify_password
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -19,16 +17,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 settings = get_settings()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """验证密码"""
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password: str) -> str:
-    """生成密码哈希"""
-    return pwd_context.hash(password)
 
 def verify_token(token: str) -> Optional[str]:
     """
@@ -112,7 +101,7 @@ def create_access_token(
 async def get_current_user(
     db: Session = Depends(get_db),
     token: str = Depends(oauth2_scheme)
-) -> User:
+) -> Any:
     """
     获取当前用户
     
@@ -168,8 +157,11 @@ async def get_current_user(
         logger.error(f"令牌验证过程中发生未知错误: {str(e)}")
         raise credentials_exception
     
+    # 避免循环导入
+    from app.crud import crud_user
+    
     logger.debug(f"尝试从数据库获取用户: user_id={user_id}")
-    user = await crud_user.get(db, user_id)
+    user = await crud_user.get(db, id=user_id)
     
     if user is None:
         logger.warning(f"无法在数据库中找到用户: user_id={user_id}")
@@ -205,7 +197,7 @@ def check_role_permission(required_roles: list[str] = None):
     Returns:
         函数: 检查用户角色的依赖函数
     """
-    async def check_permission(current_user: User = Depends(get_current_user)):
+    async def check_permission(current_user: Any = Depends(get_current_user)):
         # 如果未指定所需角色，允许任何已认证用户访问
         if not required_roles:
             logger.debug(f"未指定所需角色，允许用户 {current_user.id} 访问")

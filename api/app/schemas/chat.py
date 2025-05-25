@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Dict, Any
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -78,28 +78,6 @@ class ConversationInfo(ConversationBase):
     customer: Optional[dict] = Field(None, description="客户信息")
 
 
-class CustomerProfileBase(BaseModel):
-    """客户档案基础模型"""
-    name: str
-    gender: Optional[str] = None
-    age: Optional[int] = None
-    contact: Optional[str] = None
-
-
-class CustomerProfileInfo(CustomerProfileBase):
-    """客户档案完整模型"""
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    avatar: Optional[str] = None
-    medical_history: Optional[str] = None
-    allergies: Optional[List[str]] = None
-    preferences: Optional[str] = None
-    tags: Optional[List[str]] = None
-    created_at: datetime
-    updated_at: datetime
-
-
 class WebSocketMessage(BaseModel):
     """WebSocket消息模型"""
     action: Literal[
@@ -109,4 +87,4 @@ class WebSocketMessage(BaseModel):
     data: Optional[dict] = None
     conversation_id: Optional[str] = None
     sender_id: Optional[str] = None
-    timestamp: Optional[datetime] = None 
+    timestamp: Optional[datetime] = None

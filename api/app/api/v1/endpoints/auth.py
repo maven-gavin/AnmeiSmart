@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Body
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
+import logging
 
 from app.core.config import get_settings
 from app.core.security import create_access_token, get_current_user
@@ -15,6 +16,8 @@ from app.schemas.user import UserCreate, UserUpdate, UserResponse, SwitchRoleReq
 
 router = APIRouter()
 settings = get_settings()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 @router.post("/login", response_model=Token)
 async def login(
@@ -26,33 +29,41 @@ async def login(
     
     使用邮箱和密码登录系统，返回JWT令牌
     """
-    user = await crud_user.authenticate(
-        db, email=form_data.username, password=form_data.password
-    )
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="邮箱或密码错误",
-            headers={"WWW-Authenticate": "Bearer"},
+    logger.debug(f"尝试用户登录: username={form_data.username}")
+    try:
+        user = await crud_user.authenticate(
+            db, username_or_email=form_data.username, password=form_data.password
         )
-    elif not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="用户未激活"
+        if not user:
+            logger.warning(f"登录失败: 用户名或密码错误 - username={form_data.username}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="邮箱或密码错误",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        elif not user.is_active:
+            logger.warning(f"登录失败: 用户未激活 - username={form_data.username}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="用户未激活"
+            )
+        
+        # 获取用户的第一个角色作为默认活跃角色
+        active_role = user.roles[0].name if user.roles else None
+        logger.debug(f"用户登录成功: username={form_data.username}, user_id={user.id}, active_role={active_role}")
+        
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            subject=user.id, expires_delta=access_token_expires, active_role=active_role
         )
-    
-    # 获取用户的第一个角色作为默认活跃角色
-    active_role = user.roles[0].name if user.roles else None
-    
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        subject=user.id, expires_delta=access_token_expires, active_role=active_role
-    )
-    
-    return {
-        "access_token": access_token,
-        "token_type": "bearer"
-    }
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer"
+        }
+    except Exception as e:
+        logger.error(f"登录过程中发生异常: {str(e)}", exc_info=True)
+        raise
 
 @router.post("/register", response_model=UserResponse)
 async def register(

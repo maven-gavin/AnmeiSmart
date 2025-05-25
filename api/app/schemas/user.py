@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from app.schemas.customer import CustomerBase
 
 class RoleBase(BaseModel):
     """角色基础模型"""
@@ -32,12 +33,6 @@ class UserBase(BaseModel):
     phone: Optional[str] = None
     avatar: Optional[str] = None
     is_active: bool = True
-
-class CustomerBase(BaseModel):
-    """顾客信息基础模型"""
-    medical_history: Optional[str] = None
-    allergies: Optional[str] = None
-    preferences: Optional[str] = None
 
 class DoctorBase(BaseModel):
     """医生信息基础模型"""
@@ -105,13 +100,8 @@ class UserResponse(UserBase):
         # 构建扩展信息
         extended_info = ExtendedUserInfo()
         
-        if user.customer:
-            extended_info.customer_info = CustomerBase(
-                medical_history=user.customer.medical_history,
-                allergies=user.customer.allergies,
-                preferences=user.customer.preferences
-            )
-            
+        # 客户信息需要单独查询，不再通过user.customer直接访问
+        
         if user.doctor:
             extended_info.doctor_info = DoctorBase(
                 specialization=user.doctor.specialization,

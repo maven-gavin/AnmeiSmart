@@ -42,6 +42,7 @@ export interface Conversation {
   lastMessage?: Message;
   unreadCount: number;
   updatedAt: string;
+  status?: 'active' | 'inactive' | 'archived';
 }
 
 export interface CustomerProfile {
