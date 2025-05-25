@@ -6,7 +6,7 @@ import ChatLayout from '@/components/chat/ChatLayout'
 import ChatWindow from '@/components/chat/ChatWindow'
 import CustomerList from '@/components/chat/CustomerList'
 import CustomerProfile from '@/components/chat/CustomerProfile'
-import { getConversations, createConversation } from '@/service/chatService';
+import { getConversations, createConversation, getCustomerList, getCustomerConversations } from '@/service/chatService';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useAuth } from '@/contexts/AuthContext';
 import { authService } from '@/service/authService';
@@ -55,8 +55,24 @@ export default function ChatPageClient() {
   // 监听URL参数变化
   useEffect(() => {
     const urlCustomerId = searchParams?.get('customerId');
-    setSelectedCustomerId(urlCustomerId);
-  }, [searchParams]);
+    const urlConversationId = searchParams?.get('conversationId');
+    
+    console.log(`URL参数变化: customerId=${urlCustomerId}, conversationId=${urlConversationId}`);
+    
+    // 如果URL中的客户ID与当前选中的不同，更新选中状态
+    if (urlCustomerId !== selectedCustomerId) {
+      console.log(`更新选中的客户ID: ${urlCustomerId}`);
+      setSelectedCustomerId(urlCustomerId);
+    }
+    
+    // 如果URL中同时包含customerId和conversationId，但lastProcessedConversationIdRef不同，
+    // 说明这是一个新的会话选择，更新上次处理的会话ID
+    if (urlCustomerId && urlConversationId && 
+        lastProcessedConversationIdRef.current !== urlConversationId) {
+      console.log(`更新上次处理的会话ID: ${urlConversationId}`);
+      lastProcessedConversationIdRef.current = urlConversationId;
+    }
+  }, [searchParams, selectedCustomerId]);
 
   // 处理客户选择
   const handleCustomerSelect = (customerId: string, conversationId?: string) => {
@@ -111,6 +127,68 @@ export default function ChatPageClient() {
     
     const initializeChat = async () => {
       try {
+        // 如果已有conversationId和customerId，表示已经有特定的会话被选中
+        if (customerId && conversationId) {
+          console.log(`已有特定会话: 客户ID=${customerId}, 会话ID=${conversationId}`);
+          setSelectedCustomerId(customerId);
+          setIsLoading(false);
+          return;
+        }
+        
+        // 如果只有customerId但没有conversationId
+        if (customerId && !conversationId) {
+          console.log(`有客户ID但无会话ID: 客户ID=${customerId}，尝试获取该客户的会话`);
+          try {
+            const conversations = await getCustomerConversations(customerId);
+            if (conversations && conversations.length > 0) {
+              // 找到活跃的会话或使用第一个会话
+              const activeConversation = conversations.find(conv => conv.status === 'active') || conversations[0];
+              if (activeConversation) {
+                console.log(`找到客户${customerId}的会话:`, activeConversation.id);
+                // 更新URL，包含会话ID
+                router.push(`/consultant/chat?customerId=${customerId}&conversationId=${activeConversation.id}`, { scroll: false });
+                return;
+              }
+            } else {
+              console.log(`客户${customerId}没有会话记录`);
+            }
+          } catch (error) {
+            console.error(`获取客户${customerId}的会话失败:`, error);
+          }
+        }
+        
+        // 如果URL中没有客户ID参数，自动选择第一个客户
+        if (!customerId) {
+          console.log('URL中没有客户ID，尝试加载默认客户...');
+          try {
+            const customers = await getCustomerList();
+            if (customers && customers.length > 0) {
+              console.log('找到客户列表，选择第一个客户:', customers[0].name);
+              
+              // 获取该客户的会话
+              const conversations = await getCustomerConversations(customers[0].id);
+              console.log(`获取到客户${customers[0].id}的会话列表:`, conversations.length > 0 ? conversations.length + '个会话' : '无会话');
+              
+              // 找到活跃的会话或使用第一个会话
+              const activeConversation = conversations.find(conv => conv.status === 'active') || conversations[0];
+              
+              if (activeConversation) {
+                console.log('找到客户会话:', activeConversation.id);
+                // 自动导航到该客户的会话页面，确保同时传递customerId和conversationId
+                router.push(`/consultant/chat?customerId=${customers[0].id}&conversationId=${activeConversation.id}`, { scroll: false });
+              } else {
+                // 如果没有会话，只导航到客户页面
+                console.log('未找到客户会话，只选择客户:', customers[0].id);
+                router.push(`/consultant/chat?customerId=${customers[0].id}`, { scroll: false });
+              }
+            } else {
+              console.log('没有找到客户列表或客户列表为空');
+            }
+          } catch (error) {
+            console.error('加载默认客户失败:', error);
+          }
+        }
+        
         // 顾问端不需要自动创建会话，等待客户选择
         console.log('顾问聊天页面初始化完成，等待选择客户');
       } catch (err) {
@@ -139,7 +217,7 @@ export default function ChatPageClient() {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [conversationId, router, isLoading, error, authLoading, user]);
+  }, [conversationId, router, isLoading, error, authLoading, user, customerId]);
   
   // 监听认证状态变化，重置初始化状态
   useEffect(() => {

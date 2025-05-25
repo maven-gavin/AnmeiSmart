@@ -635,20 +635,24 @@ export const getAIResponse = async (conversationId: string, userMessage: Message
 };
 
 // 获取会话消息
-export const getConversationMessages = async (conversationId: string): Promise<Message[]> => {
-  // 检查是否已有针对该会话的请求正在进行
+export const getConversationMessages = async (conversationId: string, forceRefresh: boolean = false): Promise<Message[]> => {
+  // 获取缓存的消息
+  const cachedMessages = chatMessages[conversationId] || [];
+  
+  // 检查是否有未完成的请求
   if (isRequestingMessages[conversationId]) {
     console.log(`已有获取会话(${conversationId})消息请求正在进行，返回缓存数据`);
-    return chatMessages[conversationId] || [];
+    return cachedMessages.length > 0 ? cachedMessages : [];
   }
   
-  // 如果有本地缓存，检查缓存是否在有效期内
+  // 检查缓存时间
+  const lastRequestTime = lastMessagesRequestTime[conversationId] || 0;
   const now = Date.now();
-  const cachedMessages = chatMessages[conversationId] || [];
-  if (cachedMessages.length > 0 && lastMessagesRequestTime[conversationId] && 
-      (now - lastMessagesRequestTime[conversationId]) < MESSAGES_CACHE_TIME) {
-    console.log(`使用会话(${conversationId})消息缓存数据，距上次请求时间:`, 
-               now - lastMessagesRequestTime[conversationId], 'ms');
+  
+  // 如果未强制刷新且缓存有效，返回缓存数据
+  if (!forceRefresh && cachedMessages.length > 0 && (now - lastRequestTime) < MESSAGES_CACHE_TIME) {
+    const cacheAge = now - lastRequestTime;
+    console.log(`使用会话(${conversationId})消息缓存数据，距上次请求时间: ${cacheAge} ms 消息数量: ${cachedMessages.length}`);
     return cachedMessages;
   }
   
@@ -660,8 +664,10 @@ export const getConversationMessages = async (conversationId: string): Promise<M
     const token = authService.getToken();
     if (!token) {
       console.error("未登录，无法获取会话消息");
-      return cachedMessages;
+      return cachedMessages.length > 0 ? cachedMessages : [];
     }
+    
+    console.log(`开始获取会话(${conversationId})消息，跳过缓存...`);
     
     // 创建带超时的fetch请求
     const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 3000) => {
@@ -684,14 +690,20 @@ export const getConversationMessages = async (conversationId: string): Promise<M
       }
     };
     
+    // 添加时间戳参数避免缓存
+    const timestamp = Date.now();
+    const url = `${API_BASE_URL}/chat/conversations/${conversationId}/messages?nocache=${timestamp}`;
+    
     // 从后端API获取消息，添加超时处理
     const response = await fetchWithTimeout(
-      `${API_BASE_URL}/chat/conversations/${conversationId}/messages`, 
+      url, 
       {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
         }
       },
       5000 // 5秒超时
@@ -711,6 +723,13 @@ export const getConversationMessages = async (conversationId: string): Promise<M
     }
     
     const messages = await response.json();
+    console.log(`成功获取会话(${conversationId})消息，数量:`, messages.length);
+    
+    // 如果返回的消息为空，且缓存有数据，使用缓存
+    if (messages.length === 0 && cachedMessages.length > 0) {
+      console.log(`API返回空消息，但缓存有${cachedMessages.length}条消息，使用缓存`);
+      return cachedMessages;
+    }
     
     // 转换格式，适配前端格式
     const formattedMessages: Message[] = messages.map((msg: any) => ({
@@ -728,11 +747,14 @@ export const getConversationMessages = async (conversationId: string): Promise<M
       isRead: msg.is_read || false
     }));
     
-    // 更新本地缓存
-    chatMessages[conversationId] = formattedMessages;
-    
-    // 更新请求时间戳
-    lastMessagesRequestTime[conversationId] = Date.now();
+    // 更新本地缓存，只有在有数据时才更新
+    if (formattedMessages.length > 0) {
+      chatMessages[conversationId] = formattedMessages;
+      // 更新请求时间戳
+      lastMessagesRequestTime[conversationId] = Date.now();
+    } else {
+      console.log(`没有获取到消息，不更新缓存`);
+    }
     
     return formattedMessages;
   } catch (error) {
@@ -748,8 +770,8 @@ export const getConversationMessages = async (conversationId: string): Promise<M
       throw error;
     }
     
-    // 其他错误时返回缓存数据
-    return cachedMessages;
+    // 其他错误时返回缓存数据，但仅当缓存不为空时
+    return cachedMessages.length > 0 ? cachedMessages : [];
   } finally {
     // 重置请求标志
     isRequestingMessages[conversationId] = false;

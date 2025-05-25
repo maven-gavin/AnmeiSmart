@@ -58,22 +58,83 @@ export default function CustomerList({
       return () => clearInterval(interval);
     }
   }, [user]);
+  
+  // 自动选择默认客户
+  useEffect(() => {
+    // 确保客户列表已加载，并且当前没有选中的客户
+    if (!loading && customers.length > 0 && !selectedCustomerId && onCustomerSelect) {
+      console.log('CustomerList: 准备自动选择默认客户...');
+      
+      // 设置一个较长的延迟，确保不会与其他初始化逻辑冲突
+      const timer = setTimeout(() => {
+        // 再次检查是否仍然需要自动选择
+        if (!selectedCustomerId && customers.length > 0) {
+          console.log('CustomerList: 自动选择默认客户:', customers[0].name);
+          
+          // 延迟执行，确保DOM已更新且其他组件已准备好
+          // 这有助于确保选择客户和加载会话历史的顺序正确
+          setTimeout(() => {
+            // 自动选择第一个客户
+            handleCustomerSelect(customers[0]);
+          }, 100);
+        }
+      }, 500); // 增加延迟时间，确保页面其他部分已完成初始化
+      
+      return () => clearTimeout(timer);
+    }
+  }, [loading, customers, selectedCustomerId, onCustomerSelect]);
 
   // 处理客户选择
   const handleCustomerSelect = async (customer: Customer) => {
     try {
+      console.log(`选择客户: ${customer.name} (ID: ${customer.id})`);
+      
       // 使用更新后的API获取该客户的会话列表
       const conversations = await getCustomerConversations(customer.id);
+      console.log(`获取到客户 ${customer.id} 的会话列表:`, conversations.length > 0 ? conversations.length + '个会话' : '无会话');
       
-      // 找到活跃的会话或使用第一个会话
-      const activeConversation = conversations.find(conv => conv.status === 'active') || conversations[0];
+      // 找到活跃的会话或使用最近更新的会话
+      let selectedConversation = conversations.find(conv => conv.status === 'active');
+      
+      // 如果没有活跃会话，则按更新时间排序选择最近的会话
+      if (!selectedConversation && conversations.length > 0) {
+        // 按更新时间降序排序
+        const sortedConversations = [...conversations].sort((a, b) => {
+          // 使用可选链和nullish合并运算符确保安全访问
+          const dateA = new Date(a.updatedAt ?? '').getTime();
+          const dateB = new Date(b.updatedAt ?? '').getTime();
+          return dateB - dateA;
+        });
+        
+        console.log(`未找到活跃会话，按时间排序后选择最新会话: ${sortedConversations[0].id}`);
+        selectedConversation = sortedConversations[0];
+      } else if (selectedConversation) {
+        console.log(`找到活跃会话: ${selectedConversation.id}`);
+      } else if (conversations.length > 0) {
+        console.log(`无活跃会话且排序失败，使用第一个会话: ${conversations[0].id}`);
+        selectedConversation = conversations[0];
+      } else {
+        console.log(`客户 ${customer.id} 没有会话记录`);
+      }
       
       if (onCustomerSelect) {
-        // 如果找到会话，传递会话ID；否则只传递客户ID
-        onCustomerSelect(customer.id, activeConversation?.id);
+        if (selectedConversation) {
+          console.log(`为客户 ${customer.id} 选择会话: ${selectedConversation.id}`);
+          
+          // 确保在调用父组件回调之前等待会话选择完成
+          // 使用短延迟确保选择会话后的UI更新和状态同步
+          setTimeout(() => {
+            if (onCustomerSelect) {
+              onCustomerSelect(customer.id, selectedConversation!.id);
+            }
+          }, 100);
+        } else {
+          console.log(`客户 ${customer.id} 没有会话记录，只传递客户ID`);
+          onCustomerSelect(customer.id);
+        }
       }
     } catch (error) {
-      console.error('获取客户会话失败:', error);
+      console.error(`获取客户 ${customer.id} 会话失败:`, error);
       // 出错时只传递客户ID
       if (onCustomerSelect) {
         onCustomerSelect(customer.id);

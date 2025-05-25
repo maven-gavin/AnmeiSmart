@@ -10,7 +10,6 @@ import {
   getAIResponse,
   getConversationMessages,
   markMessageAsImportant,
-  getImportantMessages,
   takeoverConversation,
   switchBackToAI,
   isConsultantMode,
@@ -58,10 +57,18 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   
   // 监听props中的conversationId变化
   useEffect(() => {
-    if (conversationId !== undefined) {
+    if (conversationId) {
+      console.log(`ChatWindow props中的conversationId变化: ${conversationId}`);
       setCurrentConversationId(conversationId);
+    } else {
+      // 如果props中的conversationId为undefined，尝试从URL获取
+      const urlConversationId = searchParams?.get('conversationId');
+      if (urlConversationId && urlConversationId !== currentConversationId) {
+        console.log(`ChatWindow URL中的conversationId变化: ${urlConversationId}`);
+        setCurrentConversationId(urlConversationId);
+      }
     }
-  }, [conversationId]);
+  }, [conversationId, searchParams, currentConversationId]);
   
   // 获取身份验证上下文
   const { user } = useAuth();
@@ -124,6 +131,9 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   // 添加消息发送状态，与通用的isLoading分开
   const [isSending, setIsSending] = useState(false);
   
+  // 添加一个ref跟踪是否已经尝试加载消息
+  const hasTriedLoadingRef = useRef<{[key: string]: boolean}>({});
+  
   // 添加一个函数来根据时间戳格式化日期，以便分组显示
   const formatMessageDate = (timestamp: string): string => {
     const date = new Date(timestamp);
@@ -144,19 +154,26 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   // 监听会话ID变化，重新初始化聊天和WebSocket连接
   useEffect(() => {
     // 防止首次渲染或无用户时执行
-    if (!user || !currentConversationId) return;
+    if (!user || !currentConversationId) {
+      console.log('ChatWindow: 无用户或会话ID，跳过消息加载');
+      return;
+    }
     
-    console.log(`会话ID变化，重新初始化聊天: ${currentConversationId}`);
+    console.log(`ChatWindow: 会话ID变化，重新初始化聊天: ${currentConversationId}`);
     
     // 创建AbortController用于取消操作
     const abortController = new AbortController();
     
     // 立即设置加载状态
     setIsLoading(true);
+    setNetworkError(null);
     
     // 清空当前消息，避免显示上一个会话的消息
     setMessages([]);
     setImportantMessages([]);
+    
+    // 记录该会话ID已尝试加载
+    hasTriedLoadingRef.current[currentConversationId] = true;
     
     // 获取新会话的消息
     const loadMessages = async () => {
@@ -164,11 +181,40 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         // 如果已取消，不继续加载
         if (abortController.signal.aborted) return;
         
+        console.log(`开始加载会话 ${currentConversationId} 的消息...`);
+        
         // 先获取消息
-        const messages = await getConversationMessages(currentConversationId);
+        const messages = await getConversationMessages(currentConversationId, true); // 添加强制刷新参数
+        console.log(`获取到会话 ${currentConversationId} 的消息:`, messages.length);
         
         // 再次检查是否取消，避免在长时间请求后设置过时状态
         if (abortController.signal.aborted) return;
+        
+        // 确认获取到的消息数组不为空且有效
+        if (!messages || messages.length === 0) {
+          console.log(`没有获取到消息或消息为空，尝试重新获取...`);
+          // 短暂延迟后重试一次
+          setTimeout(async () => {
+            if (abortController.signal.aborted) return;
+            try {
+              const retryMessages = await getConversationMessages(currentConversationId, true);
+              console.log(`重试获取消息结果:`, retryMessages.length);
+              if (retryMessages && retryMessages.length > 0) {
+                setMessages(retryMessages);
+                // 获取重点消息
+                const important = retryMessages.filter(msg => msg.isImportant);
+                setImportantMessages(important);
+                // 消息加载完成后滚动到底部
+                setTimeout(scrollToBottom, 100);
+              }
+            } catch (retryError) {
+              console.error('重试获取消息失败:', retryError);
+            } finally {
+              setIsLoading(false);
+            }
+          }, 1000);
+          return;
+        }
         
         // 设置消息并移除加载状态
         setMessages(messages);
@@ -512,7 +558,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       
       // 获取消息
       try {
-        const messages = await getConversationMessages(currentConversationId);
+        const messages = await getConversationMessages(currentConversationId, true); // 使用强制刷新
         setMessages(messages);
         await fetchImportantMessages();
       } catch (error) {
@@ -871,7 +917,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       
       // 获取消息
       try {
-        const messages = await getConversationMessages(currentConversationId);
+        const messages = await getConversationMessages(currentConversationId, true); // 使用强制刷新
         setMessages(messages);
         
         // 获取重点消息
