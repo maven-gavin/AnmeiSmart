@@ -701,13 +701,17 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     if (!currentConversationId) return null;
     
     // 更新重点状态
-    const updatedMessage = markMessageAsImportant(currentConversationId, messageId, !currentStatus);
-    
-    if (updatedMessage) {
-      // 刷新消息和重点消息列表
-      fetchMessages();
-      fetchImportantMessages();
-    }
+    markMessageAsImportant(currentConversationId, messageId, !currentStatus)
+      .then(updatedMsg => {
+        if (updatedMsg) {
+          // 刷新消息和重点消息列表
+          fetchMessages();
+          fetchImportantMessages();
+        }
+      })
+      .catch(error => {
+        console.error('标记重点消息失败:', error);
+      });
   }
   
   // 切换是否只显示重点消息
@@ -1240,22 +1244,33 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     
     try {
       // 切换顾问模式
-    if (isConsultantTakeover) {
+      if (isConsultantTakeover) {
         // 切回AI模式
-        const success = switchBackToAI(currentConversationId);
-        if (success) {
-          setIsConsultantTakeover(false);
-      }
-    } else {
+        switchBackToAI(currentConversationId)
+          .then(success => {
+            if (success) {
+              setIsConsultantTakeover(false);
+            }
+            // 刷新消息
+            fetchMessages();
+          })
+          .catch(error => {
+            console.error('切回AI模式失败:', error);
+          });
+      } else {
         // 启用顾问模式
-        const success = takeoverConversation(currentConversationId);
-        if (success) {
-          setIsConsultantTakeover(true);
-        }
+        takeoverConversation(currentConversationId)
+          .then(success => {
+            if (success) {
+              setIsConsultantTakeover(true);
+            }
+            // 刷新消息
+            fetchMessages();
+          })
+          .catch(error => {
+            console.error('接管会话失败:', error);
+          });
       }
-      
-      // 刷新消息
-      fetchMessages();
     } catch (error) {
       console.error('切换顾问模式失败:', error);
     }
