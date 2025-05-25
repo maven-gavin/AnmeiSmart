@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '@/service/utils';
 import { getCustomerList, getCustomerConversations } from '@/service/chatService';
 import { Customer, Conversation } from '@/types/chat';
@@ -19,14 +19,18 @@ export default function CustomerList({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const isFirstLoad = useRef(true);
 
   // 加载客户列表
-  const loadCustomers = async () => {
+  const loadCustomers = useCallback(async (isInitialLoad = false) => {
     try {
-      setLoading(true);
+      if (isInitialLoad) {
+        setLoading(true);
+      }
       setError(null);
       
       const data = await getCustomerList();
+      
       // 按在线状态和最近消息时间排序
       const sortedCustomers = data.sort((a, b) => {
         // 在线客户优先
@@ -40,52 +44,56 @@ export default function CustomerList({
         return bTime - aTime;
       });
       
-      setCustomers(sortedCustomers);
+      // 增量更新客户列表，而不是完全替换
+      setCustomers(prevCustomers => {
+        // 如果是首次加载，直接替换整个列表
+        if (isFirstLoad.current) {
+          isFirstLoad.current = false;
+          return sortedCustomers;
+        }
+        
+        // 否则增量更新列表
+        return sortedCustomers.map(newCustomer => {
+          // 查找之前列表中的相同客户
+          const existingCustomer = prevCustomers.find(c => c.id === newCustomer.id);
+          if (!existingCustomer) return newCustomer; // 新客户直接添加
+          
+          // 智能合并：保留现有客户对象的某些属性，仅更新变化的内容
+          return {
+            ...existingCustomer,
+            // 只更新可能变化的状态属性
+            isOnline: newCustomer.isOnline,
+            lastMessage: newCustomer.lastMessage,
+            lastMessageTime: newCustomer.lastMessageTime,
+            unreadCount: newCustomer.unreadCount,
+            priority: newCustomer.priority,
+            // 保留引用相同的不变属性，如头像、名称等静态内容
+          };
+        });
+      });
     } catch (err) {
       console.error('获取客户列表失败:', err);
       setError('获取客户列表失败');
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (user) {
-      loadCustomers();
+      // 首次加载时显示加载状态
+      loadCustomers(true);
       
-      // 定期刷新客户在线状态
-      const interval = setInterval(loadCustomers, 30000); // 30秒刷新一次
+      // 定期刷新客户在线状态，但不显示加载状态
+      const interval = setInterval(() => loadCustomers(false), 30000); // 30秒刷新一次
       return () => clearInterval(interval);
     }
-  }, [user]);
+  }, [user, loadCustomers]);
   
-  // 自动选择默认客户
-  useEffect(() => {
-    // 确保客户列表已加载，并且当前没有选中的客户
-    if (!loading && customers.length > 0 && !selectedCustomerId && onCustomerSelect) {
-      console.log('CustomerList: 准备自动选择默认客户...');
-      
-      // 设置一个较长的延迟，确保不会与其他初始化逻辑冲突
-      const timer = setTimeout(() => {
-        // 再次检查是否仍然需要自动选择
-        if (!selectedCustomerId && customers.length > 0) {
-          console.log('CustomerList: 自动选择默认客户:', customers[0].name);
-          
-          // 延迟执行，确保DOM已更新且其他组件已准备好
-          // 这有助于确保选择客户和加载会话历史的顺序正确
-          setTimeout(() => {
-            // 自动选择第一个客户
-            handleCustomerSelect(customers[0]);
-          }, 100);
-        }
-      }, 500); // 增加延迟时间，确保页面其他部分已完成初始化
-      
-      return () => clearTimeout(timer);
-    }
-  }, [loading, customers, selectedCustomerId, onCustomerSelect]);
-
   // 处理客户选择
-  const handleCustomerSelect = async (customer: Customer) => {
+  const handleCustomerSelect = useCallback(async (customer: Customer) => {
     try {
       console.log(`选择客户: ${customer.name} (ID: ${customer.id})`);
       
@@ -140,7 +148,32 @@ export default function CustomerList({
         onCustomerSelect(customer.id);
       }
     }
-  };
+  }, [onCustomerSelect]);
+  
+  // 自动选择默认客户
+  useEffect(() => {
+    // 确保客户列表已加载，并且当前没有选中的客户
+    if (!loading && customers.length > 0 && !selectedCustomerId && onCustomerSelect) {
+      console.log('CustomerList: 准备自动选择默认客户...');
+      
+      // 设置一个较长的延迟，确保不会与其他初始化逻辑冲突
+      const timer = setTimeout(() => {
+        // 再次检查是否仍然需要自动选择
+        if (!selectedCustomerId && customers.length > 0) {
+          console.log('CustomerList: 自动选择默认客户:', customers[0].name);
+          
+          // 延迟执行，确保DOM已更新且其他组件已准备好
+          // 这有助于确保选择客户和加载会话历史的顺序正确
+          setTimeout(() => {
+            // 自动选择第一个客户
+            handleCustomerSelect(customers[0]);
+          }, 100);
+        }
+      }, 500); // 增加延迟时间，确保页面其他部分已完成初始化
+      
+      return () => clearTimeout(timer);
+    }
+  }, [loading, customers, selectedCustomerId, onCustomerSelect, handleCustomerSelect]);
 
   // 格式化最后消息时间
   const formatLastMessageTime = (timestamp?: string): string => {
@@ -175,7 +208,7 @@ export default function CustomerList({
       <div className="flex h-full flex-col items-center justify-center text-gray-500">
         <p className="text-sm">{error}</p>
         <button
-          onClick={loadCustomers}
+          onClick={() => loadCustomers(true)}
           className="mt-2 rounded-md bg-orange-500 px-3 py-1 text-xs text-white hover:bg-orange-600"
         >
           重试
