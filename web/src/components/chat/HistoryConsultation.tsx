@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { type CustomerProfile } from '@/types/chat';
+import { type CustomerProfile, ConsultationHistoryItem } from '@/types/chat';
 import { getCustomerConsultationHistory } from '@/service/chatService';
 import { Button } from '@/components/ui/button';
 
@@ -11,10 +11,10 @@ interface HistoryConsultationProps {
 }
 
 export default function HistoryConsultation({ customerId, onClose }: HistoryConsultationProps) {
-  const [consultationHistory, setConsultationHistory] = useState<CustomerProfile['consultationHistory']>([]);
+  const [consultationHistory, setConsultationHistory] = useState<ConsultationHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<'all' | '1month' | '3months' | '6months'>('all');
-  const [selectedHistory, setSelectedHistory] = useState<CustomerProfile['consultationHistory'][0] | null>(null);
+  const [selectedHistory, setSelectedHistory] = useState<ConsultationHistoryItem | null>(null);
   
   // 获取历史咨询记录
   useEffect(() => {
@@ -50,7 +50,7 @@ export default function HistoryConsultation({ customerId, onClose }: HistoryCons
     
     const cutoffDate = new Date(now.setMonth(now.getMonth() - monthsAgo));
     
-    return consultationHistory.filter(history => {
+    return consultationHistory.filter((history: ConsultationHistoryItem) => {
       const historyDate = new Date(history.date);
       return historyDate >= cutoffDate;
     });
@@ -58,9 +58,9 @@ export default function HistoryConsultation({ customerId, onClose }: HistoryCons
   
   // 按咨询类型分组
   const groupedHistory = () => {
-    const grouped: Record<string, CustomerProfile['consultationHistory']> = {};
+    const grouped: Record<string, ConsultationHistoryItem[]> = {};
     
-    filteredHistory().forEach(history => {
+    filteredHistory().forEach((history: ConsultationHistoryItem) => {
       if (!grouped[history.type]) {
         grouped[history.type] = [];
       }
@@ -69,14 +69,16 @@ export default function HistoryConsultation({ customerId, onClose }: HistoryCons
     
     // 确保每个组内的记录也是按时间倒序排序的
     Object.keys(grouped).forEach(type => {
-      grouped[type].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      grouped[type].sort((a: ConsultationHistoryItem, b: ConsultationHistoryItem) => 
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
     });
     
     return grouped;
   };
   
   // 查看详情
-  const viewDetails = (history: CustomerProfile['consultationHistory'][0]) => {
+  const viewDetails = (history: ConsultationHistoryItem) => {
     setSelectedHistory(history);
   };
   
@@ -174,7 +176,7 @@ export default function HistoryConsultation({ customerId, onClose }: HistoryCons
                       </h4>
                       
                       <div className="space-y-2 pl-4">
-                        {histories.map((history, index) => (
+                        {histories.map((history: ConsultationHistoryItem, index: number) => (
                           <div 
                             key={index}
                             className={`p-3 border rounded-lg cursor-pointer transition-all ${

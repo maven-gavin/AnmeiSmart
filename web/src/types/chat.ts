@@ -43,6 +43,8 @@ export interface Conversation {
   unreadCount: number;
   updatedAt: string;
   status?: 'active' | 'inactive' | 'archived';
+  consultationType?: string;
+  summary?: string;
 }
 
 export interface CustomerProfile {
@@ -53,14 +55,16 @@ export interface CustomerProfile {
     gender: 'male' | 'female';
     phone: string;
   };
-  consultationHistory: {
-    date: string;
-    type: string;
-    description: string;
-  }[];
   riskNotes: {
     type: string;
     description: string;
     level: 'low' | 'medium' | 'high';
   }[];
+}
+
+export interface ConsultationHistoryItem {
+  id: string;
+  date: string;
+  type: string;
+  description: string;
 } 

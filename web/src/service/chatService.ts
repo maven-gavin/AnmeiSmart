@@ -1,4 +1,4 @@
-import { Message, Conversation, CustomerProfile, Customer } from "@/types/chat";
+import { Message, Conversation, CustomerProfile, Customer, ConsultationHistoryItem } from "@/types/chat";
 import { v4 as uuidv4 } from 'uuid';
 import { authService } from "./authService";
 // 引入新的WebSocket客户端架构
@@ -190,13 +190,33 @@ class ChatState {
 const chatState = ChatState.getInstance();
 
 // WebSocket初始化和管理
-// 懒加载初始化WebSocket客户端
+// 修改初始化WebSocket客户端函数，确保URL正确性
 const initializeWebSocketClient = () => {
   try {
     // 获取协议
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsHost = process.env.NEXT_PUBLIC_WS_URL || 'localhost:8000';
+    
+    // 使用环境变量或回退到当前主机，并移除端口3000
+    let wsHost = process.env.NEXT_PUBLIC_WS_URL || window.location.host;
+    
+    // 如果是localhost:3000，替换为正确的API端口
+    if (wsHost === 'localhost:3000') {
+      wsHost = 'localhost:8000';
+    } else if (wsHost.includes(':3000')) {
+      // 替换前端端口3000为后端端口8000
+      wsHost = wsHost.replace(':3000', ':8000');
+    }
+    
+    console.log('使用WebSocket主机:', wsHost);
+    
+    // 确保URL非空
+    if (!wsHost) {
+      throw new Error('WebSocket主机未配置');
+    }
+    
+    // 修改这里，确保路径与后端接口匹配
     const baseUrl = `${wsProtocol}//${wsHost}/api/v1/chat/ws`;
+    console.log('WebSocket连接基础URL:', baseUrl);
     
     // 获取客户端实例
     const wsClient = getWebSocketClient({
@@ -239,10 +259,50 @@ const initializeWebSocketClient = () => {
 // 获取WebSocket客户端实例
 const getWsClient = () => {
   try {
-    return getWebSocketClient();
+    // 首先尝试获取已经初始化的客户端
+    try {
+      const client = getWebSocketClient();
+      return client;
+    } catch (error) {
+      console.log('WebSocket客户端尚未初始化，将创建新实例', error);
+      // 客户端未初始化，继续下面的初始化流程
+    }
+    
+    // 尝试初始化新客户端
+    let retryCount = 0;
+    const maxRetries = 3;
+    let lastError: any = null;
+    
+    while (retryCount < maxRetries) {
+      try {
+        const client = initializeWebSocketClient();
+        console.log('WebSocket客户端初始化成功');
+        return client;
+      } catch (error) {
+        lastError = error;
+        console.error(`WebSocket客户端初始化失败 (尝试 ${retryCount + 1}/${maxRetries})`, error);
+        retryCount++;
+        
+        // 最后一次重试失败时不要延迟
+        if (retryCount < maxRetries) {
+          // 在重试前短暂延迟
+          const delay = 500 * retryCount; // 每次重试增加延迟
+          console.log(`将在 ${delay}ms 后重试初始化WebSocket客户端...`);
+          // 同步等待
+          const start = Date.now();
+          while (Date.now() - start < delay) {
+            // 空循环等待
+          }
+        }
+      }
+    }
+    
+    // 所有重试都失败了
+    console.error(`WebSocket客户端初始化失败，已重试 ${maxRetries} 次`, lastError);
+    throw lastError || new Error('WebSocket客户端初始化失败');
   } catch (error) {
-    // 如果客户端尚未初始化，则初始化它
-    return initializeWebSocketClient();
+    console.error('获取WebSocket客户端实例失败', error);
+    throw error;
   }
 };
 
@@ -693,7 +753,9 @@ class ChatApiService {
       lastMessage,
       unreadCount: conv.unread_count || 0,
       updatedAt: conv.updated_at,
-      status: conv.status
+      status: conv.status,
+      consultationType: conv.consultation_type || '一般咨询',
+      summary: conv.summary || ''
     };
   }
   
@@ -1061,9 +1123,31 @@ export const getCustomerProfile = async (customerId: string): Promise<CustomerPr
 };
 
 // 获取客户历史咨询记录
-export const getCustomerConsultationHistory = async (customerId: string): Promise<CustomerProfile['consultationHistory']> => {
-  const profile = await getCustomerProfile(customerId);
-  return profile?.consultationHistory || [];
+export const getCustomerConsultationHistory = async (customerId: string): Promise<ConsultationHistoryItem[]> => {
+  try {
+    // 获取客户的所有会话
+    const conversations = await ChatApiService.getCustomerConversations(customerId);
+    
+    if (!conversations || conversations.length === 0) {
+      return [];
+    }
+    
+    // 转换为咨询历史记录格式
+    const history = conversations.map(conversation => ({
+      id: conversation.id,
+      date: new Date(conversation.updatedAt).toLocaleDateString('zh-CN'),
+      type: conversation.consultationType || '一般咨询',
+      description: conversation.summary || '无咨询总结'
+    }));
+    
+    // 按日期降序排序（最新的在前）
+    return history.sort((a, b) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+  } catch (error) {
+    console.error(`获取客户咨询历史出错:`, error);
+    return [];
+  }
 };
 
 // 顾问接管会话

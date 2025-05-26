@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { type CustomerProfile as ICustomerProfile } from '@/types/chat';
-import { getCustomerProfile } from '@/service/chatService';
+import { type CustomerProfile as ICustomerProfile, ConsultationHistoryItem, Message } from '@/types/chat';
+import { getCustomerProfile, getCustomerConsultationHistory, getConversationMessages } from '@/service/chatService';
+import { useRouter } from 'next/navigation';
+import ChatMessage from '@/components/chat/ChatMessage';
 
 interface CustomerProfileProps {
   customerId?: string;
@@ -10,12 +12,17 @@ interface CustomerProfileProps {
 }
 
 export default function CustomerProfile({ customerId = '101', conversationId }: CustomerProfileProps) {
+  const router = useRouter();
   const [profile, setProfile] = useState<ICustomerProfile | null>(null);
+  const [consultationHistory, setConsultationHistory] = useState<ConsultationHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'basic' | 'history' | 'risk'>('basic');
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [selectedHistory, setSelectedHistory] = useState<ICustomerProfile['consultationHistory'][0] | null>(null);
+  const [selectedHistory, setSelectedHistory] = useState<ConsultationHistoryItem | null>(null);
+  const [showMessagesPreview, setShowMessagesPreview] = useState(false);
+  const [historyMessages, setHistoryMessages] = useState<Message[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   
   // 从API获取客户档案
   useEffect(() => {
@@ -30,15 +37,11 @@ export default function CustomerProfile({ customerId = '101', conversationId }: 
         
         if (profileData) {
           console.log('获取客户档案成功:', profileData);
-          
-          // 确保咨询历史按时间倒序排序
-          if (profileData.consultationHistory && profileData.consultationHistory.length > 0) {
-            profileData.consultationHistory.sort((a, b) => 
-              new Date(b.date).getTime() - new Date(a.date).getTime()
-            );
-          }
-          
           setProfile(profileData);
+          
+          // 获取咨询历史
+          const history = await getCustomerConsultationHistory(customerId);
+          setConsultationHistory(history);
         } else {
           setError('未找到客户档案');
           console.error('未找到客户档案');
@@ -61,15 +64,48 @@ export default function CustomerProfile({ customerId = '101', conversationId }: 
   }, [customerId, conversationId]);
   
   // 打开历史咨询详情
-  const openHistoryDetail = (history: ICustomerProfile['consultationHistory'][0]) => {
+  const openHistoryDetail = (history: ConsultationHistoryItem) => {
     setSelectedHistory(history);
     setShowHistoryModal(true);
+    // 重置消息预览状态
+    setShowMessagesPreview(false);
+    setHistoryMessages([]);
   };
   
   // 关闭历史咨询详情
   const closeHistoryDetail = () => {
     setShowHistoryModal(false);
     setSelectedHistory(null);
+    setShowMessagesPreview(false);
+    setHistoryMessages([]);
+  };
+  
+  // 查看历史会话消息
+  const viewHistoryConversation = (conversationId: string) => {
+    closeHistoryDetail();
+    // 跳转到会话页面
+    router.push(`/consultant/chat?customerId=${customerId}&conversationId=${conversationId}`);
+  };
+  
+  // 预览历史消息
+  const previewHistoryMessages = async (conversationId: string) => {
+    if (showMessagesPreview && historyMessages.length > 0) {
+      // 如果已经显示预览且有消息，则关闭预览
+      setShowMessagesPreview(false);
+      return;
+    }
+    
+    setLoadingMessages(true);
+    
+    try {
+      const messages = await getConversationMessages(conversationId, true);
+      setHistoryMessages(messages);
+      setShowMessagesPreview(true);
+    } catch (error) {
+      console.error('获取历史消息失败:', error);
+    } finally {
+      setLoadingMessages(false);
+    }
   };
   
   if (loading) {
@@ -119,9 +155,9 @@ export default function CustomerProfile({ customerId = '101', conversationId }: 
           onClick={() => setActiveTab('history')}
         >
           咨询历史
-          {profile.consultationHistory && profile.consultationHistory.length > 0 && (
+          {consultationHistory && consultationHistory.length > 0 && (
             <span className="ml-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs text-orange-600">
-              {profile.consultationHistory.length}
+              {consultationHistory.length}
             </span>
           )}
         </button>
@@ -182,7 +218,7 @@ export default function CustomerProfile({ customerId = '101', conversationId }: 
             )}
             
             {/* 最近咨询 */}
-            {profile.consultationHistory && profile.consultationHistory.length > 0 && (
+            {consultationHistory && consultationHistory.length > 0 && (
               <div className="rounded-lg border border-gray-200 bg-white p-4">
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="font-medium text-gray-700">最近咨询</h4>
@@ -194,7 +230,7 @@ export default function CustomerProfile({ customerId = '101', conversationId }: 
                   </button>
                 </div>
                 <div className="space-y-3">
-                  {profile.consultationHistory.slice(0, 2).map((history, index) => (
+                  {consultationHistory.slice(0, 2).map((history, index) => (
                     <div 
                       key={index}
                       className="rounded-lg bg-gray-50 p-3 text-sm cursor-pointer hover:bg-gray-100"
@@ -218,19 +254,19 @@ export default function CustomerProfile({ customerId = '101', conversationId }: 
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-800">咨询历史</h3>
-              <span className="text-sm text-gray-500">共 {profile.consultationHistory.length} 条记录</span>
+              <span className="text-sm text-gray-500">共 {consultationHistory.length} 条记录</span>
             </div>
             
-            {profile.consultationHistory && profile.consultationHistory.length > 0 ? (
+            {consultationHistory && consultationHistory.length > 0 ? (
               <div className="space-y-3">
-                {profile.consultationHistory.map((history, index) => (
+                {consultationHistory.map((history, index) => (
                   <div 
                     key={index}
                     className="rounded-lg border border-gray-200 bg-white p-4 cursor-pointer hover:border-orange-200 hover:shadow-sm transition-all"
                     onClick={() => openHistoryDetail(history)}
                   >
                     <div className="mb-2 flex justify-between items-center">
-                      <div>
+                      <div className="flex items-center">
                         <span className="text-sm font-medium">{history.date}</span>
                         <span className="ml-3 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
                           {history.type}
@@ -241,6 +277,35 @@ export default function CustomerProfile({ customerId = '101', conversationId }: 
                       </svg>
                     </div>
                     <p className="text-sm text-gray-600 line-clamp-2">{history.description}</p>
+                    {history.id && (
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            previewHistoryMessages(history.id);
+                          }}
+                          className="text-xs text-orange-500 hover:text-orange-600 mr-3 flex items-center"
+                        >
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          快速预览
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            viewHistoryConversation(history.id);
+                          }}
+                          className="text-xs text-orange-500 hover:text-orange-600 flex items-center"
+                        >
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                          </svg>
+                          查看完整会话
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -325,7 +390,7 @@ export default function CustomerProfile({ customerId = '101', conversationId }: 
       {/* 历史咨询详情弹窗 */}
       {showHistoryModal && selectedHistory && (
         <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[80vh] flex flex-col">
             <div className="p-4 border-b border-gray-200 flex justify-between items-center">
               <div>
                 <h3 className="text-lg font-medium">咨询详情</h3>
@@ -347,16 +412,76 @@ export default function CustomerProfile({ customerId = '101', conversationId }: 
                 <div className="font-medium">{selectedHistory.type}</div>
               </div>
               
-              <div>
+              <div className="mb-4">
                 <div className="text-sm text-gray-500 mb-1">咨询内容</div>
                 <div className="bg-gray-50 rounded-lg p-4 text-gray-700 whitespace-pre-wrap">
                   {selectedHistory.description}
                 </div>
               </div>
+              
+              {/* 历史消息预览区域 */}
+              {showMessagesPreview && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-sm font-medium text-gray-700">历史消息记录</div>
+                    <button 
+                      onClick={() => setShowMessagesPreview(false)}
+                      className="text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      收起
+                    </button>
+                  </div>
+                  
+                  <div className="bg-gray-50 rounded-lg p-3 max-h-[300px] overflow-y-auto border border-gray-200">
+                    {historyMessages.length > 0 ? (
+                      <div className="space-y-2">
+                        {historyMessages.map((message, index) => (
+                          <ChatMessage 
+                            key={index}
+                            message={message}
+                            compact={true}
+                          />
+                        ))}
+                      </div>
+                    ) : loadingMessages ? (
+                      <div className="flex justify-center py-8">
+                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-orange-500 border-t-transparent"></div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        暂无消息记录
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="p-4 border-t border-gray-200">
-              <div className="flex justify-end">
+              <div className="flex justify-between">
+                <div className="space-x-2">
+                  <button
+                    onClick={() => previewHistoryMessages(selectedHistory.id)}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center"
+                  >
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    {showMessagesPreview ? "收起消息" : "快速预览"}
+                  </button>
+                  
+                  <button
+                    onClick={() => viewHistoryConversation(selectedHistory.id)}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center"
+                  >
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    </svg>
+                    查看完整会话
+                  </button>
+                </div>
+                
                 <button
                   onClick={closeHistoryDetail}
                   className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"

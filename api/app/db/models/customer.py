@@ -30,7 +30,6 @@ class CustomerProfile(BaseModel):
     preferences = Column(Text, nullable=True)
     tags = Column(Text, nullable=True)  # 存储为JSON字符串
     risk_notes = Column(JSON, nullable=True)  # 存储风险提示信息
-    consultation_history = Column(JSON, nullable=True)  # 存储咨询历史记录
 
     # 关联关系
     customer = relationship("Customer", back_populates="profile") 

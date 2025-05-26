@@ -98,9 +98,11 @@ export class WebSocketClient {
     // 构建完整URL
     let url = this.config.url;
     
-    // 添加用户ID到URL路径
-    if (params.userId) {
-      url = `${url}/${params.userId}`;
+    // 添加会话ID到URL路径，而非用户ID
+    if (params.conversationId) {
+      url = `${url}/${params.conversationId}`;
+    } else {
+      throw new Error('会话ID是必需的');
     }
     
     // 添加查询参数
@@ -110,13 +112,9 @@ export class WebSocketClient {
       queryParams.append('token', params.token);
     }
     
-    if (params.conversationId) {
-      queryParams.append('conversation_id', params.conversationId);
-    }
-    
-    // 添加其他参数
+    // 添加其他参数，但排除已添加到URL的参数
     Object.entries(params).forEach(([key, value]) => {
-      if (!['userId', 'token', 'conversationId'].includes(key) && value !== undefined) {
+      if (!['conversationId', 'token'].includes(key) && value !== undefined) {
         queryParams.append(key, String(value));
       }
     });

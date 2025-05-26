@@ -426,13 +426,15 @@ async def verify_websocket_token(token: str, db: Session) -> Optional[str]:
     try:
         # 这里需要实现实际的token验证逻辑
         # 可以使用JWT或其他认证方式
-        # 暂时返回一个示例用户ID
         
-        # 示例实现：
+        # 使用安全模块验证token
         from app.core.security import verify_token
         payload = verify_token(token)
         if payload:
-            return payload.get("sub")  # 用户ID
+            # 确保返回的是字符串类型的用户ID
+            user_id = payload.get("sub") if isinstance(payload, dict) else None
+            logger.debug(f"WebSocket token验证成功: {user_id}")
+            return user_id
         return None
         
     except Exception as e:

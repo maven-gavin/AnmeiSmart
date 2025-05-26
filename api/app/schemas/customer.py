@@ -51,7 +51,6 @@ class CustomerProfileCreate(CustomerProfileBase):
 class CustomerProfileUpdate(CustomerProfileBase):
     """更新客户档案的请求模型"""
     risk_notes: Optional[List[RiskNote]] = None
-    consultation_history: Optional[List[ConsultationHistoryItem]] = None
 
 class CustomerProfileInfo(BaseModel):
     """客户档案完整模型，与前端组件对应"""
@@ -60,7 +59,6 @@ class CustomerProfileInfo(BaseModel):
     id: str
     basicInfo: CustomerBasicInfo
     riskNotes: Optional[List[RiskNote]] = None
-    consultationHistory: Optional[List[ConsultationHistoryItem]] = None
     medical_history: Optional[str] = None
     allergies: Optional[str] = None
     preferences: Optional[str] = None

@@ -235,7 +235,23 @@ export class WebSocketReconnector extends EventEmitter {
   private performReconnect(): void {
     // 如果没有保存URL，则无法重连
     if (!this.lastUrl) {
+      console.error('WebSocket重连失败: 缺少连接URL', {
+        lastUrl: this.lastUrl,
+        lastParams: this.lastParams
+      });
       this.emit('error', { message: '无法重连：缺少连接URL' });
+      return;
+    }
+
+    // 确保URL格式正确
+    try {
+      new URL(this.lastUrl); // 测试URL是否有效
+    } catch (error) {
+      console.error('WebSocket重连失败: URL格式无效', {
+        lastUrl: this.lastUrl,
+        error
+      });
+      this.emit('error', { message: `无法重连：URL格式无效 (${this.lastUrl})` });
       return;
     }
     
@@ -243,27 +259,39 @@ export class WebSocketReconnector extends EventEmitter {
     this.attempts++;
     
     // 发出重连尝试事件
+    console.log(`正在尝试WebSocket重连 (第${this.attempts}次)`, {
+      url: this.lastUrl,
+      params: this.lastParams
+    });
+    
     this.emit('reconnectAttempt', {
       attempt: this.attempts,
       maxAttempts: this.maxAttempts,
       url: this.lastUrl
     });
     
-    // 尝试重新连接
+    // 尝试重连
     try {
       this.connection.connect(this.lastUrl, this.lastParams)
+        .then(() => {
+          console.log('WebSocket重连成功');
+          // 重连成功，重置计数
+          this.attempts = 0;
+        })
         .catch(error => {
-          // 连接失败，安排下一次重连
-          this.emit('reconnectFailed', {
-            attempt: this.attempts,
+          console.error('WebSocket重连失败:', error);
+          
+          // 发出错误事件
+          this.emit('reconnectFailure', {
             error,
+            attempt: this.attempts,
             maxAttempts: this.maxAttempts
           });
           
-          // 如果未达到最大尝试次数，则继续重连
-          if (this.attempts < this.maxAttempts && this.isEnabled) {
+          // 如果未达到最大尝试次数，计划下一次尝试
+          if (this.attempts < this.maxAttempts) {
             this.scheduleReconnect();
-          } else if (this.attempts >= this.maxAttempts) {
+          } else {
             this.emit('maxAttemptsReached', {
               attempts: this.attempts,
               maxAttempts: this.maxAttempts
@@ -271,17 +299,18 @@ export class WebSocketReconnector extends EventEmitter {
           }
         });
     } catch (error) {
-      // 如果连接过程中出错，也安排下一次重连
-      this.emit('reconnectError', {
-        attempt: this.attempts,
+      console.error('WebSocket重连出错:', error);
+      
+      // 发出错误事件
+      this.emit('error', {
         error,
-        maxAttempts: this.maxAttempts
+        message: '执行重连时出错'
       });
       
-      // 如果未达到最大尝试次数，则继续重连
-      if (this.attempts < this.maxAttempts && this.isEnabled) {
+      // 如果未达到最大尝试次数，计划下一次尝试
+      if (this.attempts < this.maxAttempts) {
         this.scheduleReconnect();
-      } else if (this.attempts >= this.maxAttempts) {
+      } else {
         this.emit('maxAttemptsReached', {
           attempts: this.attempts,
           maxAttempts: this.maxAttempts

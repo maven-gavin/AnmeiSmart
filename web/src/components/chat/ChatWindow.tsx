@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { type Message, type Conversation } from '@/types/chat'
+import ChatMessage from '@/components/chat/ChatMessage'
 import { 
   sendTextMessage, 
   sendImageMessage, 
@@ -26,18 +27,8 @@ import {
 import { ConnectionStatus } from '@/service/websocket'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSearchParams, useRouter } from 'next/navigation'
-
-// 模拟完整的FAQ数据
-const allFAQs = [
-  { id: 'faq1', question: '双眼皮手术恢复时间?', answer: '一般1-2周基本恢复，完全恢复需1-3个月。', tags: ['双眼皮', '恢复', '手术'] },
-  { id: 'faq2', question: '医美项目价格咨询', answer: '我们提供多种套餐，价格从XX起，可根据您的需求定制。', tags: ['价格', '套餐', '咨询'] },
-  { id: 'faq3', question: '术后护理注意事项', answer: '术后需避免剧烈运动，保持伤口清洁，按医嘱服药。', tags: ['术后', '护理', '注意事项'] },
-  { id: 'faq4', question: '玻尿酸能维持多久?', answer: '根据注射部位和产品不同，一般可维持6-18个月。', tags: ['玻尿酸', '持续时间', '效果'] },
-  { id: 'faq5', question: '肉毒素注射有副作用吗?', answer: '常见副作用包括注射部位疼痛、轻微肿胀，通常数天内消退。', tags: ['肉毒素', '副作用', '注射'] },
-  { id: 'faq6', question: '医美手术前需要准备什么?', answer: '术前需进行相关检查，避免服用影响凝血的药物，遵医嘱调整饮食。', tags: ['术前', '准备', '检查'] },
-  { id: 'faq7', question: '哪些人不适合做医美手术?', answer: '孕妇、有严重疾病、自身免疫性疾病患者等不适合。具体需医生评估。', tags: ['禁忌', '不适合', '评估'] },
-  { id: 'faq8', question: '光子嫩肤后多久可以化妆?', answer: '一般建议术后24小时内不化妆，48小时后可轻微化妆。', tags: ['光子嫩肤', '化妆', '术后'] },
-];
+import debounce from 'lodash/debounce'
+import FAQSection, { type FAQ } from './FAQSection'
 
 interface ChatWindowProps {
   conversationId?: string;
@@ -115,8 +106,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   // 聊天区域引用
   const chatContainerRef = useRef<HTMLDivElement>(null)
   
-  // FAQ推荐状态
-  const [recommendedFAQs, setRecommendedFAQs] = useState(allFAQs.slice(0, 3))
+  // FAQ状态 - 只保留searchQuery
   const [searchQuery, setSearchQuery] = useState('')
   
   // WebSocket连接状态
@@ -264,7 +254,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       abortController.abort();
       closeWebSocketConnection();
     };
-  }, [currentConversationId, user]);
+  }, [currentConversationId, user]); // 仅依赖会话ID和用户变化
   
   // 初始化聊天 - 仅在组件首次挂载时执行一次
   useEffect(() => {
@@ -403,6 +393,75 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     };
   }, [router, searchParams, user]); // 更新依赖数组
   
+  // 静默更新消息的方法 - 替代原有的silentFetchMessages，优化性能
+  const silentlyUpdateMessages = useCallback(async () => {
+    if (!currentConversationId) return;
+    
+    try {
+      // 不设置加载状态，避免UI闪烁
+      
+      // 保存当前消息数据的引用，避免在异步操作中使用可能变化的状态
+      const currentMessagesList = [...messages];
+      const lastMessageId = currentMessagesList.length > 0 ? currentMessagesList[currentMessagesList.length - 1].id : null;
+      
+      // 获取新消息
+      const newMessages = await getConversationMessages(currentConversationId, true);
+      
+      // 检查组件是否仍然挂载，避免在组件卸载后设置状态
+      if (!mounted.current) return;
+      
+      // 检查是否有新消息或消息变化
+      if (newMessages.length > currentMessagesList.length) {
+        // 仅在有新消息时更新状态
+        console.log(`检测到${newMessages.length - currentMessagesList.length}条新消息，更新显示`);
+        setMessages(newMessages);
+        
+        // 如果显示重点消息，也更新重点消息列表
+        if (showImportantOnly) {
+          const important = newMessages.filter(msg => msg.isImportant);
+          setImportantMessages(important);
+        }
+        
+        // 仅当有新消息时滚动到底部
+        const newLastMessageId = newMessages.length > 0 ? newMessages[newMessages.length - 1].id : null;
+        if (lastMessageId !== newLastMessageId) {
+          setTimeout(() => {
+            if (chatContainerRef.current) {
+              chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+            }
+          }, 100);
+        }
+      } else if (JSON.stringify(newMessages) !== JSON.stringify(currentMessagesList)) {
+        // 消息数量相同但内容有变化(例如更新了重要标记)
+        console.log('消息内容有变化，更新显示');
+        setMessages(newMessages);
+        
+        if (showImportantOnly) {
+          const important = newMessages.filter(msg => msg.isImportant);
+          setImportantMessages(important);
+        }
+      } else {
+        // 没有新消息，不更新UI
+        console.log('没有新消息或变化，保持当前UI状态');
+      }
+      
+      // 同时尝试同步顾问接管状态，但忽略错误
+      try {
+        const isConsultantModeActive = await syncConsultantTakeoverStatus(currentConversationId);
+        // 仅当状态变化时才更新
+        if (isConsultantModeActive !== isConsultantTakeover) {
+          console.log(`顾问模式状态变化: ${isConsultantTakeover} -> ${isConsultantModeActive}`);
+          setIsConsultantTakeover(isConsultantModeActive);
+        }
+      } catch (error) {
+        console.error('同步顾问状态失败:', error);
+      }
+    } catch (error) {
+      console.error('静默获取消息出错:', error);
+      // 出错时不影响用户体验，不显示错误状态
+    }
+  }, [currentConversationId, showImportantOnly, isConsultantTakeover, messages, mounted, chatContainerRef]);
+  
   // 监听WebSocket状态
   useEffect(() => {
     // 检查连接状态
@@ -411,12 +470,12 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       const previousStatus = wsStatus;
       setWsStatus(status);
       
-      // 如果WebSocket从断开到已连接，主动刷新消息，但不显示加载状态
+      // 如果WebSocket从断开到已连接，静默刷新消息，不显示加载状态
       if (status === ConnectionStatus.CONNECTED && previousStatus !== ConnectionStatus.CONNECTED) {
-        console.log(`WebSocket重新连接成功，自动刷新消息，会话ID: ${currentConversationId}`);
+        console.log(`WebSocket重新连接成功，静默刷新消息，会话ID: ${currentConversationId}`);
         if (currentConversationId) {
           // 使用静默加载方式，不设置加载状态
-          silentFetchMessages();
+          silentlyUpdateMessages();
         }
       }
       
@@ -444,7 +503,10 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     return () => {
       clearInterval(statusInterval);
     };
-  }, [currentConversationId, user]); // 添加user到依赖项
+  }, [currentConversationId, user, silentlyUpdateMessages, wsStatus]);
+  
+  // 替换原有的silentFetchMessages函数
+  const silentFetchMessages = silentlyUpdateMessages;
   
   // 重新连接WebSocket的函数 - 为了在组件其他部分访问
   const reconnectWebSocket = useCallback(() => {
@@ -605,35 +667,9 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   };
   
   // 插入FAQ内容
-  const insertFAQ = (faq: { question: string, answer: string }) => {
+  const insertFAQ = (faq: FAQ) => {
     setMessage(faq.question)
     setShowFAQ(false)
-  }
-  
-  // 搜索聊天记录
-  const searchChatMessages = (term: string) => {
-    if (!term.trim() || !currentConversationId) {
-      setSearchResults([])
-      setSelectedMessageId(null)
-      return
-    }
-    
-    const normalizedTerm = term.toLowerCase()
-    const results = messages.filter(msg => 
-      typeof msg.content === 'string' && 
-      msg.content.toLowerCase().includes(normalizedTerm) &&
-      msg.type === 'text' // 只搜索文本消息
-    )
-    
-    setSearchResults(results)
-    
-    // 如果有结果，选中第一条
-    if (results.length > 0) {
-      setSelectedMessageId(results[0].id)
-      scrollToMessage(results[0].id)
-    } else {
-      setSelectedMessageId(null)
-    }
   }
   
   // 滚动到指定消息
@@ -887,59 +923,10 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     }
   };
   
-  // 修改handleSendMessage函数
-  const handleSendMessage = async () => {
-    // 防止重复发送
-    if (isSending) {
-      console.log('消息正在发送中，请稍候...');
-      return;
-    }
-    
-    // 根据消息类型调用相应的发送函数
-    if (imagePreview) {
-      await handleSendImageMessage();
-    } else if (audioPreview) {
-      await handleSendVoiceMessage();
-    } else {
-      await handleSendTextMessage();
-    }
-  };
-  
   // 滚动到底部
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  };
-  
-  // 静默获取消息函数，不设置加载状态
-  const silentFetchMessages = async () => {
-    try {
-      if (!currentConversationId) return;
-      
-      // 不设置加载状态，避免显示"发送中"
-      
-      // 获取消息
-      try {
-        const messages = await getConversationMessages(currentConversationId, true); // 使用强制刷新
-        setMessages(messages);
-        
-        // 获取重点消息
-        const important = messages.filter(msg => msg.isImportant);
-        setImportantMessages(important);
-        
-        // 也尝试同步顾问接管状态，但忽略错误
-        try {
-          const isConsultantModeActive = await syncConsultantTakeoverStatus(currentConversationId);
-          setIsConsultantTakeover(isConsultantModeActive);
-        } catch (error) {
-          console.error('同步顾问状态失败:', error);
-        }
-      } catch (error) {
-        console.error('静默获取消息出错:', error);
-      }
-    } catch (error) {
-      console.error('静默获取数据出错:', error);
     }
   };
   
@@ -1059,75 +1046,6 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
   }
   
-  // 搜索FAQ
-  const searchFAQs = (query: string) => {
-    if (!query.trim()) {
-      // 如果搜索词为空，则基于最近的对话内容智能推荐
-      recommendFAQsBasedOnChat()
-      return
-    }
-    
-    // 根据关键词过滤FAQ
-    const normalizedQuery = query.toLowerCase()
-    const filtered = allFAQs.filter(faq => 
-      faq.question.toLowerCase().includes(normalizedQuery) || 
-      faq.answer.toLowerCase().includes(normalizedQuery) ||
-      faq.tags.some(tag => tag.toLowerCase().includes(normalizedQuery))
-    )
-    
-    setRecommendedFAQs(filtered.length > 0 ? filtered : allFAQs.slice(0, 3))
-  }
-  
-  // 基于聊天记录推荐FAQ
-  const recommendFAQsBasedOnChat = () => {
-    if (messages.length === 0) {
-      setRecommendedFAQs(allFAQs.slice(0, 3))
-      return
-    }
-    
-    // 获取最近的5条消息用于分析
-    const recentMessages = messages
-      .slice(-5)
-      .map(msg => msg.content)
-      .join(' ')
-      .toLowerCase()
-    
-    // 分析消息内容，匹配关键词与FAQ
-    const scoredFAQs = allFAQs.map(faq => {
-      let score = 0
-      
-      // 检查问题是否匹配
-      if (recentMessages.includes(faq.question.toLowerCase())) {
-        score += 5
-      }
-      
-      // 检查标签是否匹配
-      faq.tags.forEach(tag => {
-        if (recentMessages.includes(tag.toLowerCase())) {
-          score += 3
-        }
-      })
-      
-      // 内容匹配度
-      const answerWords = faq.answer.toLowerCase().split(/\s+/)
-      answerWords.forEach(word => {
-        if (word.length > 3 && recentMessages.includes(word)) {
-          score += 1
-        }
-      })
-      
-      return { ...faq, score }
-    })
-    
-    // 按匹配分数排序，选择前3个
-    const topFAQs = scoredFAQs
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5)
-      .map(({ id, question, answer, tags }) => ({ id, question, answer, tags }))
-    
-    setRecommendedFAQs(topFAQs.length > 0 ? topFAQs : allFAQs.slice(0, 3))
-  }
-  
   // 渲染消息内容
   const renderMessageContent = (msg: Message) => {
     // 系统消息展示
@@ -1212,18 +1130,6 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     return { name, avatar, isSelf };
   }
   
-  // 监听消息变化，自动推荐FAQ
-  useEffect(() => {
-    if (message.trim().length > 3) {
-      searchFAQs(message)
-    }
-  }, [message])
-  
-  // 初始化时基于对话智能推荐FAQ
-  useEffect(() => {
-    recommendFAQsBasedOnChat()
-  }, [messages])
-  
   // 清理效果
   useEffect(() => {
     return () => {
@@ -1300,7 +1206,79 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     });
     
     return groups;
-  }, [showImportantOnly, importantMessages, messages]);
+  }, [showImportantOnly, importantMessages, messages, formatMessageDate]);
+  
+  // 优化搜索功能，使用防抖处理
+  const debouncedSearchChatMessages = useCallback(
+    debounce((term: string) => {
+      if (!term.trim() || !currentConversationId) {
+        setSearchResults([]);
+        setSelectedMessageId(null);
+        return;
+      }
+      
+      const normalizedTerm = term.toLowerCase();
+      const results = messages.filter(msg => 
+        typeof msg.content === 'string' && 
+        msg.content.toLowerCase().includes(normalizedTerm) &&
+        msg.type === 'text' // 只搜索文本消息
+      );
+      
+      setSearchResults(results);
+      
+      // 如果有结果，选中第一条
+      if (results.length > 0) {
+        setSelectedMessageId(results[0].id);
+        scrollToMessage(results[0].id);
+      } else {
+        setSelectedMessageId(null);
+      }
+    }, 300),
+    [currentConversationId, messages]
+  );
+  
+  // 更新搜索函数调用
+  const searchChatMessages = useCallback((term: string) => {
+    debouncedSearchChatMessages(term);
+  }, [debouncedSearchChatMessages]);
+  
+  // 使用优化版的消息发送函数，删除其他同名函数
+  const handleSendMessage = useCallback(async () => {
+    // 防止重复发送
+    if (isSending) {
+      console.log('消息正在发送中，请稍候...');
+      return;
+    }
+    
+    // 根据消息类型调用相应的发送函数
+    if (imagePreview) {
+      await handleSendImageMessage();
+    } else if (audioPreview) {
+      await handleSendVoiceMessage();
+    } else {
+      await handleSendTextMessage();
+    }
+  }, [isSending, imagePreview, audioPreview, handleSendImageMessage, handleSendVoiceMessage, handleSendTextMessage]);
+
+  // 添加防抖函数实现
+  function debounce<T extends (...args: any[]) => any>(
+    func: T,
+    wait: number
+  ): (...args: Parameters<T>) => void {
+    let timeout: NodeJS.Timeout | null = null;
+    
+    return function(this: any, ...args: Parameters<T>) {
+      const later = () => {
+        timeout = null;
+        func.apply(this, args);
+      };
+      
+      if (timeout !== null) {
+        clearTimeout(timeout);
+      }
+      timeout = setTimeout(later, wait);
+    };
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -1520,106 +1498,15 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
             </div>
             
             {/* 当前日期组的消息 */}
-            {group.messages.map(msg => {
-              const { name, avatar, isSelf } = getSenderInfo(msg);
-              
-              return (
-                <div
-                  key={msg.id}
-                  id={`message-${msg.id}`}
-                  className={`flex ${isSelf ? 'justify-end' : 'justify-start'} items-end space-x-2 ${
-                    selectedMessageId === msg.id ? 'bg-yellow-50 -mx-2 px-2 py-1 rounded-lg' : ''
-                  }`}
-                >
-                  {/* 非自己发送的消息显示头像 */}
-                  {!isSelf && (
-                    <img 
-                      src={avatar} 
-                      alt={name} 
-                      className="h-8 w-8 rounded-full"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.onerror = null;
-                        const nameInitial = name.charAt(0);
-                        target.style.display = 'flex';
-                        target.style.backgroundColor = '#FF9800';
-                        target.style.color = '#FFFFFF';
-                        target.style.justifyContent = 'center';
-                        target.style.alignItems = 'center';
-                        target.src = 'data:image/svg+xml;charset=UTF-8,' + 
-                          encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"></svg>');
-                        setTimeout(() => {
-                          target.parentElement!.innerHTML = `<div class="h-8 w-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style="background-color: #FF9800">${nameInitial}</div>`;
-                        }, 0);
-                      }}
-                    />
-                  )}
-                  
-                  <div className={`flex max-w-[75%] flex-col ${isSelf ? 'items-end' : 'items-start'}`}>
-                    {/* 发送者名称 */}
-                    <span className="mb-1 text-xs text-gray-500">{name}</span>
-                    
-                    {/* 消息内容气泡 */}
-                    <div 
-                      className={`relative rounded-lg p-3 ${
-                        isSelf
-                          ? 'bg-orange-500 text-white'
-                          : msg.sender.type === 'ai'
-                            ? 'bg-gray-100 text-gray-800'
-                            : 'bg-white border border-gray-200 text-gray-800'
-                      }`}
-                    >
-                      {renderMessageContent(msg)}
-                      
-                      {/* 重点标记 */}
-                      <button
-                        onClick={() => toggleMessageImportant(msg.id, msg.isImportant)}
-                        className={`absolute -right-1.5 -top-1.5 rounded-full p-0.5 ${
-                          msg.isImportant ? 'bg-yellow-400 text-white' : 'bg-gray-200 text-gray-500'
-                        }`}
-                      >
-                          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path 
-                              fillRule="evenodd" 
-                              d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" 
-                              clipRule="evenodd" 
-                            />
-                        </svg>
-                      </button>
-                      
-                      {/* 消息时间 */}
-                      <div className={`mt-1 text-right text-xs ${isSelf ? 'text-white text-opacity-75' : 'text-gray-500'}`}>
-                        {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* 自己发送的消息显示头像 */}
-                  {isSelf && (
-                    <img 
-                      src={avatar} 
-                      alt={name} 
-                      className="h-8 w-8 rounded-full"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.onerror = null;
-                        const nameInitial = name.charAt(0);
-                        target.style.display = 'flex';
-                        target.style.backgroundColor = '#FF9800';
-                        target.style.color = '#FFFFFF';
-                        target.style.justifyContent = 'center';
-                        target.style.alignItems = 'center';
-                        target.src = 'data:image/svg+xml;charset=UTF-8,' + 
-                          encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"></svg>');
-                        setTimeout(() => {
-                          target.parentElement!.innerHTML = `<div class="h-8 w-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style="background-color: #FF9800">${nameInitial}</div>`;
-                        }, 0);
-                      }}
-                    />
-                  )}
-                </div>
-              );
-            })}
+            {group.messages.map(msg => (
+              <ChatMessage
+                key={msg.id}
+                message={msg}
+                isSelected={selectedMessageId === msg.id}
+                searchTerm={showSearch ? searchTerm : ''}
+                onToggleImportant={toggleMessageImportant}
+              />
+            ))}
           </div>
         ))}
         
@@ -1639,97 +1526,15 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         )}
       </div>
       
-      {/* FAQ快捷入口 */}
+      {/* FAQ快捷入口 - 替换为FAQSection组件 */}
       {showFAQ && (
-        <div className="border-t border-gray-200 bg-gray-50 p-3">
-          <div className="flex justify-between items-center mb-2">
-            <div className="text-sm font-medium text-gray-700">常见问题</div>
-            <button 
-              onClick={() => setShowFAQ(false)}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          
-          {/* FAQ搜索 */}
-          <div className="mb-3">
-            <div className="relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={e => {
-                  setSearchQuery(e.target.value)
-                  searchFAQs(e.target.value)
-                }}
-                placeholder="搜索常见问题..."
-                className="w-full rounded-lg border border-gray-200 pl-10 pr-4 py-2 text-sm focus:border-orange-500 focus:outline-none"
-              />
-              <svg
-                className="absolute left-3 top-2.5 h-4 w-4 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-              {searchQuery && (
-                <button
-                  className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
-                  onClick={() => {
-                    setSearchQuery('')
-                    recommendFAQsBasedOnChat()
-                  }}
-                >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          </div>
-          
-          <div className="flex flex-col gap-2">
-            {recommendedFAQs.length > 0 ? (
-              recommendedFAQs.map(faq => (
-                <button
-                  key={faq.id}
-                  className="rounded-lg border border-orange-200 bg-white px-3 py-2 text-left text-sm text-gray-700 hover:bg-orange-50"
-                  onClick={() => insertFAQ(faq)}
-                >
-                  <p className="font-medium text-orange-700">{faq.question}</p>
-                  <p className="mt-1 text-xs text-gray-500 line-clamp-1">{faq.answer}</p>
-                </button>
-              ))
-            ) : (
-              <div className="text-center py-3 text-gray-500 text-sm">
-                未找到相关问题，请尝试其他关键词
-              </div>
-            )}
-          </div>
-          
-          {/* 查看全部FAQ */}
-          <button 
-            className="mt-3 text-sm text-orange-600 hover:text-orange-700 font-medium flex items-center justify-center w-full"
-            onClick={() => {
-              // 这里可以跳转到完整FAQ页面或展开更多FAQ
-              setSearchQuery('')
-              setRecommendedFAQs(allFAQs)
-            }}
-          >
-            <span>查看全部常见问题</span>
-            <svg className="h-4 w-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
+        <FAQSection 
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          insertFAQ={insertFAQ}
+          closeFAQ={() => setShowFAQ(false)}
+          messages={messages}
+        />
       )}
       
       {/* 录音状态 */}

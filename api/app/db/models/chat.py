@@ -15,6 +15,8 @@ class Conversation(BaseModel):
     customer_id = Column(String(36), ForeignKey("users.id"), nullable=False)
     assigned_consultant_id = Column(String(36), ForeignKey("users.id"), nullable=True)
     is_active = Column(Boolean, default=True)
+    consultation_type = Column(String, nullable=True)  # 咨询类型
+    summary = Column(Text, nullable=True)  # 会话总结
 
     # 关联关系
     customer = relationship("User", backref="conversations", foreign_keys=[customer_id])

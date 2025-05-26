@@ -21,6 +21,25 @@ export class WebSocketConnection extends EventEmitter {
   public connect(url: string, params: Record<string, any> = {}): Promise<WebSocket> {
     return new Promise((resolve, reject) => {
       try {
+        // 验证URL
+        if (!url || url.trim() === '') {
+          const error = new Error('WebSocket连接URL不能为空');
+          console.error(error);
+          reject(error);
+          return;
+        }
+
+        // 验证URL格式
+        try {
+          new URL(url);
+        } catch (error) {
+          console.error(`WebSocket连接URL格式无效: ${url}`, error);
+          reject(new Error(`WebSocket连接URL格式无效: ${url}`));
+          return;
+        }
+
+        console.log(`开始连接WebSocket: ${url}`, params);
+
         // 关闭现有连接
         this.close();
         
@@ -37,12 +56,18 @@ export class WebSocketConnection extends EventEmitter {
         
         // 设置事件监听
         this.socket.onopen = (event) => {
+          console.log(`WebSocket连接成功: ${url}`);
           this.updateStatus(ConnectionStatus.CONNECTED);
           this.emit('open', { event, connectionId: this.connectionId });
           resolve(this.socket as WebSocket);
         };
         
         this.socket.onclose = (event) => {
+          console.log(`WebSocket连接关闭: ${url}`, {
+            code: event.code,
+            reason: event.reason,
+            wasClean: event.wasClean
+          });
           this.updateStatus(ConnectionStatus.DISCONNECTED);
           this.emit('close', { 
             event, 
@@ -54,6 +79,7 @@ export class WebSocketConnection extends EventEmitter {
         };
         
         this.socket.onerror = (event) => {
+          console.error(`WebSocket连接错误: ${url}`, event);
           this.updateStatus(ConnectionStatus.ERROR);
           this.emit('error', { 
             event, 
@@ -70,6 +96,7 @@ export class WebSocketConnection extends EventEmitter {
           });
         };
       } catch (error) {
+        console.error(`WebSocket连接初始化失败: ${url}`, error);
         this.updateStatus(ConnectionStatus.ERROR);
         this.emit('error', { 
           error, 

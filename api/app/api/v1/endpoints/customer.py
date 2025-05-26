@@ -207,8 +207,7 @@ async def get_customer_profile(
             "allergies": profile.allergies,
             "preferences": profile.preferences,
             "tags": profile.tags.split(",") if profile.tags else [],
-            "riskNotes": profile.risk_notes or [],
-            "consultationHistory": profile.consultation_history or []
+            "riskNotes": profile.risk_notes or []
         }
         
         return result
@@ -276,8 +275,7 @@ async def create_customer_profile(
             "allergies": new_profile.allergies,
             "preferences": new_profile.preferences,
             "tags": new_profile.tags.split(",") if new_profile.tags else [],
-            "riskNotes": [],
-            "consultationHistory": []
+            "riskNotes": []
         }
         
         return result
@@ -336,9 +334,6 @@ async def update_customer_profile(
         if profile_data.risk_notes is not None:
             profile.risk_notes = [note.dict() for note in profile_data.risk_notes]
         
-        if profile_data.consultation_history is not None:
-            profile.consultation_history = [item.dict() for item in profile_data.consultation_history]
-        
         # 更新时间戳
         profile.updated_at = datetime.now()
         
@@ -360,7 +355,6 @@ async def update_customer_profile(
             "preferences": profile.preferences,
             "tags": profile.tags.split(",") if profile.tags else [],
             "riskNotes": profile.risk_notes or [],
-            "consultationHistory": profile.consultation_history or [],
             "created_at": profile.created_at,
             "updated_at": profile.updated_at
         }
