@@ -30,14 +30,17 @@ class MessageBroadcaster:
                 logger.warning("消息事件缺少conversation_id")
                 return
             
+            sender_type = event.data.get("sender_type", "user")
+            sender_id = event.user_id
+            
             message_data = {
                 "action": "message",
                 "data": {
                     "id": event.data.get("message_id"),
                     "content": event.data.get("content"),
                     "type": event.data.get("message_type", "text"),
-                    "sender_id": event.user_id,
-                    "sender_type": event.data.get("sender_type", "user"),
+                    "sender_id": sender_id,
+                    "sender_type": sender_type,
                     "is_read": False,
                     "is_important": event.data.get("is_important", False)
                 },
@@ -45,13 +48,32 @@ class MessageBroadcaster:
                 "timestamp": event.timestamp.isoformat()
             }
             
-            await websocket_manager.broadcast_to_conversation(
-                conversation_id, 
-                message_data,
-                exclude_user=event.user_id  # 不发送给发送者自己
-            )
-            
-            logger.info(f"消息已广播: conversation_id={conversation_id}, sender={event.user_id}")
+            # 根据发送者类型决定广播策略
+            if sender_type in ["user", "customer"]:
+                # 客户发送的消息：广播给顾问端，不发送给发送者自己
+                await websocket_manager.broadcast_to_conversation(
+                    conversation_id, 
+                    message_data,
+                    exclude_user=sender_id  # 不发送给客户自己
+                )
+                logger.info(f"客户消息已广播给顾问: conversation_id={conversation_id}, sender={sender_id}")
+                
+            elif sender_type in ["consultant", "doctor", "admin", "operator"]:
+                # 顾问发送的消息：广播给客户端，不发送给发送者自己
+                await websocket_manager.broadcast_to_conversation(
+                    conversation_id, 
+                    message_data,
+                    exclude_user=sender_id  # 不发送给顾问自己
+                )
+                logger.info(f"顾问消息已广播给客户: conversation_id={conversation_id}, sender={sender_id}")
+                
+            elif sender_type in ["ai", "system"]:
+                # AI/系统消息：广播给所有人
+                await websocket_manager.broadcast_to_conversation(
+                    conversation_id, 
+                    message_data
+                )
+                logger.info(f"AI/系统消息已广播: conversation_id={conversation_id}")
             
         except Exception as e:
             logger.error(f"广播消息失败: {e}")

@@ -95,42 +95,32 @@ class UserResponse(UserBase):
     active_role: Optional[str] = None
     extended_info: Optional[ExtendedUserInfo] = None
 
-    @classmethod
-    def from_orm(cls, user, active_role=None):
-        # 构建扩展信息
+    @staticmethod
+    def from_model(user, active_role=None) -> "UserResponse":
         extended_info = ExtendedUserInfo()
-        
-        # 客户信息需要单独查询，不再通过user.customer直接访问
-        
-        if user.doctor:
+        if getattr(user, 'doctor', None):
             extended_info.doctor_info = DoctorBase(
                 specialization=user.doctor.specialization,
                 certification=user.doctor.certification,
                 license_number=user.doctor.license_number
             )
-            
-        if user.consultant:
+        if getattr(user, 'consultant', None):
             extended_info.consultant_info = ConsultantBase(
                 expertise=user.consultant.expertise,
                 performance_metrics=user.consultant.performance_metrics
             )
-            
-        if user.operator:
+        if getattr(user, 'operator', None):
             extended_info.operator_info = OperatorBase(
                 department=user.operator.department,
                 responsibilities=user.operator.responsibilities
             )
-            
-        if user.administrator:
+        if getattr(user, 'administrator', None):
             extended_info.administrator_info = AdministratorBase(
                 admin_level=user.administrator.admin_level,
                 access_permissions=user.administrator.access_permissions
             )
-        
-        # 如果未指定活跃角色，使用用户第一个角色作为活跃角色
-        active_role = active_role or (user.roles[0].name if user.roles else None)
-        
-        return cls(
+        active_role = active_role or (user.roles[0].name if getattr(user, 'roles', None) else None)
+        return UserResponse(
             id=user.id,
             email=user.email,
             username=user.username, 
@@ -138,7 +128,7 @@ class UserResponse(UserBase):
             avatar=user.avatar,
             is_active=user.is_active,
             created_at=user.created_at,
-            roles=[role.name for role in user.roles],
+            roles=[role.name for role in user.roles] if getattr(user, 'roles', None) else [],
             active_role=active_role,
             extended_info=extended_info
         )

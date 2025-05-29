@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import ChatLayout from '@/components/chat/ChatLayout'
 import ChatWindow from '@/components/chat/ChatWindow'
 import CustomerList from '@/components/chat/CustomerList'
 import CustomerProfile from '@/components/chat/CustomerProfile'

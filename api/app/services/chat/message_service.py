@@ -9,7 +9,7 @@ import logging
 from app.db.models.chat import Message, Conversation
 from app.db.models.user import User
 from app.db.uuid_utils import message_id
-from app.schemas.chat import MessageCreate
+from app.schemas.chat import MessageCreate, MessageInfo
 from app.core.events import event_bus, EventTypes, create_message_event
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class MessageService:
         sender_id: str,
         sender_type: str,
         is_important: bool = False
-    ) -> Message:
+    ) -> MessageInfo:
         """创建新消息"""
         logger.info(f"创建消息: conversation_id={conversation_id}, sender_id={sender_id}")
         
@@ -76,7 +76,7 @@ class MessageService:
         )
         await event_bus.publish_async(event)
         
-        return new_message
+        return MessageInfo.from_model(new_message)
     
     def get_conversation_messages(
         self,
@@ -84,7 +84,7 @@ class MessageService:
         skip: int = 0,
         limit: int = 100,
         order_desc: bool = False
-    ) -> List[Message]:
+    ) -> List[MessageInfo]:
         """获取会话消息"""
         logger.debug(f"获取会话消息: conversation_id={conversation_id}, skip={skip}, limit={limit}")
         
@@ -100,11 +100,12 @@ class MessageService:
         messages = query.offset(skip).limit(limit).all()
         
         logger.debug(f"查询到 {len(messages)} 条消息")
-        return messages
+        return [MessageInfo.from_model(msg) for msg in messages]
     
-    def get_message_by_id(self, message_id: str) -> Optional[Message]:
+    def get_message_by_id(self, message_id: str) -> Optional[MessageInfo]:
         """根据ID获取消息"""
-        return self.db.query(Message).filter(Message.id == message_id).first()
+        message = self.db.query(Message).filter(Message.id == message_id).first()
+        return MessageInfo.from_model(message) if message else None
     
     def mark_messages_as_read(self, message_ids: List[str], user_id: str) -> int:
         """标记消息为已读"""
@@ -136,7 +137,7 @@ class MessageService:
         self,
         conversation_id: str,
         limit: int = 10
-    ) -> List[Message]:
+    ) -> List[MessageInfo]:
         """获取最近的消息（用于AI上下文）"""
         messages = self.db.query(Message).filter(
             Message.conversation_id == conversation_id
@@ -145,7 +146,7 @@ class MessageService:
         ).limit(limit).all()
         
         # 返回时间正序的消息
-        return list(reversed(messages))
+        return [MessageInfo.from_model(msg) for msg in reversed(messages)]
     
     def delete_message(self, message_id: str, user_id: str) -> bool:
         """删除消息（软删除）"""
@@ -164,35 +165,4 @@ class MessageService:
         self.db.commit()
         
         logger.info(f"消息已删除: message_id={message_id}, user_id={user_id}")
-        return True
-    
-    def convert_to_schema(self, message: Message) -> Dict[str, Any]:
-        """将消息模型转换为API响应格式"""
-        if not message:
-            return None
-        
-        # 获取发送者信息
-        sender_info = {
-            "id": message.sender_id or "system",
-            "name": "系统" if message.sender_type == "system" else "AI助手" if message.sender_type == "ai" else "未知用户",
-            "avatar": None,
-            "type": message.sender_type
-        }
-        
-        # 如果有发送者关联对象，使用真实信息
-        if message.sender:
-            sender_info.update({
-                "name": message.sender.username,
-                "avatar": message.sender.avatar
-            })
-        
-        return {
-            "id": message.id,
-            "conversation_id": message.conversation_id,
-            "content": message.content,
-            "type": message.type,
-            "sender": sender_info,
-            "timestamp": message.timestamp,
-            "is_read": message.is_read,
-            "is_important": message.is_important
-        } 
+        return True 

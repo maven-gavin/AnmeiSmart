@@ -11,6 +11,7 @@ from app.db.models.chat import Message, Conversation
 from app.services.ai import get_ai_service
 from app.core.events import event_bus, EventTypes, Event
 from .message_service import MessageService
+from app.schemas.chat import MessageInfo
 
 logger = logging.getLogger(__name__)
 
@@ -19,61 +20,50 @@ class AIResponseService:
     """AI回复服务类"""
     
     def __init__(self, db: Session):
-        self.db = db
-        self.message_service = MessageService(db)
+        self.db: Session = db
+        self.message_service: MessageService = MessageService(db)
         self.ai_service = get_ai_service()
         
         # 订阅消息事件
         event_bus.subscribe_async(EventTypes.CHAT_MESSAGE_RECEIVED, self.handle_message_event)
     
     async def handle_message_event(self, event: Event):
-        """处理消息事件，决定是否需要AI回复"""
-        try:
-            # 只处理用户消息
-            if event.data.get("sender_type") != "user":
-                return
-            
-            conversation_id = event.conversation_id
-            user_id = event.user_id
-            content = event.data.get("content", "")
-            
-            logger.info(f"处理AI回复请求: conversation_id={conversation_id}, user_id={user_id}")
-            
-            # 检查是否需要AI回复
-            should_reply = await self.should_ai_reply(conversation_id, user_id)
-            
-            if should_reply:
-                await self.generate_ai_response(conversation_id, content)
-            else:
-                logger.info(f"跳过AI回复: conversation_id={conversation_id}")
-                
-        except Exception as e:
-            logger.error(f"处理AI回复事件失败: {e}")
+        """根据事件判断是否需要AI回复，如果需要则生成AI回复，保存并广播"""
+        if await self.should_ai_reply(event):
+            await self.generate_ai_response(event.conversation_id, event.content)
     
-    async def should_ai_reply(self, conversation_id: str, user_id: str) -> bool:
-        """判断是否应该生成AI回复"""
-        # 这里可以实现复杂的逻辑来决定是否需要AI回复
-        # 例如：检查会话设置、用户偏好、顾问在线状态等
-        
-        # 简化版：默认总是回复
-        # 实际项目中可以根据以下条件判断：
-        # 1. 会话是否启用了AI
-        # 2. 是否有人工顾问在线
-        # 3. 用户是否明确要求AI回复
-        # 4. 消息类型是否适合AI回复
-        
-        return True
+    async def should_ai_reply(self, event) -> bool:
+        """判断是否应该生成AI回复，event需包含conversation_id, user_id, sender_type等"""
+        try:
+            conversation_id = event.conversation_id
+            sender_type = getattr(event, 'sender_type', event.data.get('sender_type', None))
+            # 1. 仅客户消息触发AI
+            if sender_type not in ["customer"]:
+                logger.info(f"非客户消息，不触发AI: sender_type={sender_type}")
+                return False
+            # 2. 检查会话是否存在且为AI控制
+            conversation = self.db.query(Conversation).filter(
+                Conversation.id == conversation_id
+            ).first()
+            if not conversation.is_ai_controlled:
+                logger.info(f"会话已被顾问接管，不生成AI回复: {conversation_id}")
+                return False
+        except Exception as e:
+            logger.error(f"判断AI回复条件失败: {e}")
+            return False
     
     async def generate_ai_response(self, conversation_id: str, user_message: str):
         """生成AI回复"""
+        AI_SENDER_ID = "ai"
+        AI_SENDER_TYPE = "ai"
         try:
-            logger.info(f"开始生成AI回复: conversation_id={conversation_id}")
+            logger.info(f"开始生成AI回复: conversation_id={conversation_id}, user_message={user_message}")
             
             # 获取会话历史
             history = self.get_conversation_history(conversation_id)
             
             # 设置超时时间
-            timeout = 10.0
+            timeout = 5.0
             
             # 生成AI回复
             ai_response = await asyncio.wait_for(
@@ -81,13 +71,19 @@ class AIResponseService:
                 timeout=timeout
             )
             
+            # 类型检查
+            if not isinstance(ai_response, dict):
+                logger.error(f"AI服务返回格式错误: {ai_response}")
+                await self.create_error_message(conversation_id, "AI服务返回格式错误")
+                return
+            
             # 创建AI回复消息
             ai_message = await self.message_service.create_message(
                 conversation_id=conversation_id,
                 content=ai_response.get("content", "抱歉，我暂时无法回复"),
                 message_type="text",
-                sender_id="ai",
-                sender_type="ai"
+                sender_id=AI_SENDER_ID,
+                sender_type=AI_SENDER_TYPE
             )
             
             logger.info(f"AI回复生成成功: message_id={ai_message.id}")
@@ -96,10 +92,10 @@ class AIResponseService:
             from app.core.events import create_message_event
             event = create_message_event(
                 conversation_id=conversation_id,
-                user_id="ai",
+                user_id=AI_SENDER_ID,
                 content=ai_message.content,
                 message_type="text",
-                sender_type="ai",
+                sender_type=AI_SENDER_TYPE,
                 message_id=ai_message.id
             )
             event.type = EventTypes.AI_RESPONSE_GENERATED
@@ -153,15 +149,12 @@ class AIResponseService:
         except Exception as e:
             logger.error(f"创建错误消息失败: {e}")
     
-    async def force_ai_response(self, conversation_id: str, prompt: str) -> Optional[Message]:
+    async def force_ai_response(self, conversation_id: str, prompt: str) -> Optional[MessageInfo]:
         """强制生成AI回复（用于手动触发）"""
         try:
             logger.info(f"强制生成AI回复: conversation_id={conversation_id}")
-            
             history = self.get_conversation_history(conversation_id)
-            
             ai_response = await self.ai_service.get_response(prompt, history)
-            
             ai_message = await self.message_service.create_message(
                 conversation_id=conversation_id,
                 content=ai_response.get("content", "无法生成回复"),
@@ -169,24 +162,7 @@ class AIResponseService:
                 sender_id="ai",
                 sender_type="ai"
             )
-            
-            return ai_message
-            
+            return MessageInfo.from_model(ai_message)
         except Exception as e:
             logger.error(f"强制AI回复失败: {e}")
             return None
-    
-    def set_ai_enabled(self, conversation_id: str, enabled: bool):
-        """设置会话的AI启用状态"""
-        # 这里可以实现会话级别的AI开关
-        # 可以存储在数据库的会话配置中
-        pass
-    
-    def get_ai_status(self, conversation_id: str) -> Dict[str, Any]:
-        """获取AI状态信息"""
-        return {
-            "enabled": True,  # 从数据库或配置中获取
-            "model": "default",
-            "response_time_avg": 2.5,  # 平均响应时间
-            "success_rate": 0.95  # 成功率
-        } 

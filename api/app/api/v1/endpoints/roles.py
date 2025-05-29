@@ -4,7 +4,7 @@ from typing import List
 
 from app.schemas.user import RoleCreate, RoleResponse, UserResponse
 from app.db.models.user import Role, User
-from app.crud import crud_user
+from app.services import user_service as crud_user
 from app.core.security import get_current_user
 from app.db.base import get_db
 

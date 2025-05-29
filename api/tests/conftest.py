@@ -1,13 +1,9 @@
 import pytest
 import sys
 import os
-import logging
 from typing import Generator, Dict
 from fastapi.testclient import TestClient
-from fastapi import FastAPI
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
-from httpx import WSGITransport 
+from sqlalchemy.orm import Session
 
 # 将项目根目录添加到Python路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -21,6 +17,8 @@ from app.core.config import get_settings
 app.router.on_startup = []
 
 settings = get_settings()
+
+pytest_plugins = ("pytest_asyncio",)
 
 # 使用应用中已配置的数据库
 # TestingSessionLocal = SessionLocal

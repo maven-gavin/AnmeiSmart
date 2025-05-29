@@ -95,12 +95,23 @@ export class WebSocketClient {
     // 保存连接参数
     this.connectionParams = { ...params };
     
-    // 构建完整URL
+    // 构建完整URL，修正URL结构
     let url = this.config.url;
     
-    // 添加会话ID到URL路径，而非用户ID
+    // 添加会话ID到URL路径
+    // 确保URL路径中已包含/ws/前缀
+    if (!url.endsWith('/ws/') && !url.endsWith('/ws')) {
+      if (!url.endsWith('/')) {
+        url = `${url}/ws/`;
+      } else {
+        url = `${url}ws/`;
+      }
+    }
+    
+    // 添加会话ID
     if (params.conversationId) {
-      url = `${url}/${params.conversationId}`;
+      url = `${url}${params.conversationId}`;
+      console.log(`WebSocketClient: 为会话 ${params.conversationId} 构建URL: ${url}`);
     } else {
       throw new Error('会话ID是必需的');
     }
@@ -123,8 +134,14 @@ export class WebSocketClient {
     const queryString = queryParams.toString();
     const fullUrl = queryString ? `${url}?${queryString}` : url;
     
+    // 记录连接开始
+    console.log(`WebSocketClient: 开始连接: ${fullUrl}`, {
+      conversationId: params.conversationId,
+      connectionId: params.connectionId || this.connectionParams.connectionId || '未指定'
+    });
+    
     try {
-      // 建立连接
+      // 建立连接 - 这里设置一个更长的超时等待
       await this.connection.connect(fullUrl, params);
       
       // 启动心跳
@@ -136,12 +153,27 @@ export class WebSocketClient {
       }
       
       if (this.config.debug) {
-        console.log(`WebSocket连接成功: ${fullUrl}`);
+        console.log(`WebSocketClient: 连接成功: ${fullUrl}, 状态: ${this.getConnectionStatus()}`);
       }
     } catch (error) {
+      // 记录连接失败详情
       if (this.config.debug) {
-        console.error('WebSocket连接失败:', error);
+        console.error(`WebSocketClient: 连接失败: ${fullUrl}`, error);
       }
+      
+      // 更新内部状态为断开连接
+      const internalEvent = {
+        oldStatus: this.connection.getStatus(),
+        newStatus: ConnectionStatus.DISCONNECTED,
+        connectionId: params.connectionId || this.connectionParams.connectionId || '未指定',
+        timestamp: Date.now(),
+        error
+      };
+      
+      // 手动触发状态变更事件，以确保UI能够更新
+      this.connection.emit('statusChange', internalEvent);
+      
+      // 向上传递错误
       throw error;
     }
   }
@@ -150,17 +182,21 @@ export class WebSocketClient {
    * 关闭WebSocket连接
    */
   public disconnect(): void {
-    // 停止心跳
-    this.heartbeat.stop();
-    
-    // 禁用重连
-    this.reconnector.disable();
-    
-    // 关闭连接
-    this.connection.close();
-    
-    if (this.config.debug) {
-      console.log('WebSocket连接已关闭');
+    try {
+      // 停止心跳
+      this.heartbeat.stop();
+      
+      // 禁用重连
+      this.reconnector.disable();
+      
+      // 关闭连接
+      this.connection.close();
+      
+      if (this.config.debug) {
+        console.log('WebSocketClient: 连接已关闭');
+      }
+    } catch (error) {
+      console.error('WebSocketClient: 关闭连接出错:', error);
     }
   }
   
@@ -364,6 +400,30 @@ export class WebSocketClient {
    */
   public getConnectionStatus(): ConnectionStatus {
     return this.connection.getStatus();
+  }
+  
+  /**
+   * 获取原生WebSocket连接状态（readyState）
+   * 如果没有连接，返回WebSocket.CLOSED (3)
+   */
+  public getNativeConnectionState(): number {
+    return this.connection.getNativeState();
+  }
+  
+  /**
+   * 添加连接状态变化监听器
+   * @param listener 回调函数，参数为 { oldStatus: ConnectionStatus, newStatus: ConnectionStatus, connectionId: string }
+   */
+  public addConnectionStatusListener(listener: (event: any) => void): void {
+    this.connection.on('statusChange', listener);
+  }
+  
+  /**
+   * 移除连接状态变化监听器
+   * @param listener 要移除的回调函数
+   */
+  public removeConnectionStatusListener(listener: (event: any) => void): void {
+    this.connection.off('statusChange', listener);
   }
   
   /**

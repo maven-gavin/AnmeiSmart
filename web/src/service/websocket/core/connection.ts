@@ -11,6 +11,8 @@ export class WebSocketConnection extends EventEmitter {
   private status: ConnectionStatus = ConnectionStatus.DISCONNECTED;
   private connectionId: string = '';
   private connectionParams: Record<string, any> = {};
+  private timeoutId: NodeJS.Timeout | null = null;
+  private connectionTimeout: number = 10000; // 默认10秒超时
   
   /**
    * 创建WebSocket连接
@@ -38,6 +40,7 @@ export class WebSocketConnection extends EventEmitter {
           return;
         }
 
+        // 更详细的日志，包括完整URL
         console.log(`开始连接WebSocket: ${url}`, params);
 
         // 关闭现有连接
@@ -48,61 +51,115 @@ export class WebSocketConnection extends EventEmitter {
         this.connectionParams = { ...params };
         this.connectionId = params.connectionId || crypto.randomUUID();
         
-        // 更新状态
-        this.updateStatus(ConnectionStatus.CONNECTING);
+        // 创建WebSocket对象
+        const socket = new WebSocket(url);
+        this.socket = socket;
         
-        // 创建新连接
-        this.socket = new WebSocket(url);
+        // 更新状态为连接中
+        this.setStatus(ConnectionStatus.CONNECTING);
         
-        // 设置事件监听
-        this.socket.onopen = (event) => {
+        // 设置连接超时
+        if (this.connectionTimeout > 0) {
+          this.timeoutId = setTimeout(() => {
+            this.handleConnectionTimeout();
+          }, this.connectionTimeout);
+        }
+
+        // 连接事件处理
+        socket.onopen = (event) => {
           console.log(`WebSocket连接成功: ${url}`);
-          this.updateStatus(ConnectionStatus.CONNECTED);
-          this.emit('open', { event, connectionId: this.connectionId });
-          resolve(this.socket as WebSocket);
-        };
-        
-        this.socket.onclose = (event) => {
-          console.log(`WebSocket连接关闭: ${url}`, {
-            code: event.code,
-            reason: event.reason,
-            wasClean: event.wasClean
-          });
-          this.updateStatus(ConnectionStatus.DISCONNECTED);
-          this.emit('close', { 
-            event, 
+          
+          // 清除超时定时器
+          if (this.timeoutId) {
+            clearTimeout(this.timeoutId);
+            this.timeoutId = null;
+          }
+          
+          // 更新状态为已连接
+          this.setStatus(ConnectionStatus.CONNECTED);
+          
+          // 触发open事件
+          this.emit('open', {
+            event,
             connectionId: this.connectionId,
+            timestamp: Date.now()
+          });
+          
+          // 解析Promise
+          resolve(socket);
+        };
+
+        // 消息事件处理
+        socket.onmessage = (event) => {
+          // 触发message事件
+          this.emit('message', event);
+        };
+
+        // 关闭事件处理
+        socket.onclose = (event) => {
+          console.log(`WebSocket连接关闭: ${url}, code=${event.code}, reason=${event.reason}`);
+          
+          // 清除超时定时器
+          if (this.timeoutId) {
+            clearTimeout(this.timeoutId);
+            this.timeoutId = null;
+          }
+          
+          // 更新状态为断开
+          this.setStatus(ConnectionStatus.DISCONNECTED);
+          
+          // 触发close事件
+          this.emit('close', {
+            event,
             code: event.code,
             reason: event.reason,
-            wasClean: event.wasClean
+            wasClean: event.wasClean,
+            connectionId: this.connectionId,
+            timestamp: Date.now()
           });
+          
+          // 清理socket引用
+          this.socket = null;
         };
-        
-        this.socket.onerror = (event) => {
+
+        // 错误事件处理
+        socket.onerror = (event) => {
           console.error(`WebSocket连接错误: ${url}`, event);
-          this.updateStatus(ConnectionStatus.ERROR);
-          this.emit('error', { 
-            event, 
+          
+          // 清除超时定时器
+          if (this.timeoutId) {
+            clearTimeout(this.timeoutId);
+            this.timeoutId = null;
+          }
+          
+          // 更新状态为错误
+          this.setStatus(ConnectionStatus.ERROR);
+          
+          // 触发error事件
+          this.emit('error', {
+            event,
             connectionId: this.connectionId,
-            message: 'WebSocket连接错误'
+            timestamp: Date.now()
           });
-          reject(new Error('WebSocket连接错误'));
-        };
-        
-        this.socket.onmessage = (event) => {
-          this.emit('message', { 
-            data: event.data, 
-            connectionId: this.connectionId 
-          });
+          
+          // 如果仍在连接中，则reject Promise
+          if (this.status === ConnectionStatus.CONNECTING) {
+            reject(new Error('WebSocket连接错误'));
+          }
         };
       } catch (error) {
-        console.error(`WebSocket连接初始化失败: ${url}`, error);
-        this.updateStatus(ConnectionStatus.ERROR);
-        this.emit('error', { 
-          error, 
-          connectionId: this.connectionId,
-          message: 'WebSocket连接初始化失败'
-        });
+        console.error('WebSocket连接失败:', error);
+        
+        // 清除超时定时器
+        if (this.timeoutId) {
+          clearTimeout(this.timeoutId);
+          this.timeoutId = null;
+        }
+        
+        // 更新状态为断开
+        this.setStatus(ConnectionStatus.DISCONNECTED);
+        
+        // reject Promise
         reject(error);
       }
     });
@@ -112,23 +169,34 @@ export class WebSocketConnection extends EventEmitter {
    * 关闭WebSocket连接
    */
   public close(): void {
+    // 清除超时定时器
+    if (this.timeoutId) {
+      clearTimeout(this.timeoutId);
+      this.timeoutId = null;
+    }
+    
+    // 关闭WebSocket连接
     if (this.socket) {
       try {
-        // 仅在连接或连接中状态才需要关闭
-        if (this.socket.readyState === WebSocket.OPEN || 
-            this.socket.readyState === WebSocket.CONNECTING) {
+        // 只有在连接已打开或连接中的情况下才关闭
+        if (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING) {
           this.socket.close();
+          
+          // 手动关闭不会触发onclose事件，所以这里需要手动设置状态
+          // 但如果状态已经是断开的，则不需要再次设置
+          if (this.status !== ConnectionStatus.DISCONNECTED) {
+            this.setStatus(ConnectionStatus.DISCONNECTED);
+          }
         }
       } catch (error) {
-        this.emit('error', { 
-          error, 
-          connectionId: this.connectionId,
-          message: '关闭WebSocket连接时出错'
-        });
-      } finally {
-        this.socket = null;
-        this.updateStatus(ConnectionStatus.DISCONNECTED);
+        console.error('关闭WebSocket连接出错:', error);
       }
+      
+      // 清理socket引用
+      this.socket = null;
+    } else if (this.status !== ConnectionStatus.DISCONNECTED) {
+      // 如果没有socket但状态不是断开，则更新状态
+      this.setStatus(ConnectionStatus.DISCONNECTED);
     }
   }
   
@@ -167,6 +235,18 @@ export class WebSocketConnection extends EventEmitter {
   }
   
   /**
+   * 获取WebSocket原生连接状态
+   * 返回WebSocket.readyState
+   * CONNECTING = 0, OPEN = 1, CLOSING = 2, CLOSED = 3
+   */
+  public getNativeState(): number {
+    if (this.socket) {
+      return this.socket.readyState;
+    }
+    return WebSocket.CLOSED; // 默认返回已关闭状态
+  }
+  
+  /**
    * 获取连接ID
    */
   public getConnectionId(): string {
@@ -197,15 +277,67 @@ export class WebSocketConnection extends EventEmitter {
   /**
    * 更新状态并触发状态变更事件
    */
-  private updateStatus(newStatus: ConnectionStatus): void {
-    const oldStatus = this.status;
-    this.status = newStatus;
-    
-    if (oldStatus !== newStatus) {
+  private setStatus(newStatus: ConnectionStatus): void {
+    if (this.status !== newStatus) {
+      const oldStatus = this.status;
+      this.status = newStatus;
+      
+      // 记录状态变更
+      console.log(`WebSocket连接状态变更: ${oldStatus} -> ${newStatus}, ID=${this.connectionId}`);
+      
+      // 触发状态变更事件
       this.emit('statusChange', {
         oldStatus,
         newStatus,
-        connectionId: this.connectionId
+        connectionId: this.connectionId,
+        timestamp: Date.now()
+      });
+      
+      // 特定状态事件
+      if (newStatus === ConnectionStatus.CONNECTED) {
+        this.emit('connected', {
+          connectionId: this.connectionId,
+          timestamp: Date.now()
+        });
+      } else if (newStatus === ConnectionStatus.DISCONNECTED) {
+        this.emit('disconnected', {
+          connectionId: this.connectionId,
+          timestamp: Date.now()
+        });
+      }
+    }
+  }
+
+  // 连接超时处理
+  private handleConnectionTimeout(): void {
+    if (this.status === ConnectionStatus.CONNECTING) {
+      // 如果仍在连接中，则设置为断开
+      this.setStatus(ConnectionStatus.DISCONNECTED);
+      
+      // 触发连接超时事件
+      this.emit('timeout', {
+        url: this.url,
+        connectionId: this.connectionId,
+        timestamp: Date.now()
+      });
+      
+      // 关闭任何可能存在的连接
+      if (this.socket) {
+        try {
+          this.socket.close();
+        } catch (error) {
+          // 忽略关闭错误
+        }
+        this.socket = null;
+      }
+      
+      // 触发错误事件
+      this.emit('error', {
+        type: 'timeout',
+        message: '连接超时',
+        url: this.url,
+        connectionId: this.connectionId,
+        timestamp: Date.now()
       });
     }
   }

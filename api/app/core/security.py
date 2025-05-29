@@ -9,6 +9,7 @@ import logging
 from app.core.config import get_settings
 from app.db.base import get_db
 from app.core.password_utils import verify_password
+from app.services import user_service as crud_user
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -156,9 +157,6 @@ async def get_current_user(
     except Exception as e:
         logger.error(f"令牌验证过程中发生未知错误: {str(e)}")
         raise credentials_exception
-    
-    # 避免循环导入
-    from app.crud import crud_user
     
     logger.debug(f"尝试从数据库获取用户: user_id={user_id}")
     user = await crud_user.get(db, id=user_id)

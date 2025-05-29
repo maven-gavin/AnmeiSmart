@@ -9,7 +9,7 @@ import logging
 from app.db.models.chat import Conversation, Message
 from app.db.models.user import User
 from app.db.uuid_utils import conversation_id
-from app.schemas.chat import ConversationCreate, ConversationInfo
+from app.schemas.chat import ConversationCreate, ConversationInfo, MessageInfo
 from app.core.events import event_bus, EventTypes, create_user_event
 from .message_service import MessageService
 from .ai_response_service import AIResponseService
@@ -51,7 +51,7 @@ class ChatService:
         customer_id: str,
         creator_id: str,
         auto_assign_consultant: bool = True
-    ) -> Conversation:
+    ) -> ConversationInfo:
         """创建新会话"""
         logger.info(f"创建会话: title={title}, customer_id={customer_id}, creator_id={creator_id}")
         
@@ -108,7 +108,7 @@ class ChatService:
         )
         
         logger.info(f"会话创建成功: id={new_conversation.id}")
-        return new_conversation
+        return ConversationInfo.from_model(new_conversation)
     
     def get_conversations(
         self,
@@ -116,7 +116,7 @@ class ChatService:
         user_role: str,
         skip: int = 0,
         limit: int = 100
-    ) -> List[Conversation]:
+    ) -> List[ConversationInfo]:
         """获取用户的会话列表"""
         logger.info(f"获取会话列表: user_id={user_id}, role={user_role}")
         
@@ -138,14 +138,14 @@ class ChatService:
         ).offset(skip).limit(limit).all()
         
         logger.info(f"查询到 {len(conversations)} 个会话")
-        return conversations
+        return [ConversationInfo.from_model(conv) for conv in conversations]
     
     def get_conversation_by_id(
         self,
         conversation_id: str,
         user_id: str,
         user_role: str
-    ) -> Optional[Conversation]:
+    ) -> Optional[ConversationInfo]:
         """获取指定会话"""
         conversation = self.db.query(Conversation).options(
             joinedload(Conversation.customer)
@@ -158,7 +158,7 @@ class ChatService:
         if user_role == "customer" and conversation.customer_id != user_id:
             raise PermissionError("无权访问此会话")
         
-        return conversation
+        return ConversationInfo.from_model(conversation)
     
     async def send_message(
         self,
@@ -169,7 +169,7 @@ class ChatService:
         sender_type: str,
         is_important: bool = False,
         auto_assign_on_first_message: bool = True
-    ) -> Message:
+    ) -> MessageInfo:
         """发送消息"""
         # 验证会话存在和权限
         conversation = self.get_conversation_by_id(conversation_id, sender_id, sender_type)
@@ -217,7 +217,7 @@ class ChatService:
             is_important=is_important
         )
         
-        return message
+        return MessageInfo.from_model(message)
     
     def get_conversation_messages(
         self,
@@ -246,7 +246,7 @@ class ChatService:
         return self.message_service.mark_messages_as_read(message_ids, user_id)
     
     def get_conversation_summary(self, conversation_id: str) -> Dict[str, Any]:
-        """获取会话摘要信息"""
+        """获取会话摘要信息,不仅是sumary字段，还有消息统计和最后一条消息"""
         conversation = self.db.query(Conversation).filter(
             Conversation.id == conversation_id
         ).first()
@@ -272,68 +272,9 @@ class ChatService:
             "updated_at": conversation.updated_at,
             "is_active": conversation.is_active,
             "total_messages": total_messages,
-            "last_message": self.message_service.convert_to_schema(last_message) if last_message else None
+            "last_message": MessageInfo.from_model(last_message) if last_message else None
         }
     
-    def convert_conversation_to_schema(self, conversation: Conversation) -> Dict[str, Any]:
-        """将会话模型转换为API响应格式"""
-        if not conversation:
-            return None
-        
-        # 获取最后一条消息
-        last_message = self.db.query(Message).filter(
-            Message.conversation_id == conversation.id
-        ).order_by(Message.timestamp.desc()).first()
-        
-        # 获取未读消息数（如果有当前用户信息的话）
-        unread_count = 0  # 这里可以根据需要计算
-        
-        # 构造符合ConversationInfo模型的返回数据
-        result = {
-            "id": conversation.id,
-            "title": conversation.title,
-            "customer_id": conversation.customer_id,  # 添加必需的customer_id字段
-            "created_at": conversation.created_at,
-            "updated_at": conversation.updated_at,
-            "is_active": conversation.is_active,
-            "customer": {
-                "id": conversation.customer.id,
-                "username": conversation.customer.username,
-                "avatar": conversation.customer.avatar or '/avatars/user.png'
-            } if conversation.customer else None,
-            "unread_count": unread_count
-        }
-        
-        # 如果有最后一条消息，按照MessageInfo模型格式化
-        if last_message:
-            # 获取发送者信息
-            sender_name = "系统"
-            if last_message.sender_type == "ai":
-                sender_name = "AI助手"
-            elif last_message.sender:
-                sender_name = last_message.sender.username
-            
-            sender_info = {
-                "id": last_message.sender_id or "system",
-                "name": sender_name,
-                "avatar": last_message.sender.avatar if last_message.sender else None,
-                "type": last_message.sender_type
-            }
-            
-            result["last_message"] = {
-                "id": last_message.id,
-                "conversation_id": last_message.conversation_id,
-                "content": last_message.content,
-                "type": last_message.type or "text",  # 确保有消息类型
-                "sender": sender_info,
-                "timestamp": last_message.timestamp,
-                "is_read": last_message.is_read,
-                "is_important": last_message.is_important
-            }
-        else:
-            result["last_message"] = None
-        
-        return result
     
     def search_conversations(
         self,
@@ -342,27 +283,30 @@ class ChatService:
         query: str,
         skip: int = 0,
         limit: int = 50
-    ) -> List[Conversation]:
+    ) -> List[ConversationInfo]:
         """搜索会话"""
         base_query = self.db.query(Conversation).options(
             joinedload(Conversation.customer)
         )
-        
         # 根据角色过滤
         if user_role == "customer":
             base_query = base_query.filter(Conversation.customer_id == user_id)
-        
         # 搜索条件
         if query:
             base_query = base_query.filter(
                 Conversation.title.ilike(f"%{query}%")
             )
-        
         conversations = base_query.order_by(
             Conversation.updated_at.desc()
         ).offset(skip).limit(limit).all()
-        
-        return conversations
+        # 转换为 ConversationInfo
+        result = []
+        for conv in conversations:
+            last_message = self.db.query(Message).filter(
+                Message.conversation_id == conv.id
+            ).order_by(Message.timestamp.desc()).first()
+            result.append(ConversationInfo.from_model(conv, last_message))
+        return result
     
     async def close_conversation(self, conversation_id: str, user_id: str):
         """关闭会话"""
@@ -410,4 +354,21 @@ class ChatService:
         )
         
         self.db.commit()
-        logger.info(f"会话已重新打开: {conversation_id}") 
+        logger.info(f"会话已重新打开: {conversation_id}")
+    
+    def get_ai_controlled_status(self, conversation_id: str) -> Optional[bool]:
+        """查询会话当前是否为AI控制"""
+        conversation = self.db.query(Conversation).filter(Conversation.id == conversation_id).first()
+        if conversation:
+            return conversation.is_ai_controlled
+        return None
+
+    def set_ai_controlled_status(self, conversation_id: str, is_ai_controlled: bool) -> bool:
+        """设置会话AI控制状态"""
+        conversation = self.db.query(Conversation).filter(Conversation.id == conversation_id).first()
+        if not conversation:
+            return False
+        conversation.is_ai_controlled = is_ai_controlled
+        conversation.updated_at = datetime.now()
+        self.db.commit()
+        return True 

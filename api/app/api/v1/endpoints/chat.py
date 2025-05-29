@@ -57,7 +57,7 @@ async def create_conversation(
             creator_id=current_user.id
         )
         
-        return chat_service.convert_conversation_to_schema(conversation)
+        return conversation
         
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -172,7 +172,7 @@ async def get_conversations(
                 limit=limit
             )
             
-            return [chat_service.convert_conversation_to_schema(conv) for conv in conversations]
+            return [conversation for conversation in conversations]
         
     except Exception as e:
         logger.error(f"获取会话列表失败: {e}")
@@ -199,7 +199,7 @@ async def get_conversation(
         if not conversation:
             raise HTTPException(status_code=404, detail="会话不存在")
         
-        return chat_service.convert_conversation_to_schema(conversation)
+        return conversation
         
     except PermissionError:
         raise HTTPException(status_code=403, detail="无权访问此会话")
@@ -230,7 +230,7 @@ async def get_conversation_messages(
         )
         
         message_service = MessageService(db)
-        return [message_service.convert_to_schema(msg) for msg in messages]
+        return [MessageInfo.from_model(msg) for msg in messages]
         
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -261,7 +261,7 @@ async def send_message(
         )
         
         message_service = MessageService(db)
-        return message_service.convert_to_schema(message)
+        return MessageInfo.from_model(message)
         
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -338,13 +338,47 @@ async def update_conversation(
             db.commit()
             db.refresh(conversation)
         
-        return chat_service.convert_conversation_to_schema(conversation)
+        return conversation
         
     except PermissionError:
         raise HTTPException(status_code=403, detail="无权修改此会话")
     except Exception as e:
         logger.error(f"更新会话失败: {e}")
         raise HTTPException(status_code=500, detail="更新会话失败")
+
+
+@router.post("/conversations/{conversation_id}/takeover")
+async def consultant_takeover_conversation(
+    conversation_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """顾问接管会话"""
+    chat_service = ChatService(db)
+    user_role = get_user_role(current_user)
+    if user_role not in ["consultant", "doctor", "admin", "operator"]:
+        raise HTTPException(status_code=403, detail="无权接管会话")
+    success = chat_service.set_ai_controlled_status(conversation_id, False)
+    if not success:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    return {"message": "会话已由顾问接管", "is_ai_controlled": False}
+
+
+@router.post("/conversations/{conversation_id}/release")
+async def consultant_release_conversation(
+    conversation_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """顾问取消接管，恢复AI回复"""
+    chat_service = ChatService(db)
+    user_role = get_user_role(current_user)
+    if user_role not in ["consultant", "doctor", "admin", "operator"]:
+        raise HTTPException(status_code=403, detail="无权操作")
+    success = chat_service.set_ai_controlled_status(conversation_id, True)
+    if not success:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    return {"message": "会话已恢复为AI回复", "is_ai_controlled": True}
 
 
 # ============ WebSocket 端点 ============
@@ -359,24 +393,27 @@ async def websocket_endpoint(
     """WebSocket连接端点 - 简化版，专注于连接管理"""
     connection = None
     user_id = None
+    user_role = None
     
     try:
         # 验证token并获取用户信息
-        # 这里需要实现token验证逻辑
-        user_id = await verify_websocket_token(token, db)
-        if not user_id:
+        user_info = await verify_websocket_token(token, db)
+        if not user_info:
             await websocket.close(code=4001, reason="Invalid token")
             return
+        
+        user_id = user_info["user_id"]
+        user_role = user_info.get("role", "customer")  # 获取用户角色
         
         # 建立WebSocket连接
         connection = await websocket_manager.connect(websocket, user_id, conversation_id)
         
-        logger.info(f"WebSocket连接已建立: user_id={user_id}, conversation_id={conversation_id}")
+        logger.info(f"WebSocket连接已建立: user_id={user_id}, role={user_role}, conversation_id={conversation_id}")
         
         # 发送连接确认
         await connection.send_json({
             "action": "connected",
-            "data": {"conversation_id": conversation_id},
+            "data": {"conversation_id": conversation_id, "user_role": user_role},
             "timestamp": datetime.now().isoformat()
         })
         
@@ -385,6 +422,11 @@ async def websocket_endpoint(
             try:
                 # 接收消息
                 data = await websocket.receive_json()
+                
+                # 在消息数据中添加用户角色信息
+                if "data" not in data:
+                    data["data"] = {}
+                data["data"]["sender_type"] = user_role
                 
                 # 使用WebSocket处理器处理消息
                 response = await websocket_handler.handle_websocket_message(
@@ -421,21 +463,34 @@ async def websocket_endpoint(
 
 # ============ 辅助函数 ============
 
-async def verify_websocket_token(token: str, db: Session) -> Optional[str]:
-    """验证WebSocket token并返回用户ID"""
+async def verify_websocket_token(token: str, db: Session) -> Optional[dict]:
+    """验证WebSocket token并返回用户ID和角色"""
     try:
-        # 这里需要实现实际的token验证逻辑
-        # 可以使用JWT或其他认证方式
-        
         # 使用安全模块验证token
         from app.core.security import verify_token
         payload = verify_token(token)
-        if payload:
-            # 确保返回的是字符串类型的用户ID
-            user_id = payload.get("sub") if isinstance(payload, dict) else None
-            logger.debug(f"WebSocket token验证成功: {user_id}")
-            return user_id
-        return None
+        if not payload or not isinstance(payload, dict):
+            return None
+        
+        user_id = payload.get("sub")
+        if not user_id:
+            return None
+            
+        # 从数据库获取用户信息
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            logger.warning(f"Token中的用户ID在数据库中不存在: {user_id}")
+            return None
+        
+        # 获取用户当前角色
+        user_role = get_user_role(user)
+        
+        logger.debug(f"WebSocket token验证成功: user_id={user_id}, role={user_role}")
+        return {
+            "user_id": user_id,
+            "role": user_role,
+            "username": user.username
+        }
         
     except Exception as e:
         logger.error(f"验证WebSocket token失败: {e}")
@@ -445,9 +500,27 @@ async def verify_websocket_token(token: str, db: Session) -> Optional[str]:
 def get_user_role_from_token(token: str) -> str:
     """从token中获取用户角色"""
     try:
-        # 这里需要实现实际的角色获取逻辑
+        from app.core.security import verify_token
+        payload = verify_token(token)
+        
+        if payload and isinstance(payload, dict):
+            # 从token payload中获取角色信息
+            role = payload.get("role")
+            if role:
+                return role
+            
+            # 如果token中没有角色信息，从数据库查询
+            user_id = payload.get("sub")
+            if user_id:
+                # 这里需要访问数据库，但函数签名中没有db参数
+                # 简化处理：根据其他信息推断角色
+                # 实际项目中应该重构这个函数或改用其他方式
+                return "customer"  # 默认角色
+        
         return "customer"  # 默认角色
-    except Exception:
+        
+    except Exception as e:
+        logger.error(f"从token获取角色失败: {e}")
         return "customer"
 
 

@@ -4,7 +4,7 @@ from typing import List, Any
 
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, RoleResponse
 from app.db.models.user import User, Role
-from app.crud import crud_user
+from app.services import user_service as crud_user
 from app.core.security import get_current_user
 from app.db.base import get_db
 
@@ -36,7 +36,7 @@ async def create_user(
             detail="该邮箱已被注册"
         )
     user = await crud_user.create(db, obj_in=user_in)
-    return UserResponse.from_orm(user)
+    return user
 
 @router.get("/", response_model=List[UserResponse])
 async def read_users(
@@ -60,14 +60,14 @@ async def read_users(
     
     # 修正查询语法，应该使用User的所有列或表示User的一个实例
     users = db.query(User).offset(skip).limit(limit).all()
-    return [UserResponse.from_orm(user) for user in users]
+    return [user for user in users]
 
 @router.get("/me", response_model=UserResponse)
 async def read_user_me(
     current_user: User = Depends(get_current_user)
 ) -> UserResponse:
     """获取当前用户信息"""
-    return UserResponse.from_orm(current_user)
+    return current_user
 
 @router.put("/me", response_model=UserResponse)
 async def update_user_me(
@@ -81,7 +81,7 @@ async def update_user_me(
         delattr(user_in, "roles")
         
     user = await crud_user.update(db, db_obj=current_user, obj_in=user_in)
-    return UserResponse.from_orm(user)
+    return user
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def read_user_by_id(
@@ -96,7 +96,7 @@ async def read_user_by_id(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="用户不存在"
         )
-    return UserResponse.from_orm(user)
+    return user
 
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
@@ -126,7 +126,7 @@ async def update_user(
         )
     
     user = await crud_user.update(db, db_obj=user, obj_in=user_in)
-    return UserResponse.from_orm(user)
+    return user
 
 @router.get("/roles/all", response_model=List[RoleResponse])
 async def read_roles(

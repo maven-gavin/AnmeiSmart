@@ -2,7 +2,7 @@ from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.api import deps
-from app.crud import system as crud_system
+from app.services import system_service as crud_system
 from app.schemas.system import (
     SystemSettingsResponse, 
     SystemSettingsUpdate,

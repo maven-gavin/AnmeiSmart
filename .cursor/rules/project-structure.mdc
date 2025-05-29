@@ -9,7 +9,7 @@ alwaysApply: false
 
 ## 主要目录结构
 - 前端：`web/src/app/`（页面与路由）、`web/src/components/`（UI组件）、`web/src/service/`（API与服务）、`web/src/contexts/`（全局状态）、`web/src/types/`（类型定义）
-- 后端：`api/app/api/`（FastAPI路由）、`api/app/core/`（核心功能）、`api/app/crud/`（数据库操作）、`api/app/db/`（模型与连接）、`api/app/schemas`（）、`api/app/services`（）
+- 后端：`api/app/api/`（FastAPI路由）、`api/app/core/`（核心功能）、`api/app/db/`（模型与连接）、`api/app/schemas`（）、`api/app/services`（）
 - 文档：`docs/` 目录下包含全局分析、架构设计、需求、UIUX、用户手册等说明书
 
 ## 关键文档

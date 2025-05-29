@@ -39,3 +39,5 @@ alwaysApply: false
 * 可维护性：清晰的分层便于代码维护
 
 * 可扩展性：容易添加新的模型类型（如 Update、Patch 等）
+
+### Schema 类负责结构和转换方法

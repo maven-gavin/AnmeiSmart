@@ -1,6 +1,7 @@
 # 项目文件结构映射
 
 ## 文档作用与约束
+
 * 该文件索引了..\api, ..\web, ..\scripts, ..\docs 目录下的所有文件
 * 每完成一些任务，就请更新该文档，保证该文档与项目文件同步
 * 每次更新该文件内容时，不要修改此文档作用与约束
@@ -8,28 +9,37 @@
 ## API接口
 
 - `..\api\app\api\v1\api.py`
+
   - 用途：API路由注册与配置
 - `..\api\app\api\v1\endpoints\auth.py`
+
   - 用途：用户认证与登录接口
 - `..\api\app\api\v1\endpoints\users.py`
+
   - 用途：用户管理接口（创建、查询、更新）
 - `..\api\app\core\config.py`
+
   - 用途：应用配置管理
 - `..\api\app\core\security.py`
+
   - 用途：安全相关功能（JWT、密码加密）
-- `..\api\app\crud\crud_user.py`
-  - 用途：用户数据库操作
 - `..\api\app\db\base.py`
+
   - 用途：数据库连接与会话管理
 - `..\api\app\db\init_db.py`
+
   - 用途：数据库初始化脚本
 - `..\api\app\db\models\user.py`
+
   - 用途：用户数据库模型定义
 - `..\api\app\schemas\token.py`
+
   - 用途：Token数据模型
 - `..\api\app\schemas\user.py`
+
   - 用途：用户数据模型（Pydantic模型）
 - `..\api\main.py`
+
   - 用途：FastAPI应用入口
 
 ## 前端组件
@@ -229,40 +239,49 @@
 在重构后，我们将从单表用户设计迁移到多表继承模式，主要包括以下表结构：
 
 **1. 基础用户表 (Users)**
+
 - 存储所有用户共享的基本信息
 - 字段：id, email, username, hashed_password, phone, avatar, is_active, created_at, updated_at
 
 **2. 角色表 (Roles)**
+
 - 存储系统中的角色定义
 - 字段：id, name, description, created_at, updated_at
 
 **3. 用户-角色关联表 (UserRoles)**
+
 - 多对多关联用户和角色
 - 字段：user_id, role_id, assigned_at, assigned_by
 
 **4. 顾客表 (Customers)**
+
 - 存储顾客特有信息
 - 字段：id, user_id(外键), medical_history, allergies, preferences
 
 **5. 医生表 (Doctors)**
+
 - 存储医生特有信息
 - 字段：id, user_id(外键), specialization, certification, license_number
 
 **6. 顾问表 (Consultants)**
+
 - 存储顾问特有信息
 - 字段：id, user_id(外键), expertise, performance_metrics
 
 **7. 运营人员表 (Operators)**
+
 - 存储运营人员特有信息
 - 字段：id, user_id(外键), department, responsibilities
 
 **8. 管理员表 (Administrators)**
+
 - 存储管理员特有信息
 - 字段：id, user_id(外键), admin_level, access_permissions
 
 ### API设计
 
 **1. 认证相关**
+
 - POST /api/auth/register - 顾客自行注册
 - POST /api/auth/login - 用户登录
 - POST /api/auth/refresh-token - 刷新令牌
@@ -272,6 +291,7 @@
 - POST /api/auth/switch-role - 切换当前活跃角色
 
 **2. 用户管理**
+
 - GET /api/users - 获取用户列表(支持角色筛选)
 - POST /api/users - 创建新用户(支持指定角色)
 - GET /api/users/{id} - 获取特定用户信息
@@ -282,6 +302,7 @@
 - DELETE /api/users/{id}/roles/{role_id} - 移除用户角色
 
 **3. 角色管理**
+
 - GET /api/roles - 获取所有角色
 - POST /api/roles - 创建新角色
 - GET /api/roles/{id} - 获取特定角色
@@ -291,17 +312,20 @@
 ### 重构路径
 
 **1. 数据迁移**
+
 - 创建新的数据库表结构
 - 从现有用户表提取基本信息到新的Users表
 - 根据现有用户角色创建相应的扩展表记录
 - 建立用户-角色关联关系
 
 **2. 认证流程**
+
 - 更新JWT令牌生成和验证逻辑，包含活跃角色信息
 - 实现基于角色的访问控制(RBAC)
 - 支持用户角色切换功能
 
 **3. 前端适配**
+
 - 更新Auth状态管理
 - 重构用户管理界面
 - 实现角色切换UI

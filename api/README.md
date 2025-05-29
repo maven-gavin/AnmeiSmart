@@ -263,7 +263,6 @@ api/
 │   ├── core/          # 核心配置
 │   │   ├── config.py  # 应用配置
 │   │   └── security.py # 安全工具
-│   ├── crud/         # CRUD操作
 │   ├── db/           # 数据库模型和工具
 │   ├── schemas/       # Pydantic模型（数据验证和序列化）
 │   ├── api/          # API路由

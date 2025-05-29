@@ -25,7 +25,7 @@ try:
     from app.db.models.user import User, Role, Doctor, Consultant, Operator, Administrator
     from app.db.models.customer import Customer, CustomerProfile
     from app.db.base import get_db, engine
-    from app.crud import crud_user
+    from app.services import user_service as crud_user
     from app.schemas.user import UserCreate, DoctorBase, ConsultantBase, OperatorBase, AdministratorBase
     from app.schemas.customer import CustomerBase
     from app.db.uuid_utils import (

@@ -1,0 +1,77 @@
+---
+description: 
+globs: **/*.py
+alwaysApply: false
+---
+---
+description: 该规则解释分层职责与数据转换项目规则。
+globs: **/*.py
+alwaysApply: false
+---
+
+
+# 分层职责与数据转换项目规则
+
+## 1. 分层职责
+
+- **Controller 层（API/Endpoint）**
+  - 只负责参数校验、权限校验、调用 service 层、返回 schema。
+  - 不直接操作数据库 ORM 对象。
+  - 不负责 ORM 到 schema 的转换，直接返回 service 层结果。
+
+- **Service 层**
+  - 负责业务逻辑、数据流转、数据库操作。
+  - 只与 ORM 交互，所有对外返回均为 Pydantic schema。
+  - 负责调用 schema 的 `from_model`（或 `from_orm`）方法，将 ORM 转为 schema。
+  - 不返回原始 ORM 对象给 controller 层。
+
+- **Schema 层**
+  - 只负责数据结构定义和 ORM → schema 的转换。
+  - 每个响应 schema（如 `UserResponse`、`MessageInfo`、`ConversationInfo` 等）必须实现 `from_model` 静态方法，接收 ORM 实例并返回 schema 实例。
+  - 列表/聚合场景用列表推导式 `[Schema.from_model(obj) for obj in orm_list]`。
+
+## 2. 具体代码规范
+
+- **service 层返回示例：**
+  ```python
+  def get_user(self, user_id: str) -> UserResponse:
+      user = self.db.query(User).get(user_id)
+      return UserResponse.from_model(user)
+  ```
+
+- **controller 层返回示例：**
+  ```python
+  @router.get("/user/{user_id}", response_model=UserResponse)
+  def get_user(user_id: str):
+      return user_service.get_user(user_id)
+  ```
+
+- **schema 层转换方法示例：**
+  ```python
+  class UserResponse(BaseModel):
+      ...
+      @staticmethod
+      def from_model(user) -> "UserResponse":
+          # 组装字段
+          return UserResponse(...)
+  ```
+
+## 3. 迁移与重构建议
+
+- 批量移除 controller 层所有 ORM 到 schema 的转换，直接 return service 层结果。
+- service 层所有返回 ORM 的方法，全部改为返回 schema。
+- schema 层统一实现 from_model 静态方法，聚合/嵌套场景可递归调用。
+- controller 层不再 import/引用 ORM，仅依赖 schema 和 service。
+
+## 4. 适用范围
+
+- 适用于 FastAPI、Flask、Django REST Framework 等所有分层后端项目。
+- 适用于所有需要清晰分离"业务逻辑/数据结构/接口"的项目。
+
+## 5. 设计理念
+
+- **单一职责**：每层只做自己该做的事，便于维护和测试。
+- **可扩展性**：schema 层集中转换，便于未来支持多种数据源或响应格式。
+- **可测试性**：service 层和 schema 层可独立单元测试。
+- **一致性**：团队开发风格统一，减少沟通和维护成本。
+

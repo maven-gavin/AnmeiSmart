@@ -10,7 +10,7 @@ from app.core.config import get_settings
 from app.core.security import create_access_token, get_current_user
 from app.db.base import get_db
 from app.db.models.user import User
-from app.crud import crud_user
+from app.services import user_service as crud_user
 from app.schemas.token import Token
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, SwitchRoleRequest
 
@@ -92,7 +92,7 @@ async def register(
     # 获取用户的第一个角色作为默认活跃角色
     active_role = user.roles[0].name if user.roles else None
     
-    return UserResponse.from_orm(user, active_role=active_role)
+    return user.roles[0].name if user.roles else None
 
 @router.post("/refresh-token", response_model=Token)
 async def refresh_token(
@@ -176,7 +176,7 @@ async def read_users_me(
     # 从当前令牌中获取活跃角色
     active_role = current_user._active_role if hasattr(current_user, "_active_role") else None
     
-    return UserResponse.from_orm(current_user, active_role=active_role)
+    return active_role
 
 @router.put("/me", response_model=UserResponse)
 async def update_user_me(
@@ -195,7 +195,7 @@ async def update_user_me(
     # 从当前令牌中获取活跃角色
     active_role = current_user._active_role if hasattr(current_user, "_active_role") else None
     
-    return UserResponse.from_orm(user, active_role=active_role)
+    return active_role
 
 @router.get("/roles", response_model=List[str])
 async def get_roles(

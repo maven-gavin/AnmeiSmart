@@ -66,6 +66,27 @@ class CustomerProfileInfo(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
+    @staticmethod
+    def from_model(profile) -> "CustomerProfileInfo":
+        if not profile:
+            return None
+        return CustomerProfileInfo(
+            id=profile.id,
+            basicInfo=CustomerBasicInfo(
+                name=profile.name,
+                age=profile.age,
+                gender=profile.gender,
+                phone=profile.phone
+            ),
+            riskNotes=[RiskNote(type=note.type, description=note.description, level=note.level) for note in getattr(profile, 'risk_notes', [])] if getattr(profile, 'risk_notes', None) else None,
+            medical_history=profile.medical_history,
+            allergies=profile.allergies,
+            preferences=profile.preferences,
+            tags=profile.tags.split(',') if profile.tags else None,
+            created_at=profile.created_at,
+            updated_at=profile.updated_at
+        )
+
 # 客户完整信息
 class CustomerInfo(CustomerBase):
     """客户完整信息模型，包含基本用户信息"""
@@ -79,4 +100,20 @@ class CustomerInfo(CustomerBase):
     avatar: Optional[str] = None
     created_at: datetime
     updated_at: datetime
-    profile: Optional[CustomerProfileInfo] = None 
+    profile: Optional[CustomerProfileInfo] = None
+
+    @staticmethod
+    def from_model(customer) -> "CustomerInfo":
+        if not customer:
+            return None
+        return CustomerInfo(
+            id=customer.id,
+            user_id=customer.user_id,
+            username=customer.username,
+            email=customer.email,
+            phone=customer.phone,
+            avatar=customer.avatar,
+            created_at=customer.created_at,
+            updated_at=customer.updated_at,
+            profile=CustomerProfileInfo.from_model(getattr(customer, 'profile', None))
+        ) 
