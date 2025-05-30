@@ -11,7 +11,7 @@ from app.core.security import create_access_token, get_current_user, create_refr
 from app.db.base import get_db
 from app.db.models.user import User
 from app.services import user_service
-from app.schemas.token import Token
+from app.schemas.token import Token, RefreshTokenRequest
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, SwitchRoleRequest
 
 router = APIRouter()
@@ -99,33 +99,44 @@ async def register(
 
 @router.post("/refresh-token", response_model=Token)
 async def refresh_token(
-    db: Session = Depends(get_db),
-    token: str = Body(..., embed=True)
+    refresh_token_request: RefreshTokenRequest,
+    db: Session = Depends(get_db)
 ) -> Any:
     """
     刷新访问令牌
     
-    使用过期的令牌获取新的访问令牌。即使令牌已过期，仍然尝试解析用户ID和角色信息。
+    使用刷新令牌获取新的访问令牌。即使令牌已过期，仍然尝试解析用户ID和角色信息。
     """
     try:
         # 尝试解码令牌，即使过期也允许
         payload = jwt.decode(
-            token, 
+            refresh_token_request.token, 
             settings.SECRET_KEY, 
             algorithms=[settings.ALGORITHM],
             options={"verify_exp": False}  # 不验证过期时间
         )
         
+        # 验证令牌类型
+        token_type = payload.get("type")
+        if token_type != "refresh":
+            logger.warning(f"无效的令牌类型: {token_type}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="无效的刷新令牌类型",
+            )
+        
         user_id = payload.get("sub")
         if not user_id:
+            logger.warning("令牌中没有用户ID")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="无效的刷新令牌",
             )
         
-        # 获取用户信息 - 直接使用用户ID，不转换为整数
+        # 获取用户信息
         user = await user_service.get(db, id=user_id)
         if not user or not user.is_active:
+            logger.warning(f"用户不存在或未激活: {user_id}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="用户不存在或未激活",
@@ -139,11 +150,12 @@ async def refresh_token(
             if active_role not in user_roles:
                 # 如果不再有该角色，使用第一个可用角色
                 active_role = user_roles[0] if user_roles else None
+                logger.info(f"用户 {user_id} 不再拥有角色 {active_role}，切换到 {active_role}")
         else:
             # 如果原令牌没有活跃角色，使用第一个可用角色
             active_role = user.roles[0].name if user.roles else None
         
-        # 创建新令牌
+        # 创建新的访问令牌和刷新令牌
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
             subject=user.id, 
@@ -151,17 +163,27 @@ async def refresh_token(
             active_role=active_role
         )
         
+        refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        new_refresh_token = create_refresh_token(
+            subject=user.id,
+            expires_delta=refresh_token_expires,
+            active_role=active_role
+        )
+        
         return {
             "access_token": access_token,
+            "refresh_token": new_refresh_token,
             "token_type": "bearer"
         }
     
     except JWTError as e:
+        logger.warning(f"JWT解码错误: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"无效的JWT令牌格式: {str(e)}",
         )    
     except Exception as e:
+        logger.error(f"刷新令牌失败: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"无法刷新令牌: {str(e)}",

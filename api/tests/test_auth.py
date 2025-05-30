@@ -82,11 +82,12 @@ def test_refresh_token(client: TestClient, test_user: dict):
         "password": test_user["password"]
     }
     login_resp = client.post(f"{settings.API_V1_STR}/auth/login", data=login_data)
-    token = login_resp.json()["access_token"]
+    refresh_token = login_resp.json()["refresh_token"]
     # 刷新token
-    resp = client.post(f"{settings.API_V1_STR}/auth/refresh-token", json={"token": token})
+    resp = client.post(f"{settings.API_V1_STR}/auth/refresh-token", json={"token": refresh_token})
     assert resp.status_code == 200
     assert "access_token" in resp.json()
+    assert resp.json()["token_type"] == "bearer"
 
 def test_refresh_token_invalid(client: TestClient):
     """测试无效token刷新"""
