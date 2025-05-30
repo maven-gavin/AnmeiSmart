@@ -99,6 +99,42 @@ def create_access_token(
     )
     return encoded_jwt
 
+def create_refresh_token(
+    subject: Union[str, Any],
+    expires_delta: Optional[timedelta] = None,
+    active_role: Optional[str] = None
+) -> str:
+    """
+    创建刷新令牌
+    
+    Args:
+        subject: 令牌主体 (通常是用户ID)
+        expires_delta: 过期时间增量
+        active_role: 用户当前活跃角色
+        
+    Returns:
+        str: JWT刷新令牌
+    """
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(
+            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
+        )
+    
+    to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
+    
+    # 如果提供了活跃角色，将其添加到令牌中
+    if active_role:
+        to_encode["role"] = active_role
+    
+    logger.debug(f"创建刷新令牌: user_id={subject}, 过期时间={expire.isoformat()}, 活跃角色={active_role}")
+    
+    encoded_jwt = jwt.encode(
+        to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
+    )
+    return encoded_jwt
+
 async def get_current_user(
     db: Session = Depends(get_db),
     token: str = Depends(oauth2_scheme)

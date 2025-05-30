@@ -7,10 +7,10 @@ from jose import jwt, JWTError
 import logging
 
 from app.core.config import get_settings
-from app.core.security import create_access_token, get_current_user
+from app.core.security import create_access_token, get_current_user, create_refresh_token
 from app.db.base import get_db
 from app.db.models.user import User
-from app.services import user_service as crud_user
+from app.services import user_service
 from app.schemas.token import Token
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, SwitchRoleRequest
 
@@ -31,17 +31,17 @@ async def login(
     """
     logger.debug(f"尝试用户登录: username={form_data.username}")
     try:
-        user = await crud_user.authenticate(
+        userResponse = await user_service.authenticate(
             db, username_or_email=form_data.username, password=form_data.password
         )
-        if not user:
+        if not userResponse:
             logger.warning(f"登录失败: 用户名或密码错误 - username={form_data.username}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="邮箱或密码错误",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        elif not user.is_active:
+        elif not userResponse.is_active:
             logger.warning(f"登录失败: 用户未激活 - username={form_data.username}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -49,16 +49,22 @@ async def login(
             )
         
         # 获取用户的第一个角色作为默认活跃角色
-        active_role = user.roles[0].name if user.roles else None
-        logger.debug(f"用户登录成功: username={form_data.username}, user_id={user.id}, active_role={active_role}")
+        active_role = userResponse.roles[0] if userResponse.roles else None
+        logger.debug(f"用户登录成功: username={form_data.username}, user_id={userResponse.id}, active_role={active_role}")
         
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
-            subject=user.id, expires_delta=access_token_expires, active_role=active_role
+            subject=userResponse.id, expires_delta=access_token_expires, active_role=active_role
+        )
+        
+        refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        refresh_token = create_refresh_token(
+            subject=userResponse.id, expires_delta=refresh_token_expires, active_role=active_role
         )
         
         return {
             "access_token": access_token,
+            "refresh_token": refresh_token,
             "token_type": "bearer"
         }
     except Exception as e:
@@ -69,15 +75,15 @@ async def login(
 async def register(
     *,
     db: Session = Depends(get_db),
-    user_in: UserCreate,
+    user_in: UserCreate = Body(...),
 ) -> Any:
     """
     用户注册
     
     创建新用户，并返回用户信息
     """
-    user = await crud_user.get_by_email(db, email=user_in.email)
-    if user:
+    userResponse = await user_service.get_by_email(db, email=user_in.email)
+    if userResponse:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="此邮箱已注册",
@@ -87,12 +93,9 @@ async def register(
     if not user_in.roles or len(user_in.roles) == 0:
         user_in.roles = ["customer"]
     
-    user = await crud_user.create(db, obj_in=user_in)
+    userResponse = await user_service.create(db, obj_in=user_in)
     
-    # 获取用户的第一个角色作为默认活跃角色
-    active_role = user.roles[0].name if user.roles else None
-    
-    return user.roles[0].name if user.roles else None
+    return userResponse
 
 @router.post("/refresh-token", response_model=Token)
 async def refresh_token(
@@ -121,7 +124,7 @@ async def refresh_token(
             )
         
         # 获取用户信息 - 直接使用用户ID，不转换为整数
-        user = await crud_user.get(db, id=user_id)
+        user = await user_service.get(db, id=user_id)
         if not user or not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -190,7 +193,7 @@ async def update_user_me(
     
     允许用户更新自己的信息
     """
-    user = await crud_user.update(db, db_obj=current_user, obj_in=user_in)
+    user = await user_service.update(db, db_obj=current_user, obj_in=user_in)
     
     # 从当前令牌中获取活跃角色
     active_role = current_user._active_role if hasattr(current_user, "_active_role") else None
@@ -208,7 +211,7 @@ async def get_roles(
     返回当前用户的所有角色
     """
     # 从数据库获取用户角色
-    user_roles = await crud_user.get_user_roles(db, user_id=current_user.id)
+    user_roles = await user_service.get_user_roles(db, user_id=current_user.id)
     return user_roles
 
 @router.post("/switch-role", response_model=Token)

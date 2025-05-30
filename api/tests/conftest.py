@@ -84,11 +84,11 @@ def client(db: Session) -> Generator[TestClient, None, None]:
             
 @pytest.fixture(scope="function")
 def test_user() -> Dict[str, str]:
-    """使用已存在的管理员用户"""
+    """使用已存在的顾问用户"""
     return {
-        "email": "superadmin@anmeismart.com",
-        "username": "superadmin",
-        "password": "SuperAdmin@123456"
+        "email": "li@example.com",
+        "username": "李顾问",
+        "password": "123456@Test"
     } 
 
 @pytest.fixture(scope="function")

@@ -50,4 +50,94 @@ def test_login_nonexistent_user(client: TestClient) -> None:
     )
     
     assert response.status_code == 401
-    assert response.json()["detail"] == "邮箱或密码错误" 
+    assert response.json()["detail"] == "邮箱或密码错误"
+
+def test_register_success(client: TestClient):
+    """测试注册新用户"""
+    user_data = {
+        "email": "newuser@example.com",
+        "username": "newuser",
+        "password": "12345678",
+        "roles": ["customer"]
+    }
+    response = client.post(f"{settings.API_V1_STR}/auth/register", json=user_data)
+    assert response.status_code == 200 or response.status_code == 201
+
+def test_register_duplicate_email(client: TestClient, test_user: dict):
+    """测试重复注册"""
+    user_data = {
+        "email": test_user["email"],
+        "username": "newuser",
+        "password": "12345678",
+        "roles": ["customer"]
+    }
+    response = client.post(f"{settings.API_V1_STR}/auth/register", json=user_data)
+    assert response.status_code == 400
+
+def test_refresh_token(client: TestClient, test_user: dict):
+    """测试刷新token"""
+    # 登录获取token
+    login_data = {
+        "username": test_user["email"],
+        "password": test_user["password"]
+    }
+    login_resp = client.post(f"{settings.API_V1_STR}/auth/login", data=login_data)
+    token = login_resp.json()["access_token"]
+    # 刷新token
+    resp = client.post(f"{settings.API_V1_STR}/auth/refresh-token", json={"token": token})
+    assert resp.status_code == 200
+    assert "access_token" in resp.json()
+
+def test_refresh_token_invalid(client: TestClient):
+    """测试无效token刷新"""
+    resp = client.post(f"{settings.API_V1_STR}/auth/refresh-token", json={"token": "invalidtoken"})
+    assert resp.status_code == 401
+
+def test_get_me(client: TestClient, test_user: dict):
+    """测试获取当前用户信息"""
+    login_data = {
+        "username": test_user["email"],
+        "password": test_user["password"]
+    }
+    login_resp = client.post(f"{settings.API_V1_STR}/auth/login", data=login_data)
+    token = login_resp.json()["access_token"]
+    resp = client.get(f"{settings.API_V1_STR}/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+
+def test_update_me(client: TestClient, test_user: dict):
+    """测试更新当前用户信息"""
+    login_data = {
+        "username": test_user["email"],
+        "password": test_user["password"]
+    }
+    login_resp = client.post(f"{settings.API_V1_STR}/auth/login", data=login_data)
+    token = login_resp.json()["access_token"]
+    update_data = {"nickname": "新昵称"}
+    resp = client.put(f"{settings.API_V1_STR}/auth/me", json=update_data, headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+
+def test_get_roles(client: TestClient, test_user: dict):
+    """测试获取用户所有角色"""
+    login_data = {
+        "username": test_user["email"],
+        "password": test_user["password"]
+    }
+    login_resp = client.post(f"{settings.API_V1_STR}/auth/login", data=login_data)
+    token = login_resp.json()["access_token"]
+    resp = client.get(f"{settings.API_V1_STR}/auth/roles", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+
+def test_switch_role(client: TestClient, test_user: dict):
+    """测试切换角色"""
+    login_data = {
+        "username": test_user["email"],
+        "password": test_user["password"]
+    }
+    login_resp = client.post(f"{settings.API_V1_STR}/auth/login", data=login_data)
+    token = login_resp.json()["access_token"]
+    # 假设test_user有customer角色
+    switch_data = {"role": "customer"}
+    resp = client.post(f"{settings.API_V1_STR}/auth/switch-role", json=switch_data, headers={"Authorization": f"Bearer {token}"})
+    # 角色存在时应为200，否则403
+    assert resp.status_code in (200, 403) 
