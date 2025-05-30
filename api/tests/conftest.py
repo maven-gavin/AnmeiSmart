@@ -1,12 +1,18 @@
 import pytest
 import sys
 import os
+import pytest_asyncio
 from typing import Generator, Dict
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+from pathlib import Path
+from httpx import AsyncClient, ASGITransport
 
-# 将项目根目录添加到Python路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# 获取 api 目录的绝对路径
+api_path = Path(__file__).parent.parent.absolute()
+
+# 将 api 目录添加到 Python 路径
+sys.path.append(str(api_path))
 
 # 创建测试应用，不带启动事件
 from main import app 
@@ -105,3 +111,48 @@ def get_token(client: TestClient, test_user: Dict[str, str]) -> str:
     )
     assert login_response.status_code == 200
     return login_response.json()["access_token"]
+
+@pytest.fixture(scope="function")
+def test_admin_data() -> Dict[str, str]:
+    """管理员测试数据"""
+    return {
+        "email": "admin@test.com",
+        "username": "admin",
+        "password": "admin123456",
+        "roles": ["admin"]
+    }
+
+@pytest.fixture(scope="function")
+def test_user_data() -> Dict[str, str]:
+    """普通用户测试数据"""
+    return {
+        "email": "user@test.com", 
+        "username": "testuser",
+        "password": "test123456",
+        "roles": ["customer"]
+    }
+
+@pytest.fixture(scope="function")
+def test_user_update_data() -> Dict[str, str]:
+    """用户更新测试数据"""
+    return {
+        "username": "updated_user",
+        "phone": "1234567890"
+    }
+
+@pytest_asyncio.fixture
+async def async_client(db: Session) -> Generator[AsyncClient, None, None]:
+    """使用事务数据库的异步测试客户端"""
+    def override_get_db():
+        try:
+            yield db
+        finally:
+            pass  # 不关闭会话，由db fixture处理
+    
+    original_dependency = app.dependency_overrides.copy()
+    app.dependency_overrides[get_db] = override_get_db
+    
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
+    
+    app.dependency_overrides = original_dependency

@@ -8,6 +8,7 @@ from app.db.models.customer import Customer
 from app.db.uuid_utils import user_id, role_id
 from app.core.password_utils import get_password_hash, verify_password
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, RoleResponse
+from fastapi import status
 
 async def get(db: Session, id: str) -> Optional[UserResponse]:
     """
@@ -113,8 +114,8 @@ async def create(db: Session, obj_in: UserCreate) -> UserResponse:
     for role_name in obj_in.roles:
         role = db.query(Role).filter(Role.name == role_name).first()
         if not role:
-            role = Role(id=role_id(), name=role_name)
-            db.add(role)
+            # Do not create invalid roles; instead, raise an exception.
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"无效的角色: {role_name}")
         roles.append(role)
     db_obj.roles = roles
     db.add(db_obj)
@@ -123,14 +124,18 @@ async def create(db: Session, obj_in: UserCreate) -> UserResponse:
     # 扩展信息略（如需可补充）
     return UserResponse.from_model(db_obj)
 
-async def update(db: Session, db_obj: User, obj_in: Union[UserUpdate, Dict[str, Any]]) -> UserResponse:
+async def update(db: Session, user_id: str, obj_in: Union[UserUpdate, Dict[str, Any]]) -> UserResponse:
     """
     更新用户信息
     :param db: 数据库会话
-    :param db_obj: 用户ORM对象
+    :param user_id: 要更新的用户ID
     :param obj_in: 用户更新数据
     :return: UserResponse
     """
+    db_obj = db.query(User).filter(User.id == user_id).first()
+    if not db_obj:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
     update_data = obj_in if isinstance(obj_in, dict) else obj_in.model_dump(exclude_unset=True)
     if "password" in update_data and update_data["password"]:
         hashed_password = get_password_hash(update_data["password"])
@@ -141,14 +146,20 @@ async def update(db: Session, db_obj: User, obj_in: Union[UserUpdate, Dict[str, 
         for role_name in update_data["roles"]:
             role = db.query(Role).filter(Role.name == role_name).first()
             if not role:
+                # 根据实际需求，这里可以选择创建新角色或抛出错误
+                # 假设如果角色不存在则创建
                 role = Role(id=role_id(), name=role_name)
                 db.add(role)
             roles.append(role)
         db_obj.roles = roles
         del update_data["roles"]
+    
+    # 更新其他字段
     for key, value in update_data.items():
-        if key not in ["customer_info", "doctor_info", "consultant_info", "operator_info", "administrator_info"] and value is not None:
+        if hasattr(db_obj, key) and key not in ["customer_info", "doctor_info", "consultant_info", "operator_info", "administrator_info"] and value is not None : # 确保字段存在且不更新关联对象本身
             setattr(db_obj, key, value)
+            
+    db.add(db_obj) # 确保对象被添加到会话中以进行更新
     db.commit()
     db.refresh(db_obj)
     return UserResponse.from_model(db_obj)
@@ -231,4 +242,15 @@ async def remove_role_from_user(db: Session, *, user_id: str, role_name: str) ->
     user.roles.remove(role)
     db.commit()
     db.refresh(user)
-    return UserResponse.from_model(user) 
+    return UserResponse.from_model(user)
+
+async def get_multi(db: Session, skip: int = 0, limit: int = 100) -> List[UserResponse]:
+    """
+    获取用户列表
+    :param db: 数据库会话
+    :param skip: 跳过的记录数
+    :param limit: 返回的最大记录数
+    :return: UserResponse列表
+    """
+    users = db.query(User).offset(skip).limit(limit).all()
+    return [UserResponse.from_model(user) for user in users] 

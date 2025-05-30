@@ -1,8 +1,8 @@
-from typing import Any, List
+from typing import Any, List, Dict
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.api import deps
-from app.services import system_service as crud_system
+from app.services import system_service
 from app.schemas.system import (
     SystemSettingsResponse, 
     SystemSettingsUpdate,
@@ -20,39 +20,12 @@ def get_system_settings(
     *,
     db: Session = Depends(deps.get_db),
     current_user = Depends(deps.get_current_admin),
-) -> Any:
+) -> SystemSettingsResponse:
     """
     获取系统设置
     """
-    # 获取或创建系统设置
-    system_settings = crud_system.get_or_create_system_settings(db)
-    
-    # 获取所有AI模型配置
-    ai_models = crud_system.get_ai_model_configs(db)
-    
-    # 构建响应数据
-    response_data = {
-        "siteName": system_settings.siteName,
-        "logoUrl": system_settings.logoUrl,
-        "defaultModelId": system_settings.defaultModelId,
-        "maintenanceMode": system_settings.maintenanceMode,
-        "userRegistrationEnabled": system_settings.userRegistrationEnabled,
-        "aiModels": [
-            {
-                "modelName": model.modelName,
-                "apiKey": "••••••••••••••••••••",  # 不返回实际API密钥
-                "baseUrl": model.baseUrl,
-                "maxTokens": model.maxTokens,
-                "temperature": model.temperature,
-                "enabled": model.enabled,
-                "provider": model.provider,
-                "appId": model.appId
-            }
-            for model in ai_models
-        ]
-    }
-    
-    return {"success": True, "data": response_data, "message": "获取系统设置成功"}
+    # 直接调用service层方法，该方法已返回所需格式的响应
+    return system_service.get_system_settings(db)
 
 
 @router.put("/settings", response_model=SystemSettingsResponse, status_code=status.HTTP_200_OK)
@@ -61,37 +34,12 @@ def update_system_settings(
     db: Session = Depends(deps.get_db),
     settings_update: SystemSettingsUpdate,
     current_user = Depends(deps.get_current_admin),
-) -> Any:
+) -> SystemSettingsResponse:
     """
     更新系统设置
     """
-    # 更新系统设置
-    updated_settings = crud_system.update_system_settings(db, settings_update)
-    
-    # 获取所有AI模型配置
-    ai_models = crud_system.get_ai_model_configs(db)
-    
-    # 构建响应数据
-    response_data = {
-        "siteName": updated_settings.siteName,
-        "logoUrl": updated_settings.logoUrl,
-        "defaultModelId": updated_settings.defaultModelId,
-        "maintenanceMode": updated_settings.maintenanceMode,
-        "userRegistrationEnabled": updated_settings.userRegistrationEnabled,
-        "aiModels": [
-            {
-                "modelName": model.modelName,
-                "apiKey": "••••••••••••••••••••",  # 不返回实际API密钥
-                "baseUrl": model.baseUrl,
-                "maxTokens": model.maxTokens,
-                "temperature": model.temperature,
-                "enabled": model.enabled
-            }
-            for model in ai_models
-        ]
-    }
-    
-    return {"success": True, "data": response_data, "message": "更新系统设置成功"}
+    # 直接调用service层方法，该方法已返回所需格式的响应
+    return system_service.update_system_settings(db, settings_update)
 
 
 @router.get("/ai-models", response_model=AIModelConfigListResponse, status_code=status.HTTP_200_OK)
@@ -99,27 +47,11 @@ def get_ai_models(
     *,
     db: Session = Depends(deps.get_db),
     current_user = Depends(deps.get_current_admin),
-) -> Any:
+) -> AIModelConfigListResponse:
     """
     获取所有AI模型配置
     """
-    # 获取所有AI模型配置
-    ai_models = crud_system.get_ai_model_configs(db)
-    
-    # 构建响应数据
-    response_data = [
-        {
-            "modelName": model.modelName,
-            "apiKey": "••••••••••••••••••••",  # 不返回实际API密钥
-            "baseUrl": model.baseUrl,
-            "maxTokens": model.maxTokens,
-            "temperature": model.temperature,
-            "enabled": model.enabled
-        }
-        for model in ai_models
-    ]
-    
-    return {"success": True, "data": response_data, "message": "获取AI模型配置成功"}
+    return system_service.get_ai_model_configs(db)
 
 
 @router.post("/ai-models", response_model=AIModelConfigResponse, status_code=status.HTTP_201_CREATED)
@@ -128,25 +60,15 @@ def create_ai_model(
     db: Session = Depends(deps.get_db),
     model_create: AIModelConfigCreate,
     current_user = Depends(deps.get_current_admin),
-) -> Any:
+) -> AIModelConfigResponse:
     """
     创建AI模型配置
     """
     try:
         # 创建AI模型配置
-        created_model = crud_system.create_ai_model_config(db, model_create)
-        
-        # 构建响应数据
-        response_data = {
-            "modelName": created_model.modelName,
-            "apiKey": "••••••••••••••••••••",  # 不返回实际API密钥
-            "baseUrl": created_model.baseUrl,
-            "maxTokens": created_model.maxTokens,
-            "temperature": created_model.temperature,
-            "enabled": created_model.enabled
-        }
-        
-        return {"success": True, "data": response_data, "message": "创建AI模型配置成功"}
+        created_model_data = system_service.create_ai_model_config(db, model_create)
+        # The service returns AIModelConfig, we need to wrap it in AIModelConfigResponse
+        return AIModelConfigResponse(success=True, data=created_model_data, message="创建AI模型配置成功")
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -161,30 +83,21 @@ def update_ai_model(
     model_name: str,
     model_update: AIModelConfigUpdate,
     current_user = Depends(deps.get_current_admin),
-) -> Any:
+) -> AIModelConfigResponse:
     """
     更新AI模型配置
     """
     # 更新AI模型配置
-    updated_model = crud_system.update_ai_model_config(db, model_name, model_update)
+    updated_model_data = system_service.update_ai_model_config(db, model_name, model_update)
     
-    if not updated_model:
+    if not updated_model_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"未找到名为 '{model_name}' 的AI模型配置"
         )
     
-    # 构建响应数据
-    response_data = {
-        "modelName": updated_model.modelName,
-        "apiKey": "••••••••••••••••••••",  # 不返回实际API密钥
-        "baseUrl": updated_model.baseUrl,
-        "maxTokens": updated_model.maxTokens,
-        "temperature": updated_model.temperature,
-        "enabled": updated_model.enabled
-    }
-    
-    return {"success": True, "data": response_data, "message": "更新AI模型配置成功"}
+    # The service returns AIModelConfig, we need to wrap it in AIModelConfigResponse
+    return AIModelConfigResponse(success=True, data=updated_model_data, message="更新AI模型配置成功")
 
 
 @router.delete("/ai-models/{model_name}", status_code=status.HTTP_200_OK)
@@ -193,12 +106,12 @@ def delete_ai_model(
     db: Session = Depends(deps.get_db),
     model_name: str,
     current_user = Depends(deps.get_current_admin),
-) -> Any:
+) -> Dict[str, Any]:
     """
     删除AI模型配置
     """
     # 删除AI模型配置
-    success = crud_system.delete_ai_model_config(db, model_name)
+    success = system_service.delete_ai_model_config(db, model_name)
     
     if not success:
         raise HTTPException(
@@ -215,27 +128,18 @@ def toggle_ai_model_status(
     db: Session = Depends(deps.get_db),
     model_name: str,
     current_user = Depends(deps.get_current_admin),
-) -> Any:
+) -> AIModelConfigResponse:
     """
     切换AI模型启用状态
     """
     # 切换AI模型启用状态
-    updated_model = crud_system.toggle_ai_model_status(db, model_name)
+    # The service system_service.toggle_ai_model_status already returns AIModelConfigResponse
+    toggle_response = system_service.toggle_ai_model_status(db, model_name)
     
-    if not updated_model:
+    if not toggle_response or not toggle_response.success or not toggle_response.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"未找到名为 '{model_name}' 的AI模型配置"
+            detail=f"未找到名为 '{model_name}' 的AI模型配置或切换失败"
         )
     
-    # 构建响应数据
-    response_data = {
-        "modelName": updated_model.modelName,
-        "apiKey": "••••••••••••••••••••",  # 不返回实际API密钥
-        "baseUrl": updated_model.baseUrl,
-        "maxTokens": updated_model.maxTokens,
-        "temperature": updated_model.temperature,
-        "enabled": updated_model.enabled
-    }
-    
-    return {"success": True, "data": response_data, "message": f"AI模型 '{model_name}' 已{('启用' if updated_model.enabled else '停用')}"} 
+    return toggle_response 

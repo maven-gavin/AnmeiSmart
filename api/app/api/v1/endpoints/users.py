@@ -4,7 +4,7 @@ from typing import List, Any
 
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, RoleResponse
 from app.db.models.user import User, Role
-from app.services import user_service as crud_user
+from app.services import user_service
 from app.core.security import get_current_user
 from app.db.base import get_db
 
@@ -22,20 +22,14 @@ async def create_user(
     需要管理员权限
     """
     # 检查当前用户是否有管理员权限
-    user_roles = await crud_user.get_user_roles(db, user_id=current_user.id)
+    user_roles = await user_service.get_user_roles(db, user_id=current_user.id)
     if "admin" not in user_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="没有足够的权限执行此操作"
         )
     
-    user = await crud_user.get_by_email(db, email=user_in.email)
-    if user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="该邮箱已被注册"
-        )
-    user = await crud_user.create(db, obj_in=user_in)
+    user = await user_service.create(db, obj_in=user_in)
     return user
 
 @router.get("/", response_model=List[UserResponse])
@@ -51,7 +45,7 @@ async def read_users(
     需要管理员权限
     """
     # 检查当前用户是否有管理员权限
-    user_roles = await crud_user.get_user_roles(db, user_id=current_user.id)
+    user_roles = await user_service.get_user_roles(db, user_id=current_user.id)
     if "admin" not in user_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -59,15 +53,15 @@ async def read_users(
         )
     
     # 修正查询语法，应该使用User的所有列或表示User的一个实例
-    users = db.query(User).offset(skip).limit(limit).all()
-    return [user for user in users]
+    users = await user_service.get_multi(db, skip=skip, limit=limit)
+    return users
 
 @router.get("/me", response_model=UserResponse)
 async def read_user_me(
     current_user: User = Depends(get_current_user)
 ) -> UserResponse:
     """获取当前用户信息"""
-    return current_user
+    return UserResponse.from_model(current_user)
 
 @router.put("/me", response_model=UserResponse)
 async def update_user_me(
@@ -80,7 +74,7 @@ async def update_user_me(
     if hasattr(user_in, "roles"):
         delattr(user_in, "roles")
         
-    user = await crud_user.update(db, db_obj=current_user, obj_in=user_in)
+    user = await user_service.update(db, user_id=current_user.id, obj_in=user_in)
     return user
 
 @router.get("/{user_id}", response_model=UserResponse)
@@ -90,7 +84,7 @@ async def read_user_by_id(
     db: Session = Depends(get_db)
 ) -> UserResponse:
     """根据ID获取用户信息"""
-    user = await crud_user.get(db, id=user_id)
+    user = await user_service.get(db, id=user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -111,21 +105,14 @@ async def update_user(
     需要管理员权限
     """
     # 检查当前用户是否有管理员权限
-    user_roles = await crud_user.get_user_roles(db, user_id=current_user.id)
+    user_roles = await user_service.get_user_roles(db, user_id=current_user.id)
     if "admin" not in user_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="没有足够的权限执行此操作"
         )
     
-    user = await crud_user.get(db, id=user_id)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="用户不存在"
-        )
-    
-    user = await crud_user.update(db, db_obj=user, obj_in=user_in)
+    user = await user_service.update(db, user_id=user_id, obj_in=user_in)
     return user
 
 @router.get("/roles/all", response_model=List[RoleResponse])
@@ -139,12 +126,12 @@ async def read_roles(
     需要管理员权限
     """
     # 检查当前用户是否有管理员权限
-    user_roles = await crud_user.get_user_roles(db, user_id=current_user.id)
+    user_roles = await user_service.get_user_roles(db, user_id=current_user.id)
     if "admin" not in user_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="没有足够的权限执行此操作"
         )
     
-    roles = await crud_user.get_roles(db)
+    roles = await user_service.get_roles(db)
     return roles 

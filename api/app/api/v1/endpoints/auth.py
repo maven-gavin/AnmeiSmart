@@ -71,7 +71,7 @@ async def login(
         logger.error(f"登录过程中发生异常: {str(e)}", exc_info=True)
         raise
 
-@router.post("/register", response_model=UserResponse)
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     *,
     db: Session = Depends(get_db),
@@ -215,9 +215,8 @@ async def update_user_me(
     
     允许用户更新自己的信息
     """
-    user = db.query(User).filter(User.id == current_user.id).first()
-    userResponse = await user_service.update(db, db_obj=user, obj_in=user_in)
-    return userResponse
+    user_response = await user_service.update(db, user_id=current_user.id, obj_in=user_in)
+    return user_response
 
 @router.get("/roles", response_model=List[str])
 async def get_roles(

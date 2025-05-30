@@ -2,7 +2,7 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field, validator
 
 
-class AIModelConfig(BaseModel):
+class AIModelConfigInfo(BaseModel):
     """AI模型配置Schema"""
     modelName: str = Field(..., description="模型名称")
     apiKey: str = Field(..., description="API密钥")
@@ -18,7 +18,7 @@ class SystemSettings(BaseModel):
     """系统设置Schema"""
     siteName: str = Field("安美智享", description="站点名称")
     logoUrl: str = Field("", description="Logo URL")
-    aiModels: List[AIModelConfig] = Field([], description="AI模型配置列表")
+    aiModels: List[AIModelConfigInfo] = Field([], description="AI模型配置列表")
     defaultModelId: str = Field("", description="默认AI模型ID")
     maintenanceMode: bool = Field(False, description="是否处于维护模式")
     userRegistrationEnabled: bool = Field(True, description="是否允许用户注册")
@@ -31,7 +31,7 @@ class SystemSettingsResponse(BaseModel):
     message: str = Field("", description="消息")
 
 
-class AIModelConfigCreate(AIModelConfig):
+class AIModelConfigCreate(AIModelConfigInfo):
     """创建AI模型配置Schema"""
     pass
 
@@ -50,14 +50,14 @@ class AIModelConfigUpdate(BaseModel):
 class AIModelConfigResponse(BaseModel):
     """AI模型配置响应Schema"""
     success: bool = Field(True, description="操作是否成功")
-    data: AIModelConfig = Field(..., description="AI模型配置数据")
+    data: AIModelConfigInfo = Field(..., description="AI模型配置数据")
     message: str = Field("", description="消息")
 
 
 class AIModelConfigListResponse(BaseModel):
     """AI模型配置列表响应Schema"""
     success: bool = Field(True, description="操作是否成功")
-    data: List[AIModelConfig] = Field(..., description="AI模型配置列表")
+    data: List[AIModelConfigInfo] = Field(..., description="AI模型配置列表")
     message: str = Field("", description="消息")
 
 

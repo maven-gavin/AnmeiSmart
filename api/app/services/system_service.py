@@ -1,7 +1,7 @@
 from typing import List, Optional, Dict, Any, Union
 from sqlalchemy.orm import Session
 from app.db.models.system import SystemSettings as ORMSystemSettings, AIModelConfig as ORMAIModelConfig
-from app.schemas.system import SystemSettingsUpdate, AIModelConfigCreate, AIModelConfigUpdate, SystemSettings, SystemSettingsResponse, AIModelConfig, AIModelConfigResponse, AIModelConfigListResponse
+from app.schemas.system import SystemSettingsUpdate, AIModelConfigCreate, AIModelConfigUpdate, SystemSettings, SystemSettingsResponse, AIModelConfigInfo, AIModelConfigResponse, AIModelConfigListResponse
 
 
 def get_system_settings(db: Session) -> SystemSettingsResponse:
@@ -12,9 +12,9 @@ def get_system_settings(db: Session) -> SystemSettingsResponse:
     """
     orm_settings = db.query(ORMSystemSettings).first()
     if not orm_settings:
-        raise Exception("系统设置不存在")
+        raise RuntimeError("系统核心设置未找到或未正确初始化，请检查应用启动流程。")
     ai_models = db.query(ORMAIModelConfig).filter(ORMAIModelConfig.system_settings_id == orm_settings.id).all()
-    ai_model_schemas = [AIModelConfig(
+    ai_model_schemas = [AIModelConfigInfo(
         modelName=m.modelName,
         apiKey="••••••••••••••••••••",
         baseUrl=m.baseUrl,
@@ -43,7 +43,7 @@ def update_system_settings(db: Session, settings_update: SystemSettingsUpdate) -
     """
     orm_settings = db.query(ORMSystemSettings).first()
     if not orm_settings:
-        raise Exception("系统设置不存在")
+        raise RuntimeError("系统核心设置未找到或未正确初始化，请检查应用启动流程。")
     update_data = settings_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if value is not None:
@@ -52,7 +52,7 @@ def update_system_settings(db: Session, settings_update: SystemSettingsUpdate) -
     db.refresh(orm_settings)
     return get_system_settings(db)
 
-def create_ai_model_config(db: Session, model_create: AIModelConfigCreate) -> AIModelConfig:
+def create_ai_model_config(db: Session, model_create: AIModelConfigCreate) -> AIModelConfigInfo:
     """
     创建AI模型配置
     :param db: 数据库会话
@@ -61,7 +61,16 @@ def create_ai_model_config(db: Session, model_create: AIModelConfigCreate) -> AI
     """
     orm_settings = db.query(ORMSystemSettings).first()
     if not orm_settings:
-        raise Exception("系统设置不存在")
+        raise RuntimeError("系统核心设置未找到或未正确初始化，请检查应用启动流程。")
+    
+    # Check for existing model with the same name for these settings
+    existing_model = db.query(ORMAIModelConfig).filter(
+        ORMAIModelConfig.system_settings_id == orm_settings.id,
+        ORMAIModelConfig.modelName == model_create.modelName
+    ).first()
+    if existing_model:
+        raise ValueError(f"名为 '{model_create.modelName}' 的AI模型配置已存在")
+        
     db_model = ORMAIModelConfig(
         system_settings_id=orm_settings.id,
         modelName=model_create.modelName,
@@ -76,7 +85,7 @@ def create_ai_model_config(db: Session, model_create: AIModelConfigCreate) -> AI
     db.add(db_model)
     db.commit()
     db.refresh(db_model)
-    return AIModelConfig(
+    return AIModelConfigInfo(
         modelName=db_model.modelName,
         apiKey="••••••••••••••••••••",
         baseUrl=db_model.baseUrl,
@@ -87,7 +96,7 @@ def create_ai_model_config(db: Session, model_create: AIModelConfigCreate) -> AI
         appId=db_model.appId
     )
 
-def update_ai_model_config(db: Session, model_name: str, model_update: AIModelConfigUpdate) -> Optional[AIModelConfig]:
+def update_ai_model_config(db: Session, model_name: str, model_update: AIModelConfigUpdate) -> Optional[AIModelConfigInfo]:
     """
     更新AI模型配置
     :param db: 数据库会话
@@ -97,7 +106,7 @@ def update_ai_model_config(db: Session, model_name: str, model_update: AIModelCo
     """
     orm_settings = db.query(ORMSystemSettings).first()
     if not orm_settings:
-        raise Exception("系统设置不存在")
+        raise RuntimeError("系统核心设置未找到或未正确初始化，请检查应用启动流程。")
     db_model = db.query(ORMAIModelConfig).filter(
         ORMAIModelConfig.system_settings_id == orm_settings.id,
         ORMAIModelConfig.modelName == model_name
@@ -110,7 +119,7 @@ def update_ai_model_config(db: Session, model_name: str, model_update: AIModelCo
             setattr(db_model, key, value)
     db.commit()
     db.refresh(db_model)
-    return AIModelConfig(
+    return AIModelConfigInfo(
         modelName=db_model.modelName,
         apiKey="••••••••••••••••••••",
         baseUrl=db_model.baseUrl,
@@ -129,9 +138,9 @@ def get_ai_model_configs(db: Session) -> AIModelConfigListResponse:
     """
     orm_settings = db.query(ORMSystemSettings).first()
     if not orm_settings:
-        raise Exception("系统设置不存在")
+        raise RuntimeError("系统核心设置未找到或未正确初始化，请检查应用启动流程。")
     ai_models = db.query(ORMAIModelConfig).filter(ORMAIModelConfig.system_settings_id == orm_settings.id).all()
-    ai_model_schemas = [AIModelConfig(
+    ai_model_schemas = [AIModelConfigInfo(
         modelName=m.modelName,
         apiKey="••••••••••••••••••••",
         baseUrl=m.baseUrl,
@@ -152,14 +161,14 @@ def get_ai_model_config_by_name(db: Session, model_name: str) -> Optional[AIMode
     """
     orm_settings = db.query(ORMSystemSettings).first()
     if not orm_settings:
-        raise Exception("系统设置不存在")
+        raise RuntimeError("系统核心设置未找到或未正确初始化，请检查应用启动流程。")
     model = db.query(ORMAIModelConfig).filter(
         ORMAIModelConfig.system_settings_id == orm_settings.id,
         ORMAIModelConfig.modelName == model_name
     ).first()
     if not model:
         return None
-    ai_model_schema = AIModelConfig(
+    ai_model_schema = AIModelConfigInfo(
         modelName=model.modelName,
         apiKey="••••••••••••••••••••",
         baseUrl=model.baseUrl,
@@ -180,7 +189,7 @@ def delete_ai_model_config(db: Session, model_name: str) -> bool:
     """
     orm_settings = db.query(ORMSystemSettings).first()
     if not orm_settings:
-        raise Exception("系统设置不存在")
+        raise RuntimeError("系统核心设置未找到或未正确初始化，请检查应用启动流程。")
     db_model = db.query(ORMAIModelConfig).filter(
         ORMAIModelConfig.system_settings_id == orm_settings.id,
         ORMAIModelConfig.modelName == model_name
@@ -200,7 +209,7 @@ def toggle_ai_model_status(db: Session, model_name: str) -> Optional[AIModelConf
     """
     orm_settings = db.query(ORMSystemSettings).first()
     if not orm_settings:
-        raise Exception("系统设置不存在")
+        raise RuntimeError("系统核心设置未找到或未正确初始化，请检查应用启动流程。")
     db_model = db.query(ORMAIModelConfig).filter(
         ORMAIModelConfig.system_settings_id == orm_settings.id,
         ORMAIModelConfig.modelName == model_name
@@ -210,7 +219,7 @@ def toggle_ai_model_status(db: Session, model_name: str) -> Optional[AIModelConf
     db_model.enabled = not db_model.enabled
     db.commit()
     db.refresh(db_model)
-    ai_model_schema = AIModelConfig(
+    ai_model_schema = AIModelConfigInfo(
         modelName=db_model.modelName,
         apiKey="••••••••••••••••••••",
         baseUrl=db_model.baseUrl,
