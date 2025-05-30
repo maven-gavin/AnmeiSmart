@@ -134,8 +134,8 @@ async def refresh_token(
             )
         
         # 获取用户信息
-        user = await user_service.get(db, id=user_id)
-        if not user or not user.is_active:
+        userResponse = await user_service.get(db, id=user_id)
+        if not userResponse or not userResponse.is_active:
             logger.warning(f"用户不存在或未激活: {user_id}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -146,26 +146,27 @@ async def refresh_token(
         active_role = payload.get("role")
         if active_role:
             # 验证用户是否仍然具有该角色
-            user_roles = [role.name for role in user.roles]
+            user_roles = [role for role in userResponse.roles]
             if active_role not in user_roles:
                 # 如果不再有该角色，使用第一个可用角色
                 active_role = user_roles[0] if user_roles else None
                 logger.info(f"用户 {user_id} 不再拥有角色 {active_role}，切换到 {active_role}")
         else:
             # 如果原令牌没有活跃角色，使用第一个可用角色
-            active_role = user.roles[0].name if user.roles else None
+            user_roles = [role for role in userResponse.roles]
+            active_role = user_roles[0] if user_roles else None
         
         # 创建新的访问令牌和刷新令牌
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
-            subject=user.id, 
+            subject=userResponse.id, 
             expires_delta=access_token_expires, 
             active_role=active_role
         )
         
         refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
         new_refresh_token = create_refresh_token(
-            subject=user.id,
+            subject=userResponse.id,
             expires_delta=refresh_token_expires,
             active_role=active_role
         )
@@ -191,6 +192,7 @@ async def refresh_token(
 
 @router.get("/me", response_model=UserResponse)
 async def read_users_me(
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Any:
     """
@@ -198,10 +200,8 @@ async def read_users_me(
     
     返回当前已认证用户的详细信息
     """
-    # 从当前令牌中获取活跃角色
-    active_role = current_user._active_role if hasattr(current_user, "_active_role") else None
-    
-    return active_role
+    userResponse = await user_service.get(db, id=current_user.id)
+    return userResponse
 
 @router.put("/me", response_model=UserResponse)
 async def update_user_me(
@@ -215,12 +215,9 @@ async def update_user_me(
     
     允许用户更新自己的信息
     """
-    user = await user_service.update(db, db_obj=current_user, obj_in=user_in)
-    
-    # 从当前令牌中获取活跃角色
-    active_role = current_user._active_role if hasattr(current_user, "_active_role") else None
-    
-    return active_role
+    user = db.query(User).filter(User.id == current_user.id).first()
+    userResponse = await user_service.update(db, db_obj=user, obj_in=user_in)
+    return userResponse
 
 @router.get("/roles", response_model=List[str])
 async def get_roles(
@@ -248,8 +245,10 @@ async def switch_role(
     
     更改用户当前活跃角色，并返回新的访问令牌
     """
+    # 获取真实的 User 对象
+    user = db.query(User).filter(User.id == current_user.id).first()
     # 检查用户是否拥有请求的角色
-    user_roles = [role.name for role in current_user.roles]
+    user_roles = [role.name if hasattr(role, 'name') else role for role in user.roles]
     if role_request.role not in user_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -259,7 +258,7 @@ async def switch_role(
     # 生成包含新活跃角色的令牌
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        subject=current_user.id, 
+        subject=user.id, 
         expires_delta=access_token_expires,
         active_role=role_request.role
     )

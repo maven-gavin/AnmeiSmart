@@ -9,7 +9,8 @@ import logging
 from app.core.config import get_settings
 from app.db.base import get_db
 from app.core.password_utils import verify_password
-from app.services import user_service as crud_user
+from app.services import user_service
+from app.db.models import User
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -138,7 +139,7 @@ def create_refresh_token(
 async def get_current_user(
     db: Session = Depends(get_db),
     token: str = Depends(oauth2_scheme)
-) -> Any:
+) -> User:
     """
     获取当前用户
     
@@ -147,10 +148,10 @@ async def get_current_user(
     Args:
         db: 数据库会话
         token: JWT令牌
-        
+    
     Returns:
         User: 用户对象
-        
+    
     Raises:
         HTTPException: 如果令牌无效或用户不存在
     """
@@ -195,7 +196,7 @@ async def get_current_user(
         raise credentials_exception
     
     logger.debug(f"尝试从数据库获取用户: user_id={user_id}")
-    user = await crud_user.get(db, id=user_id)
+    user = db.query(User).filter(User.id == user_id).first()
     
     if user is None:
         logger.warning(f"无法在数据库中找到用户: user_id={user_id}")
@@ -206,7 +207,7 @@ async def get_current_user(
     # 如果令牌包含活跃角色，将其作为属性添加到用户对象
     if active_role:
         # 检查用户是否拥有此角色
-        user_roles = [role.name for role in user.roles]
+        user_roles = [role.name if hasattr(role, 'name') else role for role in user.roles]
         logger.debug(f"用户角色: {user_roles}, 令牌指定角色: {active_role}")
         
         if active_role not in user_roles:

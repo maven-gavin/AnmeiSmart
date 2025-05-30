@@ -149,7 +149,6 @@ async def update(db: Session, db_obj: User, obj_in: Union[UserUpdate, Dict[str, 
     for key, value in update_data.items():
         if key not in ["customer_info", "doctor_info", "consultant_info", "operator_info", "administrator_info"] and value is not None:
             setattr(db_obj, key, value)
-    db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
     return UserResponse.from_model(db_obj)
