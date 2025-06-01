@@ -67,7 +67,7 @@ async def read_role(
     
     需要登录
     """
-    role = db.query(Role).filter(Role.id == role_id).first()
+    role = await crud_user.get_role_by_id(db, role_id=role_id)
     if not role:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -95,7 +95,7 @@ async def delete_role(
         )
     
     # 获取角色
-    role = db.query(Role).filter(Role.id == role_id).first()
+    role = await crud_user.get_role_by_id(db, role_id=role_id)
     if not role:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -110,6 +110,7 @@ async def delete_role(
             detail="不能删除系统基础角色"
         )
     
-    # 删除角色
-    db.delete(role)
+    # 删除角色 - 需要通过 ORM 进行实际删除操作
+    db_role = db.query(Role).filter(Role.id == role_id).first()
+    db.delete(db_role)
     db.commit() 

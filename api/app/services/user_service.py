@@ -50,6 +50,16 @@ async def get_role_by_name(db: Session, name: str) -> Optional[RoleResponse]:
     role = db.query(Role).filter(Role.name == name).first()
     return RoleResponse.from_orm(role) if role else None
 
+async def get_role_by_id(db: Session, role_id: str) -> Optional[RoleResponse]:
+    """
+    根据角色ID获取角色信息
+    :param db: 数据库会话
+    :param role_id: 角色ID
+    :return: RoleResponse 或 None
+    """
+    role = db.query(Role).filter(Role.id == role_id).first()
+    return RoleResponse.from_orm(role) if role else None
+
 async def get_roles(db: Session) -> List[RoleResponse]:
     """
     获取所有角色列表
