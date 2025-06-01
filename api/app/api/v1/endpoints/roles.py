@@ -4,7 +4,7 @@ from typing import List
 
 from app.schemas.user import RoleCreate, RoleResponse, UserResponse
 from app.db.models.user import Role, User
-from app.services import user_service as crud_user
+from app.services import user_service
 from app.core.security import get_current_user
 from app.db.base import get_db
 
@@ -22,7 +22,7 @@ async def create_role(
     需要管理员权限
     """
     # 检查当前用户是否有管理员权限
-    user_roles = await crud_user.get_user_roles(db, user_id=current_user.id)
+    user_roles = await user_service.get_user_roles(db, user_id=current_user.id)
     if "admin" not in user_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -30,7 +30,7 @@ async def create_role(
         )
     
     # 检查角色名是否已存在
-    existing_role = await crud_user.get_role_by_name(db, name=role_in.name)
+    existing_role = await user_service.get_role_by_name(db, name=role_in.name)
     if existing_role:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -38,7 +38,7 @@ async def create_role(
         )
     
     # 创建新角色
-    role = await crud_user.create_role(db, name=role_in.name, description=role_in.description)
+    role = await user_service.create_role(db, name=role_in.name, description=role_in.description)
     return role
 
 @router.get("/", response_model=List[RoleResponse])
@@ -53,7 +53,7 @@ async def read_roles(
     
     需要登录
     """
-    roles = await crud_user.get_roles(db)
+    roles = await user_service.get_roles(db)
     return roles
 
 @router.get("/{role_id}", response_model=RoleResponse)
@@ -67,7 +67,7 @@ async def read_role(
     
     需要登录
     """
-    role = await crud_user.get_role_by_id(db, role_id=role_id)
+    role = await user_service.get_role_by_id(db, role_id=role_id)
     if not role:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -87,7 +87,7 @@ async def delete_role(
     需要管理员权限
     """
     # 检查当前用户是否有管理员权限
-    user_roles = await crud_user.get_user_roles(db, user_id=current_user.id)
+    user_roles = await user_service.get_user_roles(db, user_id=current_user.id)
     if "admin" not in user_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -95,7 +95,7 @@ async def delete_role(
         )
     
     # 获取角色
-    role = await crud_user.get_role_by_id(db, role_id=role_id)
+    role = await user_service.get_role_by_id(db, role_id=role_id)
     if not role:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
