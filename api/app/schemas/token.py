@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Optional
 
 class Token(BaseModel):
     """令牌模型"""
@@ -8,7 +9,7 @@ class Token(BaseModel):
 
 class TokenPayload(BaseModel):
     """令牌载荷模型"""
-    sub: str | None = None
+    sub: Optional[str] = None
 
 class RefreshTokenRequest(BaseModel):
     """刷新令牌请求模型"""

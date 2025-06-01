@@ -229,6 +229,8 @@ def toggle_ai_model_status(db: Session, model_name: str) -> Optional[AIModelConf
         provider=db_model.provider,
         appId=db_model.appId
     )
-    return AIModelConfigResponse(success=True, data=ai_model_schema, message=f"AI模型 '{model_name}' 状态已切换")
+    # Return more specific status message based on the enabled state
+    status_text = "已启用" if db_model.enabled else "已停用"
+    return AIModelConfigResponse(success=True, data=ai_model_schema, message=f"AI模型 '{model_name}' {status_text}")
 
 # 其余方法可按需补充，均返回schema 

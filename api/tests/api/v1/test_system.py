@@ -252,8 +252,9 @@ async def test_update_ai_model_as_admin(async_client: AsyncClient, admin_headers
     assert data["baseUrl"] == update_data.baseUrl
     assert data["temperature"] == update_data.temperature
     assert data["enabled"] == update_data.enabled
-    assert "provider" not in data # Not in response
-    assert "appId" not in data    # Not in response
+    # The update response should include provider and appId fields, just like create and get operations
+    assert "provider" in data  # Should be in response
+    assert "appId" in data     # Should be in response
 
 @pytest.mark.asyncio
 async def test_update_ai_model_not_found(async_client: AsyncClient, admin_headers: Dict[str, str]):
