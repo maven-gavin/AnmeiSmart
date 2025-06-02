@@ -100,6 +100,8 @@ async def get_customers(
         
         return customer_list
         
+    except HTTPException:
+        raise  # 重新抛出HTTPException
     except Exception as e:
         logger.error(f"获取客户列表失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="获取客户列表失败")
@@ -128,7 +130,7 @@ async def get_customer(
         if not customer:
             raise HTTPException(status_code=404, detail="客户信息不存在")
         
-        # 构建客户信息响应
+        # 构建基础客户信息响应
         result = {
             "id": customer.id,
             "user_id": customer.user_id,
@@ -149,9 +151,27 @@ async def get_customer(
         ).first()
         
         if profile:
-            result["profile"] = profile
+            # 构建profile响应
+            result["profile"] = {
+                "id": profile.id,
+                "basicInfo": {
+                    "name": customer_user.username,
+                    "age": getattr(customer, "age", None),
+                    "gender": getattr(customer, "gender", None),
+                    "phone": customer_user.phone
+                },
+                "medical_history": profile.medical_history,
+                "allergies": profile.allergies,
+                "preferences": profile.preferences,
+                "tags": profile.tags.split(",") if profile.tags else [],
+                "riskNotes": profile.risk_notes or [],
+                "created_at": profile.created_at,
+                "updated_at": profile.updated_at
+            }
         
         return result
+    except HTTPException:
+        raise  # 重新抛出HTTPException
     except Exception as e:
         logger.error(f"获取客户信息失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取客户信息失败: {str(e)}")
@@ -211,6 +231,8 @@ async def get_customer_profile(
         }
         
         return result
+    except HTTPException:
+        raise  # 重新抛出HTTPException
     except Exception as e:
         logger.error(f"获取客户档案失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取客户档案失败: {str(e)}")
@@ -332,7 +354,7 @@ async def update_customer_profile(
             profile.tags = profile_data.tags
         
         if profile_data.risk_notes is not None:
-            profile.risk_notes = [note.dict() for note in profile_data.risk_notes]
+            profile.risk_notes = [note.model_dump() for note in profile_data.risk_notes]
         
         # 更新时间戳
         profile.updated_at = datetime.now()

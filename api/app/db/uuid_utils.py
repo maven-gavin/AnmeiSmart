@@ -52,6 +52,12 @@ def message_id() -> str:
     return prefixed_uuid("msg")
 
 
+# 客户ID前缀生成函数
+def customer_id() -> str:
+    """生成客户ID"""
+    return prefixed_uuid("cust")
+
+
 # 客户档案ID前缀生成函数
 def profile_id() -> str:
     """生成客户档案ID"""

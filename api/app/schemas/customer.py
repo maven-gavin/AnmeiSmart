@@ -46,7 +46,7 @@ class CustomerProfileBase(BaseModel):
 
 class CustomerProfileCreate(CustomerProfileBase):
     """创建客户档案的请求模型"""
-    customer_id: str
+    pass
 
 class CustomerProfileUpdate(CustomerProfileBase):
     """更新客户档案的请求模型"""
