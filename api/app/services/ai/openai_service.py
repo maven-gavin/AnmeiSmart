@@ -34,6 +34,22 @@ class OpenAIService:
         else:
             logger.info(f"OpenAI服务初始化成功，使用模型: {self.model}")
     
+    async def health_check(self) -> bool:
+        """健康检查"""
+        if not self.api_key:
+            return False
+        
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    f"{self.api_base_url}/models",
+                    headers={"Authorization": f"Bearer {self.api_key}"}
+                )
+                return response.status_code == 200
+        except Exception as e:
+            logger.error(f"OpenAI健康检查失败: {e}")
+            return False
+    
     async def generate_response(self, query: str, conversation_history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """
         调用OpenAI API生成回复

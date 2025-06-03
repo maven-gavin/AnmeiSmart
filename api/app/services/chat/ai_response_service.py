@@ -8,7 +8,6 @@ from datetime import datetime
 import logging
 
 from app.db.models.chat import Message, Conversation
-from app.services.ai import get_ai_service
 from app.core.events import event_bus, EventTypes, Event
 from .message_service import MessageService
 from app.schemas.chat import MessageInfo
@@ -22,7 +21,6 @@ class AIResponseService:
     def __init__(self, db: Session):
         self.db: Session = db
         self.message_service: MessageService = MessageService(db)
-        self.ai_service = get_ai_service()
         
         # 订阅消息事件
         event_bus.subscribe_async(EventTypes.CHAT_MESSAGE_RECEIVED, self.handle_message_event)
@@ -48,6 +46,7 @@ class AIResponseService:
             if not conversation.is_ai_controlled:
                 logger.info(f"会话已被顾问接管，不生成AI回复: {conversation_id}")
                 return False
+            return True
         except Exception as e:
             logger.error(f"判断AI回复条件失败: {e}")
             return False
@@ -62,12 +61,16 @@ class AIResponseService:
             # 获取会话历史
             history = self.get_conversation_history(conversation_id)
             
+            # 获取AI服务实例（传入数据库session以支持配置读取）
+            from app.services.ai import get_ai_service
+            ai_service = get_ai_service(self.db)
+            
             # 设置超时时间
             timeout = 5.0
             
             # 生成AI回复
             ai_response = await asyncio.wait_for(
-                self.ai_service.get_response(user_message, history),
+                ai_service.get_response(user_message, history),
                 timeout=timeout
             )
             
@@ -153,8 +156,18 @@ class AIResponseService:
         """强制生成AI回复（用于手动触发）"""
         try:
             logger.info(f"强制生成AI回复: conversation_id={conversation_id}")
+            
+            # 获取会话历史
             history = self.get_conversation_history(conversation_id)
-            ai_response = await self.ai_service.get_response(prompt, history)
+            
+            # 获取AI服务实例
+            from app.services.ai import get_ai_service
+            ai_service = get_ai_service(self.db)
+            
+            # 生成AI回复
+            ai_response = await ai_service.get_response(prompt, history)
+            
+            # 创建AI回复消息
             ai_message = await self.message_service.create_message(
                 conversation_id=conversation_id,
                 content=ai_response.get("content", "无法生成回复"),
@@ -162,7 +175,9 @@ class AIResponseService:
                 sender_id="ai",
                 sender_type="ai"
             )
+            
             return MessageInfo.from_model(ai_message)
+            
         except Exception as e:
             logger.error(f"强制AI回复失败: {e}")
             return None

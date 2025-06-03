@@ -1,6 +1,7 @@
 """
 AI服务主类
 负责处理医美领域的智能问答
+支持从system模块动态读取AI配置
 """
 
 import os
@@ -10,8 +11,10 @@ from typing import Dict, Any, Optional, List, Type
 from uuid import uuid4
 from datetime import datetime
 from functools import lru_cache
+from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.schemas.ai import StandardAIResponse, StandardConversationHistory
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -19,49 +22,246 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
+
+class AIServiceException(Exception):
+    """AI服务异常基类"""
+    def __init__(self, message: str, error_code: str, provider: str = None):
+        self.message = message
+        self.error_code = error_code
+        self.provider = provider
+        super().__init__(self.message)
+
+
 class AIService:
     """AI服务类，提供医美智能问答能力"""
     
-    def __init__(self):
+    def __init__(self, db: Session = None):
         """初始化AI服务"""
-        # 获取AI服务提供商配置
-        self.provider = os.environ.get("AI_PROVIDER", "simulated").lower()
-        self.api_key = os.environ.get("AI_API_KEY", "")
-        self.ai_model = os.environ.get("AI_MODEL", "default")
-        self.api_base_url = os.environ.get("AI_API_BASE_URL", "")
+        self.db = db
+        self._service_instances = {}  # 缓存服务实例
+        self._active_configs = []
+        self._default_config = None
         
-        # 检查环境变量是否配置
-        self._check_config()
-        logger.info(f"AI服务初始化完成，提供商: {self.provider}, 使用模型: {self.ai_model}")
+        # 加载配置
+        self._load_configurations()
         
         # 加载医美领域知识库
         self.medical_beauty_knowledge = self._load_medical_beauty_knowledge()
         
-        # 初始化服务实例
-        self._service_instance = None
+        logger.info(f"AI服务初始化完成，可用提供商: {self.get_available_providers()}")
     
-    def _check_config(self) -> None:
-        """检查配置是否正确"""
-        if self.provider == "simulated":
-            logger.info("使用模拟AI服务")
-        elif self.provider in ["openai", "dify"]:
-            if not self.api_key:
-                logger.warning(f"{self.provider.upper()}_API_KEY环境变量未设置，将使用模拟回复")
-                self.provider = "simulated"
-            if not self.api_base_url:
-                default_urls = {
-                    "openai": "https://api.openai.com/v1",
-                    "dify": "http://localhost/v1"
-                }
-                logger.warning(f"{self.provider.upper()}_API_BASE_URL环境变量未设置，将使用默认API地址: {default_urls[self.provider]}")
-                self.api_base_url = default_urls[self.provider]
+    def _load_configurations(self) -> None:
+        """从system模块或环境变量加载AI配置"""
+        if self.db:
+            try:
+                # 从数据库加载配置
+                from app.services.system_service import get_active_ai_configs, get_default_ai_config
+                self._active_configs = get_active_ai_configs(self.db)
+                self._default_config = get_default_ai_config(self.db)
+                
+                if self._active_configs:
+                    logger.info(f"从数据库加载了 {len(self._active_configs)} 个AI配置")
+                else:
+                    logger.warning("数据库中没有可用的AI配置，将使用环境变量或模拟服务")
+                    
+            except Exception as e:
+                logger.error(f"从数据库加载AI配置失败: {e}")
+        
+        # 如果数据库配置不可用，使用环境变量配置
+        if not self._active_configs:
+            self._load_env_configurations()
+    
+    def _load_env_configurations(self) -> None:
+        """从环境变量加载配置（兼容原有逻辑）"""
+        provider = os.environ.get("AI_PROVIDER", "simulated").lower()
+        api_key = os.environ.get("AI_API_KEY", "")
+        model = os.environ.get("AI_MODEL", "default")
+        api_base_url = os.environ.get("AI_API_BASE_URL", "")
+        
+        if provider != "simulated" and api_key:
+            config = {
+                "name": f"env_{provider}",
+                "provider": provider,
+                "api_key": api_key,
+                "api_base_url": api_base_url or self._get_default_url(provider),
+                "model": model,
+                "temperature": 0.7,
+                "max_tokens": 2000,
+                "is_enabled": True
+            }
+            self._active_configs = [config]
+            self._default_config = config
+            logger.info(f"从环境变量加载配置: {provider}")
         else:
-            logger.warning(f"未知的AI提供商: {self.provider}，将使用模拟服务")
-            self.provider = "simulated"
+            logger.info("使用模拟AI服务")
+    
+    def _get_default_url(self, provider: str) -> str:
+        """获取提供商默认URL"""
+        default_urls = {
+            "openai": "https://api.openai.com/v1",
+            "dify": "http://localhost/v1"
+        }
+        return default_urls.get(provider, "")
+    
+    def get_available_providers(self) -> List[str]:
+        """获取当前可用的AI提供商列表"""
+        if not self._active_configs:
+            return ["simulated"]
+        return [config["provider"] for config in self._active_configs]
+    
+    def get_default_provider(self) -> str:
+        """获取默认AI提供商"""
+        if self._default_config:
+            return self._default_config["provider"]
+        elif self._active_configs:
+            return self._active_configs[0]["provider"]
+        return "simulated"
+    
+    def get_available_models(self) -> List[str]:
+        """获取当前可用的AI模型列表"""
+        if not self._active_configs:
+            return ["simulated"]
+        return [config["name"] for config in self._active_configs]
+    
+    async def check_providers_health(self) -> Dict[str, bool]:
+        """检查各个提供商的健康状态"""
+        health_status = {}
+        
+        for config in self._active_configs:
+            provider = config["provider"]
+            try:
+                # 获取服务实例
+                service = self._get_service_instance(config)
+                if service and hasattr(service, 'health_check'):
+                    is_healthy = await service.health_check()
+                    health_status[provider] = is_healthy
+                else:
+                    health_status[provider] = True  # 假设可用
+            except Exception as e:
+                logger.error(f"检查提供商 {provider} 健康状态失败: {e}")
+                health_status[provider] = False
+        
+        # 如果没有配置，模拟服务总是可用的
+        if not health_status:
+            health_status["simulated"] = True
+        
+        return health_status
+    
+    async def get_response(self, query: str, conversation_history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """
+        获取AI回复
+        
+        Args:
+            query: 用户问题
+            conversation_history: 对话历史记录
+            
+        Returns:
+            包含AI回复内容的字典
+        """
+        # 如果没有可用配置，使用模拟回复
+        if not self._active_configs:
+            return self._get_simulated_response(query, conversation_history)
+        
+        # 选择配置（优先使用默认配置）
+        config = self._default_config or self._active_configs[0]
+        
+        try:
+            # 获取服务实例
+            service = self._get_service_instance(config)
+            
+            if not service:
+                logger.warning(f"无法获取{config['provider']}服务实例，使用模拟回复")
+                return self._get_simulated_response(query, conversation_history)
+            
+            # 标准化历史记录格式
+            standardized_history = self._standardize_conversation_history(conversation_history)
+            
+            # 调用实际AI服务
+            response = await service.generate_response(query, standardized_history)
+            
+            # 标准化响应格式
+            return self._standardize_response(response, config["provider"])
+            
+        except Exception as e:
+            logger.error(f"AI服务调用失败: {str(e)}")
+            return self._create_error_response(str(e))
+    
+    def _get_service_instance(self, config: Dict[str, Any]):
+        """获取具体AI服务实例"""
+        provider = config["provider"]
+        
+        # 检查缓存
+        cache_key = f"{provider}_{config.get('name', 'default')}"
+        if cache_key in self._service_instances:
+            return self._service_instances[cache_key]
+        
+        try:
+            if provider == "openai":
+                from .openai_service import OpenAIService
+                service = OpenAIService()
+                # 设置配置
+                service.api_key = config["api_key"]
+                service.api_base_url = config["api_base_url"]
+                service.model = config.get("model", "gpt-3.5-turbo")
+                
+            elif provider == "dify":
+                from .dify_service import DifyService
+                service_config = {
+                    "api_key": config["api_key"],
+                    "api_base_url": config["api_base_url"],
+                    "app_id": config.get("app_id", "")
+                }
+                service = DifyService(service_config)
+                
+            else:
+                logger.warning(f"未知的AI提供商: {provider}")
+                return None
+            
+            # 缓存服务实例
+            self._service_instances[cache_key] = service
+            return service
+            
+        except Exception as e:
+            logger.error(f"创建{provider}服务实例失败: {str(e)}")
+            return None
+    
+    def _standardize_conversation_history(self, history: Optional[List[Dict[str, Any]]]) -> Optional[List[Dict[str, Any]]]:
+        """标准化对话历史格式"""
+        if not history:
+            return None
+        
+        standardized = []
+        for message in history:
+            standardized.append({
+                "content": message.get("content", ""),
+                "sender_type": message.get("sender_type", "user"),
+                "timestamp": message.get("timestamp", datetime.now().isoformat())
+            })
+        
+        return standardized
+    
+    def _standardize_response(self, response: Dict[str, Any], provider: str) -> Dict[str, Any]:
+        """标准化AI响应格式"""
+        return {
+            "id": response.get("id", f"ai_msg_{uuid4().hex}"),
+            "content": response.get("content", ""),
+            "timestamp": response.get("timestamp", datetime.now().isoformat()),
+            "provider": provider,
+            "metadata": response.get("metadata", {})
+        }
+    
+    def _create_error_response(self, error_msg: str) -> Dict[str, Any]:
+        """创建错误响应"""
+        return {
+            "id": f"ai_msg_{uuid4().hex}",
+            "content": "抱歉，我暂时无法回答您的问题，请稍后再试。",
+            "timestamp": datetime.now().isoformat(),
+            "provider": "error",
+            "metadata": {"error": error_msg}
+        }
     
     def _load_medical_beauty_knowledge(self) -> Dict[str, List[str]]:
         """加载医美领域知识库，用于模拟回复或增强AI回复"""
-        # 这里使用简单的字典来模拟知识库，实际项目中可能连接到向量数据库
         return {
             "双眼皮": [
                 "双眼皮手术一般术后1-2周即可基本恢复，但完全恢复需要1-3个月。",
@@ -95,72 +295,6 @@ class AIService:
             ]
         }
     
-    async def get_response(self, query: str, conversation_history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
-        """
-        获取AI回复
-        
-        Args:
-            query: 用户问题
-            conversation_history: 对话历史记录
-            
-        Returns:
-            包含AI回复内容的字典
-        """
-        # 根据提供商选择相应的服务
-        if self.provider == "simulated" or not self.api_key:
-            return self._get_simulated_response(query, conversation_history)
-        
-        try:
-            # 获取相应的服务实例
-            service = self._get_service_instance()
-            
-            # 如果服务实例不可用，使用模拟回复
-            if not service:
-                logger.warning(f"无法获取{self.provider}服务实例，使用模拟回复")
-                return self._get_simulated_response(query, conversation_history)
-            
-            # 调用实际AI服务
-            return await service.generate_response(query, conversation_history)
-            
-        except Exception as e:
-            logger.error(f"AI服务调用失败: {str(e)}")
-            return {
-                "id": f"ai_msg_{uuid4().hex}",
-                "content": "抱歉，我暂时无法回答您的问题，请稍后再试。",
-                "timestamp": datetime.now().isoformat()
-            }
-    
-    def _get_service_instance(self):
-        """获取具体AI服务实例"""
-        if self._service_instance:
-            return self._service_instance
-            
-        if self.provider == "openai":
-            # 导入OpenAI服务
-            try:
-                from .openai_service import OpenAIService
-                self._service_instance = OpenAIService()
-                return self._service_instance
-            except Exception as e:
-                logger.error(f"加载OpenAI服务失败: {str(e)}")
-                return None
-        elif self.provider == "dify":
-            # 导入Dify服务
-            try:
-                from .dify_service import DifyService
-                config = {
-                    "api_key": self.api_key,
-                    "api_base_url": self.api_base_url,
-                    "app_id": os.environ.get("DIFY_APP_ID", "")
-                }
-                self._service_instance = DifyService(config)
-                return self._service_instance
-            except Exception as e:
-                logger.error(f"加载Dify服务失败: {str(e)}")
-                return None
-        
-        return None
-    
     def _get_simulated_response(self, query: str, conversation_history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """生成模拟AI回复"""
         response_content = ""
@@ -189,35 +323,35 @@ class AIService:
         return {
             "id": f"ai_msg_{uuid4().hex}",
             "content": response_content,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "provider": "simulated",
+            "metadata": {}
         }
-
-    @staticmethod
-    def create_service_from_config(config: Dict[str, Any]):
-        """根据配置创建AI服务实例"""
-        # 从配置中获取AI提供商
-        provider = config.get("provider", "simulated").lower()
-        
-        if provider == "openai":
-            try:
-                from .openai_service import OpenAIService
-                return OpenAIService()
-            except Exception as e:
-                logger.error(f"创建OpenAI服务失败: {str(e)}")
-                return None
-        elif provider == "dify":
-            try:
-                from .dify_service import DifyService
-                return DifyService(config)
-            except Exception as e:
-                logger.error(f"创建Dify服务失败: {str(e)}")
-                return None
-        else:
-            # 默认返回主AI服务（使用模拟回复）
-            return AIService()
+    
+    def reload_configurations(self) -> None:
+        """重新加载配置（用于配置变更时的动态更新）"""
+        self._service_instances.clear()  # 清除缓存
+        self._load_configurations()
+        logger.info("AI服务配置已重新加载")
 
 
-@lru_cache()
-def get_ai_service() -> AIService:
-    """获取AI服务单例"""
-    return AIService() 
+# 全局AI服务实例
+_ai_service_instance = None
+
+
+def get_ai_service(db: Session = None) -> AIService:
+    """
+    获取AI服务实例
+    如果传入db session，则创建支持数据库配置的实例
+    否则返回全局单例实例
+    """
+    global _ai_service_instance
+    
+    if db:
+        # 如果传入了数据库session，创建新实例支持数据库配置
+        return AIService(db)
+    else:
+        # 使用全局单例
+        if _ai_service_instance is None:
+            _ai_service_instance = AIService()
+        return _ai_service_instance 

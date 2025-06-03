@@ -234,3 +234,71 @@ def toggle_ai_model_status(db: Session, model_name: str) -> Optional[AIModelConf
     return AIModelConfigResponse(success=True, data=ai_model_schema, message=f"AI模型 '{model_name}' {status_text}")
 
 # 其余方法可按需补充，均返回schema 
+
+
+def get_active_ai_configs(db: Session) -> List[Dict[str, Any]]:
+    """
+    获取所有启用的AI模型配置（用于AI服务内部调用）
+    :param db: 数据库会话
+    :return: List[Dict] - 启用的AI配置列表
+    """
+    orm_settings = db.query(ORMSystemSettings).first()
+    if not orm_settings:
+        return []
+    
+    ai_models = db.query(ORMAIModelConfig).filter(
+        ORMAIModelConfig.system_settings_id == orm_settings.id,
+        ORMAIModelConfig.enabled == True
+    ).all()
+    
+    return [
+        {
+            "name": model.modelName,
+            "provider": model.provider,
+            "api_key": model.apiKey,  # 内部调用，返回真实密钥
+            "api_base_url": model.baseUrl,
+            "model": model.modelName,
+            "temperature": model.temperature,
+            "max_tokens": model.maxTokens,
+            "app_id": model.appId,
+            "is_enabled": model.enabled
+        }
+        for model in ai_models
+    ]
+
+
+def get_default_ai_config(db: Session) -> Optional[Dict[str, Any]]:
+    """
+    获取默认AI配置（用于AI服务内部调用）
+    :param db: 数据库会话
+    :return: Dict - 默认AI配置
+    """
+    orm_settings = db.query(ORMSystemSettings).first()
+    if not orm_settings or not orm_settings.defaultModelId:
+        # 如果没有设置默认模型，返回第一个启用的模型
+        active_configs = get_active_ai_configs(db)
+        return active_configs[0] if active_configs else None
+    
+    # 查找指定的默认模型
+    default_model = db.query(ORMAIModelConfig).filter(
+        ORMAIModelConfig.system_settings_id == orm_settings.id,
+        ORMAIModelConfig.modelName == orm_settings.defaultModelId,
+        ORMAIModelConfig.enabled == True
+    ).first()
+    
+    if not default_model:
+        # 如果默认模型不存在或未启用，返回第一个启用的模型
+        active_configs = get_active_ai_configs(db)
+        return active_configs[0] if active_configs else None
+    
+    return {
+        "name": default_model.modelName,
+        "provider": default_model.provider,
+        "api_key": default_model.apiKey,
+        "api_base_url": default_model.baseUrl,
+        "model": default_model.modelName,
+        "temperature": default_model.temperature,
+        "max_tokens": default_model.maxTokens,
+        "app_id": default_model.appId,
+        "is_enabled": default_model.enabled
+    } 

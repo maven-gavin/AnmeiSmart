@@ -41,6 +41,30 @@ class DifyService:
         else:
             logger.info(f"Dify服务初始化成功，应用ID: {self.app_id}")
     
+    async def health_check(self) -> bool:
+        """健康检查"""
+        if not self.api_key or not self.app_id:
+            return False
+        
+        try:
+            # 发送简单的测试请求
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            # 尝试获取应用信息或发送测试请求
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                # 这里可以根据Dify的实际API调整
+                response = await client.get(
+                    f"{self.api_base_url}/apps/{self.app_id}",
+                    headers=headers
+                )
+                return response.status_code in [200, 404]  # 404也表示服务可达
+        except Exception as e:
+            logger.error(f"Dify健康检查失败: {e}")
+            return False
+    
     async def generate_response(self, query: str, conversation_history: Optional[List[Dict[str, Any]]] = None, 
                                 streaming: bool = False) -> Dict[str, Any]:
         """

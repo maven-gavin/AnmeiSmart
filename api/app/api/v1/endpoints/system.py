@@ -67,6 +67,10 @@ def create_ai_model(
     try:
         # 创建AI模型配置
         created_model_data = system_service.create_ai_model_config(db, model_create)
+        
+        # 通知AI服务配置已更新
+        _notify_ai_service_config_change()
+        
         # The service returns AIModelConfig, we need to wrap it in AIModelConfigResponse
         return AIModelConfigResponse(success=True, data=created_model_data, message="创建AI模型配置成功")
     except ValueError as e:
@@ -96,6 +100,9 @@ def update_ai_model(
             detail=f"未找到名为 '{model_name}' 的AI模型配置"
         )
     
+    # 通知AI服务配置已更新
+    _notify_ai_service_config_change()
+    
     # The service returns AIModelConfig, we need to wrap it in AIModelConfigResponse
     return AIModelConfigResponse(success=True, data=updated_model_data, message="更新AI模型配置成功")
 
@@ -118,6 +125,9 @@ def delete_ai_model(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"未找到名为 '{model_name}' 的AI模型配置"
         )
+    
+    # 通知AI服务配置已更新
+    _notify_ai_service_config_change()
     
     return {"success": True, "message": "删除AI模型配置成功"}
 
@@ -142,4 +152,26 @@ def toggle_ai_model_status(
             detail=f"未找到名为 '{model_name}' 的AI模型配置或切换失败"
         )
     
-    return toggle_response 
+    # 通知AI服务配置已更新
+    _notify_ai_service_config_change()
+    
+    return toggle_response
+
+
+def _notify_ai_service_config_change():
+    """通知AI服务配置已更改"""
+    try:
+        # 清除AI服务的全局实例，强制重新加载配置
+        from app.services.ai.ai_service import _ai_service_instance
+        if _ai_service_instance:
+            _ai_service_instance.reload_configurations()
+        
+        # 可以在这里添加其他通知机制，如发布事件等
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("AI服务配置变更通知已发送")
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"通知AI服务配置变更失败: {e}") 
