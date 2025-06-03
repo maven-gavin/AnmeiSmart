@@ -44,7 +44,27 @@ class ChatService:
         
         # 可以在这里实现断开后的逻辑
         # 例如：更新用户离线状态、保存会话状态等
-    
+
+    def _get_conversation_model(
+        self,
+        conversation_id: str,
+        user_id: str,
+        user_role: str
+    ) -> Optional[Conversation]:
+        """获取原始数据库会话对象（内部方法）"""
+        conversation = self.db.query(Conversation).options(
+            joinedload(Conversation.customer)
+        ).filter(Conversation.id == conversation_id).first()
+        
+        if not conversation:
+            return None
+        
+        # 检查访问权限
+        if user_role == "customer" and conversation.customer_id != user_id:
+            raise PermissionError("无权访问此会话")
+        
+        return conversation
+
     async def create_conversation(
         self,
         title: str,
@@ -53,45 +73,43 @@ class ChatService:
         auto_assign_consultant: bool = True
     ) -> ConversationInfo:
         """创建新会话"""
-        logger.info(f"创建会话: title={title}, customer_id={customer_id}, creator_id={creator_id}")
-        
-        # 验证客户存在
-        customer = self.db.query(User).filter(User.id == customer_id).first()
-        if not customer:
-            raise ValueError(f"客户不存在: {customer_id}")
+        logger.info(f"创建会话: title={title}, customer_id={customer_id}")
         
         # 创建会话
         new_conversation = Conversation(
             id=conversation_id(),
-            title=title or f"会话 {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            title=title,
             customer_id=customer_id,
+            is_active=True,
+            is_ai_controlled=True,
             created_at=datetime.now(),
-            updated_at=datetime.now(),
-            is_active=True
+            updated_at=datetime.now()
         )
         
-        # 如果启用自动分配顾问
+        # 自动分配顾问
         if auto_assign_consultant:
-            # 获取客户标签
-            customer_tags = getattr(customer, 'tags', []) or []
+            # 获取客户信息
+            customer = self.db.query(User).filter(User.id == customer_id).first()
+            customer_tags = getattr(customer, 'tags', []) if customer else []
             
             # 使用匹配器找到最佳顾问
             best_consultant_id = self.conversation_matcher.find_best_consultant(
                 customer_id=customer_id,
-                conversation_content=title or "",
+                conversation_content=title,
                 customer_tags=customer_tags
             )
             
             if best_consultant_id:
                 new_conversation.assigned_consultant_id = best_consultant_id
-                logger.info(f"会话已分配给顾问: {best_consultant_id}")
+                logger.info(f"自动分配顾问: {best_consultant_id}")
         
         self.db.add(new_conversation)
         self.db.commit()
         self.db.refresh(new_conversation)
         
-        # 创建系统欢迎消息
-        welcome_message = "会话已创建，欢迎开始对话！"
+        # 创建欢迎消息
+        welcome_message = "欢迎来到安美智享！我是您的AI助手，有什么可以帮助您的吗？"
+        
         if new_conversation.assigned_consultant_id:
             consultant = self.db.query(User).filter(
                 User.id == new_conversation.assigned_consultant_id
@@ -147,17 +165,9 @@ class ChatService:
         user_role: str
     ) -> Optional[ConversationInfo]:
         """获取指定会话"""
-        conversation = self.db.query(Conversation).options(
-            joinedload(Conversation.customer)
-        ).filter(Conversation.id == conversation_id).first()
-        
+        conversation = self._get_conversation_model(conversation_id, user_id, user_role)
         if not conversation:
             return None
-        
-        # 检查访问权限
-        if user_role == "customer" and conversation.customer_id != user_id:
-            raise PermissionError("无权访问此会话")
-        
         return ConversationInfo.from_model(conversation)
     
     async def send_message(
@@ -171,8 +181,8 @@ class ChatService:
         auto_assign_on_first_message: bool = True
     ) -> MessageInfo:
         """发送消息"""
-        # 验证会话存在和权限
-        conversation = self.get_conversation_by_id(conversation_id, sender_id, sender_type)
+        # 验证会话存在和权限 - 使用原始数据库对象
+        conversation = self._get_conversation_model(conversation_id, sender_id, sender_type)
         if not conversation:
             raise ValueError(f"会话不存在或无权访问: {conversation_id}")
         
@@ -217,7 +227,7 @@ class ChatService:
             is_important=is_important
         )
         
-        return MessageInfo.from_model(message)
+        return message
     
     def get_conversation_messages(
         self,

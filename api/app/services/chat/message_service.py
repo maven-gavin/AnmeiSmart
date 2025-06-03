@@ -26,7 +26,7 @@ class MessageService:
         conversation_id: str,
         content: str,
         message_type: str,
-        sender_id: str,
+        sender_id: Optional[str],  # 允许None，用于AI消息
         sender_type: str,
         is_important: bool = False
     ) -> MessageInfo:
@@ -41,13 +41,19 @@ class MessageService:
         if not conversation:
             raise ValueError(f"会话不存在: {conversation_id}")
         
+        # 对于AI消息，使用特殊的sender_id处理
+        actual_sender_id = sender_id
+        if sender_type == "ai" and sender_id is None:
+            # AI消息使用特殊的ID，不关联真实用户表
+            actual_sender_id = "ai_system"
+        
         # 创建消息
         new_message = Message(
             id=message_id(),
             conversation_id=conversation_id,
             content=content,
             type=message_type,
-            sender_id=sender_id,
+            sender_id=actual_sender_id,
             sender_type=sender_type,
             is_read=False,
             is_important=is_important,
@@ -67,7 +73,7 @@ class MessageService:
         # 发布消息创建事件
         event = create_message_event(
             conversation_id=conversation_id,
-            user_id=sender_id,
+            user_id=actual_sender_id,
             content=content,
             message_type=message_type,
             sender_type=sender_type,

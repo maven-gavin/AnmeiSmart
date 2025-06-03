@@ -24,6 +24,11 @@ class MessageCreate(MessageBase):
     sender_type: Literal["customer", "consultant", "doctor", "ai", "system"]
 
 
+class AIChatRequest(MessageBase):
+    """AI聊天请求模型 - 用于AI端点，不包含发送者信息（从当前用户推导）"""
+    conversation_id: str
+
+
 class MessageInfo(MessageBase):
     """消息完整模型"""
     model_config = ConfigDict(from_attributes=True)
