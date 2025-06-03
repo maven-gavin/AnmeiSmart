@@ -704,9 +704,12 @@ class ChatApiService {
   
   // 设置顾问接管状态
   public static async setTakeoverStatus(conversationId: string, isAiControlled: boolean): Promise<void> {
-    await this.fetchWithAuth(`${API_BASE_URL}/chat/conversations/${conversationId}/takeover`, {
-      method: 'POST',
-      body: JSON.stringify({ is_ai_controlled: isAiControlled })
+    const endpoint = isAiControlled 
+      ? `${API_BASE_URL}/chat/conversations/${conversationId}/release`
+      : `${API_BASE_URL}/chat/conversations/${conversationId}/takeover`;
+    
+    await this.fetchWithAuth(endpoint, {
+      method: 'POST'
     });
   }
   
@@ -723,9 +726,7 @@ class ChatApiService {
     const requestData = {
       conversation_id: conversationId,
       content,
-      type: "text",
-      sender_id: userId,
-      sender_type: userRole || "user"
+      type: "text"
     };
     
     const response = await this.fetchWithAuth(`${API_BASE_URL}/ai/chat`, {

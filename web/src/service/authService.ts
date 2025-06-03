@@ -6,7 +6,7 @@ import { AuthUser, LoginCredentials, UserRole } from '@/types/auth';
 const isBrowser = typeof window !== 'undefined';
 
 // API基础URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 // 本地存储工具函数
 const storage = {
