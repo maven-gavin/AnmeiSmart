@@ -24,6 +24,11 @@ class MessageCreate(MessageBase):
     sender_type: Literal["customer", "consultant", "doctor", "ai", "system"]
 
 
+class MessageCreateRequest(MessageBase):
+    """HTTP API创建消息的请求模型 - 不包含会自动推导的字段"""
+    pass
+
+
 class AIChatRequest(MessageBase):
     """AI聊天请求模型 - 用于AI端点，不包含发送者信息（从当前用户推导）"""
     conversation_id: str
@@ -44,25 +49,42 @@ class MessageInfo(MessageBase):
     def from_model(message) -> "MessageInfo":
         if not message:
             return None
+        
+        # 安全地获取sender_id，处理可能缺少的属性
+        sender_id = getattr(message, 'sender_id', None) or "system"
+        sender_type = getattr(message, 'sender_type', 'system')
+        
+        # 安全地获取sender对象
+        sender_obj = getattr(message, 'sender', None)
+        sender_name = "系统"
+        sender_avatar = None
+        
+        if sender_type == "system":
+            sender_name = "系统"
+        elif sender_type == "ai":
+            sender_name = "AI助手"
+        elif sender_obj:
+            sender_name = getattr(sender_obj, "username", "未知用户")
+            sender_avatar = getattr(sender_obj, "avatar", None)
+        else:
+            sender_name = "未知用户"
+        
         sender = MessageSender(
-            id=message.sender_id or "system",
-            name=(
-                "系统" if message.sender_type == "system"
-                else "AI助手" if message.sender_type == "ai"
-                else getattr(message.sender, "username", "未知用户")
-            ),
-            avatar=getattr(message.sender, "avatar", None),
-            type=message.sender_type
+            id=sender_id,
+            name=sender_name,
+            avatar=sender_avatar,
+            type=sender_type
         )
+        
         return MessageInfo(
-            id=message.id,
-            conversation_id=message.conversation_id,
-            content=message.content,
-            type=message.type,
+            id=getattr(message, 'id', ''),
+            conversation_id=getattr(message, 'conversation_id', ''),
+            content=getattr(message, 'content', ''),
+            type=getattr(message, 'type', 'text'),
             sender=sender,
-            timestamp=message.timestamp,
-            is_read=message.is_read,
-            is_important=message.is_important
+            timestamp=getattr(message, 'timestamp', datetime.now()),
+            is_read=getattr(message, 'is_read', False),
+            is_important=getattr(message, 'is_important', False)
         )
 
 
@@ -122,16 +144,22 @@ class ConversationInfo(ConversationBase):
         last_msg_schema = None
         if last_message:
             last_msg_schema = MessageInfo.from_model(last_message)
+        
+        # 安全地处理is_ai_controlled可能为None的情况
+        is_ai_controlled = getattr(conversation, 'is_ai_controlled', True)
+        if is_ai_controlled is None:
+            is_ai_controlled = True
+            
         return ConversationInfo(
             id=conversation.id,
             title=conversation.title,
             customer_id=conversation.customer_id,
             created_at=conversation.created_at,
             updated_at=conversation.updated_at,
-            is_active=conversation.is_active,
+            is_active=getattr(conversation, 'is_active', True),
             customer=customer,
             last_message=last_msg_schema,
-            is_ai_controlled=conversation.is_ai_controlled
+            is_ai_controlled=is_ai_controlled
         )
 
 

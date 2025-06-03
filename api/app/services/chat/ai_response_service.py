@@ -28,7 +28,9 @@ class AIResponseService:
     async def handle_message_event(self, event: Event):
         """根据事件判断是否需要AI回复，如果需要则生成AI回复，保存并广播"""
         if await self.should_ai_reply(event):
-            await self.generate_ai_response(event.conversation_id, event.content)
+            # 从事件数据中获取消息内容
+            content = event.data.get("content", "")
+            await self.generate_ai_response(event.conversation_id, content)
     
     async def should_ai_reply(self, event) -> bool:
         """判断是否应该生成AI回复，event需包含conversation_id, user_id, sender_type等"""
@@ -53,7 +55,7 @@ class AIResponseService:
     
     async def generate_ai_response(self, conversation_id: str, user_message: str):
         """生成AI回复"""
-        AI_SENDER_ID = "ai"
+        AI_SENDER_ID = None
         AI_SENDER_TYPE = "ai"
         try:
             logger.info(f"开始生成AI回复: conversation_id={conversation_id}, user_message={user_message}")
@@ -95,7 +97,7 @@ class AIResponseService:
             from app.core.events import create_message_event
             event = create_message_event(
                 conversation_id=conversation_id,
-                user_id=AI_SENDER_ID,
+                user_id="ai_system",
                 content=ai_message.content,
                 message_type="text",
                 sender_type=AI_SENDER_TYPE,
@@ -133,7 +135,7 @@ class AIResponseService:
                 conversation_id=conversation_id,
                 content="AI响应超时，请稍后再试",
                 message_type="text",
-                sender_id="system",
+                sender_id=None,
                 sender_type="system"
             )
         except Exception as e:
@@ -146,7 +148,7 @@ class AIResponseService:
                 conversation_id=conversation_id,
                 content=f"生成回复时出错: {error_msg}",
                 message_type="text",
-                sender_id="system",
+                sender_id=None,
                 sender_type="system"
             )
         except Exception as e:
@@ -172,7 +174,7 @@ class AIResponseService:
                 conversation_id=conversation_id,
                 content=ai_response.get("content", "无法生成回复"),
                 message_type="text",
-                sender_id="ai",
+                sender_id=None,
                 sender_type="ai"
             )
             

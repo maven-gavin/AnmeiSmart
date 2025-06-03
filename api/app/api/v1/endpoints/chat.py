@@ -14,7 +14,7 @@ from app.db.models.user import User
 from app.db.models.customer import Customer, CustomerProfile
 from app.schemas.chat import (
     ConversationCreate, ConversationInfo,
-    MessageCreate, MessageInfo
+    MessageCreate, MessageCreateRequest, MessageInfo
 )
 from app.schemas.customer import CustomerProfileInfo, RiskNote, ConsultationHistoryItem
 
@@ -201,6 +201,9 @@ async def get_conversation(
         
         return conversation
         
+    except HTTPException:
+        # 重新抛出HTTPException，不要捕获
+        raise
     except PermissionError:
         raise HTTPException(status_code=403, detail="无权访问此会话")
     except Exception as e:
@@ -242,7 +245,7 @@ async def get_conversation_messages(
 @router.post("/conversations/{conversation_id}/messages", response_model=MessageInfo)
 async def send_message(
     conversation_id: str,
-    message_in: MessageCreate,
+    message_in: MessageCreateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -321,24 +324,25 @@ async def update_conversation(
         chat_service = ChatService(db)
         user_role = get_user_role(current_user)
         
-        # 获取会话
-        conversation = chat_service.get_conversation_by_id(
+        # 获取原始ORM会话对象（使用内部方法）
+        conversation_orm = chat_service._get_conversation_model(
             conversation_id=conversation_id,
             user_id=current_user.id,
             user_role=user_role
         )
         
-        if not conversation:
+        if not conversation_orm:
             raise HTTPException(status_code=404, detail="会话不存在")
         
         # 更新标题
         if 'title' in update_data:
-            conversation.title = update_data['title']
-            conversation.updated_at = datetime.now()
+            conversation_orm.title = update_data['title']
+            conversation_orm.updated_at = datetime.now()
             db.commit()
-            db.refresh(conversation)
+            db.refresh(conversation_orm)
         
-        return conversation
+        # 将ORM对象转换为Pydantic模型
+        return ConversationInfo.from_model(conversation_orm)
         
     except PermissionError:
         raise HTTPException(status_code=403, detail="无权修改此会话")

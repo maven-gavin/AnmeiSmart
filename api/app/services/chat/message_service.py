@@ -41,11 +41,11 @@ class MessageService:
         if not conversation:
             raise ValueError(f"会话不存在: {conversation_id}")
         
-        # 对于AI消息，使用特殊的sender_id处理
+        # 对于AI消息和系统消息，使用特殊的sender_id处理
         actual_sender_id = sender_id
-        if sender_type == "ai" and sender_id is None:
-            # AI消息使用特殊的ID，不关联真实用户表
-            actual_sender_id = "ai_system"
+        if sender_type in ["ai", "system"] and sender_id is None:
+            # AI消息和系统消息使用特殊的ID，不关联真实用户表
+            actual_sender_id = f"{sender_type}_system"
         
         # 创建消息
         new_message = Message(
