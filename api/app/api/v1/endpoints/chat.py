@@ -392,6 +392,10 @@ async def websocket_endpoint(
     websocket: WebSocket,
     conversation_id: str,
     token: str = Query(...),
+    # 添加前端传递的可选参数，避免参数验证失败
+    userId: Optional[str] = Query(None),
+    userType: Optional[str] = Query(None),
+    connectionId: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     """WebSocket连接端点 - 简化版，专注于连接管理"""
@@ -470,14 +474,11 @@ async def websocket_endpoint(
 async def verify_websocket_token(token: str, db: Session) -> Optional[dict]:
     """验证WebSocket token并返回用户ID和角色"""
     try:
-        # 使用安全模块验证token
+        # 使用安全模块验证token，直接获取user_id
         from app.core.security import verify_token
-        payload = verify_token(token)
-        if not payload or not isinstance(payload, dict):
-            return None
-        
-        user_id = payload.get("sub")
+        user_id = verify_token(token)
         if not user_id:
+            logger.warning("WebSocket token验证失败：token无效")
             return None
             
         # 从数据库获取用户信息

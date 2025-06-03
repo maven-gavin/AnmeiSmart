@@ -3,23 +3,26 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '@/service/utils';
 import { getCustomerList, getCustomerConversations } from '@/service/chatService';
-import { Customer, Conversation } from '@/types/chat';
+import { Customer } from '@/types/chat';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface CustomerListProps {
-  onCustomerSelect?: (customerId: string, conversationId?: string) => void;
+  onCustomerChange?: (customerId: string, conversationId?: string) => void;
   selectedCustomerId?: string | null;
+  selectedConversationId?: string | null;
 }
 
 export default function CustomerList({ 
-  onCustomerSelect, 
-  selectedCustomerId 
+  onCustomerChange, 
+  selectedCustomerId,
+  selectedConversationId: _ // 接收但不使用，避免 TypeScript 错误
 }: CustomerListProps) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const isFirstLoad = useRef(true);
+  const hasAutoSelected = useRef(false);
 
   // 加载客户列表
   const loadCustomers = useCallback(async (isInitialLoad = false) => {
@@ -81,6 +84,7 @@ export default function CustomerList({
     }
   }, []);
 
+  // 初始化客户列表
   useEffect(() => {
     if (user) {
       // 首次加载时显示加载状态
@@ -97,7 +101,7 @@ export default function CustomerList({
     try {
       console.log(`选择客户: ${customer.name} (ID: ${customer.id})`);
       
-      // 使用更新后的API获取该客户的会话列表
+      // 获取该客户的会话列表
       const conversations = await getCustomerConversations(customer.id);
       console.log(`获取到客户 ${customer.id} 的会话列表:`, conversations.length > 0 ? conversations.length + '个会话' : '无会话');
       
@@ -108,7 +112,6 @@ export default function CustomerList({
       if (!selectedConversation && conversations.length > 0) {
         // 按更新时间降序排序
         const sortedConversations = [...conversations].sort((a, b) => {
-          // 使用可选链和nullish合并运算符确保安全访问
           const dateA = new Date(a.updatedAt ?? '').getTime();
           const dateB = new Date(b.updatedAt ?? '').getTime();
           return dateB - dateA;
@@ -125,55 +128,59 @@ export default function CustomerList({
         console.log(`客户 ${customer.id} 没有会话记录`);
       }
       
-      if (onCustomerSelect) {
+      if (onCustomerChange) {
         if (selectedConversation) {
           console.log(`为客户 ${customer.id} 选择会话: ${selectedConversation.id}`);
-          
-          // 确保在调用父组件回调之前等待会话选择完成
-          // 使用短延迟确保选择会话后的UI更新和状态同步
-          setTimeout(() => {
-            if (onCustomerSelect) {
-              onCustomerSelect(customer.id, selectedConversation!.id);
-            }
-          }, 100);
+          onCustomerChange(customer.id, selectedConversation.id);
         } else {
           console.log(`客户 ${customer.id} 没有会话记录，只传递客户ID`);
-          onCustomerSelect(customer.id);
+          onCustomerChange(customer.id);
         }
       }
     } catch (error) {
       console.error(`获取客户 ${customer.id} 会话失败:`, error);
       // 出错时只传递客户ID
-      if (onCustomerSelect) {
-        onCustomerSelect(customer.id);
+      if (onCustomerChange) {
+        onCustomerChange(customer.id);
       }
     }
-  }, [onCustomerSelect]);
+  }, [onCustomerChange]);
   
-  // 自动选择默认客户
+  // 自动选择默认客户（移动自 ChatPageClient 的初始化逻辑）
   useEffect(() => {
-    // 确保客户列表已加载，并且当前没有选中的客户
-    if (!loading && customers.length > 0 && !selectedCustomerId && onCustomerSelect) {
-      console.log('CustomerList: 准备自动选择默认客户...');
+    // 条件检查：
+    // 1. 客户列表已加载完成
+    // 2. 有可用的客户
+    // 3. 当前没有选中的客户（URL中没有客户参数）
+    // 4. 有回调函数可用
+    // 5. 还没有自动选择过
+    if (!loading && customers.length > 0 && !selectedCustomerId && onCustomerChange && !hasAutoSelected.current) {
+      console.log('CustomerList: 没有选中客户，自动选择第一个客户...');
       
-      // 设置一个较长的延迟，确保不会与其他初始化逻辑冲突
+      // 标记已自动选择，避免重复执行
+      hasAutoSelected.current = true;
+      
+      // 延迟执行，确保组件状态稳定
       const timer = setTimeout(() => {
         // 再次检查是否仍然需要自动选择
         if (!selectedCustomerId && customers.length > 0) {
           console.log('CustomerList: 自动选择默认客户:', customers[0].name);
-          
-          // 延迟执行，确保DOM已更新且其他组件已准备好
-          // 这有助于确保选择客户和加载会话历史的顺序正确
-          setTimeout(() => {
-            // 自动选择第一个客户
-            handleCustomerSelect(customers[0]);
-          }, 100);
+          handleCustomerSelect(customers[0]);
         }
-      }, 500); // 增加延迟时间，确保页面其他部分已完成初始化
+      }, 100);
       
       return () => clearTimeout(timer);
     }
-  }, [loading, customers, selectedCustomerId, onCustomerSelect, handleCustomerSelect]);
+  }, [loading, customers, selectedCustomerId, onCustomerChange, handleCustomerSelect]);
+
+  // 重置自动选择标志（当用户手动选择后）
+  useEffect(() => {
+    if (selectedCustomerId) {
+      hasAutoSelected.current = true; // 防止再次自动选择
+    } else {
+      hasAutoSelected.current = false; // 允许重新自动选择
+    }
+  }, [selectedCustomerId]);
 
   // 格式化最后消息时间
   const formatLastMessageTime = (timestamp?: string): string => {

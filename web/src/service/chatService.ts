@@ -306,9 +306,9 @@ const initializeWebSocketClient = () => {
       throw new Error('WebSocket主机未配置');
     }
     
-    // 修改这里，确保路径中不包含多余的ws部分，让WebSocketClient处理
-    // 路径应该是 /api/v1/chat，而不是 /api/v1/chat/ws
-    const baseUrl = `${wsProtocol}//${wsHost}/api/v1/chat`;
+    // 修改这里，直接提供完整的WebSocket路径，包含/ws/部分
+    // 这样WebSocketClient就不会再自动添加/ws/路径了
+    const baseUrl = `${wsProtocol}//${wsHost}/api/v1/chat/ws`;
     console.log('WebSocket连接基础URL:', baseUrl);
     
     // 获取客户端实例，使用明确的配置

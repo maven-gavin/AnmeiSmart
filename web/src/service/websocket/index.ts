@@ -74,6 +74,15 @@ export class WebSocketClient {
     // 处理重连事件
     this.reconnector.on('reconnected', this.handleReconnection.bind(this));
     
+    // 处理重连器错误事件，防止未捕获的错误
+    this.reconnector.on('error', (error: any) => {
+      if (this.config.debug) {
+        console.error('重连器错误:', error);
+      }
+      // 触发连接错误事件，让上层应用处理
+      this.connection.emit('reconnectionError', error);
+    });
+    
     // 记录调试信息
     if (this.config.debug) {
       this.setupDebugListeners();
@@ -95,21 +104,15 @@ export class WebSocketClient {
     // 保存连接参数
     this.connectionParams = { ...params };
     
-    // 构建完整URL，修正URL结构
+    // 构建完整URL - 直接使用config.url，不再自动添加/ws/路径
     let url = this.config.url;
     
     // 添加会话ID到URL路径
-    // 确保URL路径中已包含/ws/前缀
-    if (!url.endsWith('/ws/') && !url.endsWith('/ws')) {
-      if (!url.endsWith('/')) {
-        url = `${url}/ws/`;
-      } else {
-        url = `${url}ws/`;
-      }
-    }
-    
-    // 添加会话ID
     if (params.conversationId) {
+      // 确保URL末尾有斜杠
+      if (!url.endsWith('/')) {
+        url = `${url}/`;
+      }
       url = `${url}${params.conversationId}`;
       console.log(`WebSocketClient: 为会话 ${params.conversationId} 构建URL: ${url}`);
     } else {

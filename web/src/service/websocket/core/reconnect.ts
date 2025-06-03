@@ -239,7 +239,16 @@ export class WebSocketReconnector extends EventEmitter {
         lastUrl: this.lastUrl,
         lastParams: this.lastParams
       });
-      this.emit('error', { message: '无法重连：缺少连接URL' });
+      
+      // 尝试发出错误事件，但要添加错误处理以防止未捕获的错误
+      try {
+        this.emit('error', new Error('无法重连：缺少连接URL'));
+      } catch (err) {
+        console.error('重连器触发错误事件失败:', err);
+      }
+      
+      // 禁用重连以避免无限重试
+      this.disable();
       return;
     }
 
@@ -251,7 +260,16 @@ export class WebSocketReconnector extends EventEmitter {
         lastUrl: this.lastUrl,
         error
       });
-      this.emit('error', { message: `无法重连：URL格式无效 (${this.lastUrl})` });
+      
+      // 尝试发出错误事件，但要添加错误处理
+      try {
+        this.emit('error', new Error(`无法重连：URL格式无效 (${this.lastUrl})`));
+      } catch (err) {
+        console.error('重连器触发错误事件失败:', err);
+      }
+      
+      // 禁用重连以避免无限重试
+      this.disable();
       return;
     }
     
@@ -301,11 +319,15 @@ export class WebSocketReconnector extends EventEmitter {
     } catch (error) {
       console.error('WebSocket重连出错:', error);
       
-      // 发出错误事件
-      this.emit('error', {
-        error,
-        message: '执行重连时出错'
-      });
+      // 发出错误事件，但要添加错误处理
+      try {
+        this.emit('error', {
+          error,
+          message: '执行重连时出错'
+        });
+      } catch (err) {
+        console.error('重连器触发错误事件失败:', err);
+      }
       
       // 如果未达到最大尝试次数，计划下一次尝试
       if (this.attempts < this.maxAttempts) {

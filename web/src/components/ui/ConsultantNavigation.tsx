@@ -4,7 +4,6 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/service/utils';
 import { useCallback } from 'react';
-import { getConversations } from '@/service/chatService';
 import { useRouter } from 'next/navigation';
 
 interface NavItemProps {
@@ -38,29 +37,10 @@ export default function ConsultantNavigation() {
   const pathname = usePathname();
   const router = useRouter();
   
-  // 处理智能客服点击，检查并选择会话
+  // 处理智能客服点击，不用选择会话，直接跳转到聊天页面，因为会话是属于聊天业务
   const handleChatClick = useCallback(async (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault(); // 阻止默认链接行为
-    
-    try {
-      console.log('获取会话列表以选择合适的会话');
-      // 获取会话列表
-      const conversations = await getConversations();
-      
-      if (conversations && conversations.length > 0) {
-        // 如果有会话，直接导航到第一个会话
-        console.log('找到现有会话，跳转到:', conversations[0].id);
-        router.push(`/consultant/chat?conversationId=${conversations[0].id}`);
-      } else {
-        // 如果没有会话，导航到聊天页面，让聊天窗口组件创建一个新会话
-        console.log('没有找到会话，前往聊天页面创建新会话');
-        router.push('/consultant/chat');
-      }
-    } catch (error) {
-      console.error('处理会话时出错:', error);
-      // 出错时也导航到聊天页面
-      router.push('/consultant/chat');
-    }
+    router.push('/consultant/chat');
   }, [router]);
 
   return (

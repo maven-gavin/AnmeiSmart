@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ChatWindow from '@/components/chat/ChatWindow'
 import CustomerList from '@/components/chat/CustomerList'
 import CustomerProfile from '@/components/chat/CustomerProfile'
-import { getConversations, createConversation, getCustomerList, getCustomerConversations } from '@/service/chatService';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useAuth } from '@/contexts/AuthContext';
 import { authService } from '@/service/authService';
@@ -14,79 +13,70 @@ export default function ChatPageClient() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   // 会话切换状态
   const [isSwitchingConversation, setIsSwitchingConversation] = useState(false);
   const prevConversationIdRef = useRef<string | null>(null);
   
-  // 跟踪初始化状态，避免重复初始化
-  const isInitializedRef = useRef(false);
-  
-  // 保存上次处理的会话ID和客户ID
-  const lastProcessedConversationIdRef = useRef<string | null>(null);
-  const conversationId = searchParams?.get('conversationId');
-  const customerId = searchParams?.get('customerId');
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(customerId);
+  // 主要状态：选中的客户ID和会话ID
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
 
-  // 当会话ID变化时，显示切换状态
+  // 从URL参数获取初始值
+  const urlCustomerId = searchParams?.get('customerId');
+  const urlConversationId = searchParams?.get('conversationId');
+
+  // 监听URL参数变化，保持状态同步
   useEffect(() => {
-    if (!conversationId || !prevConversationIdRef.current) {
-      prevConversationIdRef.current = conversationId;
+    if (urlCustomerId !== selectedCustomerId) {
+      console.log(`URL客户ID变化: ${urlCustomerId}`);
+      setSelectedCustomerId(urlCustomerId);
+    }
+    if (urlConversationId !== selectedConversationId) {
+      console.log(`URL会话ID变化: ${urlConversationId}`);
+      setSelectedConversationId(urlConversationId);
+    }
+  }, [urlCustomerId, urlConversationId, selectedCustomerId, selectedConversationId]);
+
+  // 处理会话ID变化时的切换动画
+  useEffect(() => {
+    if (!selectedConversationId || !prevConversationIdRef.current) {
+      prevConversationIdRef.current = selectedConversationId;
       return;
     }
     
-    if (conversationId !== prevConversationIdRef.current) {
+    if (selectedConversationId !== prevConversationIdRef.current) {
       // 显示切换状态
       setIsSwitchingConversation(true);
       
       // 300ms后隐藏切换状态
       const timer = setTimeout(() => {
         setIsSwitchingConversation(false);
-        prevConversationIdRef.current = conversationId;
+        prevConversationIdRef.current = selectedConversationId;
       }, 300);
       
       return () => clearTimeout(timer);
     }
-  }, [conversationId]);
+  }, [selectedConversationId]);
 
-  // 监听URL参数变化
-  useEffect(() => {
-    const urlCustomerId = searchParams?.get('customerId');
-    const urlConversationId = searchParams?.get('conversationId');
+  // 处理客户和会话变化的统一回调
+  const handleCustomerChange = useCallback((customerId: string, conversationId?: string) => {
+    console.log(`客户变化: customerId=${customerId}, conversationId=${conversationId}`);
     
-    console.log(`URL参数变化: customerId=${urlCustomerId}, conversationId=${urlConversationId}`);
-    
-    // 如果URL中的客户ID与当前选中的不同，更新选中状态
-    if (urlCustomerId !== selectedCustomerId) {
-      console.log(`更新选中的客户ID: ${urlCustomerId}`);
-      setSelectedCustomerId(urlCustomerId);
-    }
-    
-    // 如果URL中同时包含customerId和conversationId，但lastProcessedConversationIdRef不同，
-    // 说明这是一个新的会话选择，更新上次处理的会话ID
-    if (urlCustomerId && urlConversationId && 
-        lastProcessedConversationIdRef.current !== urlConversationId) {
-      console.log(`更新上次处理的会话ID: ${urlConversationId}`);
-      lastProcessedConversationIdRef.current = urlConversationId;
-    }
-  }, [searchParams, selectedCustomerId]);
-
-  // 处理客户选择
-  const handleCustomerSelect = (customerId: string, conversationId?: string) => {
+    // 更新本地状态
     setSelectedCustomerId(customerId);
+    setSelectedConversationId(conversationId || null);
     
-    if (conversationId) {
-      // 如果有指定的会话ID，直接跳转
-      router.push(`/consultant/chat?customerId=${customerId}&conversationId=${conversationId}`, { scroll: false });
-    } else {
-      // 如果没有会话ID，只更新客户ID
-      router.push(`/consultant/chat?customerId=${customerId}`, { scroll: false });
-    }
-  };
+    // 更新URL
+    const url = conversationId 
+      ? `/consultant/chat?customerId=${customerId}&conversationId=${conversationId}`
+      : `/consultant/chat?customerId=${customerId}`;
+    
+    router.push(url, { scroll: false });
+  }, [router]);
 
-  // 初始化聊天页面
+  // 权限检查
   useEffect(() => {
     // 等待认证完成
     if (authLoading) {
@@ -96,7 +86,8 @@ export default function ChatPageClient() {
     
     // 检查登录状态
     if (!authService.isLoggedIn()) {
-      console.log('用户未登录，不执行初始化');
+      console.log('用户未登录，重定向到登录页面');
+      router.push('/login');
       return;
     }
 
@@ -110,128 +101,9 @@ export default function ChatPageClient() {
       
       return () => clearTimeout(timer);
     }
-    
-    // 防止在同一渲染周期内多次执行初始化
-    if (isInitializedRef.current) {
-      console.log('已初始化，跳过重复初始化');
-      return;
-    }
-    
-    // 设置加载状态
-    if (!isLoading) {
-      setIsLoading(true);
-    }
-    
-    console.log('开始初始化顾问聊天页面...');
-    
-    const initializeChat = async () => {
-      try {
-        // 如果已有conversationId和customerId，表示已经有特定的会话被选中
-        if (customerId && conversationId) {
-          console.log(`已有特定会话: 客户ID=${customerId}, 会话ID=${conversationId}`);
-          setSelectedCustomerId(customerId);
-          setIsLoading(false);
-          return;
-        }
-        
-        // 如果只有customerId但没有conversationId
-        if (customerId && !conversationId) {
-          console.log(`有客户ID但无会话ID: 客户ID=${customerId}，尝试获取该客户的会话`);
-          try {
-            const conversations = await getCustomerConversations(customerId);
-            if (conversations && conversations.length > 0) {
-              // 找到活跃的会话或使用第一个会话
-              const activeConversation = conversations.find(conv => conv.status === 'active') || conversations[0];
-              if (activeConversation) {
-                console.log(`找到客户${customerId}的会话:`, activeConversation.id);
-                // 更新URL，包含会话ID
-                router.push(`/consultant/chat?customerId=${customerId}&conversationId=${activeConversation.id}`, { scroll: false });
-                return;
-              }
-            } else {
-              console.log(`客户${customerId}没有会话记录`);
-            }
-          } catch (error) {
-            console.error(`获取客户${customerId}的会话失败:`, error);
-          }
-        }
-        
-        // 如果URL中没有客户ID参数，自动选择第一个客户
-        if (!customerId) {
-          console.log('URL中没有客户ID，尝试加载默认客户...');
-          try {
-            const customers = await getCustomerList();
-            if (customers && customers.length > 0) {
-              console.log('找到客户列表，选择第一个客户:', customers[0].name);
-              
-              // 获取该客户的会话
-              const conversations = await getCustomerConversations(customers[0].id);
-              console.log(`获取到客户${customers[0].id}的会话列表:`, conversations.length > 0 ? conversations.length + '个会话' : '无会话');
-              
-              // 找到活跃的会话或使用第一个会话
-              const activeConversation = conversations.find(conv => conv.status === 'active') || conversations[0];
-              
-              if (activeConversation) {
-                console.log('找到客户会话:', activeConversation.id);
-                // 自动导航到该客户的会话页面，确保同时传递customerId和conversationId
-                router.push(`/consultant/chat?customerId=${customers[0].id}&conversationId=${activeConversation.id}`, { scroll: false });
-              } else {
-                // 如果没有会话，只导航到客户页面
-                console.log('未找到客户会话，只选择客户:', customers[0].id);
-                router.push(`/consultant/chat?customerId=${customers[0].id}`, { scroll: false });
-              }
-            } else {
-              console.log('没有找到客户列表或客户列表为空');
-            }
-          } catch (error) {
-            console.error('加载默认客户失败:', error);
-          }
-        }
-        
-        // 顾问端不需要自动创建会话，等待客户选择
-        console.log('顾问聊天页面初始化完成，等待选择客户');
-      } catch (err) {
-        console.error('初始化聊天失败:', err);
-        setError('加载页面失败，请刷新页面重试');
-      } finally {
-        // 设置初始化标志，防止重复初始化
-        isInitializedRef.current = true;
-        setIsLoading(false);
-      }
-    };
-    
-    initializeChat();
-    
-    // 设置超时，如果10秒后仍在加载，则认为出现了问题
-    const timeoutId = setTimeout(() => {
-      if (isLoading) {
-        console.log('加载超时，重置状态');
-        setIsLoading(false);
-        if (!error) {
-          setError('加载超时，请刷新页面重试');
-        }
-      }
-    }, 10000); // 10秒超时
-    
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [conversationId, router, isLoading, error, authLoading, user, customerId]);
-  
-  // 监听认证状态变化，重置初始化状态
-  useEffect(() => {
-    if (!authLoading && user && isInitializedRef.current) {
-      // 如果认证状态变化（例如令牌刷新后），但不重新初始化
-      console.log('认证状态变化，但保持初始化状态');
-    }
-    
-    // 如果用户登出，重置初始化状态
-    if (!authLoading && !user) {
-      console.log('用户已登出，重置初始化状态');
-      isInitializedRef.current = false;
-    }
-  }, [authLoading, user]);
+  }, [authLoading, user, router]);
 
+  // 如果有错误，显示错误信息
   if (error) {
     return (
       <div className="flex h-full flex-col items-center justify-center bg-gray-50">
@@ -241,7 +113,16 @@ export default function ChatPageClient() {
     );
   }
   
-  // 强制稳定的布局结构，避免加载过程中的闪烁
+  // 如果还在认证中，显示加载状态
+  if (authLoading) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center bg-gray-50">
+        <LoadingSpinner size="lg" />
+        <p className="mt-4 text-gray-600">加载中...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full w-full relative">
       {/* 顾问聊天布局 */}
@@ -266,17 +147,18 @@ export default function ChatPageClient() {
           {/* 左侧：客户列表 */}
           <div className="w-80 flex-shrink-0 border-r border-gray-200 bg-white">
             <CustomerList 
-              onCustomerSelect={handleCustomerSelect}
+              onCustomerChange={handleCustomerChange}
               selectedCustomerId={selectedCustomerId}
+              selectedConversationId={selectedConversationId}
             />
           </div>
           
           {/* 中间：聊天窗口 */}
           <div className="flex-1 overflow-hidden relative">
-            {conversationId ? (
+            {selectedConversationId ? (
               <ChatWindow 
-                key={conversationId}
-                conversationId={conversationId}
+                key={selectedConversationId}
+                conversationId={selectedConversationId}
               />
             ) : (
               <div className="flex h-full items-center justify-center bg-gray-50">
@@ -308,35 +190,6 @@ export default function ChatPageClient() {
           )}
         </div>
       </div>
-      
-      {/* 全屏加载状态覆盖层 */}
-      {(isLoading || authLoading) && (
-        <div className="absolute inset-0 bg-white bg-opacity-70 flex items-center justify-center z-50">
-          <div className="flex flex-col items-center">
-            <LoadingSpinner size="lg" />
-            <p className="mt-4 text-gray-600">加载中...</p>
-          </div>
-        </div>
-      )}
-      
-      {/* 错误状态 */}
-      {error && !isLoading && (
-        <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50">
-          <div className="text-center">
-            <div className="text-red-500 text-lg mb-4">{error}</div>
-            <button
-              onClick={() => {
-                setError(null);
-                setIsLoading(true);
-                isInitializedRef.current = false;
-              }}
-              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-            >
-              重试
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 } 
