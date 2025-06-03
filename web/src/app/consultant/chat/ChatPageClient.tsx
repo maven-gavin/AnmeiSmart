@@ -6,12 +6,12 @@ import ChatWindow from '@/components/chat/ChatWindow'
 import CustomerList from '@/components/chat/CustomerList'
 import CustomerProfile from '@/components/chat/CustomerProfile'
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { authService } from '@/service/authService';
 
 export default function ChatPageClient() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuthContext();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   

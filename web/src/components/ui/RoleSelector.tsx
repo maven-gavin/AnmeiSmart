@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { UserRole, AuthUser } from '@/types/auth';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { roleOptions } from '@/service/authService';
 
 interface RoleSelectorProps {
@@ -13,7 +13,7 @@ interface RoleSelectorProps {
 
 export default function RoleSelector({ onRoleSelect, className = '' }: RoleSelectorProps) {
   const router = useRouter();
-  const { user, switchRole, loading: authLoading } = useAuth();
+  const { user, switchRole, loading: authLoading } = useAuthContext();
   const [selectedRole, setSelectedRole] = useState<UserRole | undefined>(undefined);
   const [loading, setLoading] = useState<UserRole | null>(null);
   const [error, setError] = useState<string | null>(null);

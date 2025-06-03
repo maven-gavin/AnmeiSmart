@@ -26,7 +26,7 @@ import {
   createPersonalizedPlan, updatePersonalizedPlan 
 } from '@/service/consultantService';
 import { PersonalizedPlan } from '@/types/consultant';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { getConnectionStatus } from '@/service/chatService';
 import { ConnectionStatus } from '@/service/websocket';
 

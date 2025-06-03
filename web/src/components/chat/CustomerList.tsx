@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '@/service/utils';
 import { getCustomerList, getCustomerConversations } from '@/service/chatService';
 import { Customer } from '@/types/chat';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 
 // 常量定义
 const REFRESH_INTERVAL = 30000; // 30秒
@@ -275,7 +275,7 @@ export default function CustomerList({
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { user } = useAuthContext();
   const isFirstLoad = useRef(true);
   const hasAutoSelected = useRef(false);
 

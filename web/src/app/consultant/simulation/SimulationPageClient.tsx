@@ -22,7 +22,7 @@ import {
   getProjectTypes, uploadAndSimulate, 
   getAllSimulations 
 } from '@/service/consultantService';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { getConnectionStatus } from '@/service/chatService';
 import { ConnectionStatus } from '@/service/websocket';
 

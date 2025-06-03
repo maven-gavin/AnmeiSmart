@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/service/utils';
 import { getConversations, updateConversationTitle } from '@/service/chatService';
 import { Conversation } from '@/types/chat';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 
 interface ConversationHistoryListProps {
   onConversationSelect?: (conversationId: string) => void;
@@ -22,7 +22,7 @@ export default function ConversationHistoryList({
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const router = useRouter();
-  const { user } = useAuth();
+  const { user } = useAuthContext();
   const editInputRef = useRef<HTMLInputElement>(null);
 
   // 加载会话列表

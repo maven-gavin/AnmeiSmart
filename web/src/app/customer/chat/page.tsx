@@ -5,10 +5,10 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import ChatWindow from '@/components/chat/ChatWindow';
 import ConversationHistoryList from '@/components/chat/ConversationHistoryList';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 
 function CustomerChatContent() {
-  const { user } = useAuth();
+  const { user } = useAuthContext();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);

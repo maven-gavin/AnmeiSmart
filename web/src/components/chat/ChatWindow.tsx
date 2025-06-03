@@ -26,7 +26,7 @@ import {
   syncConsultantTakeoverStatus
 } from '@/service/chatService'
 import { ConnectionStatus } from '@/service/websocket'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuthContext } from '@/contexts/AuthContext'
 import { useSearchParams, useRouter } from 'next/navigation'
 import FAQSection, { type FAQ } from './FAQSection'
 
@@ -62,7 +62,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   }, [conversationId, searchParams]);
   
   // 获取身份验证上下文
-  const { user } = useAuth();
+  const { user } = useAuthContext();
   
   // 基本状态
   const [message, setMessage] = useState('')

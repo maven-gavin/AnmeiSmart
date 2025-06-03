@@ -2,11 +2,11 @@
 
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 
 export default function AccessDeniedPage() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout } = useAuthContext();
 
   const handleBackHome = () => {
     router.push('/');

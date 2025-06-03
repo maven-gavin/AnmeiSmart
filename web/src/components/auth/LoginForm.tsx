@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import RoleSelector from '@/components/ui/RoleSelector';
 import { UserRole } from '@/types/auth';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 
 export default function LoginForm() {
   const router = useRouter();
-  const { login, error: authError, loading: authLoading } = useAuth();
+  const { login, error: authError, loading: authLoading } = useAuthContext();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);

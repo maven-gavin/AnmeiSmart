@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { UserRole } from '@/types/auth';
 import UserCreateModal from '@/components/admin/UserCreateModal';
@@ -23,7 +23,7 @@ interface User {
 }
 
 export default function UsersPage() {
-  const { user } = useAuth();
+  const { user } = useAuthContext();
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);

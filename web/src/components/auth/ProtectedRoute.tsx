@@ -2,7 +2,7 @@
 
 import { useState, useEffect, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { UserRole } from '@/types/auth';
 
 interface ProtectedRouteProps {
@@ -14,7 +14,7 @@ interface ProtectedRouteProps {
  * 保护路由组件，确保用户已登录并拥有所需权限
  */
 export default function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps) {
-  const { user, loading } = useAuth();
+  const { user, loading } = useAuthContext();
   const router = useRouter();
   const pathname = usePathname();
   const [isAuthorized, setIsAuthorized] = useState(false);

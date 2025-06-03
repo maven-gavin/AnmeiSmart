@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 import Link from 'next/link';
 
 interface AdminCard {
@@ -13,7 +13,7 @@ interface AdminCard {
 }
 
 export default function AdminDashboard() {
-  const { user } = useAuth();
+  const { user } = useAuthContext();
   const router = useRouter();
 
   // 检查用户是否有管理员权限

@@ -2,11 +2,11 @@
 
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 
 export default function UnauthorizedPage() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout } = useAuthContext();
 
   return (
     <div className="flex h-screen flex-col items-center justify-center bg-gray-50 px-4">

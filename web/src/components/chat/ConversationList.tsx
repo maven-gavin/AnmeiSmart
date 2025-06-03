@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/service/utils'
 import { getConversations } from '@/service/chatService'
 import { Conversation } from '@/types/chat'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuthContext } from '@/contexts/AuthContext'
 import { authService } from '@/service/authService'
 
 export default function ConversationList() {
@@ -16,7 +16,7 @@ export default function ConversationList() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const { logout } = useAuth()
+  const { logout } = useAuthContext()
   
   // 引用跟踪上次选择的ID，避免连续多次切换同一会话导致的问题
   const lastSelectedIdRef = useRef<string>(initialSelectedId);

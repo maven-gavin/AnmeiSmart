@@ -178,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 // 自定义钩子，方便在组件中使用
-export function useAuth() {
+export function useAuthContext() {
   const context = useContext(AuthContext);
   
   if (context === undefined) {
@@ -191,7 +191,7 @@ export function useAuth() {
 // 受保护路由高阶组件
 export function withAuth<P extends object>(Component: React.ComponentType<P>) {
   return function ProtectedRoute(props: P) {
-    const { user, loading } = useAuth();
+    const { user, loading } = useAuthContext();
     const router = useRouter();
     const pathname = usePathname();
     

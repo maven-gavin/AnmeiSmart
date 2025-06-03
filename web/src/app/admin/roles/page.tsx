@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { apiClient } from '@/service/apiClient';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,7 @@ interface Role {
 }
 
 export default function RolesPage() {
-  const { user } = useAuth();
+  const { user } = useAuthContext();
   const router = useRouter();
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
