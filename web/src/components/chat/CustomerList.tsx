@@ -8,7 +8,6 @@ import { useAuthContext } from '@/contexts/AuthContext';
 
 // 常量定义
 const REFRESH_INTERVAL = 30000; // 30秒
-const AUTO_SELECT_DELAY = 100; // 100ms
 const MAX_TAGS_DISPLAY = 2;
 const MAX_UNREAD_DISPLAY = 99;
 
@@ -277,7 +276,6 @@ export default function CustomerList({
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuthContext();
   const isFirstLoad = useRef(true);
-  const hasAutoSelected = useRef(false);
 
   // 加载客户列表
   const loadCustomers = useCallback(async (isInitialLoad = false) => {
@@ -372,42 +370,6 @@ export default function CustomerList({
       }
     }
   }, [onCustomerChange]);
-  
-  // 自动选择默认客户（移动自 ChatPageClient 的初始化逻辑）
-  useEffect(() => {
-    // 条件检查：
-    // 1. 客户列表已加载完成
-    // 2. 有可用的客户
-    // 3. 当前没有选中的客户（URL中没有客户参数）
-    // 4. 有回调函数可用
-    // 5. 还没有自动选择过
-    if (!loading && customers.length > 0 && !selectedCustomerId && onCustomerChange && !hasAutoSelected.current) {
-      console.log('CustomerList: 没有选中客户，自动选择第一个客户...');
-      
-      // 标记已自动选择，避免重复执行
-      hasAutoSelected.current = true;
-      
-      // 延迟执行，确保组件状态稳定
-      const timer = setTimeout(() => {
-        // 再次检查是否仍然需要自动选择
-        if (!selectedCustomerId && customers.length > 0) {
-          console.log('CustomerList: 自动选择默认客户:', customers[0].name);
-          handleCustomerSelect(customers[0]);
-        }
-      }, AUTO_SELECT_DELAY);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [loading, customers, selectedCustomerId, onCustomerChange, handleCustomerSelect]);
-
-  // 重置自动选择标志（当用户手动选择后）
-  useEffect(() => {
-    if (selectedCustomerId) {
-      hasAutoSelected.current = true; // 防止再次自动选择
-    } else {
-      hasAutoSelected.current = false; // 允许重新自动选择
-    }
-  }, [selectedCustomerId]);
 
   // 渲染不同状态
   if (loading) {
