@@ -27,7 +27,7 @@ export default function ChatPageClient() {
   const urlCustomerId = searchParams?.get('customerId');
   const urlConversationId = searchParams?.get('conversationId');
 
-  // 监听URL参数变化，保持状态同步
+  // 监听URL参数变化，保持状态同步 - 修复循环依赖
   useEffect(() => {
     if (urlCustomerId !== selectedCustomerId) {
       console.log(`URL客户ID变化: ${urlCustomerId}`);
@@ -37,7 +37,7 @@ export default function ChatPageClient() {
       console.log(`URL会话ID变化: ${urlConversationId}`);
       setSelectedConversationId(urlConversationId);
     }
-  }, [urlCustomerId, urlConversationId, selectedCustomerId, selectedConversationId]);
+  }, [urlCustomerId, urlConversationId]); // 移除selectedCustomerId, selectedConversationId依赖
 
   // 处理会话ID变化时的切换动画
   useEffect(() => {
@@ -60,7 +60,7 @@ export default function ChatPageClient() {
     }
   }, [selectedConversationId]);
 
-  // 处理客户和会话变化的统一回调
+  // 处理客户和会话变化的统一回调 - 添加useCallback优化
   const handleCustomerChange = useCallback((customerId: string, conversationId?: string) => {
     console.log(`客户变化: customerId=${customerId}, conversationId=${conversationId}`);
     
@@ -157,7 +157,6 @@ export default function ChatPageClient() {
           <div className="flex-1 overflow-hidden relative">
             {selectedConversationId ? (
               <ChatWindow 
-                key={selectedConversationId}
                 conversationId={selectedConversationId}
               />
             ) : (

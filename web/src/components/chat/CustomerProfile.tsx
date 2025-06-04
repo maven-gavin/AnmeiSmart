@@ -61,7 +61,7 @@ export default function CustomerProfile({ customerId = '101', conversationId }: 
       setLoading(false);
       setProfile(null);
     }
-  }, [customerId, conversationId]);
+  }, [customerId]);
   
   // 打开历史咨询详情
   const openHistoryDetail = (history: ConsultationHistoryItem) => {

@@ -4,27 +4,29 @@ import React from 'react';
 
 interface SearchBarProps {
   searchTerm: string;
-  setSearchTerm: (term: string) => void;
   searchResults: any[];
   selectedMessageId: string | null;
-  setSelectedMessageId: (id: string | null) => void;
-  searchChatMessages: (term: string) => void;
-  goToNextSearchResult: () => void;
-  goToPreviousSearchResult: () => void;
-  closeSearch: () => void;
+  onSearchChange: (term: string) => void;
+  onClearSearch: () => void;
+  onNextResult: () => void;
+  onPreviousResult: () => void;
+  onClose: () => void;
 }
 
-export default function SearchBar({
+export function SearchBar({
   searchTerm,
-  setSearchTerm,
   searchResults,
   selectedMessageId,
-  setSelectedMessageId,
-  searchChatMessages,
-  goToNextSearchResult,
-  goToPreviousSearchResult,
-  closeSearch
+  onSearchChange,
+  onClearSearch,
+  onNextResult,
+  onPreviousResult,
+  onClose
 }: SearchBarProps) {
+  const currentIndex = selectedMessageId 
+    ? searchResults.findIndex(m => m.id === selectedMessageId) + 1 
+    : 0
+
   return (
     <div className="border-b border-gray-200 bg-white p-2 shadow-sm">
       <div className="flex items-center">
@@ -32,10 +34,7 @@ export default function SearchBar({
           <input
             type="text"
             value={searchTerm}
-            onChange={e => {
-              setSearchTerm(e.target.value);
-              searchChatMessages(e.target.value);
-            }}
+            onChange={e => onSearchChange(e.target.value)}
             placeholder="搜索聊天记录..."
             className="w-full rounded-lg border border-gray-200 pl-10 pr-4 py-2 text-sm focus:border-orange-500 focus:outline-none"
             autoFocus
@@ -56,10 +55,7 @@ export default function SearchBar({
           {searchTerm && (
             <button
               className="absolute right-10 top-2.5 text-gray-400 hover:text-gray-600"
-              onClick={() => {
-                setSearchTerm('');
-                setSelectedMessageId(null);
-              }}
+              onClick={onClearSearch}
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -72,7 +68,7 @@ export default function SearchBar({
           <div className="flex items-center ml-2 text-xs text-gray-500">
             {searchResults.length > 0 && selectedMessageId && (
               <span>
-                {searchResults.findIndex(m => m.id === selectedMessageId) + 1}/{searchResults.length}
+                {currentIndex}/{searchResults.length}
               </span>
             )}
           </div>
@@ -80,7 +76,7 @@ export default function SearchBar({
           <button
             className="p-1.5 text-gray-500 hover:text-gray-700 rounded-md hover:bg-gray-100 disabled:opacity-50"
             disabled={searchResults.length === 0}
-            onClick={goToPreviousSearchResult}
+            onClick={onPreviousResult}
             title="上一个结果"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -91,7 +87,7 @@ export default function SearchBar({
           <button
             className="p-1.5 text-gray-500 hover:text-gray-700 rounded-md hover:bg-gray-100 disabled:opacity-50"
             disabled={searchResults.length === 0}
-            onClick={goToNextSearchResult}
+            onClick={onNextResult}
             title="下一个结果"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -101,7 +97,7 @@ export default function SearchBar({
           
           <button
             className="p-1.5 text-gray-500 hover:text-gray-700 rounded-md hover:bg-gray-100"
-            onClick={closeSearch}
+            onClick={onClose}
             title="关闭搜索"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -111,5 +107,5 @@ export default function SearchBar({
         </div>
       </div>
     </div>
-  );
+  )
 } 
