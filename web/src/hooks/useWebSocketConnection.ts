@@ -24,17 +24,31 @@ export function useWebSocketConnection({
   onMessageReceived 
 }: UseWebSocketConnectionProps) {
   const [wsStatus, setWsStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED)
+  
+  // 使用ref来存储最新值，避免useCallback依赖循环
+  const latestParamsRef = useRef({ userId, conversationId })
+  const isConnectingRef = useRef(false)
+  
+  // 更新最新参数引用
+  useEffect(() => {
+    latestParamsRef.current = { userId, conversationId }
+  }, [userId, conversationId])
 
-  // 重新连接WebSocket的函数
+  // 重新连接WebSocket的函数 - 移除wsStatus依赖
   const reconnectWebSocket = useCallback(() => {
-    console.log('[useWebSocketConnection] reconnectWebSocket called. User:', !!userId, 'ConversationId:', conversationId, 'Status:', wsStatus)
+    const { userId: currentUserId, conversationId: currentConversationId } = latestParamsRef.current
     
-    if (!mounted.current || !userId || !conversationId) {
-      console.log('[useWebSocketConnection] 跳过连接：组件未挂载或参数缺失')
+    console.log('[useWebSocketConnection] reconnectWebSocket called. User:', !!currentUserId, 'ConversationId:', currentConversationId)
+    
+    if (!mounted.current || !currentUserId || !currentConversationId || isConnectingRef.current) {
+      console.log('[useWebSocketConnection] 跳过连接：组件未挂载、参数缺失或正在连接中')
       return
     }
     
-    console.log(`[useWebSocketConnection] 尝试重新连接WebSocket for ${conversationId} with user ${userId}`)
+    console.log(`[useWebSocketConnection] 尝试重新连接WebSocket for ${currentConversationId} with user ${currentUserId}`)
+    
+    // 设置连接状态标志
+    isConnectingRef.current = true
     
     // 先关闭任何现有连接
     closeWebSocketConnection()
@@ -45,13 +59,17 @@ export function useWebSocketConnection({
     // 短暂延迟后初始化连接
     setTimeout(() => {
       if (mounted.current) {
-        console.log(`[useWebSocketConnection] 调用 initializeWebSocket for ${conversationId}`)
-        initializeWebSocket(userId, conversationId)
+        console.log(`[useWebSocketConnection] 调用 initializeWebSocket for ${currentConversationId}`)
+        initializeWebSocket(currentUserId, currentConversationId)
+          .finally(() => {
+            isConnectingRef.current = false
+          })
       } else {
         console.log('[useWebSocketConnection] 组件已卸载，取消初始化')
+        isConnectingRef.current = false
       }
-    }, 100)
-  }, [userId, conversationId, mounted, wsStatus])
+    }, 500) // 增加延迟确保完全清理
+  }, [mounted]) // 只依赖mounted
 
   // 监听WebSocket状态变化
   useEffect(() => {
@@ -59,10 +77,14 @@ export function useWebSocketConnection({
       console.log('useWebSocketConnection收到状态变化事件:', event)
       if (event?.newStatus) {
         setWsStatus(event.newStatus)
+        
+        // 重置连接标志
+        if (event.newStatus === ConnectionStatus.CONNECTED || event.newStatus === ConnectionStatus.DISCONNECTED) {
+          isConnectingRef.current = false
+        }
       }
     }
 
-    // 添加错误处理，确保WebSocket已初始化
     try {
       addWsConnectionStatusListener(handleStatusChange)
     } catch (error) {
@@ -102,9 +124,7 @@ export function useWebSocketConnection({
       }
     }
     
-    // 添加错误处理
     try {
-      // 添加消息回调
       addMessageCallback('message', handleMessage)
       addMessageCallback('system', handleMessage)
       addMessageCallback('connect', handleMessage)
@@ -125,61 +145,62 @@ export function useWebSocketConnection({
     }
   }, [conversationId, userId, onMessageReceived])
 
-  // 初始化和清理WebSocket连接
+  // 初始化和清理WebSocket连接 - 移除循环依赖
   useEffect(() => {
     if (!userId || !conversationId || !mounted.current) return
 
     console.log(`useWebSocketConnection: 初始化WebSocket连接 ${conversationId}`)
     
-    // 监听页面可见性变化
+    // 防抖连接初始化
+    const initTimeout = setTimeout(() => {
+      if (!mounted.current || isConnectingRef.current) return
+      
+      isConnectingRef.current = true
+      setWsStatus(ConnectionStatus.CONNECTING)
+      closeWebSocketConnection()
+      
+      initializeWebSocket(userId, conversationId)
+        .finally(() => {
+          if (mounted.current) {
+            isConnectingRef.current = false
+          }
+        })
+    }, 100)
+
+    return () => {
+      console.log('useWebSocketConnection清理，关闭WebSocket连接')
+      clearTimeout(initTimeout)
+      closeWebSocketConnection()
+      isConnectingRef.current = false
+    }
+  }, [conversationId, userId]) // 移除mounted和reconnectWebSocket依赖
+
+  // 页面可见性和焦点处理 - 分离到独立的useEffect
+  useEffect(() => {
+    if (!userId || !conversationId) return
+
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && wsStatus !== ConnectionStatus.CONNECTED) {
+      if (document.visibilityState === 'visible' && wsStatus === ConnectionStatus.DISCONNECTED) {
         console.log('页面变为可见，检查WebSocket连接')
-        reconnectWebSocket()
+        setTimeout(reconnectWebSocket, 1000) // 延迟重连
       }
     }
 
-    // 监听窗口焦点变化
     const handleFocus = () => {
-      if (wsStatus !== ConnectionStatus.CONNECTED && document.visibilityState === 'visible') {
+      if (wsStatus === ConnectionStatus.DISCONNECTED && document.visibilityState === 'visible') {
         console.log('窗口获得焦点，检查WebSocket连接')
-        reconnectWebSocket()
+        setTimeout(reconnectWebSocket, 1000) // 延迟重连
       }
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('focus', handleFocus)
 
-    // 初始化连接
-    setWsStatus(ConnectionStatus.CONNECTING)
-    closeWebSocketConnection()
-    try {
-      initializeWebSocket(userId, conversationId)
-    } catch (error) {
-      console.error('初始化WebSocket失败:', error)
-      setWsStatus(ConnectionStatus.ERROR)
-    }
-
     return () => {
-      console.log('useWebSocketConnection清理，关闭WebSocket连接')
-      closeWebSocketConnection()
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('focus', handleFocus)
     }
-  }, [conversationId, userId, mounted, reconnectWebSocket, wsStatus])
-
-  // 初始化状态
-  useEffect(() => {
-    if (mounted.current && wsStatus == null) {
-      try {
-        const status = getConnectionStatus()
-        setWsStatus(status)
-      } catch (e) {
-        console.warn('获取WebSocket状态失败:', e)
-        setWsStatus(ConnectionStatus.DISCONNECTED)
-      }
-    }
-  }, [mounted, wsStatus])
+  }, [userId, conversationId, wsStatus, reconnectWebSocket])
 
   return {
     wsStatus,
