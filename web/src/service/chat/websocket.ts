@@ -1,0 +1,290 @@
+/**
+ * 聊天WebSocket管理模块
+ * 统一管理聊天相关的WebSocket连接和消息处理
+ */
+
+import { authService } from '../authService';
+import { getWebSocketClient, ConnectionStatus, WebSocketClient } from '../websocket';
+import { SenderType } from '../websocket/types';
+import { TextMessageHandler } from '../websocket/handlers/textHandler';
+import { SystemMessageHandler } from '../websocket/handlers/systemHandler';
+import type { WebSocketConnectionParams } from './types';
+
+/**
+ * WebSocket管理器
+ * 专门处理聊天相关的WebSocket连接和消息
+ */
+export class ChatWebSocketManager {
+  private wsClient: WebSocketClient | null = null;
+  private messageHandlers: Map<string, (data: any) => void> = new Map();
+  
+  constructor() {
+    this.initializeClient();
+  }
+  
+  // ===== 初始化和连接 =====
+  
+  /**
+   * 初始化WebSocket客户端
+   */
+  private initializeClient(): void {
+    try {
+      // 获取协议和主机
+      const wsProtocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      let wsHost = process.env.NEXT_PUBLIC_WS_URL || (typeof window !== 'undefined' ? window.location.host : 'localhost:8000');
+      
+      // 处理端口映射
+      if (wsHost === 'localhost:3000') {
+        wsHost = 'localhost:8000';
+      } else if (wsHost.includes(':3000')) {
+        wsHost = wsHost.replace(':3000', ':8000');
+      }
+      
+      if (!wsHost) {
+        throw new Error('WebSocket主机未配置');
+      }
+      
+      const baseUrl = `${wsProtocol}//${wsHost}/api/v1/chat/ws`;
+      console.log('WebSocket连接基础URL:', baseUrl);
+      
+      // 获取客户端实例
+      this.wsClient = getWebSocketClient({
+        url: baseUrl,
+        reconnectAttempts: 5,
+        reconnectInterval: 2000,
+        heartbeatInterval: 30000,
+        connectionTimeout: 8000,
+        debug: true
+      });
+      
+      // 注册消息处理器
+      this.registerHandlers();
+      
+    } catch (error) {
+      console.error('初始化WebSocket客户端失败:', error);
+      this.wsClient = null;
+    }
+  }
+  
+  /**
+   * 注册消息处理器
+   */
+  private registerHandlers(): void {
+    if (!this.wsClient) return;
+    
+    // 注册处理器
+    this.wsClient.registerHandler(new TextMessageHandler());
+    this.wsClient.registerHandler(new SystemMessageHandler());
+    
+    // 添加处理器回调
+    const textHandler = this.wsClient.getHandlers().find(h => h.getName() === 'TextMessageHandler');
+    if (textHandler) {
+      textHandler.addCallback('message', (data: any) => {
+        console.log('收到文本消息:', data);
+        this.handleMessage(data);
+      });
+    }
+    
+    const systemHandler = this.wsClient.getHandlers().find(h => h.getName() === 'SystemMessageHandler');
+    if (systemHandler) {
+      systemHandler.addCallback('system', (data: any) => {
+        console.log('收到系统消息:', data);
+        this.handleMessage(data);
+      });
+    }
+    
+    // 添加状态变更监听
+    this.wsClient.addConnectionStatusListener((event: any) => {
+      console.log('WebSocket状态变更:', event);
+    });
+  }
+  
+  /**
+   * 连接到指定会话
+   */
+  public async connect(userId: string, conversationId: string): Promise<void> {
+    try {
+      const token = await authService.getValidToken();
+      const userRole = authService.getCurrentUserRole() || '';
+      
+      if (!token) {
+        console.log('Token无效或不存在，不尝试WebSocket连接');
+        return;
+      }
+      
+      const connectionParams: WebSocketConnectionParams = {
+        userId,
+        conversationId,
+        token,
+        userType: this.mapUserRoleToSenderType(userRole),
+        connectionId: `${userId}_${conversationId}_${Date.now()}`
+      };
+      
+      console.log('连接WebSocket:', connectionParams);
+      
+      if (!this.wsClient) {
+        this.initializeClient();
+      }
+      
+      if (!this.wsClient) {
+        throw new Error('WebSocket客户端初始化失败');
+      }
+      
+      await this.wsClient.connect(connectionParams);
+      console.log('WebSocket连接成功建立');
+      
+    } catch (error: any) {
+      console.error('WebSocket连接失败:', error);
+      
+      if (error?.message?.includes('401')) {
+        console.error('WebSocket连接失败: 认证失败 (401)');
+      }
+      
+      throw error;
+    }
+  }
+  
+  /**
+   * 断开WebSocket连接
+   */
+  public disconnect(): void {
+    try {
+      if (this.wsClient?.isConnected()) {
+        this.wsClient.disconnect();
+        console.log('WebSocket连接已断开');
+      }
+    } catch (error) {
+      console.error('断开WebSocket连接时出错:', error);
+    }
+  }
+  
+  // ===== 消息处理 =====
+  
+  /**
+   * 发送消息
+   */
+  public sendMessage(message: any): boolean {
+    if (!this.wsClient) {
+      console.error('WebSocket客户端未初始化');
+      return false;
+    }
+    
+    if (!this.wsClient.isConnected()) {
+      console.log('WebSocket未连接，无法发送消息');
+      return false;
+    }
+    
+    return this.wsClient.sendMessage(message);
+  }
+  
+  /**
+   * 处理接收到的消息
+   */
+  private handleMessage(data: any): void {
+    try {
+      const action = data.action;
+      
+      // 调用注册的处理器
+      const handler = this.messageHandlers.get(action);
+      if (handler) {
+        handler(data);
+      }
+      
+      // 调用通用处理器
+      const generalHandler = this.messageHandlers.get('*');
+      if (generalHandler) {
+        generalHandler(data);
+      }
+      
+    } catch (error) {
+      console.error('处理WebSocket消息出错:', error);
+    }
+  }
+  
+  /**
+   * 注册消息处理器
+   */
+  public addMessageHandler(action: string, handler: (data: any) => void): void {
+    this.messageHandlers.set(action, handler);
+  }
+  
+  /**
+   * 移除消息处理器
+   */
+  public removeMessageHandler(action: string): void {
+    this.messageHandlers.delete(action);
+  }
+  
+  // ===== 状态查询 =====
+  
+  /**
+   * 检查连接状态
+   */
+  public isConnected(): boolean {
+    return this.wsClient?.isConnected() || false;
+  }
+  
+  /**
+   * 获取连接状态
+   */
+  public getConnectionStatus(): ConnectionStatus {
+    if (!this.wsClient) {
+      return ConnectionStatus.DISCONNECTED;
+    }
+    
+    try {
+      const nativeStatus = this.wsClient.getNativeConnectionState();
+      if (nativeStatus === WebSocket.OPEN) {
+        return ConnectionStatus.CONNECTED;
+      } else if (nativeStatus === WebSocket.CONNECTING) {
+        return ConnectionStatus.CONNECTING;
+      } else {
+        return ConnectionStatus.DISCONNECTED;
+      }
+    } catch (error) {
+      console.error('获取WebSocket连接状态失败:', error);
+      return ConnectionStatus.DISCONNECTED;
+    }
+  }
+  
+  /**
+   * 添加连接状态监听器
+   */
+  public addConnectionStatusListener(listener: (event: any) => void): void {
+    if (this.wsClient) {
+      this.wsClient.addConnectionStatusListener(listener);
+    }
+  }
+  
+  /**
+   * 移除连接状态监听器
+   */
+  public removeConnectionStatusListener(listener: (event: any) => void): void {
+    if (this.wsClient) {
+      this.wsClient.removeConnectionStatusListener(listener);
+    }
+  }
+  
+  // ===== 工具方法 =====
+  
+  /**
+   * 将用户角色映射到发送者类型
+   */
+  private mapUserRoleToSenderType(role: string): SenderType {
+    switch (role) {
+      case 'customer':
+        return SenderType.CUSTOMER;
+      case 'consultant':
+        return SenderType.CONSULTANT;
+      case 'doctor':
+        return SenderType.DOCTOR;
+      default:
+        return SenderType.USER;
+    }
+  }
+}
+
+/**
+ * 导出WebSocket管理器单例
+ */
+export const chatWebSocket = new ChatWebSocketManager(); 

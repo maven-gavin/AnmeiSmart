@@ -1,182 +1,309 @@
-import { authService } from './authService';
+/**
+ * API 客户端
+ * 提供统一的HTTP请求接口，支持自动认证和错误处理
+ */
+
+import { tokenManager } from './tokenManager';
+import { AppError, ErrorType, errorHandler } from './errors';
 
 // API基础URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
 
-interface ApiResponse<T = any> extends Response {
+/**
+ * API 响应接口
+ */
+export interface ApiResponse<T = unknown> {
   data?: T;
-  bodyUsed: boolean; // 添加一个明确的标记，表示body是否已被使用
-}
-
-interface ApiError {
   status: number;
-  message: string;
-  detail?: string;
+  statusText: string;
+  headers: Headers;
 }
 
-// 跳转到登录页面并显示错误信息
-const redirectToLogin = (message: string) => {
-  // 清除用户状态
-  authService.logout();
-  
-  // 保存当前URL，以便登录后重定向回来
-  const currentPath = window.location.pathname;
-  const returnUrl = encodeURIComponent(currentPath);
-  
-  // 将错误消息作为参数传递给登录页面
-  const errorMsg = encodeURIComponent(message);
-  
-  // 重定向到登录页
-  window.location.href = `/login?returnUrl=${returnUrl}&error=${errorMsg}`;
-};
+/**
+ * 请求配置接口
+ */
+export interface RequestConfig extends RequestInit {
+  skipAuth?: boolean;
+  timeout?: number;
+}
 
-export const apiClient = {
+/**
+ * HTTP请求拦截器
+ */
+class RequestInterceptor {
   /**
-   * 通用请求方法
+   * 准备请求头
    */
-  async request<T = any>(
-    endpoint: string,
-    method: string = 'GET',
-    data?: any
-  ): Promise<ApiResponse<T>> {
-    const url = endpoint.startsWith('http')
-      ? endpoint
-      : `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
-
-    const headers: HeadersInit = {
+  async prepareHeaders(config: RequestConfig): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
 
-    // 添加身份验证头 - 使用 getValidToken 确保获取有效令牌
-    try {
-      const token = await authService.getValidToken();
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-    } catch (error) {
-      console.error('获取有效令牌失败:', error);
-      // 令牌问题不阻止无需认证的请求继续进行
+    // 添加配置中的headers
+    if (config.headers) {
+      Object.assign(headers, config.headers);
     }
 
-    const options: RequestInit = {
-      method,
-      headers,
-      credentials: 'include',
+    // 如果不跳过认证，添加授权头
+    if (!config.skipAuth) {
+      try {
+        const token = await tokenManager.getValidToken();
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      } catch (error) {
+        console.error('获取认证令牌失败:', error);
+        // 认证错误不阻止请求继续，让服务器决定如何处理
+      }
+    }
+
+    return headers;
+  }
+
+  /**
+   * 处理请求超时
+   */
+  createTimeoutController(timeout?: number): AbortController {
+    const controller = new AbortController();
+    
+    if (timeout && timeout > 0) {
+      setTimeout(() => controller.abort(), timeout);
+    }
+    
+    return controller;
+  }
+}
+
+/**
+ * HTTP响应处理器
+ */
+class ResponseHandler {
+  /**
+   * 处理成功响应
+   */
+  async handleSuccess<T>(response: Response): Promise<ApiResponse<T>> {
+    let data: T | undefined;
+
+    // 对于204无内容状态码，不解析响应体
+    if (response.status !== 204) {
+      try {
+        const contentType = response.headers.get('content-type');
+        if (contentType?.includes('application/json')) {
+          data = await response.json();
+        } else {
+          // 非JSON响应，尝试解析为文本
+          data = await response.text() as unknown as T;
+        }
+      } catch (error) {
+        console.warn('响应体解析失败:', error);
+        // 解析失败不抛出错误，返回空数据
+      }
+    }
+
+    return {
+      data,
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
     };
+  }
 
-    if (data && method !== 'GET') {
-      options.body = JSON.stringify(data);
+  /**
+   * 处理错误响应
+   */
+  async handleError(response: Response): Promise<never> {
+    // 对于401错误，尝试刷新令牌
+    if (response.status === 401) {
+      try {
+        await tokenManager.refreshToken();
+        // 刷新成功，抛出特殊错误以便调用者重试
+        throw new AppError(ErrorType.AUTHENTICATION, 401, 'TOKEN_REFRESHED');
+      } catch (refreshError: unknown) {
+        // 刷新失败，重定向到登录页
+        errorHandler.redirectToLogin('会话已过期，请重新登录');
+        throw new AppError(ErrorType.AUTHENTICATION, 401, '会话已过期，请重新登录');
+      }
     }
 
-    try {
-      const response = await fetch(url, options);
+    // 其他错误状态码
+    throw await errorHandler.fromResponse(response);
+  }
+}
 
-      // 处理401未授权错误（令牌过期）
-      if (response.status === 401) {
-        // 尝试刷新令牌
-        try {
-          const newToken = await authService.refreshToken();
-          
-          // 使用新令牌重试请求
-          headers['Authorization'] = `Bearer ${newToken}`;
-          const retryOptions = { ...options, headers };
-          const retryResponse = await fetch(url, retryOptions);
-          
-          // 如果重试也返回401，则可能是权限问题而非令牌过期
-          if (retryResponse.status === 401) {
-            // 清除会话并重定向到登录页
-            authService.logout();
-            redirectToLogin('登录已过期或权限不足，请重新登录');
-            throw new Error('无权访问此资源');
-          }
-          
-          return retryResponse as ApiResponse<T>;
-        } catch (refreshError) {
-          // 刷新令牌失败，清除会话并重定向到登录页
-          authService.logout();
-          redirectToLogin('会话已过期，请重新登录');
-          throw new Error('会话已过期，请重新登录');
-        }
-      }
+/**
+ * API客户端类
+ */
+class ApiClient {
+  private interceptor = new RequestInterceptor();
+  private responseHandler = new ResponseHandler();
 
-      // 增强响应对象，添加data属性
-      const enhancedResponse = response as ApiResponse<T>;
-      
-      // 对于非204状态码，尝试解析JSON（仅当body未被读取时）
-      if (response.status !== 204 && !response.bodyUsed) {
-        try {
-          // 克隆response以避免"body已被读取"的错误
-          const responseClone = response.clone();
-          enhancedResponse.data = await responseClone.json();
-        } catch (e) {
-          // 忽略JSON解析错误
-          console.warn('JSON解析失败:', e);
-        }
-      }
-      
-      return enhancedResponse;
-    } catch (error) {
-      // 处理网络错误
-      const apiError: ApiError = {
-        status: 0,
-        message: error instanceof Error ? error.message : '网络请求失败',
-      };
-      
-      throw apiError;
+  /**
+   * 构建完整URL
+   */
+  private buildUrl(endpoint: string): string {
+    if (endpoint.startsWith('http')) {
+      return endpoint;
     }
-  },
+    
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    return `${API_BASE_URL}${cleanEndpoint}`;
+  }
+
+  /**
+   * 核心请求方法
+   */
+  async request<T = unknown>(
+    endpoint: string,
+    config: RequestConfig = {}
+  ): Promise<ApiResponse<T>> {
+    const url = this.buildUrl(endpoint);
+    const maxRetries = 1; // 最多重试一次（用于令牌刷新后的重试）
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        // 准备请求配置
+        const headers = await this.interceptor.prepareHeaders(config);
+        const controller = this.interceptor.createTimeoutController(config.timeout);
+
+        const requestConfig: RequestInit = {
+          ...config,
+          headers,
+          signal: controller.signal,
+          credentials: 'include',
+        };
+
+        // 发起请求
+        const response = await fetch(url, requestConfig);
+
+        // 处理响应
+        if (response.ok) {
+          return await this.responseHandler.handleSuccess<T>(response);
+        } else {
+          await this.responseHandler.handleError(response);
+        }
+      } catch (error: unknown) {
+        // 如果是令牌刷新成功的标记，重试请求
+        if (error instanceof AppError && 
+            error.message === 'TOKEN_REFRESHED' && 
+            attempt === 0) {
+          continue;
+        }
+
+        // 处理网络错误
+        if (error instanceof TypeError || 
+            (error instanceof Error && error.name === 'AbortError')) {
+          throw errorHandler.fromNetworkError(error);
+        }
+
+        // 重新抛出其他错误
+        throw error;
+      }
+    }
+
+    throw new AppError(ErrorType.UNKNOWN, 500, '请求失败');
+  }
 
   /**
    * GET请求
    */
-  async get<T = any>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, 'GET');
-  },
+  async get<T = unknown>(endpoint: string, config?: RequestConfig): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { ...config, method: 'GET' });
+  }
 
   /**
    * POST请求
    */
-  async post<T = any>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, 'POST', data);
-  },
+  async post<T = unknown>(
+    endpoint: string, 
+    data?: unknown, 
+    config?: RequestConfig
+  ): Promise<ApiResponse<T>> {
+    const requestConfig: RequestConfig = {
+      ...config,
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    };
+
+    return this.request<T>(endpoint, requestConfig);
+  }
 
   /**
    * PUT请求
    */
-  async put<T = any>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, 'PUT', data);
-  },
+  async put<T = unknown>(
+    endpoint: string, 
+    data?: unknown, 
+    config?: RequestConfig
+  ): Promise<ApiResponse<T>> {
+    const requestConfig: RequestConfig = {
+      ...config,
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    };
+
+    return this.request<T>(endpoint, requestConfig);
+  }
 
   /**
    * PATCH请求
    */
-  async patch<T = any>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, 'PATCH', data);
-  },
+  async patch<T = unknown>(
+    endpoint: string, 
+    data?: unknown, 
+    config?: RequestConfig
+  ): Promise<ApiResponse<T>> {
+    const requestConfig: RequestConfig = {
+      ...config,
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    };
+
+    return this.request<T>(endpoint, requestConfig);
+  }
 
   /**
    * DELETE请求
    */
-  async delete<T = any>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, 'DELETE');
-  },
+  async delete<T = unknown>(endpoint: string, config?: RequestConfig): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { ...config, method: 'DELETE' });
+  }
 
   /**
-   * 获取有效的认证令牌
-   * @returns 认证令牌
+   * 文件上传请求
+   */
+  async upload<T = unknown>(
+    endpoint: string,
+    formData: FormData,
+    config?: RequestConfig
+  ): Promise<ApiResponse<T>> {
+    const requestConfig: RequestConfig = {
+      ...config,
+      method: 'POST',
+      body: formData,
+      headers: {
+        // 移除Content-Type让浏览器自动设置multipart/form-data边界
+        ...config?.headers,
+        'Content-Type': undefined,
+      } as HeadersInit,
+    };
+
+    return this.request<T>(endpoint, requestConfig);
+  }
+
+  /**
+   * 获取认证令牌
    */
   async getAuthToken(): Promise<string | null> {
-    // 直接使用 authService 的 getValidToken 方法
-    return authService.getValidToken();
-  },
+    return tokenManager.getValidToken();
+  }
 
   /**
-   * 检查JWT令牌是否过期
-   * @param token JWT令牌
-   * @returns 是否过期
+   * 检查令牌是否过期
    */
-  isTokenExpired(token: string): boolean {
-    // 直接使用 authService 的 isTokenExpired 方法
-    return authService.isTokenExpired(token);
+  isTokenExpired(token?: string): boolean {
+    return tokenManager.isTokenExpired(token);
   }
-}; 
+}
+
+// 导出单例实例
+export const apiClient = new ApiClient(); 
