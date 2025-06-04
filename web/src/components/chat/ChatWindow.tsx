@@ -55,6 +55,18 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const mounted = useRef(false)
 
+  // 组件挂载状态管理
+  useEffect(() => {
+    mounted.current = true
+    console.log('ChatWindow: 组件实际挂载, mounted=true')
+    
+    return () => {
+      mounted.current = false
+      console.log('ChatWindow: 组件实际卸载, mounted=false')
+    }
+  }, [])
+
+
   // 使用自定义hooks
   const {
     messages,
@@ -142,17 +154,6 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       }
     }
   }, [conversationId, searchParams, currentConversationId])
-
-  // 组件挂载状态管理
-  useEffect(() => {
-    mounted.current = true
-    console.log('ChatWindow: 组件实际挂载, mounted=true')
-    
-    return () => {
-      mounted.current = false
-      console.log('ChatWindow: 组件实际卸载, mounted=false')
-    }
-  }, [])
 
   // 滚动到底部
   const scrollToBottom = useCallback(() => {
@@ -305,11 +306,10 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           setIsConsultantTakeover(true)
         }
       }
-      fetchMessages()
     } catch (error) {
       console.error('切换顾问模式失败:', error)
     }
-  }, [currentConversationId, isConsultantTakeover, setIsConsultantTakeover, fetchMessages])
+  }, [currentConversationId, isConsultantTakeover, setIsConsultantTakeover])
 
   // 按日期分组消息
   const messageGroups = useMemo(() => {
