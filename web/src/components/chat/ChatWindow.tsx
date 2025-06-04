@@ -104,6 +104,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     clearSearch
   } = useSearch(messages)
 
+  // TODO： data 值没有使用，为什么不是从Socket中获取？
   // WebSocket消息处理回调
   const handleWebSocketMessage = useCallback(async (data: any) => {
     console.log(`ChatWindow收到当前会话的WebSocket消息:`, data)
@@ -118,6 +119,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     }
   }, [silentlyUpdateMessages])
 
+  // TODO： 为什么需要传uerId，这个不是从token中获取的吗？这里应该就是WebSocket初始配置
   const { wsStatus, reconnectWebSocket } = useWebSocketConnection({
     userId: user?.id,
     conversationId: currentConversationId,
@@ -128,8 +130,10 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   // 监听props/searchParams中的conversationId变化
   useEffect(() => {
     if (conversationId) {
-      console.log(`ChatWindow props中的conversationId变化: ${conversationId}`)
-      setCurrentConversationId(conversationId)
+      if (conversationId !== currentConversationId) {
+        console.log(`ChatWindow props中的conversationId变化: ${conversationId}`)
+        setCurrentConversationId(conversationId)
+      }
     } else {
       const urlConversationId = searchParams?.get('conversationId')
       if (urlConversationId && urlConversationId !== currentConversationId) {
@@ -524,7 +528,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           </button>
           
           <button 
-            className="flex-shrink-0 text-gray-500 hover:text-gray-700" 
+            className={`flex-shrink-0 text-gray-500 hover:text-gray-700`}
             title="图片"
             onClick={triggerFileSelect}
           >

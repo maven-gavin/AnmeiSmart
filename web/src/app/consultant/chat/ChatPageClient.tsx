@@ -15,38 +15,17 @@ export default function ChatPageClient() {
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   
-  // 会话切换状态
-  const [isSwitchingConversation, setIsSwitchingConversation] = useState(false);
-  const prevConversationIdRef = useRef<string | null>(null);
+  // ✅ URL作为唯一状态源 - 直接从URL参数获取状态
+  const selectedCustomerId = searchParams?.get('customerId');
+  const selectedConversationId = searchParams?.get('conversationId');
   
-  // 主要状态：选中的客户ID和会话ID
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-
-  // 从URL参数获取初始值
-  const urlCustomerId = searchParams?.get('customerId');
-  const urlConversationId = searchParams?.get('conversationId');
-
-  // 监听URL参数变化，保持状态同步 - 修复循环依赖
-  useEffect(() => {
-    if (urlCustomerId !== selectedCustomerId) {
-      console.log(`URL客户ID变化: ${urlCustomerId}`);
-      setSelectedCustomerId(urlCustomerId);
-    }
-    if (urlConversationId !== selectedConversationId) {
-      console.log(`URL会话ID变化: ${urlConversationId}`);
-      setSelectedConversationId(urlConversationId);
-    }
-  }, [urlCustomerId, urlConversationId]); // 移除selectedCustomerId, selectedConversationId依赖
+  // 会话切换状态（仅用于UI动画效果）
+  const [isSwitchingConversation, setIsSwitchingConversation] = useState(false);
+  const prevConversationIdRef = useRef<string | null>(selectedConversationId);
 
   // 处理会话ID变化时的切换动画
   useEffect(() => {
-    if (!selectedConversationId || !prevConversationIdRef.current) {
-      prevConversationIdRef.current = selectedConversationId;
-      return;
-    }
-    
-    if (selectedConversationId !== prevConversationIdRef.current) {
+    if (selectedConversationId !== prevConversationIdRef.current && prevConversationIdRef.current !== null) {
       // 显示切换状态
       setIsSwitchingConversation(true);
       
@@ -57,18 +36,17 @@ export default function ChatPageClient() {
       }, 300);
       
       return () => clearTimeout(timer);
+    } else {
+      // 初始化或首次设置时直接更新引用
+      prevConversationIdRef.current = selectedConversationId;
     }
   }, [selectedConversationId]);
 
-  // 处理客户和会话变化的统一回调 - 添加useCallback优化
+  // ✅ 简化的客户变化处理 - 只更新URL，所有状态自动同步
   const handleCustomerChange = useCallback((customerId: string, conversationId?: string) => {
     console.log(`客户变化: customerId=${customerId}, conversationId=${conversationId}`);
     
-    // 更新本地状态
-    setSelectedCustomerId(customerId);
-    setSelectedConversationId(conversationId || null);
-    
-    // 更新URL
+    // ✅ 只更新URL，让URL成为唯一的数据源
     const url = conversationId 
       ? `/consultant/chat?customerId=${customerId}&conversationId=${conversationId}`
       : `/consultant/chat?customerId=${customerId}`;
