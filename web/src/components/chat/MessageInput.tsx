@@ -2,6 +2,8 @@
 
 import React, { useCallback } from 'react';
 import { Button } from '@/components/ui/button';
+import { RecordingControls } from '@/components/chat/RecordingControls';
+import { MediaPreview } from '@/components/chat/MediaPreview';
 
 interface MessageInputProps {
   message: string;
@@ -88,79 +90,22 @@ export default function MessageInput({
         </div>
       )}
 
-      {/* 录音状态 */}
-      {isRecording && (
-        <div className="border-t border-gray-200 bg-gray-50 p-3">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-2">
-              <span className="inline-block w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
-              <span className="text-sm font-medium text-gray-700">正在录音 {formatRecordingTime(recordingTime)}</span>
-            </div>
-            <div className="flex space-x-2">
-              <button 
-                onClick={cancelRecording}
-                className="rounded-full p-1 text-gray-500 hover:bg-gray-200"
-                title="取消录音"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-              <button 
-                onClick={stopRecording}
-                className="rounded-full p-1 text-orange-500 hover:bg-orange-100"
-                title="停止录音"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <rect x="6" y="6" width="12" height="12" rx="1" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 使用 RecordingControls 组件 */}
+      <RecordingControls
+        isRecording={isRecording}
+        recordingTime={recordingTime}
+        formatRecordingTime={formatRecordingTime}
+        onCancel={cancelRecording}
+        onStop={stopRecording}
+      />
       
-      {/* 音频预览 */}
-      {audioPreview && !isRecording && (
-        <div className="border-t border-gray-200 bg-gray-50 p-3">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-gray-700">语音预览</span>
-            <button 
-              onClick={cancelAudioPreview}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <audio src={audioPreview} controls className="w-full" />
-        </div>
-      )}
-      
-      {/* 图片预览 */}
-      {imagePreview && (
-        <div className="border-t border-gray-200 bg-gray-50 p-3">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-gray-700">图片预览</span>
-            <button 
-              onClick={cancelImagePreview}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <div className="relative">
-            <img 
-              src={imagePreview} 
-              alt="预览图片" 
-              className="max-h-40 max-w-full rounded-lg object-contain"
-            />
-          </div>
-        </div>
-      )}
+      {/* 使用 MediaPreview 组件 */}
+      <MediaPreview
+        imagePreview={imagePreview}
+        audioPreview={audioPreview && !isRecording ? audioPreview : null}
+        onCancelImage={cancelImagePreview}
+        onCancelAudio={cancelAudioPreview}
+      />
       
       {/* 输入区域 */}
       <div className="border-t border-gray-200 bg-white p-4">
@@ -282,7 +227,7 @@ export default function MessageInput({
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 016 0v6a3 3 0 01-3 3z"
+                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
               />
             </svg>
           </button>
