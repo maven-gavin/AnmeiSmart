@@ -61,8 +61,10 @@ class MessageInfo(MessageBase):
         
         if sender_type == "system":
             sender_name = "系统"
+            sender_avatar = "/avatars/system.png"
         elif sender_type == "ai":
             sender_name = "AI助手"
+            sender_avatar = "/avatars/ai.png"
         elif sender_obj:
             sender_name = getattr(sender_obj, "username", "未知用户")
             sender_avatar = getattr(sender_obj, "avatar", None)

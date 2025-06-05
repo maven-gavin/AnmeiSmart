@@ -2,7 +2,7 @@
 消息服务 - 处理消息的创建、存储和查询
 """
 from typing import List, Optional, Dict, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from datetime import datetime
 import logging
 
@@ -94,7 +94,9 @@ class MessageService:
         """获取会话消息"""
         logger.debug(f"获取会话消息: conversation_id={conversation_id}, skip={skip}, limit={limit}")
         
-        query = self.db.query(Message).filter(
+        query = self.db.query(Message).options(
+            joinedload(Message.sender)
+        ).filter(
             Message.conversation_id == conversation_id
         )
         
@@ -110,7 +112,9 @@ class MessageService:
     
     def get_message_by_id(self, message_id: str) -> Optional[MessageInfo]:
         """根据ID获取消息"""
-        message = self.db.query(Message).filter(Message.id == message_id).first()
+        message = self.db.query(Message).options(
+            joinedload(Message.sender)
+        ).filter(Message.id == message_id).first()
         return MessageInfo.from_model(message) if message else None
     
     def mark_messages_as_read(self, message_ids: List[str], user_id: str) -> int:
@@ -145,7 +149,9 @@ class MessageService:
         limit: int = 10
     ) -> List[MessageInfo]:
         """获取最近的消息（用于AI上下文）"""
-        messages = self.db.query(Message).filter(
+        messages = self.db.query(Message).options(
+            joinedload(Message.sender)
+        ).filter(
             Message.conversation_id == conversation_id
         ).order_by(
             Message.timestamp.desc()
