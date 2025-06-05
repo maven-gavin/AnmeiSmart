@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 
 interface MessageInputProps {
@@ -17,6 +17,7 @@ interface MessageInputProps {
   cancelRecording: () => void;
   cancelImagePreview: () => void;
   cancelAudioPreview: () => void;
+  triggerFileSelect: () => void;
   toggleFAQ: () => void;
   toggleSearch: () => void;
   isConsultant: boolean;
@@ -24,6 +25,8 @@ interface MessageInputProps {
   toggleConsultantMode: () => void;
   showFAQ: boolean;
   showSearch: boolean;
+  sendError?: string | null;
+  setSendError?: (error: string | null) => void;
 }
 
 export default function MessageInput({
@@ -40,15 +43,17 @@ export default function MessageInput({
   cancelRecording,
   cancelImagePreview,
   cancelAudioPreview,
+  triggerFileSelect,
   toggleFAQ,
   toggleSearch,
   isConsultant,
   isConsultantTakeover,
   toggleConsultantMode,
   showFAQ,
-  showSearch
+  showSearch,
+  sendError,
+  setSendError
 }: MessageInputProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // 格式化录音时间
   const formatRecordingTime = useCallback((seconds: number) => {
@@ -57,26 +62,32 @@ export default function MessageInput({
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   }, []);
   
-  // 处理图片上传
-  const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      // 在实际应用中这里应该有上传逻辑
-      // 这里只是简单预览
-      if (event.target?.result) {
-        const imageUrl = event.target.result as string;
-        // 这里应该调用传入的设置图片预览的函数
-        // 为了简化示例，这里省略了
-      }
-    };
-    reader.readAsDataURL(file);
-  }, []);
-  
   return (
     <>
+      {/* 错误提示 */}
+      {sendError && (
+        <div className="border-t border-gray-200 bg-red-50 p-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center text-red-700">
+              <svg className="h-4 w-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <span className="text-sm">{sendError}</span>
+            </div>
+            {setSendError && (
+              <button 
+                onClick={() => setSendError(null)}
+                className="text-red-500 hover:text-red-700"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 录音状态 */}
       {isRecording && (
         <div className="border-t border-gray-200 bg-gray-50 p-3">
@@ -150,15 +161,6 @@ export default function MessageInput({
           </div>
         </div>
       )}
-      
-      {/* 隐藏的文件输入 */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        className="hidden"
-        accept="image/*"
-        onChange={handleImageUpload}
-      />
       
       {/* 输入区域 */}
       <div className="border-t border-gray-200 bg-white p-4">
@@ -244,10 +246,11 @@ export default function MessageInput({
               />
             </svg>
           </button>
+          
           <button 
-            className="flex-shrink-0 text-gray-500 hover:text-gray-700" 
+            className="flex-shrink-0 text-gray-500 hover:text-gray-700"
             title="图片"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={triggerFileSelect}
           >
             <svg
               className="h-6 w-6"
@@ -263,6 +266,7 @@ export default function MessageInput({
               />
             </svg>
           </button>
+          
           <button 
             className={`flex-shrink-0 ${isRecording ? 'text-red-500' : 'text-gray-500 hover:text-gray-700'}`}
             title="语音"

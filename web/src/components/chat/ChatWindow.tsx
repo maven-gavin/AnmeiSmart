@@ -1,13 +1,11 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Button } from '@/components/ui/button'
 import { type Message } from '@/types/chat'
 import ChatMessage from '@/components/chat/ChatMessage'
 import { SearchBar } from '@/components/chat/SearchBar'
 import { ConnectionStatusIndicator } from '@/components/chat/ConnectionStatus'
-import { MediaPreview } from '@/components/chat/MediaPreview'
-import { RecordingControls } from '@/components/chat/RecordingControls'
+import MessageInput from '@/components/chat/MessageInput'
 import { 
   sendTextMessage, 
   sendImageMessage, 
@@ -33,15 +31,24 @@ interface ChatWindowProps {
 }
 
 export default function ChatWindow({ conversationId }: ChatWindowProps) {
+  console.log('ChatWindow 组件正在渲染，conversationId:', conversationId)
+  
   const router = useRouter();
   const searchParams = useSearchParams()
   const { user } = useAuthContext();
+  
+  console.log('ChatWindow 组件状态:', { 
+    hasRouter: !!router, 
+    hasSearchParams: !!searchParams, 
+    hasUser: !!user 
+  })
   
   // 基本状态
   const [message, setMessage] = useState('')
   const [showFAQ, setShowFAQ] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
   
   // 当前对话ID
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(
@@ -82,7 +89,6 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
 
   const {
     imagePreview,
-    uploadingImage,
     fileInputRef,
     handleImageUpload,
     cancelImagePreview,
@@ -97,8 +103,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     recordingTime,
     startRecording,
     stopRecording,
-    cancelRecording,
-    formatRecordingTime
+    cancelRecording
   } = useRecording()
 
   const {
@@ -116,7 +121,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
 
   // TODO： data 值没有使用，为什么不是从Socket中获取？
   // WebSocket消息处理回调
-  const handleWebSocketMessage = useCallback(async (data: any) => {
+  const handleWebSocketMessage = useCallback(async (data: unknown) => {
     console.log(`ChatWindow收到当前会话的WebSocket消息:`, data)
     
     try {
@@ -173,77 +178,151 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
 
   // 消息发送逻辑
   const handleSendMessage = useCallback(async () => {
-    if (isSending) return
+    console.log('handleSendMessage 函数被调用了！')
+    console.log('函数内部状态:', { isSending, imagePreview, audioPreview })
+    
+    if (isSending) {
+      console.log('当前正在发送中，忽略此次点击')
+      return
+    }
 
     // 根据消息类型发送
     if (imagePreview) {
+      console.log('发送图片消息')
       await handleSendImageMessage()
     } else if (audioPreview) {
+      console.log('发送语音消息')
       await handleSendVoiceMessage()
     } else {
-      await handleSendTextMessage()
+      console.log('发送文本消息')
+      console.log('准备调用 handleSendTextMessage...')
+      console.log('当前message值:', message)
+      try {
+        await handleSendTextMessage(message)
+        console.log('handleSendTextMessage 调用完成')
+      } catch (error) {
+        console.error('handleSendTextMessage 调用出错:', error)
+      }
     }
-  }, [isSending, imagePreview, audioPreview])
+  }, [isSending, imagePreview, audioPreview, message])
 
-  const handleSendTextMessage = useCallback(async () => {
-    if (!message.trim() || isSending) return
+  const handleSendTextMessage = useCallback(async (currentMessage?: string) => {
+    // 使用参数传入的消息或当前的message状态
+    const messageToSend = currentMessage || message;
+    
+    console.log('🔥 handleSendTextMessage 函数开始执行')
+    console.log('🔥 函数内变量检查:', { 
+      currentMessage,
+      message,
+      messageToSend,
+      messageLength: messageToSend?.length, 
+      messageTrim: messageToSend?.trim(), 
+      isSending 
+    })
+    
+    if (!messageToSend.trim() || isSending) {
+      console.log('🔥 提前返回: message为空或正在发送中')
+      return
+    }
+
+    console.log('=== 开始发送消息 ===')
+    console.log('消息内容:', messageToSend)
+    console.log('当前会话ID:', currentConversationId)
+    console.log('用户信息:', user)
+    console.log('WebSocket状态:', wsStatus)
+    console.log('顾问接管状态:', isConsultantTakeover)
+
+    // 检查用户认证状态
+    if (!user) {
+      console.error('发送失败: 用户未登录')
+      setSendError('用户未登录，请重新登录')
+      return
+    }
+
+    // 清除之前的错误
+    setSendError(null)
 
     // 如果没有会话ID，创建一个新会话
     if (!currentConversationId) {
       try {
+        console.log('没有会话ID，正在创建新会话...')
         setIsSending(true)
         const conversation = await getOrCreateConversation()
+        console.log('新会话创建成功:', conversation)
         setCurrentConversationId(conversation.id)
         
         router.replace(`?conversationId=${conversation.id}`, { scroll: false })
         
         // 延迟发送消息
         setTimeout(async () => {
-          await sendMessageWithId(conversation.id)
+          console.log('延迟发送消息，会话ID:', conversation.id)
+          await sendMessageDirectly(conversation.id, messageToSend)
         }, 800)
       } catch (error) {
         console.error('创建会话失败:', error)
+        setSendError('创建会话失败，请稍后重试')
         setIsSending(false)
       }
     } else {
-      await sendMessageWithId(currentConversationId)
+      await sendMessageDirectly(currentConversationId, messageToSend)
     }
-  }, [message, isSending, currentConversationId, router])
 
-  const sendMessageWithId = useCallback(async (conversationId: string) => {
-    try {
-      setIsSending(true)
-      
-      // 发送用户消息
-      const userMessage = await sendTextMessage(conversationId, message)
-      addMessage(userMessage)
-      setMessage('')
-      scrollToBottom()
-      
-      // 在顾问未接管的情况下获取AI回复
-      if (!isConsultantTakeover) {
-        try {
-          const aiResponsePromise = getAIResponse(conversationId, userMessage)
-          const timeoutPromise = new Promise<null>((_, reject) => 
-            setTimeout(() => reject(new Error('获取AI回复超时')), 15000)
-          )
-          
-          const aiResponse = await Promise.race([aiResponsePromise, timeoutPromise])
-          
-          if (aiResponse) {
-            addMessage(aiResponse)
-            scrollToBottom()
+    // 直接发送消息的内联函数
+    async function sendMessageDirectly(conversationId: string, msgContent: string) {
+      try {
+        console.log('=== 发送消息到会话 ===')
+        console.log('会话ID:', conversationId)
+        console.log('消息内容:', msgContent)
+        
+        setIsSending(true)
+        
+        // 发送用户消息
+        console.log('正在发送用户消息...')
+        const userMessage = await sendTextMessage(conversationId, msgContent)
+        console.log('用户消息发送成功:', userMessage)
+        
+        addMessage(userMessage)
+        setMessage('')
+        scrollToBottom()
+        
+        // 在顾问未接管的情况下获取AI回复
+        if (!isConsultantTakeover) {
+          try {
+            console.log('正在获取AI回复...')
+            const aiResponsePromise = getAIResponse(conversationId, userMessage)
+            const timeoutPromise = new Promise<null>((_, reject) => 
+              setTimeout(() => reject(new Error('获取AI回复超时')), 15000)
+            )
+            
+            const aiResponse = await Promise.race([aiResponsePromise, timeoutPromise])
+            
+            if (aiResponse) {
+              console.log('AI回复获取成功:', aiResponse)
+              addMessage(aiResponse)
+              scrollToBottom()
+            } else {
+              console.log('未收到AI回复')
+            }
+          } catch (error) {
+            console.error('获取AI回复失败:', error)
           }
-        } catch (error) {
-          console.error('获取AI回复失败:', error)
+        } else {
+          console.log('顾问已接管，跳过AI回复')
         }
+      } catch (error) {
+        console.error('发送消息失败:', error)
+        // 添加用户友好的错误提示
+        if (error instanceof Error) {
+          console.error('错误详情:', error.message)
+          setSendError(`发送失败: ${error.message}`)
+        } else {
+          setSendError('发送消息失败，请稍后重试')
+        }
+      } finally {
+        setIsSending(false)
       }
-    } catch (error) {
-      console.error('发送消息失败:', error)
-    } finally {
-      setIsSending(false)
     }
-  }, [addMessage, scrollToBottom, isConsultantTakeover])
+  }, [message, isSending, currentConversationId, router, user, wsStatus, isConsultantTakeover, addMessage, scrollToBottom])
 
   const handleSendImageMessage = useCallback(async () => {
     if (!imagePreview || !currentConversationId || isSending) return
@@ -449,23 +528,6 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         />
       )}
       
-      {/* 录音状态 */}
-      <RecordingControls
-        isRecording={isRecording}
-        recordingTime={recordingTime}
-        formatRecordingTime={formatRecordingTime}
-        onCancel={cancelRecording}
-        onStop={handleStopRecording}
-      />
-      
-      {/* 媒体预览 */}
-      <MediaPreview
-        imagePreview={imagePreview}
-        audioPreview={audioPreview}
-        onCancelImage={cancelImagePreview}
-        onCancelAudio={cancelAudioPreview}
-      />
-      
       {/* 隐藏的文件输入 */}
       <input
         type="file"
@@ -475,112 +537,32 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         onChange={handleImageUpload}
       />
       
-      {/* 输入区域 */}
-      <div className="border-t border-gray-200 bg-white p-4">
-        <div className="flex space-x-4">
-          <button 
-            className={`flex-shrink-0 ${showFAQ ? 'text-orange-500' : 'text-gray-500 hover:text-gray-700'}`}
-            onClick={() => setShowFAQ(!showFAQ)}
-            title="常见问题"
-          >
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </button>
-          
-          <button 
-            className={`flex-shrink-0 ${showSearch ? 'text-orange-500' : 'text-gray-500 hover:text-gray-700'}`}
-            onClick={() => setShowSearch(!showSearch)}
-            title="搜索聊天记录"
-          >
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </button>
-          
-          {/* 顾问接管按钮 */}
-          {isConsultant && (
-            <button 
-              className={`flex-shrink-0 ${isConsultantTakeover ? 'text-green-500' : 'text-gray-500 hover:text-gray-700'}`}
-              onClick={toggleConsultantMode}
-              title={isConsultantTakeover ? "切换回AI助手" : "顾问接管"}
-            >
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d={isConsultantTakeover 
-                    ? "M13 10V3L4 14h7v7l9-11h-7z"
-                    : "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                  }
-                />
-              </svg>
-            </button>
-          )}
-                    
-          <button className="flex-shrink-0 text-gray-500 hover:text-gray-700" title="表情">
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </button>
-          
-          <button 
-            className={`flex-shrink-0 text-gray-500 hover:text-gray-700`}
-            title="图片"
-            onClick={triggerFileSelect}
-          >
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            {uploadingImage && (
-              <span className="absolute w-3 h-3 rounded-full bg-orange-500 animate-ping" />
-            )}
-          </button>
-          
-          <button 
-            className={`flex-shrink-0 ${isRecording ? 'text-red-500' : 'text-gray-500 hover:text-gray-700'}`}
-            title="语音"
-            onClick={isRecording ? handleStopRecording : handleStartRecording}
-          >
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 016 0v6a3 3 0 01-3 3z" />
-            </svg>
-          </button>
-          
-          <div className="flex flex-1 items-center space-x-2">
-            <input
-              type="text"
-              value={message}
-              onChange={e => setMessage(e.target.value)}
-              placeholder="输入消息..."
-              className="flex-1 rounded-lg border border-gray-200 px-4 py-2 focus:border-orange-500 focus:outline-none"
-              disabled={isRecording || isSending}
-              onKeyPress={e => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  handleSendMessage()
-                }
-              }}
-            />
-            <Button
-              onClick={handleSendMessage}
-              disabled={isRecording || isSending || (!message.trim() && !imagePreview && !audioPreview)}
-              className={isSending ? 'opacity-70 cursor-not-allowed' : ''}
-            >
-              {isSending ? (
-                <span className="flex items-center">
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  发送中
-                </span>
-              ) : '发送'}
-            </Button>
-          </div>
-        </div>
-      </div>
+      {/* 使用MessageInput组件替换原来的输入区域 */}
+      <MessageInput
+        message={message}
+        setMessage={setMessage}
+        imagePreview={imagePreview}
+        audioPreview={audioPreview}
+        isRecording={isRecording}
+        recordingTime={recordingTime}
+        isSending={isSending}
+        handleSendMessage={handleSendMessage}
+        startRecording={handleStartRecording}
+        stopRecording={handleStopRecording}
+        cancelRecording={cancelRecording}
+        cancelImagePreview={cancelImagePreview}
+        cancelAudioPreview={cancelAudioPreview}
+        triggerFileSelect={triggerFileSelect}
+        toggleFAQ={() => setShowFAQ(!showFAQ)}
+        toggleSearch={() => setShowSearch(!showSearch)}
+        isConsultant={isConsultant}
+        isConsultantTakeover={isConsultantTakeover}
+        toggleConsultantMode={toggleConsultantMode}
+        showFAQ={showFAQ}
+        showSearch={showSearch}
+        sendError={sendError}
+        setSendError={setSendError}
+      />
     </div>
   )
 } 
