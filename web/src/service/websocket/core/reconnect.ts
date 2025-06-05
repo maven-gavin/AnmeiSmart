@@ -9,8 +9,8 @@ import { ConnectionStatus } from '../types';
 export class WebSocketReconnector extends EventEmitter {
   private connection: WebSocketConnection;
   private attempts: number = 0;
-  private maxAttempts: number = 10;
-  private baseDelay: number = 1000;
+  private maxAttempts: number = 15;
+  private baseDelay: number = 2000;
   private maxDelay: number = 30000;
   private timer: NodeJS.Timeout | null = null;
   private isEnabled: boolean = true;

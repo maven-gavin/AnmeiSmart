@@ -7,10 +7,10 @@ import { WebSocketConnection } from './connection';
  */
 export class WebSocketHeartbeat extends EventEmitter {
   private connection: WebSocketConnection;
-  private interval: number = 30000; // 默认30秒
+  private interval: number = 45000;         // 45秒心跳间隔
   private timer: NodeJS.Timeout | null = null;
   private failedHeartbeats: number = 0;
-  private maxFailedHeartbeats: number = 3;
+  private maxFailedHeartbeats: number = 4;  // 允许4次失败
   private lastHeartbeatResponse: number = 0;
   private isEnabled: boolean = false;
 

@@ -26,6 +26,13 @@ export interface WebSocketConnectionParams {
   token: string;
   userType: SenderType;
   connectionId: string;
+  // 设备信息相关字段
+  deviceId?: string;
+  deviceType?: string;
+  deviceIP?: string;
+  userAgent?: string;
+  platform?: string;
+  screenResolution?: string;
 }
 
 /**

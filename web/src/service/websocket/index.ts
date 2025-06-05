@@ -33,14 +33,21 @@ export class WebSocketClient {
    * @param config WebSocket配置
    */
   constructor(config: WebSocketConfig) {
-    // 保存配置
+    // 保存配置 - 使用生产环境最佳实践默认值
     this.config = {
       ...{
         url: '',
-        reconnectAttempts: 10,
-        reconnectInterval: 1000,
-        heartbeatInterval: 30000,
-        connectionTimeout: 10000,
+        // 重连策略配置
+        reconnectAttempts: 15,          // 15次重连
+        reconnectInterval: 2000,        // 初始2秒间隔
+        
+        // 心跳配置
+        heartbeatInterval: 45000,       // 45秒心跳间隔
+        
+        // 连接配置
+        connectionTimeout: 20000,       // 20秒连接超时
+        
+        // 调试配置
         debug: false
       },
       ...config
@@ -59,12 +66,14 @@ export class WebSocketClient {
       this.config.heartbeatInterval
     );
     
-    // 初始化重连机制
+    // 初始化重连机制 - 添加最大延迟配置
     this.reconnector = new WebSocketReconnector(
       this.connection,
       {
         maxAttempts: this.config.reconnectAttempts,
         baseDelay: this.config.reconnectInterval,
+        maxDelay: 30000,                // 最大重连间隔30秒
+        exponentialBackoff: true        // 启用指数退避
       }
     );
     

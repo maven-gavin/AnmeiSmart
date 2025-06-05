@@ -60,6 +60,12 @@ wsClient.sendMessage({
   conversation_id: 'conv456'
 });
 ```
+### 设备类型优化配置
+| 设备类型 | 连接超时 | 心跳间隔 | 重连间隔 | 最大重连延迟 |
+|----------|----------|----------|----------|--------------|
+| 移动端 | 30秒 | 60秒 | 3秒 | 45秒 |
+| 平板 | 25秒 | 50秒 | 2.5秒 | 35秒 |
+| 桌面端 | 20秒 | 45秒 | 2秒 | 30秒 |
 
 ## 技术栈
 
@@ -72,7 +78,9 @@ wsClient.sendMessage({
 - PWA：渐进式Web应用支持
 
 ## 实施步骤
+
 ### 第一阶段：桌面端实现
+
 ```
 # 1. 安装Tauri CLI
 npm install -g @tauri-apps/cli
@@ -84,6 +92,7 @@ npm create tauri-app@latest . --template vanilla-ts
 
 # 3. 配置Tauri
 ```
+
 ```
 // desktop/tauri.conf.json
 {
@@ -110,7 +119,9 @@ npm create tauri-app@latest . --template vanilla-ts
 }
 
 ```
+
 ### 第二阶段：移动端实现
+
 ```
 # 1. 创建移动端项目
 mkdir mobile && cd mobile
@@ -122,6 +133,7 @@ npm run tauri ios init
 ```
 
 ## 推荐实施顺序
+
 第一步：重构现有Web代码，提取共享组件到shared/目录
 第二步：实现桌面端，验证Tauri集成
 第三步：适配移动端UI和交互

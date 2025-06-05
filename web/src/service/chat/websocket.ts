@@ -8,6 +8,7 @@ import { getWebSocketClient, ConnectionStatus, WebSocketClient } from '../websoc
 import { SenderType } from '../websocket/types';
 import { TextMessageHandler } from '../websocket/handlers/textHandler';
 import { SystemMessageHandler } from '../websocket/handlers/systemHandler';
+import { getDeviceInfo, getWebSocketDeviceConfig, formatDeviceInfo, type DeviceInfo } from '../utils';
 import type { WebSocketConnectionParams } from './types';
 
 /**
@@ -17,9 +18,21 @@ import type { WebSocketConnectionParams } from './types';
 export class ChatWebSocketManager {
   private wsClient: WebSocketClient | null = null;
   private messageHandlers: Map<string, (data: any) => void> = new Map();
+  private deviceInfo: DeviceInfo | null = null;
+  private initPromise: Promise<void> | null = null;
   
   constructor() {
-    this.initializeClient();
+    // 异步初始化，避免阻塞构造函数
+    this.initPromise = this.initializeClient();
+  }
+  
+  /**
+   * 等待初始化完成
+   */
+  private async ensureInitialized(): Promise<void> {
+    if (this.initPromise) {
+      await this.initPromise;
+    }
   }
   
   // ===== 初始化和连接 =====
@@ -27,8 +40,12 @@ export class ChatWebSocketManager {
   /**
    * 初始化WebSocket客户端
    */
-  private initializeClient(): void {
+  private async initializeClient(): Promise<void> {
     try {
+      // 获取设备信息
+      this.deviceInfo = await getDeviceInfo();
+      console.log('设备信息:', formatDeviceInfo(this.deviceInfo));
+      
       // 获取协议和主机
       const wsProtocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       let wsHost = process.env.NEXT_PUBLIC_WS_URL || (typeof window !== 'undefined' ? window.location.host : 'localhost:8000');
@@ -47,14 +64,24 @@ export class ChatWebSocketManager {
       const baseUrl = `${wsProtocol}//${wsHost}/api/v1/chat/ws`;
       console.log('WebSocket连接基础URL:', baseUrl);
       
-      // 获取客户端实例
+      // 根据设备类型获取优化配置
+      const deviceConfig = getWebSocketDeviceConfig(this.deviceInfo);
+      
+      // 获取客户端实例 - 使用设备优化配置
       this.wsClient = getWebSocketClient({
         url: baseUrl,
-        reconnectAttempts: 5,
-        reconnectInterval: 2000,
-        heartbeatInterval: 30000,
-        connectionTimeout: 8000,
-        debug: true
+        // 重连策略 - 适合生产环境的配置
+        reconnectAttempts: 15,           // 15次重连，覆盖5-10分钟断网
+        reconnectInterval: deviceConfig.reconnectInterval,
+        
+        // 心跳配置 - 根据设备类型优化
+        heartbeatInterval: deviceConfig.heartbeatInterval,
+        
+        // 连接超时 - 根据设备类型优化
+        connectionTimeout: deviceConfig.connectionTimeout,
+        
+        // 调试模式
+        debug: process.env.NODE_ENV === 'development'
       });
       
       // 注册消息处理器
@@ -104,6 +131,9 @@ export class ChatWebSocketManager {
    */
   public async connect(userId: string, conversationId: string): Promise<void> {
     try {
+      // 确保初始化完成
+      await this.ensureInitialized();
+      
       const token = await authService.getValidToken();
       const userRole = authService.getCurrentUserRole() || '';
       
@@ -112,18 +142,30 @@ export class ChatWebSocketManager {
         return;
       }
       
+      // 构建连接参数，包含设备信息
       const connectionParams: WebSocketConnectionParams = {
         userId,
         conversationId,
         token,
         userType: this.mapUserRoleToSenderType(userRole),
-        connectionId: `${userId}_${conversationId}_${Date.now()}`
+        connectionId: `${userId}_${conversationId}_${Date.now()}`,
+        // 添加设备信息
+        deviceId: this.deviceInfo?.deviceId,
+        deviceType: this.deviceInfo?.type,
+        deviceIP: this.deviceInfo?.ip,
+        userAgent: this.deviceInfo?.userAgent,
+        platform: this.deviceInfo?.platform,
+        screenResolution: this.deviceInfo ? `${this.deviceInfo.screenWidth}x${this.deviceInfo.screenHeight}` : undefined
       };
       
-      console.log('连接WebSocket:', connectionParams);
+      console.log('连接WebSocket:', {
+        ...connectionParams,
+        userAgent: connectionParams.userAgent?.substring(0, 50) + '...', // 截断用户代理字符串
+        deviceInfo: this.deviceInfo ? formatDeviceInfo(this.deviceInfo) : 'unknown'
+      });
       
       if (!this.wsClient) {
-        this.initializeClient();
+        await this.initializeClient();
       }
       
       if (!this.wsClient) {
@@ -131,7 +173,7 @@ export class ChatWebSocketManager {
       }
       
       await this.wsClient.connect(connectionParams);
-      console.log('WebSocket连接成功建立');
+      console.log(`WebSocket连接成功建立 [${this.deviceInfo?.type?.toUpperCase() || 'UNKNOWN'}]`);
       
     } catch (error: any) {
       console.error('WebSocket连接失败:', error);
@@ -281,6 +323,27 @@ export class ChatWebSocketManager {
       default:
         return SenderType.USER;
     }
+  }
+  
+  /**
+   * 获取设备信息
+   */
+  public getDeviceInfo(): DeviceInfo | null {
+    return this.deviceInfo;
+  }
+  
+  /**
+   * 获取设备ID
+   */
+  public getDeviceId(): string | null {
+    return this.deviceInfo?.deviceId || null;
+  }
+  
+  /**
+   * 获取设备IP
+   */
+  public getDeviceIP(): string | null {
+    return this.deviceInfo?.ip || null;
   }
 }
 

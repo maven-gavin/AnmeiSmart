@@ -12,7 +12,7 @@ export class WebSocketConnection extends EventEmitter {
   private connectionId: string = '';
   private connectionParams: Record<string, any> = {};
   private timeoutId: NodeJS.Timeout | null = null;
-  private connectionTimeout: number = 10000; // 默认10秒超时
+  private connectionTimeout: number = 20000; // 默认20秒超时
   
   /**
    * 创建WebSocket连接
