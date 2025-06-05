@@ -79,100 +79,21 @@ async def get_conversations(
         chat_service = ChatService(db)
         user_role = get_user_role(current_user)
         
-        # 如果提供了客户ID且当前用户不是客户本人，检查权限
+        # 权限检查
         if customer_id and current_user.id != customer_id:
             if user_role not in ['consultant', 'doctor', 'admin', 'operator']:
                 raise HTTPException(status_code=403, detail="无权访问此客户的会话")
-            
-            # 验证客户存在
-            from app.db.models.user import Role
-            customer = db.query(User).join(User.roles).filter(
-                User.id == customer_id,
-                Role.name == 'customer'
-            ).first()
-            
-            if not customer:
-                raise HTTPException(status_code=404, detail="客户不存在")
         
-        # 获取会话列表
-        if customer_id:
-            # 获取指定客户的会话
-            from app.db.models.chat import Conversation, Message
-            conversations = db.query(Conversation).options(
-                joinedload(Conversation.customer)
-            ).filter(
-                Conversation.customer_id == customer_id
-            ).order_by(
-                Conversation.updated_at.desc()
-            ).offset(skip).limit(limit).all()
-            
-            # 添加防护代码，确保会话数据格式正确
-            result = []
-            for conv in conversations:
-                # 获取会话的最后一条消息
-                last_message = db.query(Message).filter(
-                    Message.conversation_id == conv.id
-                ).order_by(Message.timestamp.desc()).first()
-                
-                # 获取发送者信息
-                sender_info = None
-                if last_message:
-                    sender_name = "系统"
-                    if last_message.sender_type == "ai":
-                        sender_name = "AI助手"
-                    elif last_message.sender:
-                        sender_name = last_message.sender.username
-                    
-                    sender_info = {
-                        "id": last_message.sender_id or "system",
-                        "name": sender_name,
-                        "avatar": last_message.sender.avatar if last_message.sender else None,
-                        "type": last_message.sender_type
-                    }
-                
-                # 构造规范的会话对象
-                conversation_data = {
-                    "id": conv.id,
-                    "title": conv.title,
-                    "customer_id": conv.customer_id,
-                    "created_at": conv.created_at,
-                    "updated_at": conv.updated_at,
-                    "is_active": conv.is_active,
-                    "customer": {
-                        "id": conv.customer.id,
-                        "username": conv.customer.username,
-                        "avatar": conv.customer.avatar or '/avatars/user.png'
-                    } if conv.customer else None
-                }
-                
-                # 如果有最后一条消息，则添加到返回数据中
-                if last_message and sender_info:
-                    conversation_data["last_message"] = {
-                        "id": last_message.id,
-                        "conversation_id": last_message.conversation_id,
-                        "content": last_message.content,
-                        "type": last_message.type or "text",
-                        "sender": sender_info,
-                        "timestamp": last_message.timestamp,
-                        "is_read": last_message.is_read,
-                        "is_important": last_message.is_important
-                    }
-                else:
-                    conversation_data["last_message"] = None
-                
-                result.append(conversation_data)
-            
-            return result
-        else:
-            # 如果没有提供客户ID，则获取当前用户相关的所有会话
-            conversations = chat_service.get_conversations(
-                user_id=current_user.id,
-                user_role=user_role,
-                skip=skip,
-                limit=limit
-            )
-            
-            return [conversation for conversation in conversations]
+        # 调用service层获取会话列表，直接返回结果
+        conversations = chat_service.get_conversations(
+            user_id=current_user.id,
+            user_role=user_role,
+            customer_id=customer_id,
+            skip=skip,
+            limit=limit
+        )
+        
+        return conversations
         
     except Exception as e:
         logger.error(f"获取会话列表失败: {e}")
@@ -224,6 +145,7 @@ async def get_conversation_messages(
         chat_service = ChatService(db)
         user_role = get_user_role(current_user)
         
+        # 直接返回service层结果，无需手动转换
         messages = chat_service.get_conversation_messages(
             conversation_id=conversation_id,
             user_id=current_user.id,
@@ -232,8 +154,7 @@ async def get_conversation_messages(
             limit=limit
         )
         
-        message_service = MessageService(db)
-        return [MessageInfo.from_model(msg) for msg in messages]
+        return messages
         
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -254,6 +175,7 @@ async def send_message(
         chat_service = ChatService(db)
         user_role = get_user_role(current_user)
         
+        # 直接返回service层结果，无需手动转换
         message = await chat_service.send_message(
             conversation_id=conversation_id,
             content=message_in.content,
@@ -263,8 +185,7 @@ async def send_message(
             is_important=False  # 默认值，因为MessageCreate中没有这个字段
         )
         
-        message_service = MessageService(db)
-        return MessageInfo.from_model(message)
+        return message
         
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -324,25 +245,18 @@ async def update_conversation(
         chat_service = ChatService(db)
         user_role = get_user_role(current_user)
         
-        # 获取原始ORM会话对象（使用内部方法）
-        conversation_orm = chat_service._get_conversation_model(
+        # 调用service层更新会话，直接返回结果
+        updated_conversation = chat_service.update_conversation(
             conversation_id=conversation_id,
             user_id=current_user.id,
-            user_role=user_role
+            user_role=user_role,
+            update_data=update_data
         )
         
-        if not conversation_orm:
+        if not updated_conversation:
             raise HTTPException(status_code=404, detail="会话不存在")
         
-        # 更新标题
-        if 'title' in update_data:
-            conversation_orm.title = update_data['title']
-            conversation_orm.updated_at = datetime.now()
-            db.commit()
-            db.refresh(conversation_orm)
-        
-        # 将ORM对象转换为Pydantic模型
-        return ConversationInfo.from_model(conversation_orm)
+        return updated_conversation
         
     except PermissionError:
         raise HTTPException(status_code=403, detail="无权修改此会话")

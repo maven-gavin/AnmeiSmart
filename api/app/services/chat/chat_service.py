@@ -45,25 +45,25 @@ class ChatService:
         # 可以在这里实现断开后的逻辑
         # 例如：更新用户离线状态、保存会话状态等
 
-    def _get_conversation_model(
+    def _verify_conversation_access(
         self,
         conversation_id: str,
         user_id: str,
         user_role: str
-    ) -> Optional[Conversation]:
-        """获取原始数据库会话对象（内部方法）"""
-        conversation = self.db.query(Conversation).options(
-            joinedload(Conversation.customer)
-        ).filter(Conversation.id == conversation_id).first()
+    ) -> bool:
+        """验证用户对会话的访问权限（内部方法）"""
+        conversation = self.db.query(Conversation).filter(
+            Conversation.id == conversation_id
+        ).first()
         
         if not conversation:
-            return None
+            return False
         
         # 检查访问权限
         if user_role == "customer" and conversation.customer_id != user_id:
-            raise PermissionError("无权访问此会话")
+            return False
         
-        return conversation
+        return True
 
     async def create_conversation(
         self,
@@ -132,21 +132,26 @@ class ChatService:
         self,
         user_id: str,
         user_role: str,
+        customer_id: Optional[str] = None,
         skip: int = 0,
         limit: int = 100
     ) -> List[ConversationInfo]:
         """获取用户的会话列表"""
-        logger.info(f"获取会话列表: user_id={user_id}, role={user_role}")
+        logger.info(f"获取会话列表: user_id={user_id}, role={user_role}, customer_id={customer_id}")
         
         query = self.db.query(Conversation).options(
             joinedload(Conversation.customer)
         )
         
-        # 根据角色过滤会话
-        if user_role == "customer":
+        # 根据角色和customer_id过滤会话
+        if customer_id:
+            # 如果指定了customer_id，获取该客户的会话
+            query = query.filter(Conversation.customer_id == customer_id)
+        elif user_role == "customer":
+            # 如果是客户且没有指定customer_id，只能看自己的会话
             query = query.filter(Conversation.customer_id == user_id)
         elif user_role in ["consultant", "doctor", "admin", "operator"]:
-            # 顾问等角色可以看到所有会话
+            # 顾问等角色可以看到所有会话（如果没有指定customer_id）
             pass
         else:
             raise ValueError(f"未知用户角色: {user_role}")
@@ -165,9 +170,18 @@ class ChatService:
         user_role: str
     ) -> Optional[ConversationInfo]:
         """获取指定会话"""
-        conversation = self._get_conversation_model(conversation_id, user_id, user_role)
+        # 验证访问权限
+        if not self._verify_conversation_access(conversation_id, user_id, user_role):
+            return None
+        
+        # 获取会话数据并转换为schema
+        conversation = self.db.query(Conversation).options(
+            joinedload(Conversation.customer)
+        ).filter(Conversation.id == conversation_id).first()
+        
         if not conversation:
             return None
+        
         return ConversationInfo.from_model(conversation)
     
     async def send_message(
@@ -181,10 +195,14 @@ class ChatService:
         auto_assign_on_first_message: bool = True
     ) -> MessageInfo:
         """发送消息"""
-        # 验证会话存在和权限 - 使用原始数据库对象
-        conversation = self._get_conversation_model(conversation_id, sender_id, sender_type)
-        if not conversation:
+        # 验证会话存在和权限
+        if not self._verify_conversation_access(conversation_id, sender_id, sender_type):
             raise ValueError(f"会话不存在或无权访问: {conversation_id}")
+        
+        # 获取会话对象用于后续逻辑
+        conversation = self.db.query(Conversation).filter(
+            Conversation.id == conversation_id
+        ).first()
         
         # 如果是客户的第一条消息且会话未分配顾问，自动分配
         if (auto_assign_on_first_message and 
@@ -236,13 +254,14 @@ class ChatService:
         user_role: str,
         skip: int = 0,
         limit: int = 100
-    ) -> List[Message]:
+    ) -> List[MessageInfo]:
         """获取会话消息"""
         # 验证访问权限
         conversation = self.get_conversation_by_id(conversation_id, user_id, user_role)
         if not conversation:
             raise ValueError(f"会话不存在或无权访问: {conversation_id}")
         
+        # 使用MessageService获取消息并返回正确的schema类型
         return self.message_service.get_conversation_messages(
             conversation_id, skip, limit
         )
@@ -381,4 +400,39 @@ class ChatService:
         conversation.is_ai_controlled = is_ai_controlled
         conversation.updated_at = datetime.now()
         self.db.commit()
-        return True 
+        return True
+    
+    def update_conversation(
+        self,
+        conversation_id: str,
+        user_id: str,
+        user_role: str,
+        update_data: Dict[str, Any]
+    ) -> Optional[ConversationInfo]:
+        """更新会话信息"""
+        # 验证访问权限
+        if not self._verify_conversation_access(conversation_id, user_id, user_role):
+            raise PermissionError("无权修改此会话")
+        
+        # 获取会话对象
+        conversation = self.db.query(Conversation).filter(
+            Conversation.id == conversation_id
+        ).first()
+        
+        if not conversation:
+            return None
+        
+        # 更新字段
+        if 'title' in update_data:
+            conversation.title = update_data['title']
+        
+        conversation.updated_at = datetime.now()
+        self.db.commit()
+        self.db.refresh(conversation)
+        
+        # 重新获取完整数据并转换为schema
+        conversation_with_relations = self.db.query(Conversation).options(
+            joinedload(Conversation.customer)
+        ).filter(Conversation.id == conversation_id).first()
+        
+        return ConversationInfo.from_model(conversation_with_relations) 

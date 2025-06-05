@@ -283,7 +283,7 @@ async def test_websocket_token_verification():
     
     # Mock token验证
     with patch('app.core.security.verify_token') as mock_verify:
-        mock_verify.return_value = {"sub": "user123", "role": "customer"}
+        mock_verify.return_value = "user123"  # verify_token 应该返回字符串而不是字典
         
         from app.api.v1.endpoints.chat import verify_websocket_token
         
