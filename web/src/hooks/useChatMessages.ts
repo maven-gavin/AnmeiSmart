@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
+import toast from 'react-hot-toast'
 import { type Message } from '@/types/chat'
 import { 
   getConversationMessages, 
@@ -99,10 +100,18 @@ export function useChatMessages({ conversationId, mounted }: UseChatMessagesProp
     if (!conversationId) return
 
     try {
-      await markMessageAsImportant(conversationId, messageId, !currentStatus)
-      await fetchMessages()
+      const result = await markMessageAsImportant(conversationId, messageId, !currentStatus)
+      if (result) {
+        // 成功时显示提示
+        toast.success(!currentStatus ? '消息已标记为重点' : '已取消重点标记')
+        await fetchMessages()
+      } else {
+        toast.error('操作失败，请重试')
+      }
     } catch (error) {
       console.error('标记重点消息失败:', error)
+      // 显示用户友好的错误提示
+      toast.error('标记重点消息失败，请检查网络连接')
     }
   }, [conversationId, fetchMessages])
 

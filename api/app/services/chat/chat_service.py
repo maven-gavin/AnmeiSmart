@@ -412,9 +412,8 @@ class ChatService:
         """更新会话信息"""
         # 验证访问权限
         if not self._verify_conversation_access(conversation_id, user_id, user_role):
-            raise PermissionError("无权修改此会话")
+            raise PermissionError(f"无权修改会话: {conversation_id}")
         
-        # 获取会话对象
         conversation = self.db.query(Conversation).filter(
             Conversation.id == conversation_id
         ).first()
@@ -422,17 +421,37 @@ class ChatService:
         if not conversation:
             return None
         
-        # 更新字段
-        if 'title' in update_data:
-            conversation.title = update_data['title']
+        # 更新允许的字段
+        allowed_fields = ["title", "status"]
+        for field, value in update_data.items():
+            if field in allowed_fields and hasattr(conversation, field):
+                setattr(conversation, field, value)
         
         conversation.updated_at = datetime.now()
         self.db.commit()
         self.db.refresh(conversation)
         
-        # 重新获取完整数据并转换为schema
-        conversation_with_relations = self.db.query(Conversation).options(
-            joinedload(Conversation.customer)
-        ).filter(Conversation.id == conversation_id).first()
+        logger.info(f"会话已更新: conversation_id={conversation_id}, fields={list(update_data.keys())}")
+        return ConversationInfo.from_model(conversation)
+
+    def mark_message_as_important(
+        self,
+        conversation_id: str,
+        message_id: str,
+        is_important: bool,
+        user_id: str,
+        user_role: str
+    ) -> bool:
+        """标记消息为重点"""
+        # 验证会话访问权限
+        if not self._verify_conversation_access(conversation_id, user_id, user_role):
+            raise PermissionError(f"无权访问会话: {conversation_id}")
         
-        return ConversationInfo.from_model(conversation_with_relations) 
+        # 调用消息服务标记重点
+        success = self.message_service.mark_message_as_important(message_id, is_important)
+        
+        if not success:
+            raise ValueError(f"消息不存在: {message_id}")
+        
+        logger.info(f"消息重点状态已更新: conversation_id={conversation_id}, message_id={message_id}, is_important={is_important}")
+        return True 

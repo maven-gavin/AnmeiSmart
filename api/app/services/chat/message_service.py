@@ -177,4 +177,24 @@ class MessageService:
         self.db.commit()
         
         logger.info(f"消息已删除: message_id={message_id}, user_id={user_id}")
+        return True
+
+    def mark_message_as_important(self, message_id: str, is_important: bool) -> bool:
+        """标记消息为重点"""
+        logger.info(f"标记消息重点状态: message_id={message_id}, is_important={is_important}")
+        
+        message = self.db.query(Message).filter(
+            Message.id == message_id
+        ).first()
+        
+        if not message:
+            logger.warning(f"消息不存在: message_id={message_id}")
+            return False
+        
+        # 更新重点状态
+        message.is_important = is_important
+        
+        self.db.commit()
+        
+        logger.info(f"消息重点状态已更新: message_id={message_id}, is_important={is_important}")
         return True 

@@ -212,6 +212,43 @@ async def mark_message_as_read(
         raise HTTPException(status_code=500, detail="标记消息已读失败")
 
 
+@router.put("/conversations/{conversation_id}/messages/{message_id}/important")
+async def mark_message_as_important(
+    conversation_id: str,
+    message_id: str,
+    request_data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """标记消息为重点"""
+    try:
+        chat_service = ChatService(db)
+        user_role = get_user_role(current_user)
+        
+        is_important = request_data.get("is_important", False)
+        
+        success = chat_service.mark_message_as_important(
+            conversation_id=conversation_id,
+            message_id=message_id,
+            is_important=is_important,
+            user_id=current_user.id,
+            user_role=user_role
+        )
+        
+        if success:
+            return {"message": f"消息已{'标记为重点' if is_important else '取消重点标记'}"}
+        else:
+            raise HTTPException(status_code=404, detail="消息不存在")
+        
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="无权访问此会话")
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"标记消息重点状态失败: {e}")
+        raise HTTPException(status_code=500, detail="标记消息重点状态失败")
+
+
 @router.get("/conversations/{conversation_id}/summary")
 async def get_conversation_summary(
     conversation_id: str,
