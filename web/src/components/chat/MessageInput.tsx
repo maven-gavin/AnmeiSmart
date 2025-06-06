@@ -32,10 +32,6 @@ export default function MessageInput({
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  
-  // FAQ 相关状态
-  const [showFAQ, setShowFAQ] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
 
   // 录音相关状态
   const {
@@ -110,7 +106,6 @@ export default function MessageInput({
   // FAQ选择处理 - 填入输入框而不是直接发送
   const handleFAQSelect = useCallback((faqMessage: string) => {
     setMessage(faqMessage);
-    setShowFAQ(false);
     // 聚焦到输入框
     setTimeout(() => {
       const input = document.querySelector('input[placeholder="输入消息..."]') as HTMLInputElement;
@@ -119,6 +114,12 @@ export default function MessageInput({
       }
     }, 100);
   }, []);
+
+  // 获取FAQ组件的按钮和面板
+  const faqSection = FAQSection({
+    onSelectFAQ: handleFAQSelect,
+    messages
+  });
 
   return (
     <>
@@ -163,16 +164,8 @@ export default function MessageInput({
         onUpdateMessages={onUpdateMessages}
       />
       
-      {/* FAQ快捷入口 */}
-      {showFAQ && (
-        <FAQSection 
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          setMessage={handleFAQSelect}
-          closeFAQ={() => setShowFAQ(false)}
-          messages={messages}
-        />
-      )}
+      {/* FAQ面板 - 在输入区域上方显示 */}
+      {faqSection.panel}
       
       {/* 隐藏的文件输入 */}
       <input
@@ -186,25 +179,8 @@ export default function MessageInput({
       {/* 输入区域 */}
       <div className="border-t border-gray-200 bg-white p-4">
         <div className="flex space-x-4">
-          <button 
-            className={`flex-shrink-0 ${showFAQ ? 'text-orange-500' : 'text-gray-500 hover:text-gray-700'}`}
-            onClick={() => setShowFAQ(!showFAQ)}
-            title="常见问题"
-          >
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          </button>
+          {/* FAQ按钮 */}
+          {faqSection.button}
           
           <button 
             className={`flex-shrink-0 ${showSearch ? 'text-orange-500' : 'text-gray-500 hover:text-gray-700'}`}
@@ -260,7 +236,7 @@ export default function MessageInput({
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 002 2z"
               />
             </svg>
           </button>
