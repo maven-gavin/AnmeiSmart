@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { sendImageMessage, sendVoiceMessage } from '@/service/chatService';
+import { saveMessage } from '@/service/chatService';
 
 interface MediaPreviewProps {
   conversationId?: string | null;
@@ -25,55 +25,19 @@ export function MediaPreview({
   const [sendError, setSendError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
 
-  // 发送图片消息
+  // 发送图片消息（暂时禁用，需要实现图片上传逻辑）
   const handleSendImage = useCallback(async () => {
-    if (!imagePreview || !conversationId || isSending) return;
-    
-    try {
-      setIsSending(true);
-      setSendError(null);
-      
-      await sendImageMessage(conversationId, imagePreview);
-      
-      // 清除预览
-      onCancelImage?.();
-      
-      // 通知父组件更新消息
-      onUpdateMessages?.();
-      onSendSuccess?.();
-      
-    } catch (error) {
-      console.error('发送图片失败:', error);
-      setSendError('发送图片失败，请稍后重试');
-    } finally {
-      setIsSending(false);
-    }
-  }, [imagePreview, conversationId, isSending, onCancelImage, onUpdateMessages, onSendSuccess]);
+    // TODO: 实现图片消息发送逻辑
+    console.log('图片发送功能待实现');
+    setSendError('图片发送功能正在开发中');
+  }, []);
 
-  // 发送语音消息
+  // 发送语音消息（暂时禁用，需要实现语音上传逻辑）
   const handleSendAudio = useCallback(async () => {
-    if (!audioPreview || !conversationId || isSending) return;
-    
-    try {
-      setIsSending(true);
-      setSendError(null);
-      
-      await sendVoiceMessage(conversationId, audioPreview);
-      
-      // 清除预览
-      onCancelAudio?.();
-      
-      // 通知父组件更新消息
-      onUpdateMessages?.();
-      onSendSuccess?.();
-      
-    } catch (error) {
-      console.error('发送语音失败:', error);
-      setSendError('发送语音失败，请稍后重试');
-    } finally {
-      setIsSending(false);
-    }
-  }, [audioPreview, conversationId, isSending, onCancelAudio, onUpdateMessages, onSendSuccess]);
+    // TODO: 实现语音消息发送逻辑
+    console.log('语音发送功能待实现');
+    setSendError('语音发送功能正在开发中');
+  }, []);
 
   if (!imagePreview && !audioPreview) {
     return null;

@@ -9,10 +9,13 @@ import ConsultantTakeover from '@/components/chat/ConsultantTakeover';
 import { useRecording } from '@/hooks/useRecording';
 import { useMediaUpload } from '@/hooks/useMediaUpload';
 import { type Message } from '@/types/chat';
+import { v4 as uuidv4 } from 'uuid';
+import { authService } from "@/service/authService";
+import { AppError, ErrorType } from '@/service/errors';
 
 interface MessageInputProps {
   conversationId?: string | null;
-  onSendTextMessage: (message: string) => Promise<void>;
+  onSendMessage: (message: Message) => Promise<void>;
   toggleSearch: () => void;
   showSearch: boolean;
   onUpdateMessages?: () => void;
@@ -21,7 +24,7 @@ interface MessageInputProps {
 
 export default function MessageInput({
   conversationId,
-  onSendTextMessage,
+  onSendMessage,
   toggleSearch,
   showSearch,
   onUpdateMessages,
@@ -54,6 +57,118 @@ export default function MessageInput({
     cancelAudioPreview
   } = useMediaUpload();
 
+
+/**
+ * 发送文字消息
+ */
+function createTextMessage( content: string): Message {
+  const currentUser = authService.getCurrentUser();
+  if (!currentUser) {
+    throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
+  }
+  
+  const userRole = currentUser.currentRole || 'customer';
+  const localId = `local_${uuidv4()}`;
+  const now = new Date().toISOString();
+  
+  // 创建用户消息（pending状态）
+  const userMessage: Message = {
+    id: localId, // 使用临时ID，保存后会更新为服务器ID
+    localId, // 本地标识
+    conversationId: conversationId || '',
+    content,
+    type: 'text',
+    sender: {
+      id: currentUser.id,
+      type: userRole,
+      name: currentUser.name,
+      avatar: currentUser.avatar || '/avatars/user.png',
+    },
+    timestamp: now,
+    createdAt: now,
+    // 消息状态相关字段
+    status: 'pending',
+    canRetry: false, // 初始时不可重试，失败后才设置为true
+    canDelete: true, // 可以删除
+    canRecall: false, // 初始时不可撤销，发送成功后1分钟内可撤销
+  };
+  
+  return userMessage;
+}
+
+/**
+ * 发送图片消息
+ */
+function createImageMessage(imageUrl: string): Message {
+  const currentUser = authService.getCurrentUser();
+  if (!currentUser) {
+    throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
+  }
+  
+  const localId = `local_${uuidv4()}`;
+  const now = new Date().toISOString();
+  
+  // 创建图片消息（pending状态）
+  const imageMessage: Message = {
+    id: localId,
+    localId,
+    conversationId: conversationId || '',
+    content: imageUrl,
+    type: 'image',
+    sender: {
+      id: currentUser.id,
+      type: currentUser.currentRole || 'customer',
+      name: currentUser.name,
+      avatar: currentUser.avatar || '/avatars/user.png',
+    },
+    timestamp: now,
+    createdAt: now,
+    status: 'pending',
+    canRetry: false,
+    canDelete: true,
+    canRecall: false,
+  };
+  
+  return imageMessage;
+}
+
+/**
+ * 发送语音消息
+ */
+function createVoiceMessage(audioUrl: string): Message {
+  const currentUser = authService.getCurrentUser();
+  if (!currentUser) {
+    throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
+  }
+
+  const localId = `local_${uuidv4()}`;
+  const now = new Date().toISOString();
+
+  // 创建语音消息（pending状态）
+  const voiceMessage: Message = {
+    id: localId,
+    localId,
+    conversationId: conversationId || '',
+    content: audioUrl,
+    type: 'voice',
+    sender: {
+      id: currentUser.id,
+      type: currentUser.currentRole || 'customer',
+      name: currentUser.name,
+      avatar: currentUser.avatar || '/avatars/user.png',
+    },
+    timestamp: now,
+    createdAt: now,
+    status: 'pending',
+    canRetry: false,
+    canDelete: true,
+    canRecall: false,
+  };
+  
+  return voiceMessage;
+}
+
+
   // 处理发送文本消息
   const handleSendMessage = useCallback(async () => {
     if (!message.trim() || isSending) return;
@@ -62,7 +177,9 @@ export default function MessageInput({
       setIsSending(true);
       setSendError(null);
       
-      await onSendTextMessage(message);
+      // 直接调用父组件的发送方法，父组件负责本地添加和异步发送
+      const userMessage = createTextMessage(message);
+      await onSendMessage(userMessage);
       
       // 发送成功后清空输入
       setMessage('');
@@ -72,7 +189,7 @@ export default function MessageInput({
     } finally {
       setIsSending(false);
     }
-  }, [message, isSending, onSendTextMessage]);
+  }, [message, isSending, onSendMessage]);
 
   // 处理键盘事件
   const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {

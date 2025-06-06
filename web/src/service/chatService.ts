@@ -4,7 +4,7 @@
  * 保持向后兼容性，确保现有代码不会中断
  */
 
-import { v4 as uuidv4 } from 'uuid';
+
 import { authService } from "./authService";
 import { AppError, ErrorType } from './errors';
 import { ConnectionStatus } from './websocket';
@@ -14,8 +14,6 @@ import {
   chatState,
   ChatApiService,
   chatWebSocket,
-  AI_INFO,
-  SYSTEM_INFO,
   type Message,
   type Conversation,
   type CustomerProfile,
@@ -75,6 +73,58 @@ export function closeWebSocketConnection(): void {
   // 清空状态
   chatState.clearMessageQueue();
   chatState.setLastConnectedConversationId(null);
+}
+
+/***
+ * 保存消息
+ * @param message 消息
+ * @returns 保存后的消息
+ */
+export async function saveMessage(message: Message): Promise<Message> {
+  try {
+    console.log('开始保存消息:', {
+      localId: message.localId,
+      conversationId: message.conversationId,
+      content: message.content.substring(0, 50) + (message.content.length > 50 ? '...' : ''),
+      status: message.status
+    });
+
+    // 验证必要字段
+    if (!message.conversationId) {
+      throw new AppError(ErrorType.VALIDATION, 400, '消息缺少会话ID');
+    }
+
+    if (!message.content?.trim()) {
+      throw new AppError(ErrorType.VALIDATION, 400, '消息内容不能为空');
+    }
+
+    // 调用API保存消息
+    const savedMessage = await ChatApiService.saveMessage(message);
+    
+    console.log('消息保存成功:', {
+      id: savedMessage.id,
+      localId: message.localId,
+      timestamp: savedMessage.timestamp
+    });
+
+    // 更新本地缓存
+    if (savedMessage.conversationId) {
+      chatState.addMessage(savedMessage.conversationId, savedMessage);
+    }
+
+    return savedMessage;
+  } catch (error) {
+    console.error('保存消息失败:', error);
+    
+    // 如果是认证错误，抛出
+    if (error instanceof AppError && error.type === ErrorType.AUTHENTICATION) {
+      throw error;
+    }
+    
+    // 其他错误包装后抛出
+    const errorMessage = error instanceof Error ? error.message : '保存消息失败';
+    throw new AppError(ErrorType.NETWORK, 500, errorMessage);
+  }
 }
 
 /**
@@ -187,193 +237,6 @@ export async function syncChatData(conversationId: string): Promise<void> {
   }
 }
 
-// ===== 消息相关功能 =====
-
-/**
- * 发送文字消息
- */
-export async function sendTextMessage(conversationId: string, content: string): Promise<Message> {
-  const currentUser = authService.getCurrentUser();
-  if (!currentUser) {
-    throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
-  }
-  
-  const userRole = currentUser.currentRole || 'customer';
-  
-  // 创建用户消息
-  const userMessage: Message = {
-    id: `m_${uuidv4()}`,
-    content,
-    type: 'text',
-    sender: {
-      id: currentUser.id,
-      type: userRole,
-      name: currentUser.name,
-      avatar: currentUser.avatar || '/avatars/user.png',
-    },
-    timestamp: new Date().toISOString(),
-  };
-  
-  // 添加到本地消息列表
-  chatState.addMessage(conversationId, userMessage);
-  
-  // 通过WebSocket发送消息
-  const wsMessage = {
-    action: 'message',
-    data: {
-      content,
-      type: 'text',
-      sender_type: userRole
-    },
-    conversation_id: conversationId,
-    timestamp: new Date().toISOString()
-  };
-  
-  sendWebSocketMessage(wsMessage);
-  
-  return userMessage;
-}
-
-/**
- * 发送图片消息
- */
-export async function sendImageMessage(conversationId: string, imageUrl: string): Promise<Message> {
-  const currentUser = authService.getCurrentUser();
-  if (!currentUser) {
-    throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
-  }
-  
-  // 创建图片消息
-  const imageMessage: Message = {
-    id: `m_${uuidv4()}`,
-    content: imageUrl,
-    type: 'image',
-    sender: {
-      id: currentUser.id,
-      type: currentUser.currentRole || 'customer',
-      name: currentUser.name,
-      avatar: currentUser.avatar || '/avatars/user.png',
-    },
-    timestamp: new Date().toISOString(),
-  };
-  
-  // 添加到消息列表
-  chatState.addMessage(conversationId, imageMessage);
-  
-  // 通过WebSocket发送消息
-  const wsMessage = {
-    action: 'message',
-    data: {
-      content: imageUrl,
-      type: 'image',
-      sender_type: currentUser.currentRole || 'customer'
-    },
-    conversation_id: conversationId,
-    timestamp: new Date().toISOString()
-  };
-  
-  sendWebSocketMessage(wsMessage);
-  
-  return imageMessage;
-}
-
-/**
- * 发送语音消息
- */
-export async function sendVoiceMessage(conversationId: string, audioUrl: string): Promise<Message> {
-  const currentUser = authService.getCurrentUser();
-  if (!currentUser) {
-    throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
-  }
-  
-  // 创建语音消息
-  const voiceMessage: Message = {
-    id: `m_${uuidv4()}`,
-    content: audioUrl,
-    type: 'voice',
-    sender: {
-      id: currentUser.id,
-      type: currentUser.currentRole || 'customer',
-      name: currentUser.name,
-      avatar: currentUser.avatar || '/avatars/user.png',
-    },
-    timestamp: new Date().toISOString(),
-  };
-  
-  // 添加到消息列表
-  chatState.addMessage(conversationId, voiceMessage);
-  
-  // 通过WebSocket发送消息
-  const wsMessage = {
-    action: 'message',
-    data: {
-      content: audioUrl,
-      type: 'voice',
-      sender_type: currentUser.currentRole || 'customer'
-    },
-    conversation_id: conversationId,
-    timestamp: new Date().toISOString()
-  };
-  
-  sendWebSocketMessage(wsMessage);
-  
-  return voiceMessage;
-}
-
-/**
- * 获取AI回复
- */
-export async function getAIResponse(conversationId: string, userMessage: Message): Promise<Message | null> {
-  // 如果顾问已接管，不再生成AI回复
-  if (chatState.isConsultantTakeover(conversationId)) {
-    return null;
-  }
-  
-  try {
-    // 调用AI服务获取回复
-    const responseContent = await ChatApiService.getAIResponse(conversationId, userMessage.content);
-    
-    // 创建AI回复消息
-    const aiMessage: Message = {
-      id: `m_${uuidv4()}`,
-      content: responseContent,
-      type: 'text',
-      sender: {
-        id: AI_INFO.id,
-        type: AI_INFO.type,
-        name: AI_INFO.name,
-        avatar: AI_INFO.avatar,
-      },
-      timestamp: new Date().toISOString(),
-    };
-    
-    // 添加到消息列表
-    chatState.addMessage(conversationId, aiMessage);
-    
-    return aiMessage;
-  } catch (error) {
-    console.error('获取AI回复失败:', error);
-    
-    // 返回一个友好的错误消息
-    const errorMessage: Message = {
-      id: `m_${uuidv4()}`,
-      content: '抱歉，AI服务暂时不可用，请稍后再试。',
-      type: 'text',
-      sender: {
-        id: AI_INFO.id,
-        type: AI_INFO.type,
-        name: AI_INFO.name,
-        avatar: AI_INFO.avatar,
-      },
-      timestamp: new Date().toISOString(),
-    };
-    
-    // 添加到消息列表
-    chatState.addMessage(conversationId, errorMessage);
-    
-    return errorMessage;
-  }
-}
 
 // ===== 会话和消息数据管理 =====
 

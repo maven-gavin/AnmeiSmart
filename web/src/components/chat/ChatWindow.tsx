@@ -7,7 +7,6 @@ import { SearchBar } from '@/components/chat/SearchBar'
 import { ConnectionStatusIndicator } from '@/components/chat/ConnectionStatus'
 import MessageInput from '@/components/chat/MessageInput'
 import { 
-  sendTextMessage, 
   getOrCreateConversation
 } from '@/service/chatService'
 import { useAuthContext } from '@/contexts/AuthContext'
@@ -63,7 +62,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     silentlyUpdateMessages,
     toggleMessageImportant,
     toggleShowImportantOnly,
-    addMessage,
+    addMessage
   } = useChatMessages({ conversationId: currentConversationId, mounted })
 
   const {
@@ -128,47 +127,40 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     scrollToBottom()
   }, [showImportantOnly ? importantMessages : messages, scrollToBottom])
 
-  // 处理发送文本消息 - 简化版本，主要负责会话管理和AI回复
-  const handleSendTextMessage = useCallback(async (messageContent: string) => {
-    console.log('🔥 ChatWindow handleSendTextMessage 开始执行')
-    console.log('消息内容:', messageContent)
-    console.log('当前会话ID:', currentConversationId)
+  // 处理发送消息到本地状态中
+  const handleSendMessage = useCallback(async (message: Message) => {
+    console.log('🔥 ChatWindow handleSendMessage 开始执行')
 
     // 检查用户认证状态
     if (!user) {
       throw new Error('用户未登录，请重新登录')
     }
 
-    // 如果没有会话ID，创建一个新会话
-    if (!currentConversationId) {
-      console.log('没有会话ID，正在创建新会话...')
-      const conversation = await getOrCreateConversation()
-      console.log('新会话创建成功:', conversation)
-      setCurrentConversationId(conversation.id)
-      
-      router.replace(`?conversationId=${conversation.id}`, { scroll: false })
-      
-      // 使用新会话ID发送消息
-      await sendMessageToConversation(conversation.id, messageContent)
-    } else {
-      await sendMessageToConversation(currentConversationId, messageContent)
-    }
+    // 处理会话ID和异步发送
+    let targetConversationId = currentConversationId
 
-    // 发送消息到指定会话的内联函数
-    async function sendMessageToConversation(conversationId: string, msgContent: string) {
-      console.log('=== 发送消息到会话 ===')
-      console.log('会话ID:', conversationId)
-      console.log('消息内容:', msgContent)
+    try {
+      // 如果没有会话ID，创建一个新会话
+      if (!targetConversationId) {
+        console.log('没有会话ID，正在创建新会话...')
+        const conversation = await getOrCreateConversation()
+        console.log('新会话创建成功:', conversation)
+        targetConversationId = conversation.id
+        setCurrentConversationId(conversation.id)
+        
+        router.replace(`?conversationId=${conversation.id}`, { scroll: false })
+      }
+
+      message.conversationId = targetConversationId;
+      addMessage(message);
+
+      // 滚动到底部显示新消息
+      setTimeout(scrollToBottom, 100)
       
-      // 发送用户消息
-      console.log('正在发送用户消息...')
-      const userMessage = await sendTextMessage(conversationId, msgContent)
-      console.log('用户消息发送成功:', userMessage)
-      
-      addMessage(userMessage)
-      scrollToBottom()
+    } catch (error) {
+      console.error('处理消息发送失败:', error)
     }
-  }, [currentConversationId, router, user, addMessage, scrollToBottom])
+  }, [currentConversationId, router, user, scrollToBottom])
 
   // 按日期分组消息
   const messageGroups = useMemo(() => {
@@ -273,11 +265,10 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
             {/* 当前日期组的消息 */}
             {group.messages.map(msg => (
               <ChatMessage
-                key={msg.id}
+                key={msg.localId || msg.id}
                 message={msg}
                 isSelected={selectedMessageId === msg.id}
                 searchTerm={showSearch ? searchTerm : ''}
-                onToggleImportant={toggleMessageImportant}
               />
             ))}
           </div>
@@ -302,7 +293,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       {/* 消息输入组件 - 现在完全自管理所有输入功能 */}
       <MessageInput
         conversationId={currentConversationId}
-        onSendTextMessage={handleSendTextMessage}
+        onSendMessage={handleSendMessage}
         toggleSearch={() => setShowSearch(!showSearch)}
         showSearch={showSearch}
         onUpdateMessages={silentlyUpdateMessages}

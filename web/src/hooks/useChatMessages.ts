@@ -1,10 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { type Message } from '@/types/chat'
+import { type Message, type MessageStatus, type SenderType } from '@/types/chat'
 import { 
   getConversationMessages, 
   markMessageAsImportant,
-  syncConsultantTakeoverStatus
 } from '@/service/chatService'
 
 interface UseChatMessagesProps {
@@ -17,6 +16,11 @@ export function useChatMessages({ conversationId, mounted }: UseChatMessagesProp
   const [importantMessages, setImportantMessages] = useState<Message[]>([])
   const [showImportantOnly, setShowImportantOnly] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+
+  // 生成本地消息ID
+  const generateLocalId = useCallback(() => {
+    return `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  }, [])
 
   // 静默更新消息的方法
   const silentlyUpdateMessages = useCallback(async () => {
@@ -146,6 +150,6 @@ export function useChatMessages({ conversationId, mounted }: UseChatMessagesProp
     toggleMessageImportant,
     toggleShowImportantOnly,
     addMessage,
-    updateMessages,
+    updateMessages
   }
 } 

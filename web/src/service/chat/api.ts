@@ -105,6 +105,28 @@ export class ChatApiService {
       is_important: isImportant
     });
   }
+
+  /**
+   * 保存消息
+   */
+  public static async saveMessage(message: Message): Promise<Message> {
+    // 构造符合后端API期望的请求数据格式
+    const requestData = {
+      content: message.content,
+      type: message.type
+    };
+    
+    const response = await apiClient.post<MessageApiResponse>(
+      `${this.BASE_PATH}/conversations/${message.conversationId}/messages`, 
+      requestData
+    );
+    
+    if (!response.data) {
+      throw new Error('保存消息失败：响应数据为空');
+    }
+    
+    return this.formatMessage(response.data);
+  }
   
   // ===== 接管状态API =====
   
@@ -204,6 +226,7 @@ export class ChatApiService {
   private static formatMessage(msg: MessageApiResponse): Message {
     return {
       id: msg.id,
+      conversationId: msg.conversation_id || '',
       content: msg.content,
       type: (msg.type as "text" | "image" | "voice") || 'text',
       sender: {

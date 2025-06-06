@@ -19,8 +19,12 @@ export interface Customer {
 
 export type SenderType = 'user' | 'consultant' | 'doctor' | 'ai' | 'system' | 'customer' | 'operator' | 'admin';
 
+// 消息发送状态
+export type MessageStatus = 'pending' | 'sent' | 'failed';
+
 export interface Message {
   id: string;
+  conversationId: string; // 所属会话ID
   content: string;
   type: 'text' | 'image' | 'voice';
   sender: {
@@ -33,6 +37,14 @@ export interface Message {
   isRead?: boolean;
   isImportant?: boolean;
   isSystemMessage?: boolean;
+  // 新增字段：消息发送状态相关
+  status?: MessageStatus; // 消息状态：pending | sent | failed
+  localId?: string; // 本地临时ID，用于发送前的消息标识
+  error?: string; // 发送失败时的错误信息
+  canRetry?: boolean; // 是否可以重试
+  canDelete?: boolean; // 是否可以删除
+  canRecall?: boolean; // 是否可以撤销（1分钟内）
+  createdAt?: string; // 本地创建时间，用于判断撤销时间
 }
 
 export interface Conversation {
