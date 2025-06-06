@@ -16,7 +16,6 @@ export function useChatMessages({ conversationId, mounted }: UseChatMessagesProp
   const [messages, setMessages] = useState<Message[]>([])
   const [importantMessages, setImportantMessages] = useState<Message[]>([])
   const [showImportantOnly, setShowImportantOnly] = useState(false)
-  const [isConsultantTakeover, setIsConsultantTakeover] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
   // 静默更新消息的方法
@@ -51,23 +50,12 @@ export function useChatMessages({ conversationId, mounted }: UseChatMessagesProp
         
         return lastMessageId !== newLastMessageId
       }
-
-      // 同步顾问状态
-      try {
-        const isConsultantModeActive = await syncConsultantTakeoverStatus(conversationId)
-        if (isConsultantModeActive !== isConsultantTakeover) {
-          setIsConsultantTakeover(isConsultantModeActive)
-        }
-      } catch (error) {
-        console.error('ChatWindow:同步顾问状态失败(静默更新中):', error)
-      }
-
       return false
     } catch (error) {
       console.error('ChatWindow:静默获取消息出错:', error)
       return false
     }
-  }, [conversationId, showImportantOnly, isConsultantTakeover, messages, mounted])
+  }, [conversationId, showImportantOnly, messages, mounted])
 
   // 获取消息
   const fetchMessages = useCallback(async () => {
@@ -84,8 +72,6 @@ export function useChatMessages({ conversationId, mounted }: UseChatMessagesProp
       const important = messagesData.filter(msg => msg.isImportant)
       setImportantMessages(important)
 
-      const isConsultantModeActive = await syncConsultantTakeoverStatus(conversationId)
-      setIsConsultantTakeover(isConsultantModeActive)
     } catch (error) {
       console.error('获取消息失败:', error)
     } finally {
@@ -154,7 +140,6 @@ export function useChatMessages({ conversationId, mounted }: UseChatMessagesProp
     messages,
     importantMessages,
     showImportantOnly,
-    isConsultantTakeover,
     isLoading,
     silentlyUpdateMessages,
     fetchMessages,
@@ -162,6 +147,5 @@ export function useChatMessages({ conversationId, mounted }: UseChatMessagesProp
     toggleShowImportantOnly,
     addMessage,
     updateMessages,
-    setIsConsultantTakeover
   }
 } 

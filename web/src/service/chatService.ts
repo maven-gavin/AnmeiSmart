@@ -571,24 +571,6 @@ export async function takeoverConversation(conversationId: string): Promise<bool
     // 更新本地状态
     chatState.setConsultantTakeover(conversationId, true);
     
-    // 发送系统消息通知顾问接管
-    const systemMessage: Message = {
-      id: `m_${uuidv4()}`,
-      content: '顾问已接管会话',
-      type: 'text',
-      sender: {
-        id: SYSTEM_INFO.id,
-        type: SYSTEM_INFO.type,
-        name: SYSTEM_INFO.name,
-        avatar: SYSTEM_INFO.avatar,
-      },
-      timestamp: new Date().toISOString(),
-      isSystemMessage: true,
-    };
-    
-    // 添加到消息列表
-    chatState.addMessage(conversationId, systemMessage);
-    
     // 发送接管状态到后端
     await ChatApiService.setTakeoverStatus(conversationId, false); // false表示顾问接管
     
@@ -607,24 +589,6 @@ export async function switchBackToAI(conversationId: string): Promise<boolean> {
     // 更新本地状态
     chatState.setConsultantTakeover(conversationId, false);
     
-    // 发送系统消息通知切回AI模式
-    const systemMessage: Message = {
-      id: `m_${uuidv4()}`,
-      content: 'AI助手已接管会话',
-      type: 'text',
-      sender: {
-        id: SYSTEM_INFO.id,
-        type: SYSTEM_INFO.type,
-        name: SYSTEM_INFO.name,
-        avatar: SYSTEM_INFO.avatar,
-      },
-      timestamp: new Date().toISOString(),
-      isSystemMessage: true,
-    };
-    
-    // 添加到消息列表
-    chatState.addMessage(conversationId, systemMessage);
-    
     // 发送接管状态到后端
     await ChatApiService.setTakeoverStatus(conversationId, true); // true表示AI接管
     
@@ -636,10 +600,26 @@ export async function switchBackToAI(conversationId: string): Promise<boolean> {
 }
 
 /**
- * 是否处于顾问模式
+ * 是否处于顾问模式 - 从服务器获取最新状态
  */
-export function isConsultantMode(conversationId: string): boolean {
-  return chatState.isConsultantTakeover(conversationId);
+export async function isConsultantMode(conversationId: string): Promise<boolean> {
+  try {
+    // 获取会话详情
+    const conversation = await ChatApiService.getConversationDetails(conversationId);
+    
+    if (conversation && 'is_ai_controlled' in conversation && typeof conversation.is_ai_controlled === 'boolean') {
+      // 更新本地状态
+      const isConsultantMode = !conversation.is_ai_controlled;
+      chatState.setConsultantTakeover(conversationId, isConsultantMode);
+      return isConsultantMode;
+    }
+    
+    // 如果无法获取状态，返回当前本地状态
+    return chatState.isConsultantTakeover(conversationId);
+  } catch (error) {
+    console.error("获取顾问模式状态失败:", error);
+    return chatState.isConsultantTakeover(conversationId);
+  }
 }
 
 /**

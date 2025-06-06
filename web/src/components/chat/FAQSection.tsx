@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 
 // FAQ类型定义
-interface FAQ {
+export interface FAQ {
   id: string;
   question: string;
   answer: string;
@@ -13,7 +13,7 @@ interface FAQ {
 interface FAQSectionProps {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  insertFAQ: (faq: FAQ) => void;
+  setMessage: (message: string) => void; // 直接设置消息，而不是通过回调
   closeFAQ: () => void;
   messages?: Array<{content: string}>;
 }
@@ -33,12 +33,18 @@ const allFAQs: FAQ[] = [
 export default function FAQSection({
   searchQuery,
   setSearchQuery,
-  insertFAQ,
+  setMessage, // 直接接收setMessage函数
   closeFAQ,
   messages = []
 }: FAQSectionProps) {
   // 推荐的FAQ状态
   const [recommendedFAQs, setRecommendedFAQs] = useState<FAQ[]>(allFAQs.slice(0, 3));
+
+  // 内部化的FAQ选择处理 - 移入组件内部
+  const handleSelectFAQ = (faq: FAQ) => {
+    setMessage(faq.question);
+    closeFAQ();
+  };
 
   // 搜索FAQ
   const searchFAQs = (query: string) => {
@@ -182,7 +188,7 @@ export default function FAQSection({
             <button
               key={faq.id}
               className="rounded-lg border border-orange-200 bg-white px-3 py-2 text-left text-sm text-gray-700 hover:bg-orange-50"
-              onClick={() => insertFAQ(faq)}
+              onClick={() => handleSelectFAQ(faq)}
             >
               <p className="font-medium text-orange-700">{faq.question}</p>
               <p className="mt-1 text-xs text-gray-500 line-clamp-1">{faq.answer}</p>
@@ -211,7 +217,4 @@ export default function FAQSection({
       </button>
     </div>
   );
-}
-
-// 导出FAQ接口供其他组件使用
-export type { FAQ }; 
+} 

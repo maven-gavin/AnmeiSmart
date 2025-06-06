@@ -1,69 +1,125 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { RecordingControls } from '@/components/chat/RecordingControls';
 import { MediaPreview } from '@/components/chat/MediaPreview';
+import FAQSection from '@/components/chat/FAQSection';
+import ConsultantTakeover from '@/components/chat/ConsultantTakeover';
+import { useRecording } from '@/hooks/useRecording';
+import { useMediaUpload } from '@/hooks/useMediaUpload';
+import { type Message } from '@/types/chat';
 
 interface MessageInputProps {
-  message: string;
-  setMessage: (message: string) => void;
-  imagePreview: string | null;
-  audioPreview: string | null;
-  isRecording: boolean;
-  recordingTime: number;
-  isSending: boolean;
-  handleSendMessage: () => Promise<void>;
-  startRecording: () => Promise<void>;
-  stopRecording: () => void;
-  cancelRecording: () => void;
-  cancelImagePreview: () => void;
-  cancelAudioPreview: () => void;
-  triggerFileSelect: () => void;
-  toggleFAQ: () => void;
+  conversationId?: string | null;
+  onSendTextMessage: (message: string) => Promise<void>;
   toggleSearch: () => void;
-  isConsultant: boolean;
-  isConsultantTakeover: boolean;
-  toggleConsultantMode: () => void;
-  showFAQ: boolean;
   showSearch: boolean;
-  sendError?: string | null;
-  setSendError?: (error: string | null) => void;
+  onUpdateMessages?: () => void;
+  messages?: Message[]; // 传递给FAQ使用
 }
 
 export default function MessageInput({
-  message,
-  setMessage,
-  imagePreview,
-  audioPreview,
-  isRecording,
-  recordingTime,
-  isSending,
-  handleSendMessage,
-  startRecording,
-  stopRecording,
-  cancelRecording,
-  cancelImagePreview,
-  cancelAudioPreview,
-  triggerFileSelect,
-  toggleFAQ,
+  conversationId,
+  onSendTextMessage,
   toggleSearch,
-  isConsultant,
-  isConsultantTakeover,
-  toggleConsultantMode,
-  showFAQ,
   showSearch,
-  sendError,
-  setSendError
+  onUpdateMessages,
+  messages = []
 }: MessageInputProps) {
+
+  // 内部管理的状态
+  const [message, setMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   
-  // 格式化录音时间
-  const formatRecordingTime = useCallback((seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  // FAQ 相关状态
+  const [showFAQ, setShowFAQ] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // 录音相关状态
+  const {
+    isRecording,
+    recordingTime,
+    startRecording,
+    stopRecording,
+    cancelRecording
+  } = useRecording();
+
+  // 媒体上传相关状态
+  const {
+    imagePreview,
+    fileInputRef,
+    handleImageUpload,
+    cancelImagePreview,
+    triggerFileSelect,
+    audioPreview,
+    setAudioPreview,
+    cancelAudioPreview
+  } = useMediaUpload();
+
+  // 处理发送文本消息
+  const handleSendMessage = useCallback(async () => {
+    if (!message.trim() || isSending) return;
+
+    try {
+      setIsSending(true);
+      setSendError(null);
+      
+      await onSendTextMessage(message);
+      
+      // 发送成功后清空输入
+      setMessage('');
+    } catch (error) {
+      console.error('发送消息失败:', error);
+      setSendError(error instanceof Error ? error.message : '发送消息失败，请稍后重试');
+    } finally {
+      setIsSending(false);
+    }
+  }, [message, isSending, onSendTextMessage]);
+
+  // 处理键盘事件
+  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!isSending && message.trim()) {
+        handleSendMessage();
+      }
+    }
+  }, [handleSendMessage, isSending, message]);
+
+  // 处理开始录音
+  const handleStartRecording = useCallback(async () => {
+    cancelAudioPreview(); // 清除之前的音频预览
+    await startRecording();
+  }, [startRecording, cancelAudioPreview]);
+
+  // 处理停止录音
+  const handleStopRecording = useCallback(async () => {
+    const audioUrl = await stopRecording();
+    if (audioUrl) {
+      setAudioPreview(audioUrl);
+    }
+  }, [stopRecording, setAudioPreview]);
+
+  // 媒体发送完成回调
+  const handleMediaSendSuccess = useCallback(() => {
+    onUpdateMessages?.();
+  }, [onUpdateMessages]);
+
+  // FAQ选择处理 - 填入输入框而不是直接发送
+  const handleFAQSelect = useCallback((faqMessage: string) => {
+    setMessage(faqMessage);
+    setShowFAQ(false);
+    // 聚焦到输入框
+    setTimeout(() => {
+      const input = document.querySelector('input[placeholder="输入消息..."]') as HTMLInputElement;
+      if (input) {
+        input.focus();
+      }
+    }, 100);
   }, []);
-  
+
   return (
     <>
       {/* 错误提示 */}
@@ -76,35 +132,55 @@ export default function MessageInput({
               </svg>
               <span className="text-sm">{sendError}</span>
             </div>
-            {setSendError && (
-              <button 
-                onClick={() => setSendError(null)}
-                className="text-red-500 hover:text-red-700"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
+            <button 
+              onClick={() => setSendError(null)}
+              className="text-red-500 hover:text-red-700"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
       )}
 
-      {/* 使用 RecordingControls 组件 */}
+      {/* 录音状态显示 */}
       <RecordingControls
         isRecording={isRecording}
         recordingTime={recordingTime}
-        formatRecordingTime={formatRecordingTime}
-        onCancel={cancelRecording}
-        onStop={stopRecording}
+        onStopRecording={handleStopRecording}
+        onCancelRecording={cancelRecording}
       />
       
-      {/* 使用 MediaPreview 组件 */}
+      {/* 媒体预览 */}
       <MediaPreview
+        conversationId={conversationId}
         imagePreview={imagePreview}
-        audioPreview={audioPreview && !isRecording ? audioPreview : null}
+        audioPreview={audioPreview}
         onCancelImage={cancelImagePreview}
         onCancelAudio={cancelAudioPreview}
+        onSendSuccess={handleMediaSendSuccess}
+        onUpdateMessages={onUpdateMessages}
+      />
+      
+      {/* FAQ快捷入口 */}
+      {showFAQ && (
+        <FAQSection 
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          setMessage={handleFAQSelect}
+          closeFAQ={() => setShowFAQ(false)}
+          messages={messages}
+        />
+      )}
+      
+      {/* 隐藏的文件输入 */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        accept="image/*"
+        onChange={handleImageUpload}
       />
       
       {/* 输入区域 */}
@@ -112,7 +188,7 @@ export default function MessageInput({
         <div className="flex space-x-4">
           <button 
             className={`flex-shrink-0 ${showFAQ ? 'text-orange-500' : 'text-gray-500 hover:text-gray-700'}`}
-            onClick={toggleFAQ}
+            onClick={() => setShowFAQ(!showFAQ)}
             title="常见问题"
           >
             <svg
@@ -150,31 +226,8 @@ export default function MessageInput({
             </svg>
           </button>
           
-          {/* 顾问接管按钮 - 只对顾问角色显示 */}
-          {isConsultant && (
-            <button 
-              className={`flex-shrink-0 ${isConsultantTakeover ? 'text-green-500' : 'text-gray-500 hover:text-gray-700'}`}
-              onClick={toggleConsultantMode}
-              title={isConsultantTakeover ? "切换回AI助手" : "顾问接管"}
-            >
-              <svg
-                className="h-6 w-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d={isConsultantTakeover 
-                    ? "M13 10V3L4 14h7v7l9-11h-7z" // 闪电图标，表示切换回AI
-                    : "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" // 用户图标，表示顾问接管
-                  }
-                />
-              </svg>
-            </button>
-          )}
+          {/* 顾问接管按钮 - 使用专门的组件 */}
+          <ConsultantTakeover conversationId={conversationId} />
                     
           <button className="flex-shrink-0 text-gray-500 hover:text-gray-700" title="表情">
             <svg
@@ -215,7 +268,7 @@ export default function MessageInput({
           <button 
             className={`flex-shrink-0 ${isRecording ? 'text-red-500' : 'text-gray-500 hover:text-gray-700'}`}
             title="语音"
-            onClick={isRecording ? stopRecording : startRecording}
+            onClick={isRecording ? handleStopRecording : handleStartRecording}
           >
             <svg
               className="h-6 w-6"
@@ -239,17 +292,12 @@ export default function MessageInput({
               onChange={e => setMessage(e.target.value)}
               placeholder="输入消息..."
               className="flex-1 rounded-lg border border-gray-200 px-4 py-2 focus:border-orange-500 focus:outline-none"
-              disabled={isRecording || isSending}
-              onKeyPress={e => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSendMessage();
-                }
-              }}
+              disabled={isSending || isRecording}
+              onKeyPress={handleKeyPress}
             />
             <Button
               onClick={handleSendMessage}
-              disabled={isRecording || isSending || (!message.trim() && !imagePreview && !audioPreview)}
+              disabled={isSending || !message.trim()}
               className={isSending ? 'opacity-70 cursor-not-allowed' : ''}
             >
               {isSending ? (

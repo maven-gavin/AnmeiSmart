@@ -1,20 +1,49 @@
+'use client';
+
+import { useCallback } from 'react';
+
 interface RecordingControlsProps {
-  isRecording: boolean
-  recordingTime: number
-  formatRecordingTime: (seconds: number) => string
-  onCancel: () => void
-  onStop: () => void
+  isRecording: boolean;
+  recordingTime: number;
+  onStopRecording: () => Promise<void>;
+  onCancelRecording: () => void;
 }
 
 export function RecordingControls({
   isRecording,
   recordingTime,
-  formatRecordingTime,
-  onCancel,
-  onStop
+  onStopRecording,
+  onCancelRecording
 }: RecordingControlsProps) {
+  
+  // 格式化录音时间
+  const formatRecordingTime = useCallback((seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  }, []);
+
+  // 处理停止录音
+  const handleStopRecording = useCallback(async () => {
+    try {
+      await onStopRecording();
+    } catch (error) {
+      console.error('停止录音失败:', error);
+    }
+  }, [onStopRecording]);
+
+  // 处理取消录音
+  const handleCancelRecording = useCallback(() => {
+    try {
+      onCancelRecording();
+    } catch (error) {
+      console.error('取消录音失败:', error);
+    }
+  }, [onCancelRecording]);
+
+  // 只在录音时显示录音状态UI
   if (!isRecording) {
-    return null
+    return null;
   }
 
   return (
@@ -28,7 +57,7 @@ export function RecordingControls({
         </div>
         <div className="flex space-x-2">
           <button 
-            onClick={onCancel}
+            onClick={handleCancelRecording}
             className="rounded-full p-1 text-gray-500 hover:bg-gray-200"
             title="取消录音"
           >
@@ -37,7 +66,7 @@ export function RecordingControls({
             </svg>
           </button>
           <button 
-            onClick={onStop}
+            onClick={handleStopRecording}
             className="rounded-full p-1 text-orange-500 hover:bg-orange-100"
             title="停止录音"
           >
@@ -48,5 +77,5 @@ export function RecordingControls({
         </div>
       </div>
     </div>
-  )
+  );
 } 

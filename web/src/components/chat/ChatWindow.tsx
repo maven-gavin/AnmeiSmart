@@ -8,22 +8,14 @@ import { ConnectionStatusIndicator } from '@/components/chat/ConnectionStatus'
 import MessageInput from '@/components/chat/MessageInput'
 import { 
   sendTextMessage, 
-  sendImageMessage, 
-  sendVoiceMessage,
-  getAIResponse,
-  takeoverConversation,
-  switchBackToAI,
   getOrCreateConversation
 } from '@/service/chatService'
 import { useAuthContext } from '@/contexts/AuthContext'
 import { useSearchParams, useRouter } from 'next/navigation'
-import FAQSection, { type FAQ } from './FAQSection'
 
 // 自定义hooks
 import { useChatMessages } from '@/hooks/useChatMessages'
 import { useWebSocketConnection } from '@/hooks/useWebSocketConnection'
-import { useMediaUpload } from '@/hooks/useMediaUpload'
-import { useRecording } from '@/hooks/useRecording'
 import { useSearch } from '@/hooks/useSearch'
 
 interface ChatWindowProps {
@@ -43,20 +35,10 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     hasUser: !!user 
   })
   
-  // 基本状态
-  const [message, setMessage] = useState('')
-  const [showFAQ, setShowFAQ] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [isSending, setIsSending] = useState(false)
-  const [sendError, setSendError] = useState<string | null>(null)
-  
-  // 当前对话ID
+  // 简化后的状态管理 - 只保留核心状态  
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(
     conversationId || searchParams?.get('conversationId') || null
   )
-  
-  // 用户角色状态
-  const isConsultant = user?.currentRole === 'consultant'
   
   // 聊天区域引用和挂载状态
   const chatContainerRef = useRef<HTMLDivElement>(null)
@@ -73,38 +55,16 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     }
   }, [])
 
-
   // 使用自定义hooks
   const {
     messages,
     importantMessages,
     showImportantOnly,
-    isConsultantTakeover,
     silentlyUpdateMessages,
     toggleMessageImportant,
     toggleShowImportantOnly,
     addMessage,
-    setIsConsultantTakeover
   } = useChatMessages({ conversationId: currentConversationId, mounted })
-
-  const {
-    imagePreview,
-    fileInputRef,
-    handleImageUpload,
-    cancelImagePreview,
-    triggerFileSelect,
-    audioPreview,
-    setAudioPreview,
-    cancelAudioPreview
-  } = useMediaUpload()
-
-  const {
-    isRecording,
-    recordingTime,
-    startRecording,
-    stopRecording,
-    cancelRecording
-  } = useRecording()
 
   const {
     showSearch,
@@ -119,7 +79,6 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     clearSearch
   } = useSearch(messages)
 
-  // TODO： data 值没有使用，为什么不是从Socket中获取？
   // WebSocket消息处理回调
   const handleWebSocketMessage = useCallback(async (data: unknown) => {
     console.log(`ChatWindow收到当前会话的WebSocket消息:`, data)
@@ -134,7 +93,6 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     }
   }, [silentlyUpdateMessages])
 
-  // TODO： 为什么需要传uerId，这个不是从token中获取的吗？这里应该就是WebSocket初始配置
   const { wsStatus, reconnectWebSocket } = useWebSocketConnection({
     userId: user?.id,
     conversationId: currentConversationId,
@@ -170,223 +128,47 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     scrollToBottom()
   }, [showImportantOnly ? importantMessages : messages, scrollToBottom])
 
-  // 插入FAQ内容
-  const insertFAQ = useCallback((faq: FAQ) => {
-    setMessage(faq.question)
-    setShowFAQ(false)
-  }, [])
-
-  // 消息发送逻辑
-  const handleSendMessage = useCallback(async () => {
-    console.log('handleSendMessage 函数被调用了！')
-    console.log('函数内部状态:', { isSending, imagePreview, audioPreview })
-    
-    if (isSending) {
-      console.log('当前正在发送中，忽略此次点击')
-      return
-    }
-
-    // 根据消息类型发送
-    if (imagePreview) {
-      console.log('发送图片消息')
-      await handleSendImageMessage()
-    } else if (audioPreview) {
-      console.log('发送语音消息')
-      await handleSendVoiceMessage()
-    } else {
-      console.log('发送文本消息')
-      console.log('准备调用 handleSendTextMessage...')
-      console.log('当前message值:', message)
-      try {
-        await handleSendTextMessage(message)
-        console.log('handleSendTextMessage 调用完成')
-      } catch (error) {
-        console.error('handleSendTextMessage 调用出错:', error)
-      }
-    }
-  }, [isSending, imagePreview, audioPreview, message])
-
-  const handleSendTextMessage = useCallback(async (currentMessage?: string) => {
-    // 使用参数传入的消息或当前的message状态
-    const messageToSend = currentMessage || message;
-    
-    console.log('🔥 handleSendTextMessage 函数开始执行')
-    console.log('🔥 函数内变量检查:', { 
-      currentMessage,
-      message,
-      messageToSend,
-      messageLength: messageToSend?.length, 
-      messageTrim: messageToSend?.trim(), 
-      isSending 
-    })
-    
-    if (!messageToSend.trim() || isSending) {
-      console.log('🔥 提前返回: message为空或正在发送中')
-      return
-    }
-
-    console.log('=== 开始发送消息 ===')
-    console.log('消息内容:', messageToSend)
+  // 处理发送文本消息 - 简化版本，主要负责会话管理和AI回复
+  const handleSendTextMessage = useCallback(async (messageContent: string) => {
+    console.log('🔥 ChatWindow handleSendTextMessage 开始执行')
+    console.log('消息内容:', messageContent)
     console.log('当前会话ID:', currentConversationId)
-    console.log('用户信息:', user)
-    console.log('WebSocket状态:', wsStatus)
-    console.log('顾问接管状态:', isConsultantTakeover)
 
     // 检查用户认证状态
     if (!user) {
-      console.error('发送失败: 用户未登录')
-      setSendError('用户未登录，请重新登录')
-      return
+      throw new Error('用户未登录，请重新登录')
     }
-
-    // 清除之前的错误
-    setSendError(null)
 
     // 如果没有会话ID，创建一个新会话
     if (!currentConversationId) {
-      try {
-        console.log('没有会话ID，正在创建新会话...')
-        setIsSending(true)
-        const conversation = await getOrCreateConversation()
-        console.log('新会话创建成功:', conversation)
-        setCurrentConversationId(conversation.id)
-        
-        router.replace(`?conversationId=${conversation.id}`, { scroll: false })
-        
-        // 延迟发送消息
-        setTimeout(async () => {
-          console.log('延迟发送消息，会话ID:', conversation.id)
-          await sendMessageDirectly(conversation.id, messageToSend)
-        }, 800)
-      } catch (error) {
-        console.error('创建会话失败:', error)
-        setSendError('创建会话失败，请稍后重试')
-        setIsSending(false)
-      }
+      console.log('没有会话ID，正在创建新会话...')
+      const conversation = await getOrCreateConversation()
+      console.log('新会话创建成功:', conversation)
+      setCurrentConversationId(conversation.id)
+      
+      router.replace(`?conversationId=${conversation.id}`, { scroll: false })
+      
+      // 使用新会话ID发送消息
+      await sendMessageToConversation(conversation.id, messageContent)
     } else {
-      await sendMessageDirectly(currentConversationId, messageToSend)
+      await sendMessageToConversation(currentConversationId, messageContent)
     }
 
-    // 直接发送消息的内联函数
-    async function sendMessageDirectly(conversationId: string, msgContent: string) {
-      try {
-        console.log('=== 发送消息到会话 ===')
-        console.log('会话ID:', conversationId)
-        console.log('消息内容:', msgContent)
-        
-        setIsSending(true)
-        
-        // 发送用户消息
-        console.log('正在发送用户消息...')
-        const userMessage = await sendTextMessage(conversationId, msgContent)
-        console.log('用户消息发送成功:', userMessage)
-        
-        addMessage(userMessage)
-        setMessage('')
-        scrollToBottom()
-        
-        // 在顾问未接管的情况下获取AI回复
-        if (!isConsultantTakeover) {
-          try {
-            console.log('正在获取AI回复...')
-            const aiResponsePromise = getAIResponse(conversationId, userMessage)
-            const timeoutPromise = new Promise<null>((_, reject) => 
-              setTimeout(() => reject(new Error('获取AI回复超时')), 15000)
-            )
-            
-            const aiResponse = await Promise.race([aiResponsePromise, timeoutPromise])
-            
-            if (aiResponse) {
-              console.log('AI回复获取成功:', aiResponse)
-              addMessage(aiResponse)
-              scrollToBottom()
-            } else {
-              console.log('未收到AI回复')
-            }
-          } catch (error) {
-            console.error('获取AI回复失败:', error)
-          }
-        } else {
-          console.log('顾问已接管，跳过AI回复')
-        }
-      } catch (error) {
-        console.error('发送消息失败:', error)
-        // 添加用户友好的错误提示
-        if (error instanceof Error) {
-          console.error('错误详情:', error.message)
-          setSendError(`发送失败: ${error.message}`)
-        } else {
-          setSendError('发送消息失败，请稍后重试')
-        }
-      } finally {
-        setIsSending(false)
-      }
+    // 发送消息到指定会话的内联函数
+    async function sendMessageToConversation(conversationId: string, msgContent: string) {
+      console.log('=== 发送消息到会话 ===')
+      console.log('会话ID:', conversationId)
+      console.log('消息内容:', msgContent)
+      
+      // 发送用户消息
+      console.log('正在发送用户消息...')
+      const userMessage = await sendTextMessage(conversationId, msgContent)
+      console.log('用户消息发送成功:', userMessage)
+      
+      addMessage(userMessage)
+      scrollToBottom()
     }
-  }, [message, isSending, currentConversationId, router, user, wsStatus, isConsultantTakeover, addMessage, scrollToBottom])
-
-  const handleSendImageMessage = useCallback(async () => {
-    if (!imagePreview || !currentConversationId || isSending) return
-    
-    setIsSending(true)
-    try {
-      await sendImageMessage(currentConversationId, imagePreview)
-      cancelImagePreview()
-      silentlyUpdateMessages()
-    } catch (error) {
-      console.error('发送图片失败:', error)
-    } finally {
-      setIsSending(false)
-    }
-  }, [imagePreview, currentConversationId, isSending, cancelImagePreview, silentlyUpdateMessages])
-
-  const handleSendVoiceMessage = useCallback(async () => {
-    if (!audioPreview || !currentConversationId || isSending) return
-    
-    setIsSending(true)
-    try {
-      await sendVoiceMessage(currentConversationId, audioPreview)
-      cancelAudioPreview()
-      silentlyUpdateMessages()
-    } catch (error) {
-      console.error('发送语音失败:', error)
-    } finally {
-      setIsSending(false)
-    }
-  }, [audioPreview, currentConversationId, isSending, cancelAudioPreview, silentlyUpdateMessages])
-
-  // 录音处理
-  const handleStartRecording = useCallback(async () => {
-    cancelAudioPreview()
-    await startRecording()
-  }, [startRecording, cancelAudioPreview])
-
-  const handleStopRecording = useCallback(async () => {
-    const audioUrl = await stopRecording()
-    if (audioUrl) {
-      setAudioPreview(audioUrl)
-    }
-  }, [stopRecording, setAudioPreview])
-
-  // 切换顾问接管状态
-  const toggleConsultantMode = useCallback(async () => {
-    if (!currentConversationId) return
-
-    try {
-      if (isConsultantTakeover) {
-        const success = await switchBackToAI(currentConversationId)
-        if (success) {
-          setIsConsultantTakeover(false)
-        }
-      } else {
-        const success = await takeoverConversation(currentConversationId)
-        if (success) {
-          setIsConsultantTakeover(true)
-        }
-      }
-    } catch (error) {
-      console.error('切换顾问模式失败:', error)
-    }
-  }, [currentConversationId, isConsultantTakeover, setIsConsultantTakeover])
+  }, [currentConversationId, router, user, addMessage, scrollToBottom])
 
   // 按日期分组消息
   const messageGroups = useMemo(() => {
@@ -517,51 +299,14 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         )}
       </div>
       
-      {/* FAQ快捷入口 */}
-      {showFAQ && (
-        <FAQSection 
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          insertFAQ={insertFAQ}
-          closeFAQ={() => setShowFAQ(false)}
-          messages={messages}
-        />
-      )}
-      
-      {/* 隐藏的文件输入 */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        className="hidden"
-        accept="image/*"
-        onChange={handleImageUpload}
-      />
-      
-      {/* 使用MessageInput组件替换原来的输入区域 */}
+      {/* 消息输入组件 - 现在完全自管理所有输入功能 */}
       <MessageInput
-        message={message}
-        setMessage={setMessage}
-        imagePreview={imagePreview}
-        audioPreview={audioPreview}
-        isRecording={isRecording}
-        recordingTime={recordingTime}
-        isSending={isSending}
-        handleSendMessage={handleSendMessage}
-        startRecording={handleStartRecording}
-        stopRecording={handleStopRecording}
-        cancelRecording={cancelRecording}
-        cancelImagePreview={cancelImagePreview}
-        cancelAudioPreview={cancelAudioPreview}
-        triggerFileSelect={triggerFileSelect}
-        toggleFAQ={() => setShowFAQ(!showFAQ)}
+        conversationId={currentConversationId}
+        onSendTextMessage={handleSendTextMessage}
         toggleSearch={() => setShowSearch(!showSearch)}
-        isConsultant={isConsultant}
-        isConsultantTakeover={isConsultantTakeover}
-        toggleConsultantMode={toggleConsultantMode}
-        showFAQ={showFAQ}
         showSearch={showSearch}
-        sendError={sendError}
-        setSendError={setSendError}
+        onUpdateMessages={silentlyUpdateMessages}
+        messages={messages}
       />
     </div>
   )
