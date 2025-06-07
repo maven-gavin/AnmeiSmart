@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { WebSocketProvider } from "@/contexts/WebSocketContext";
+import { GlobalConnectionStatus } from "@/components/layout/GlobalConnectionStatus";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -21,6 +22,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProvider>
           <WebSocketProvider>
+            <GlobalConnectionStatus />
             <main className="min-h-screen bg-gray-50">
               {children}
             </main>

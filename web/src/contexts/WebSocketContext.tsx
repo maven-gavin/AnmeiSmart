@@ -135,30 +135,52 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
     }
   };
 
-  // 页面可见性处理
+  // 智能重连处理
   useEffect(() => {
+    let reconnectTimer: NodeJS.Timeout;
+    
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && !isConnected) {
-        console.log('页面变为可见，检查全局WebSocket连接');
+        console.log('页面变为可见，尝试重新连接WebSocket');
         connect();
       }
     };
 
     const handleFocus = () => {
       if (!isConnected) {
-        console.log('窗口获得焦点，检查全局WebSocket连接');
+        console.log('窗口获得焦点，尝试重新连接WebSocket');
         connect();
       }
     };
 
+    const handleOnline = () => {
+      console.log('网络恢复，尝试重新连接WebSocket');
+      connect();
+    };
+
+    // 自动重连逻辑
+    if (!isConnected && connectionStatus === ConnectionStatus.DISCONNECTED) {
+      console.log('检测到连接断开，3秒后自动重连');
+      reconnectTimer = setTimeout(() => {
+        if (!isConnected && mounted.current) {
+          connect();
+        }
+      }, 3000);
+    }
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
+    window.addEventListener('online', handleOnline);
 
     return () => {
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('online', handleOnline);
     };
-  }, [isConnected]);
+  }, [isConnected, connectionStatus]);
 
   // 组件卸载时清理
   useEffect(() => {

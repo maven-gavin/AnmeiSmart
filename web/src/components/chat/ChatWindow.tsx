@@ -4,7 +4,6 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { type Message } from '@/types/chat'
 import ChatMessage from '@/components/chat/ChatMessage'
 import { SearchBar } from '@/components/chat/SearchBar'
-import { ConnectionStatusIndicator } from '@/components/chat/ConnectionStatus'
 import MessageInput from '@/components/chat/MessageInput'
 import { 
   getOrCreateConversation
@@ -60,7 +59,6 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     importantMessages,
     showImportantOnly,
     silentlyUpdateMessages,
-    toggleMessageImportant,
     toggleShowImportantOnly,
     addMessage
   } = useChatMessages({ conversationId: currentConversationId, mounted })
@@ -79,7 +77,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   } = useSearch(messages)
 
   // 使用新的全局WebSocket架构
-  const { isConnected, connectionStatus, lastJsonMessage } = useWebSocket()
+  const { lastJsonMessage } = useWebSocket()
 
   // 监听props/searchParams中的conversationId变化
   useEffect(() => {
@@ -214,15 +212,6 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           onClose={closeSearch}
         />
       )}
-      
-      {/* WebSocket连接状态指示器 */}
-      <ConnectionStatusIndicator 
-        wsStatus={connectionStatus} 
-        onReconnect={() => {
-          console.log('手动重连WebSocket (新架构下自动管理连接)')
-          // 新架构下WebSocket连接自动管理，这里只是占位
-        }} 
-      />
       
       {/* 聊天记录 */}
       <div 
