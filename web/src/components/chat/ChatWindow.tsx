@@ -14,7 +14,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 
 // 自定义hooks
 import { useChatMessages } from '@/hooks/useChatMessages'
-import { useWebSocketConnection } from '@/hooks/useWebSocketConnection'
+import { useWebSocket } from '@/contexts/WebSocketContext'
 import { useSearch } from '@/hooks/useSearch'
 
 interface ChatWindowProps {
@@ -78,26 +78,8 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     clearSearch
   } = useSearch(messages)
 
-  // WebSocket消息处理回调
-  const handleWebSocketMessage = useCallback(async (data: unknown) => {
-    console.log(`ChatWindow收到当前会话的WebSocket消息:`, data)
-    
-    try {
-      const hasNewMessage = await silentlyUpdateMessages()
-      if (hasNewMessage) {
-        setTimeout(scrollToBottom, 100)
-      }
-    } catch (error) {
-      console.error('更新消息失败:', error)
-    }
-  }, [silentlyUpdateMessages])
-
-  const { wsStatus, reconnectWebSocket } = useWebSocketConnection({
-    userId: user?.id,
-    conversationId: currentConversationId,
-    mounted,
-    onMessageReceived: handleWebSocketMessage
-  })
+  // 使用新的全局WebSocket架构
+  const { isConnected, connectionStatus, lastJsonMessage } = useWebSocket()
 
   // 监听props/searchParams中的conversationId变化
   useEffect(() => {
@@ -121,6 +103,26 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
     }
   }, [])
+
+  // 监听WebSocket消息 - 新架构
+  useEffect(() => {
+    if (!lastJsonMessage || !currentConversationId) return
+
+    // 只处理当前会话的消息
+    if (lastJsonMessage.action === 'new_message' && 
+        lastJsonMessage.data?.conversation_id === currentConversationId) {
+      console.log(`ChatWindow收到当前会话的WebSocket消息:`, lastJsonMessage.data)
+      
+      // 静默更新消息列表
+      silentlyUpdateMessages().then(hasNewMessage => {
+        if (hasNewMessage) {
+          setTimeout(scrollToBottom, 100)
+        }
+      }).catch(error => {
+        console.error('更新消息失败:', error)
+      })
+    }
+  }, [lastJsonMessage, currentConversationId, silentlyUpdateMessages, scrollToBottom])
 
   // 新消息自动滚动到底部
   useEffect(() => {
@@ -215,8 +217,11 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       
       {/* WebSocket连接状态指示器 */}
       <ConnectionStatusIndicator 
-        wsStatus={wsStatus} 
-        onReconnect={reconnectWebSocket} 
+        wsStatus={connectionStatus} 
+        onReconnect={() => {
+          console.log('手动重连WebSocket (新架构下自动管理连接)')
+          // 新架构下WebSocket连接自动管理，这里只是占位
+        }} 
       />
       
       {/* 聊天记录 */}
