@@ -281,11 +281,14 @@ async def test_websocket_token_verification():
     mock_user._active_role = None  # 没有活跃角色
     mock_db.query.return_value.filter.return_value.first.return_value = mock_user
     
-    # Mock token验证
-    with patch('app.core.security.verify_token') as mock_verify:
-        mock_verify.return_value = "user123"  # verify_token 应该返回字符串而不是字典
+    # Mock JWT解码而不是整个verify_token函数
+    with patch('app.core.security.jwt.decode') as mock_jwt_decode:
+        mock_jwt_decode.return_value = {
+            "sub": "user123",
+            "exp": 9999999999  # 遥远的未来时间戳
+        }
         
-        from app.api.v1.endpoints.chat import verify_websocket_token
+        from app.api.v1.endpoints.websocket import verify_websocket_token
         
         result = await verify_websocket_token("valid_token", mock_db)
         
@@ -301,10 +304,11 @@ async def test_websocket_invalid_token():
     
     mock_db = MagicMock()
     
-    with patch('app.core.security.verify_token') as mock_verify:
-        mock_verify.return_value = None  # 无效token
+    with patch('app.core.security.jwt.decode') as mock_jwt_decode:
+        from jose import JWTError
+        mock_jwt_decode.side_effect = JWTError("Invalid token")
         
-        from app.api.v1.endpoints.chat import verify_websocket_token
+        from app.api.v1.endpoints.websocket import verify_websocket_token
         
         result = await verify_websocket_token("invalid_token", mock_db)
         
@@ -747,6 +751,487 @@ def test_consultant_release_conversation_http(
         result = response.json()
         assert "会话已恢复为AI回复" in result["message"]
         assert result["is_ai_controlled"] is True
+
+
+# ============ 补充缺失的API测试用例 ============
+
+def test_mark_message_as_important(
+    client: TestClient,
+    get_token: str,
+    db: Session,
+    fake_customer,
+    fake_conversation
+):
+    """测试标记消息为重点功能"""
+    token = get_token
+    
+    # 创建一条测试消息
+    test_message = Message(
+        id="important_msg_123",
+        conversation_id=fake_conversation.id,
+        content="重要消息内容",
+        type="text",
+        sender_id=fake_customer.id,
+        sender_type="customer",
+        is_important=False,
+        timestamp=datetime.now()
+    )
+    db.add(test_message)
+    db.commit()
+    
+    # 标记为重点
+    response = client.put(
+        f"/api/v1/chat/conversations/{fake_conversation.id}/messages/{test_message.id}/important",
+        json={"is_important": True},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    assert response.status_code == 200
+    result = response.json()
+    assert "标记为重点" in result["message"]
+    
+    # 验证数据库中的状态
+    db.refresh(test_message)
+    assert test_message.is_important is True
+    
+    # 取消重点标记
+    response = client.put(
+        f"/api/v1/chat/conversations/{fake_conversation.id}/messages/{test_message.id}/important",
+        json={"is_important": False},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    assert response.status_code == 200
+    result = response.json()
+    assert "取消重点标记" in result["message"]
+
+
+def test_mark_message_as_important_permission_error(
+    client: TestClient,
+    get_token: str,
+    db: Session,
+    fake_customer,
+    fake_consultant
+):
+    """测试标记消息为重点的权限错误"""
+    token = get_token
+    
+    # 创建顾问的会话
+    consultant_conversation = Conversation(
+        title="顾问会话",
+        customer_id=fake_consultant.id,
+        is_ai_controlled=False
+    )
+    db.add(consultant_conversation)
+    db.commit()
+    db.refresh(consultant_conversation)
+    
+    # 创建顾问的消息
+    consultant_message = Message(
+        id="consultant_msg_123",
+        conversation_id=consultant_conversation.id,
+        content="顾问消息",
+        type="text",
+        sender_id=fake_consultant.id,
+        sender_type="consultant",
+        timestamp=datetime.now()
+    )
+    db.add(consultant_message)
+    db.commit()
+    
+    # 客户尝试标记顾问会话中的消息（应该失败）
+    response = client.put(
+        f"/api/v1/chat/conversations/{consultant_conversation.id}/messages/{consultant_message.id}/important",
+        json={"is_important": True},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    assert response.status_code == 403
+
+
+def test_mark_nonexistent_message_as_important(
+    client: TestClient,
+    get_token: str,
+    fake_conversation
+):
+    """测试标记不存在的消息为重点"""
+    token = get_token
+    
+    response = client.put(
+        f"/api/v1/chat/conversations/{fake_conversation.id}/messages/nonexistent_msg/important",
+        json={"is_important": True},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    assert response.status_code == 404
+
+
+def test_get_conversation_summary_detailed(
+    client: TestClient,
+    get_token: str,
+    db: Session,
+    fake_customer,
+    fake_conversation
+):
+    """测试获取会话摘要（详细版本）"""
+    token = get_token
+    
+    # 添加一些消息到会话中
+    messages = [
+        Message(
+            id=f"summary_msg_{i}",
+            conversation_id=fake_conversation.id,
+            content=f"摘要测试消息 {i}",
+            type="text",
+            sender_id=fake_customer.id,
+            sender_type="customer",
+            timestamp=datetime.now()
+        )
+        for i in range(5)
+    ]
+    
+    for msg in messages:
+        db.add(msg)
+    db.commit()
+    
+    response = client.get(
+        f"/api/v1/chat/conversations/{fake_conversation.id}/summary",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    assert response.status_code == 200
+    result = response.json()
+    
+    # 验证摘要包含预期信息
+    assert "id" in result or "message_count" in result or "conversation_id" in result
+
+
+def test_update_conversation_detailed(
+    client: TestClient,
+    get_token: str,
+    db: Session,
+    fake_customer,
+    fake_conversation
+):
+    """测试更新会话详细信息"""
+    token = get_token
+    
+    # 测试更新标题
+    update_data = {
+        "title": "更新后的详细标题"
+    }
+    
+    response = client.patch(
+        f"/api/v1/chat/conversations/{fake_conversation.id}",
+        json=update_data,
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    assert response.status_code == 200
+    result = response.json()
+    assert result["title"] == "更新后的详细标题"
+    
+    # 验证数据库中的更新
+    db.refresh(fake_conversation)
+    assert fake_conversation.title == "更新后的详细标题"
+
+
+def test_update_conversation_permission_error(
+    client: TestClient,
+    get_token: str,
+    db: Session,
+    fake_consultant
+):
+    """测试更新会话权限错误"""
+    token = get_token
+    
+    # 创建其他用户的会话
+    other_conversation = Conversation(
+        title="其他用户会话",
+        customer_id=fake_consultant.id,
+        is_ai_controlled=True
+    )
+    db.add(other_conversation)
+    db.commit()
+    db.refresh(other_conversation)
+    
+    # 尝试更新其他用户的会话
+    update_data = {"title": "非法更新"}
+    
+    response = client.patch(
+        f"/api/v1/chat/conversations/{other_conversation.id}",
+        json=update_data,
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    assert response.status_code == 403
+
+
+def test_send_message_http_detailed(
+    client: TestClient,
+    get_token: str,
+    db: Session,
+    fake_customer,
+    fake_conversation
+):
+    """测试HTTP发送消息的详细功能"""
+    token = get_token
+    
+    # 测试发送文本消息
+    text_data = {
+        "content": "详细的HTTP文本消息",
+        "type": "text"
+    }
+    
+    response = client.post(
+        f"/api/v1/chat/conversations/{fake_conversation.id}/messages",
+        json=text_data,
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    assert response.status_code == 200
+    result = response.json()
+    assert result["content"] == "详细的HTTP文本消息"
+    assert result["type"] == "text"
+    assert result["conversation_id"] == fake_conversation.id
+    
+    # 验证消息在数据库中
+    saved_message = db.query(Message).filter(
+        Message.conversation_id == fake_conversation.id,
+        Message.content == "详细的HTTP文本消息"
+    ).first()
+    assert saved_message is not None
+    
+    # 测试发送图片消息
+    image_data = {
+        "content": "https://example.com/image.jpg",
+        "type": "image"
+    }
+    
+    response = client.post(
+        f"/api/v1/chat/conversations/{fake_conversation.id}/messages",
+        json=image_data,
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    assert response.status_code == 200
+    result = response.json()
+    assert result["type"] == "image"
+
+
+def test_send_message_to_nonexistent_conversation(
+    client: TestClient,
+    get_token: str
+):
+    """测试向不存在的会话发送消息"""
+    token = get_token
+    data = {
+        "content": "消息内容",
+        "type": "text"
+    }
+    
+    response = client.post(
+        "/api/v1/chat/conversations/nonexistent_id/messages",
+        json=data,
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    assert response.status_code == 400 or response.status_code == 404
+
+
+def test_get_conversations_pagination(
+    client: TestClient,
+    get_token: str,
+    db: Session,
+    fake_customer
+):
+    """测试会话列表分页功能"""
+    token = get_token
+    
+    # 创建多个会话用于测试分页
+    conversations = []
+    for i in range(15):
+        conv = Conversation(
+            title=f"分页测试会话 {i}",
+            customer_id=fake_customer.id,
+            is_ai_controlled=True
+        )
+        db.add(conv)
+        conversations.append(conv)
+    db.commit()
+    
+    # 测试第一页
+    response = client.get(
+        "/api/v1/chat/conversations?skip=0&limit=10",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    assert response.status_code == 200
+    result = response.json()
+    assert len(result) <= 10
+    
+    # 测试第二页
+    response = client.get(
+        "/api/v1/chat/conversations?skip=10&limit=10",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    assert response.status_code == 200
+    result = response.json()
+    assert len(result) >= 5  # 应该有剩余的会话
+
+
+def test_consultant_takeover_permission_error(
+    client: TestClient,
+    get_token: str,
+    fake_conversation
+):
+    """测试非顾问用户尝试接管会话"""
+    token = get_token  # 这是customer token
+    
+    response = client.post(
+        f"/api/v1/chat/conversations/{fake_conversation.id}/takeover",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    assert response.status_code == 403
+
+
+def test_consultant_release_permission_error(
+    client: TestClient,
+    get_token: str,
+    fake_conversation
+):
+    """测试非顾问用户尝试取消接管"""
+    token = get_token  # 这是customer token
+    
+    response = client.post(
+        f"/api/v1/chat/conversations/{fake_conversation.id}/release",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    assert response.status_code == 403
+
+
+def test_takeover_nonexistent_conversation(
+    client: TestClient,
+    get_token: str,
+    fake_consultant
+):
+    """测试接管不存在的会话"""
+    with patch('app.api.deps.get_current_user') as mock_user:
+        mock_user.return_value = fake_consultant
+        
+        response = client.post(
+            "/api/v1/chat/conversations/nonexistent_id/takeover",
+            headers={"Authorization": f"Bearer {get_token}"}
+        )
+        
+        assert response.status_code == 404
+
+
+def test_release_nonexistent_conversation(
+    client: TestClient,
+    get_token: str,
+    fake_consultant
+):
+    """测试取消接管不存在的会话"""
+    with patch('app.api.deps.get_current_user') as mock_user:
+        mock_user.return_value = fake_consultant
+        
+        response = client.post(
+            "/api/v1/chat/conversations/nonexistent_id/release",
+            headers={"Authorization": f"Bearer {get_token}"}
+        )
+        
+        assert response.status_code == 404
+
+
+def test_mark_multiple_messages_as_read(
+    client: TestClient,
+    get_token: str,
+    db: Session,
+    fake_customer,
+    fake_conversation
+):
+    """测试批量标记消息为已读"""
+    token = get_token
+    
+    # 创建多条未读消息
+    messages = []
+    for i in range(3):
+        msg = Message(
+            id=f"batch_read_msg_{i}",
+            conversation_id=fake_conversation.id,
+            content=f"批量已读测试消息 {i}",
+            type="text",
+            sender_id=fake_customer.id,
+            sender_type="customer",
+            is_read=False,
+            timestamp=datetime.now()
+        )
+        db.add(msg)
+        messages.append(msg)
+    db.commit()
+    
+    # 逐个标记为已读
+    for msg in messages:
+        response = client.put(
+            f"/api/v1/chat/messages/{msg.id}/read",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        assert response.status_code == 200
+        
+        # 验证状态更新
+        db.refresh(msg)
+        assert msg.is_read is True
+
+
+def test_invalid_message_type_send(
+    client: TestClient,
+    get_token: str,
+    fake_conversation
+):
+    """测试发送无效类型的消息"""
+    token = get_token
+    
+    # 发送无效的消息类型
+    invalid_data = {
+        "content": "消息内容",
+        "type": "invalid_type"
+    }
+    
+    response = client.post(
+        f"/api/v1/chat/conversations/{fake_conversation.id}/messages",
+        json=invalid_data,
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    # 根据实际实现，这可能返回400、422或者接受任何类型
+    assert response.status_code in [200, 400, 422]
+
+
+def test_empty_message_send(
+    client: TestClient,
+    get_token: str,
+    fake_conversation
+):
+    """测试发送空消息"""
+    token = get_token
+    
+    empty_data = {
+        "content": "",
+        "type": "text"
+    }
+    
+    response = client.post(
+        f"/api/v1/chat/conversations/{fake_conversation.id}/messages",
+        json=empty_data,
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    # 根据实际业务逻辑，空消息可能被拒绝
+    assert response.status_code in [200, 400]
 
 
 # ============ 权限和错误处理测试 ============

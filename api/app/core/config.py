@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     WEAVIATE_API_KEY: str = "WVF5YThaHlkYwhGUSmCRgsX3tD5ngdN8pkih"
     MONGODB_ENABLED: bool = True
     
+    # Redis配置
+    REDIS_URL: str = "redis://:difyai123456@localhost:6379"
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_PASSWORD: str = "difyai123456"
+    REDIS_DB: int = 0
+    
     # JWT配置
     SECRET_KEY: str = "difyai123456"
     ALGORITHM: str = "HS256"
@@ -40,6 +47,19 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = "your_openai_api_key"
     OPENAI_API_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_MODEL: str = "gpt-3.5-turbo"
+    
+    # 通知服务配置
+    NOTIFICATION_PROVIDER: str = "logging"  # logging, firebase, apns
+    
+    # Firebase配置 (TODO: 待实现)
+    FIREBASE_CREDENTIALS_PATH: str = ""
+    FIREBASE_PROJECT_ID: str = ""
+    
+    # Apple Push Notification配置 (TODO: 待实现)
+    APNS_KEY_PATH: str = ""
+    APNS_KEY_ID: str = ""
+    APNS_TEAM_ID: str = ""
+    APNS_BUNDLE_ID: str = ""
     
     model_config = ConfigDict(case_sensitive=True, env_file=".env")
 

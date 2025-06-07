@@ -6,8 +6,7 @@
 import { authService } from '../authService';
 import { getWebSocketClient, ConnectionStatus, WebSocketClient } from '../websocket';
 import { SenderType } from '../websocket/types';
-import { TextMessageHandler } from '../websocket/handlers/textHandler';
-import { SystemMessageHandler } from '../websocket/handlers/systemHandler';
+import { MessageEventHandler } from '../websocket/handlers/messageEventHandler';
 import { getDeviceInfo, getWebSocketDeviceConfig, formatDeviceInfo, type DeviceInfo } from '../utils';
 import type { WebSocketConnectionParams } from './types';
 
@@ -61,7 +60,8 @@ export class ChatWebSocketManager {
         throw new Error('WebSocket主机未配置');
       }
       
-      const baseUrl = `${wsProtocol}//${wsHost}/api/v1/chat/ws`;
+      // 修改为新的通用WebSocket端点
+      const baseUrl = `${wsProtocol}//${wsHost}/api/v1/ws`;
       console.log('WebSocket连接基础URL:', baseUrl);
       
       // 根据设备类型获取优化配置
@@ -94,35 +94,34 @@ export class ChatWebSocketManager {
   }
   
   /**
-   * 注册消息处理器
+   * 注册消息处理器 - 新的分布式WebSocket架构
    */
   private registerHandlers(): void {
     if (!this.wsClient) return;
     
-    // 注册处理器
-    this.wsClient.registerHandler(new TextMessageHandler());
-    this.wsClient.registerHandler(new SystemMessageHandler());
+    // 注册消息事件处理器（专为新架构设计）
+    const eventHandler = new MessageEventHandler(1);
+    this.wsClient.registerHandler(eventHandler);
     
-    // 添加处理器回调
-    const textHandler = this.wsClient.getHandlers().find(h => h.getName() === 'TextMessageHandler');
-    if (textHandler) {
-      textHandler.addCallback('message', (data: any) => {
-        console.log('收到文本消息:', data);
-        this.handleMessage(data);
-      });
-    }
+    // 设置事件处理器回调
+    eventHandler.addNewMessageCallback((data: any) => {
+      console.log('收到新消息广播:', data);
+      this.handleMessage({ action: 'new_message', data });
+    });
     
-    const systemHandler = this.wsClient.getHandlers().find(h => h.getName() === 'SystemMessageHandler');
-    if (systemHandler) {
-      systemHandler.addCallback('system', (data: any) => {
-        console.log('收到系统消息:', data);
-        this.handleMessage(data);
-      });
-    }
+    eventHandler.addPresenceUpdateCallback((data: any) => {
+      console.log('收到用户在线状态更新:', data);
+      this.handleMessage({ action: 'presence_update', data });
+    });
     
-    // 添加状态变更监听
+    eventHandler.addEventCallback((data: any) => {
+      console.log('收到分布式WebSocket事件:', data);
+      this.handleMessage(data);
+    });
+    
+    // 添加连接状态监听
     this.wsClient.addConnectionStatusListener((event: any) => {
-      console.log('WebSocket状态变更:', event);
+      console.log('分布式WebSocket连接状态变更:', event);
     });
   }
   
@@ -142,14 +141,14 @@ export class ChatWebSocketManager {
         return;
       }
       
-      // 构建连接参数，包含设备信息
+      // 构建连接参数 - 分布式WebSocket架构（纯连接层）
       const connectionParams: WebSocketConnectionParams = {
         userId,
-        conversationId,
+        conversationId, // 仅用于前端逻辑，不传递给WebSocket连接
         token,
         userType: this.mapUserRoleToSenderType(userRole),
-        connectionId: `${userId}_${conversationId}_${Date.now()}`,
-        // 添加设备信息
+        connectionId: `${userId}_${Date.now()}`, // 移除conversationId，纯设备连接标识
+        // 设备信息
         deviceId: this.deviceInfo?.deviceId,
         deviceType: this.deviceInfo?.type,
         deviceIP: this.deviceInfo?.ip,
@@ -158,10 +157,14 @@ export class ChatWebSocketManager {
         screenResolution: this.deviceInfo ? `${this.deviceInfo.screenWidth}x${this.deviceInfo.screenHeight}` : undefined
       };
       
-      console.log('连接WebSocket:', {
-        ...connectionParams,
+      console.log('连接分布式WebSocket (纯连接层):', {
+        userId: connectionParams.userId,
+        connectionId: connectionParams.connectionId,
+        deviceType: connectionParams.deviceType,
         userAgent: connectionParams.userAgent?.substring(0, 50) + '...', // 截断用户代理字符串
-        deviceInfo: this.deviceInfo ? formatDeviceInfo(this.deviceInfo) : 'unknown'
+        deviceInfo: this.deviceInfo ? formatDeviceInfo(this.deviceInfo) : 'unknown',
+        architecture: 'distributed',
+        note: 'conversationId不传递给WebSocket，仅用于前端业务逻辑'
       });
       
       if (!this.wsClient) {
@@ -173,7 +176,12 @@ export class ChatWebSocketManager {
       }
       
       await this.wsClient.connect(connectionParams);
-      console.log(`WebSocket连接成功建立 [${this.deviceInfo?.type?.toUpperCase() || 'UNKNOWN'}]`);
+      console.log(`分布式WebSocket连接成功 [${this.deviceInfo?.type?.toUpperCase() || 'UNKNOWN'}]`, {
+        endpoint: '/api/v1/ws',
+        architecture: 'distributed-redis-pubsub',
+        layer: 'connection-only',
+        note: `会话${conversationId}的业务逻辑将通过消息处理`
+      });
       
     } catch (error: any) {
       console.error('WebSocket连接失败:', error);

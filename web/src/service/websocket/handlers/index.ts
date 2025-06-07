@@ -1,20 +1,16 @@
 import { MessageHandler, MessageHandlerRegistry } from './messageHandler';
-import { TextMessageHandler } from './textHandler';
-import { SystemMessageHandler } from './systemHandler';
-import { CustomChatHandler } from './customChatHandler';
+import { MessageEventHandler } from './messageEventHandler';
 import { MessageType } from '../types';
 
 /**
- * 创建默认的处理器注册表
+ * 创建默认的处理器注册表 - 新分布式架构
  * @returns 包含默认处理器的注册表
  */
 export function createDefaultHandlerRegistry(): MessageHandlerRegistry {
   const registry = new MessageHandlerRegistry();
   
-  // 注册默认处理器
-  registry.registerHandler(new TextMessageHandler());
-  registry.registerHandler(new SystemMessageHandler());
-  registry.registerHandler(new CustomChatHandler());
+  // 注册新架构的事件处理器
+  registry.registerHandler(new MessageEventHandler());
   
   return registry;
 }
@@ -51,7 +47,5 @@ export function createCustomHandler(
 export {
   MessageHandler,
   MessageHandlerRegistry,
-  TextMessageHandler,
-  SystemMessageHandler,
-  CustomChatHandler
+  MessageEventHandler
 }; 

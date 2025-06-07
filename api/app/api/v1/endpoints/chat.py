@@ -1,32 +1,49 @@
 """
 聊天API端点 - 重构后的版本，使用分层架构
 """
-import json
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, status
-from sqlalchemy.orm import Session, joinedload
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user
 from app.db.models.user import User
-from app.db.models.customer import Customer, CustomerProfile
 from app.schemas.chat import (
     ConversationCreate, ConversationInfo,
-    MessageCreate, MessageCreateRequest, MessageInfo
+    MessageCreateRequest, MessageInfo
 )
-from app.schemas.customer import CustomerProfileInfo, RiskNote, ConsultationHistoryItem
 
 # 导入新的服务层
-from app.services.chat import ChatService, MessageService, AIResponseService
-from app.services.websocket import websocket_handler, message_broadcaster
-from app.core.websocket_manager import websocket_manager
+from app.services.chat import ChatService
 from app.core.events import event_bus, EventTypes
+
+# 导入新的分布式WebSocket组件
+from app.services.broadcasting_service import BroadcastingService
+from app.api.v1.endpoints.websocket import get_connection_manager
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def create_chat_service(db: Session) -> ChatService:
+    """
+    创建ChatService实例，集成新的广播服务
+    """
+    try:
+        # 获取分布式连接管理器
+        connection_manager = get_connection_manager()
+        
+        # 创建广播服务
+        broadcasting_service = BroadcastingService(connection_manager, db)
+        
+        # 创建ChatService
+        return ChatService(db, broadcasting_service)
+    except Exception as e:
+        logger.warning(f"创建广播服务失败，使用基础ChatService: {e}")
+        # 降级处理：如果无法创建广播服务，返回基础ChatService
+        return ChatService(db)
 
 
 def get_user_role(user: User) -> str:
@@ -49,7 +66,7 @@ async def create_conversation(
 ):
     """创建新会话"""
     try:
-        chat_service = ChatService(db)
+        chat_service = create_chat_service(db)
         
         conversation = await chat_service.create_conversation(
             title=conversation_in.title,
@@ -76,7 +93,7 @@ async def get_conversations(
 ):
     """获取会话列表，可选根据客户ID筛选"""
     try:
-        chat_service = ChatService(db)
+        chat_service = create_chat_service(db)
         user_role = get_user_role(current_user)
         
         # 权限检查
@@ -108,7 +125,7 @@ async def get_conversation(
 ):
     """获取指定会话"""
     try:
-        chat_service = ChatService(db)
+        chat_service = create_chat_service(db)
         user_role = get_user_role(current_user)
         
         conversation = chat_service.get_conversation_by_id(
@@ -142,7 +159,7 @@ async def get_conversation_messages(
 ):
     """获取会话消息"""
     try:
-        chat_service = ChatService(db)
+        chat_service = create_chat_service(db)
         user_role = get_user_role(current_user)
         
         # 直接返回service层结果，无需手动转换
@@ -170,13 +187,14 @@ async def send_message(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """发送消息（HTTP方式）"""
+    """发送消息（HTTP方式）- 使用新的分布式广播架构"""
     try:
-        chat_service = ChatService(db)
+        # 使用工厂函数创建集成了广播服务的ChatService
+        chat_service = create_chat_service(db)
         user_role = get_user_role(current_user)
         
-        # 直接返回service层结果，无需手动转换
-        message = await chat_service.send_message(
+        # 使用新的send_message_and_broadcast方法
+        message = await chat_service.send_message_and_broadcast(
             conversation_id=conversation_id,
             content=message_in.content,
             message_type=message_in.type,
@@ -202,7 +220,7 @@ async def mark_message_as_read(
 ):
     """标记消息为已读"""
     try:
-        chat_service = ChatService(db)
+        chat_service = create_chat_service(db)
         updated_count = chat_service.mark_messages_as_read([message_id], current_user.id)
         
         return {"message": f"已标记 {updated_count} 条消息为已读"}
@@ -222,7 +240,7 @@ async def mark_message_as_important(
 ):
     """标记消息为重点"""
     try:
-        chat_service = ChatService(db)
+        chat_service = create_chat_service(db)
         user_role = get_user_role(current_user)
         
         is_important = request_data.get("is_important", False)
@@ -257,7 +275,7 @@ async def get_conversation_summary(
 ):
     """获取会话摘要"""
     try:
-        chat_service = ChatService(db)
+        chat_service = create_chat_service(db)
         summary = chat_service.get_conversation_summary(conversation_id)
         
         if not summary:
@@ -279,7 +297,7 @@ async def update_conversation(
 ):
     """更新会话信息（如标题）"""
     try:
-        chat_service = ChatService(db)
+        chat_service = create_chat_service(db)
         user_role = get_user_role(current_user)
         
         # 调用service层更新会话，直接返回结果
@@ -309,7 +327,7 @@ async def consultant_takeover_conversation(
     current_user: User = Depends(get_current_user)
 ):
     """顾问接管会话"""
-    chat_service = ChatService(db)
+    chat_service = create_chat_service(db)
     user_role = get_user_role(current_user)
     if user_role not in ["consultant", "doctor", "admin", "operator"]:
         raise HTTPException(status_code=403, detail="无权接管会话")
@@ -326,7 +344,7 @@ async def consultant_release_conversation(
     current_user: User = Depends(get_current_user)
 ):
     """顾问取消接管，恢复AI回复"""
-    chat_service = ChatService(db)
+    chat_service = create_chat_service(db)
     user_role = get_user_role(current_user)
     if user_role not in ["consultant", "doctor", "admin", "operator"]:
         raise HTTPException(status_code=403, detail="无权操作")
@@ -336,148 +354,6 @@ async def consultant_release_conversation(
     return {"message": "会话已恢复为AI回复", "is_ai_controlled": True}
 
 
-# ============ WebSocket 端点 ============
-
-@router.websocket("/ws/{conversation_id}")
-async def websocket_endpoint(
-    websocket: WebSocket,
-    conversation_id: str,
-    token: str = Query(...),
-    # 添加前端传递的可选参数，避免参数验证失败
-    userId: Optional[str] = Query(None),
-    userType: Optional[str] = Query(None),
-    connectionId: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
-):
-    """WebSocket连接端点 - 简化版，专注于连接管理"""
-    connection = None
-    user_id = None
-    user_role = None
-    
-    try:
-        # 验证token并获取用户信息
-        user_info = await verify_websocket_token(token, db)
-        if not user_info:
-            await websocket.close(code=4001, reason="Invalid token")
-            return
-        
-        user_id = user_info["user_id"]
-        user_role = user_info.get("role", "customer")  # 获取用户角色
-        
-        # 建立WebSocket连接
-        connection = await websocket_manager.connect(websocket, user_id, conversation_id)
-        
-        logger.info(f"WebSocket连接已建立: user_id={user_id}, role={user_role}, conversation_id={conversation_id}")
-        
-        # 发送连接确认
-        await connection.send_json({
-            "action": "connected",
-            "data": {"conversation_id": conversation_id, "user_role": user_role},
-            "timestamp": datetime.now().isoformat()
-        })
-        
-        # 消息处理循环
-        while True:
-            try:
-                # 接收消息
-                data = await websocket.receive_json()
-                
-                # 在消息数据中添加用户角色信息
-                if "data" not in data:
-                    data["data"] = {}
-                data["data"]["sender_type"] = user_role
-                
-                # 使用WebSocket处理器处理消息
-                response = await websocket_handler.handle_websocket_message(
-                    data, user_id, conversation_id
-                )
-                
-                # 发送响应（如果需要）
-                if response:
-                    await connection.send_json(response)
-                    
-            except WebSocketDisconnect:
-                logger.info(f"WebSocket客户端断开连接: user_id={user_id}")
-                break
-            except json.JSONDecodeError:
-                await connection.send_json(
-                    websocket_handler.create_error_response("无效的JSON格式")
-                )
-            except Exception as e:
-                logger.error(f"处理WebSocket消息失败: {e}")
-                await connection.send_json(
-                    websocket_handler.create_error_response(f"处理消息失败: {str(e)}")
-                )
-    
-    except Exception as e:
-        logger.error(f"WebSocket连接失败: {e}")
-        if websocket.client_state.name != "DISCONNECTED":
-            await websocket.close(code=4000, reason="Connection failed")
-    
-    finally:
-        # 清理连接
-        if connection and websocket:
-            await websocket_manager.disconnect(websocket)
-
-
-# ============ 辅助函数 ============
-
-async def verify_websocket_token(token: str, db: Session) -> Optional[dict]:
-    """验证WebSocket token并返回用户ID和角色"""
-    try:
-        # 使用安全模块验证token，直接获取user_id
-        from app.core.security import verify_token
-        user_id = verify_token(token)
-        if not user_id:
-            logger.warning("WebSocket token验证失败：token无效")
-            return None
-            
-        # 从数据库获取用户信息
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            logger.warning(f"Token中的用户ID在数据库中不存在: {user_id}")
-            return None
-        
-        # 获取用户当前角色
-        user_role = get_user_role(user)
-        
-        logger.debug(f"WebSocket token验证成功: user_id={user_id}, role={user_role}")
-        return {
-            "user_id": user_id,
-            "role": user_role,
-            "username": user.username
-        }
-        
-    except Exception as e:
-        logger.error(f"验证WebSocket token失败: {e}")
-        return None
-
-
-def get_user_role_from_token(token: str) -> str:
-    """从token中获取用户角色"""
-    try:
-        from app.core.security import verify_token
-        payload = verify_token(token)
-        
-        if payload and isinstance(payload, dict):
-            # 从token payload中获取角色信息
-            role = payload.get("role")
-            if role:
-                return role
-            
-            # 如果token中没有角色信息，从数据库查询
-            user_id = payload.get("sub")
-            if user_id:
-                # 这里需要访问数据库，但函数签名中没有db参数
-                # 简化处理：根据其他信息推断角色
-                # 实际项目中应该重构这个函数或改用其他方式
-                return "customer"  # 默认角色
-        
-        return "customer"  # 默认角色
-        
-    except Exception as e:
-        logger.error(f"从token获取角色失败: {e}")
-        return "customer"
 
 
 # ============ 事件处理器注册 ============
@@ -502,7 +378,4 @@ def setup_chat_event_handlers():
 
 
 # 初始化事件处理器
-setup_chat_event_handlers()
-
-# 确保消息广播器已初始化
-_ = message_broadcaster 
+setup_chat_event_handlers() 

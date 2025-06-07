@@ -340,3 +340,124 @@ api/
 ## 许可证
 
 MIT
+
+## Redis配置
+
+### 环境变量配置
+
+Redis配置通过环境变量管理，支持两种配置方式：
+
+#### 方式1：使用REDIS_URL（推荐）
+```bash
+REDIS_URL=redis://:password@host:port/db
+```
+
+#### 方式2：使用分离配置参数
+```bash
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=your_password
+REDIS_DB=0
+```
+
+### 配置步骤
+
+1. 复制环境变量示例文件：
+```bash
+cp env.example .env
+```
+
+2. 编辑`.env`文件，修改Redis配置：
+```bash
+# Redis配置
+REDIS_URL=redis://:difyai123456@localhost:6379
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=difyai123456
+REDIS_DB=0
+```
+
+3. 确保Redis服务已启动：
+```bash
+# 使用Docker启动Redis
+docker run -d --name redis -p 6379:6379 redis:7-alpine redis-server --requirepass difyai123456
+
+# 或使用本地Redis服务
+redis-server --requirepass difyai123456
+```
+
+### WebSocket分布式架构
+
+项目使用Redis Pub/Sub实现分布式WebSocket架构，支持：
+- 跨实例消息广播
+- 多设备连接管理
+- 在线状态检测
+- 设备类型区分
+
+### 安全注意事项
+
+- ⚠️ **生产环境**：请修改默认密码
+- ⚠️ **网络安全**：建议使用VPC内网或加密连接
+- ⚠️ **权限控制**：Redis实例应限制访问权限
+
+## 推送通知服务
+
+### 当前状态
+
+项目当前使用**日志记录推送服务**，所有推送通知都会在日志中记录，适合开发和测试环境。
+
+### 配置说明
+
+在`.env`文件中配置推送服务类型：
+```bash
+# 推送通知配置
+NOTIFICATION_PROVIDER=logging  # 当前使用日志记录服务
+```
+
+### 支持的消息类型
+
+- ✅ 聊天消息推送
+- ✅ 顾问回复通知
+- ✅ 系统通知
+- ✅ 设备特定推送（mobile/desktop）
+- ✅ 在线/离线状态检测
+
+### 推送策略
+
+- **在线用户**：通过WebSocket实时推送到所有设备
+- **离线用户**：记录推送日志（生产环境将发送真实推送）
+- **移动端优先**：重要消息优先推送到移动设备
+- **设备区分**：支持按设备类型精确推送
+
+### 日志示例
+
+```
+INFO  📱 推送通知 [mobile] [优先级: high]: user_123
+INFO     标题: 顾问回复
+INFO     内容: 您好，关于您的咨询问题...
+```
+
+### TODO: 未来扩展计划
+
+#### 真实推送服务集成
+- **Firebase FCM**：支持Android和Web推送
+- **Apple APNs**：支持iOS推送
+- **第三方服务**：极光推送、友盟推送等
+
+#### 高级功能
+- 用户推送偏好设置
+- 推送模板管理
+- 推送统计和监控
+- 时间段控制（免打扰模式）
+- 推送失败重试机制
+
+#### 配置示例（未来使用）
+```bash
+# Firebase FCM配置
+NOTIFICATION_PROVIDER=firebase
+FIREBASE_CREDENTIALS_PATH=/path/to/firebase-credentials.json
+
+# Apple APNs配置
+APNS_CERTIFICATE_PATH=/path/to/apns-certificate.p12
+APNS_CERTIFICATE_PASSWORD=your_certificate_password
+```

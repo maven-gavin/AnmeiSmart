@@ -14,6 +14,7 @@ from app.core.events import event_bus, EventTypes, create_user_event
 from .message_service import MessageService
 from .ai_response_service import AIResponseService
 from .conversation_matcher import ConversationMatcher
+from app.services.broadcasting_service import BroadcastingService
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +22,12 @@ logger = logging.getLogger(__name__)
 class ChatService:
     """聊天服务类 - 整合会话和消息管理"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, broadcasting_service: BroadcastingService = None):
         self.db = db
         self.message_service = MessageService(db)
         self.ai_response_service = AIResponseService(db)
         self.conversation_matcher = ConversationMatcher(db)
+        self.broadcasting_service = broadcasting_service
         
         # 订阅WebSocket事件
         event_bus.subscribe_async(EventTypes.WS_CONNECT, self.handle_user_connect)
@@ -245,7 +247,46 @@ class ChatService:
             is_important=is_important
         )
         
+        # 通过新的广播服务发送消息通知
+        if self.broadcasting_service:
+            try:
+                await self.broadcasting_service.broadcast_message(
+                    conversation_id=conversation_id,
+                    message_data=message.dict(),  # 转换为字典格式
+                    exclude_user_id=sender_id  # 排除发送者
+                )
+                logger.info(f"消息广播成功: message_id={message.id}")
+            except Exception as e:
+                logger.error(f"消息广播失败: message_id={message.id}, error={e}")
+        else:
+            logger.warning("BroadcastingService未注入，消息未广播")
+        
         return message
+    
+    async def send_message_and_broadcast(
+        self,
+        conversation_id: str,
+        content: str,
+        message_type: str,
+        sender_id: str,
+        sender_type: str,
+        is_important: bool = False,
+        auto_assign_on_first_message: bool = True
+    ) -> MessageInfo:
+        """
+        发送消息并广播（新方法，推荐使用）
+        
+        这个方法整合了消息保存和实时广播功能，是send_message的增强版本
+        """
+        return await self.send_message(
+            conversation_id=conversation_id,
+            content=content,
+            message_type=message_type,
+            sender_id=sender_id,
+            sender_type=sender_type,
+            is_important=is_important,
+            auto_assign_on_first_message=auto_assign_on_first_message
+        )
     
     def get_conversation_messages(
         self,

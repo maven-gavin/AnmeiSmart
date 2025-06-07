@@ -113,20 +113,9 @@ export class WebSocketClient {
     // 保存连接参数
     this.connectionParams = { ...params };
     
-    // 构建完整URL - 直接使用config.url，不再自动添加/ws/路径
+    // 构建完整URL - 分布式架构使用通用端点
     let url = this.config.url;
-    
-    // 添加会话ID到URL路径
-    if (params.conversationId) {
-      // 确保URL末尾有斜杠
-      if (!url.endsWith('/')) {
-        url = `${url}/`;
-      }
-      url = `${url}${params.conversationId}`;
-      console.log(`WebSocketClient: 为会话 ${params.conversationId} 构建URL: ${url}`);
-    } else {
-      throw new Error('会话ID是必需的');
-    }
+    console.log(`WebSocketClient: 连接分布式WebSocket端点: ${url}`);
     
     // 添加查询参数
     const queryParams = new URLSearchParams();
@@ -135,9 +124,14 @@ export class WebSocketClient {
       queryParams.append('token', params.token);
     }
     
-    // 添加其他参数，但排除已添加到URL的参数
+    // 添加会话ID作为查询参数（分布式架构要求）
+    if (params.conversationId) {
+      queryParams.append('conversationId', params.conversationId);
+    }
+    
+    // 添加其他参数
     Object.entries(params).forEach(([key, value]) => {
-      if (!['conversationId', 'token'].includes(key) && value !== undefined) {
+      if (!['token', 'conversationId'].includes(key) && value !== undefined) {
         queryParams.append(key, String(value));
       }
     });
@@ -147,9 +141,10 @@ export class WebSocketClient {
     const fullUrl = queryString ? `${url}?${queryString}` : url;
     
     // 记录连接开始
-    console.log(`WebSocketClient: 开始连接: ${fullUrl}`, {
+    console.log(`WebSocketClient: 开始连接分布式WebSocket: ${fullUrl}`, {
       conversationId: params.conversationId,
-      connectionId: params.connectionId || this.connectionParams.connectionId || '未指定'
+      connectionId: params.connectionId || this.connectionParams.connectionId || '未指定',
+      architecture: 'distributed-redis-pubsub'
     });
     
     try {
@@ -165,12 +160,12 @@ export class WebSocketClient {
       }
       
       if (this.config.debug) {
-        console.log(`WebSocketClient: 连接成功: ${fullUrl}, 状态: ${this.getConnectionStatus()}`);
+        console.log(`WebSocketClient: 分布式连接成功: ${fullUrl}, 状态: ${this.getConnectionStatus()}`);
       }
     } catch (error) {
       // 记录连接失败详情
       if (this.config.debug) {
-        console.error(`WebSocketClient: 连接失败: ${fullUrl}`, error);
+        console.error(`WebSocketClient: 分布式连接失败: ${fullUrl}`, error);
       }
       
       // 更新内部状态为断开连接

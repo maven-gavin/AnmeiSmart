@@ -56,6 +56,9 @@ yarn-error.log*
 debug.log
 
 # 本地配置
+.env
+.env.local
+.env.*.local
 
 # Python虚拟环境
 .Python
