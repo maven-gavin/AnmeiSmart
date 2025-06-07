@@ -149,14 +149,17 @@ export default function ChatMessage({
     
     try {
       setIsProcessing(true);
+      const newImportantState = !message.isImportant;
       const result = await markMessageAsImportant(
         message.conversationId, 
         message.id, 
-        !message.isImportant
+        newImportantState
       );
       
       if (result) {
-        toast.success(!message.isImportant ? '消息已标记为重点' : '已取消重点标记');
+        // 更新本地消息状态
+        message.isImportant = newImportantState;
+        toast.success(newImportantState ? '消息已标记为重点' : '已取消重点标记');
       } else {
         toast.error('操作失败，请重试');
       }
