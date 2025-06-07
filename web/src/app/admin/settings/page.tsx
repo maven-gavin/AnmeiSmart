@@ -367,7 +367,7 @@ export default function SystemSettingsPage() {
                       value={newModel.baseUrl}
                       onChange={(e) => setNewModel({...newModel, baseUrl: e.target.value})}
                       className="w-full rounded-md border border-gray-300 px-4 py-2 focus:border-orange-500 focus:outline-none"
-                      placeholder={newModel.provider === 'openai' ? "https://api.openai.com/v1" : "http://localhost/v1"}
+                                                  placeholder={newModel.provider === 'openai' ? "https://api.openai-proxy.com/v1" : "http://localhost/v1"}
                     />
                   </div>
                   

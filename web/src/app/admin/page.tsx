@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/contexts/AuthContext';
 import Link from 'next/link';
+import { ChatWebSocketStatus } from '@/components/chat/ChatWebSocketStatus';
 
 interface AdminCard {
   title: string;
@@ -69,7 +70,10 @@ export default function AdminDashboard() {
 
   return (
     <div className="container mx-auto px-4 py-6">
-      <h1 className="mb-6 text-2xl font-bold text-gray-800">管理员控制面板</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-800">管理员控制面板</h1>
+        <ChatWebSocketStatus />
+      </div>
       
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
         {adminCards.map((card, index) => (

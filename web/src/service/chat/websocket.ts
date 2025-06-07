@@ -138,7 +138,20 @@ export class ChatWebSocketManager {
     
     // 添加连接状态监听
     this.wsClient.addConnectionStatusListener((event: any) => {
-      console.log('分布式WebSocket连接状态变更:', event);
+      // 减少连接状态变更日志的频率
+      const statusChangeKey = `${event.oldStatus}_to_${event.newStatus}`;
+      const lastStatusLogTime = sessionStorage.getItem(`ws_status_log_${statusChangeKey}`);
+      const now = Date.now();
+      
+      if (!lastStatusLogTime || now - parseInt(lastStatusLogTime) > 10000) { // 10秒内相同状态变更不重复日志
+        console.log('分布式WebSocket连接状态变更:', {
+          oldStatus: event.oldStatus,
+          newStatus: event.newStatus,
+          connectionId: event.connectionId,
+          timestamp: now
+        });
+        sessionStorage.setItem(`ws_status_log_${statusChangeKey}`, now.toString());
+      }
     });
   }
   

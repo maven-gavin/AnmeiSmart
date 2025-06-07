@@ -290,12 +290,20 @@ export class WebSocketClient {
       
       // 只在开发模式下且消息类型重要时输出日志
       if (this.config.debug && this.shouldLogMessage(adaptedMessage)) {
-        console.log('WebSocket收到消息:', {
-          action: (adaptedMessage as any).action || 'unknown',
-          type: adaptedMessage.type || 'unknown',
-          timestamp: new Date().toISOString(),
-          handled
-        });
+        // 避免消息日志过于频繁
+        const messageKey = `${(adaptedMessage as any).action || 'unknown'}_${adaptedMessage.type || 'unknown'}`;
+        const lastLogTime = sessionStorage.getItem(`ws_msg_log_${messageKey}`);
+        const now = Date.now();
+        
+        if (!lastLogTime || now - parseInt(lastLogTime) > 5000) { // 5秒内相同类型消息不重复日志
+          console.log('WebSocket收到消息:', {
+            action: (adaptedMessage as any).action || 'unknown',
+            type: adaptedMessage.type || 'unknown',
+            timestamp: new Date().toISOString(),
+            handled
+          });
+          sessionStorage.setItem(`ws_msg_log_${messageKey}`, now.toString());
+        }
       }
     } catch (error) {
       console.error('处理WebSocket消息出错:', error);

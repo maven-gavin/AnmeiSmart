@@ -5,41 +5,25 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import ChatWindow from '@/components/chat/ChatWindow';
 import ConversationHistoryList from '@/components/chat/ConversationHistoryList';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { useAuthContext } from '@/contexts/AuthContext';
+import { ErrorDisplay } from '@/components/ui/ErrorDisplay';
+import { useRoleGuard } from '@/hooks/useRoleGuard';
+import { ChatWebSocketStatus } from '@/components/chat/ChatWebSocketStatus';
 
 function CustomerChatContent() {
-  const { user } = useAuthContext();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [error, setError] = useState<string | null>(null);
+  
+  // 使用公共的权限检查Hook
+  const { isAuthorized, error, loading } = useRoleGuard({
+    requiredRole: 'customer',
+    requireAuth: true,
+    redirectTo: '/login?redirect=/customer/chat'
+  });
+  
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
     searchParams?.get('conversationId') || null
   );
   const [showHistory, setShowHistory] = useState(true);
-
-  // 检查用户是否已登录
-  useEffect(() => {
-    if (!user) {
-      console.log('用户未登录，重定向到登录页面');
-      setError('请先登录');
-      const timer = setTimeout(() => {
-        router.push('/login?redirect=/customer/chat');
-      }, 1500);
-      
-      return () => clearTimeout(timer);
-    }
-    
-    // 如果用户角色不是customer，重定向到相应页面
-    if (user && user.currentRole !== 'customer') {
-      console.log(`用户角色不是customer(${user.currentRole})，重定向到首页`);
-      setError('无权访问顾客聊天页面');
-      const timer = setTimeout(() => {
-        router.push('/');
-      }, 1500);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [user, router]);
 
   // 监听URL参数变化
   useEffect(() => {
@@ -53,13 +37,14 @@ function CustomerChatContent() {
     router.push(`/customer/chat?conversationId=${conversationId}`, { scroll: false });
   };
 
-  if (error) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center bg-gray-50">
-        <div className="text-red-500 text-lg mb-4">{error}</div>
-        <div className="text-gray-500 text-sm">正在重定向...</div>
-      </div>
-    );
+  // 权限检查未通过时显示错误
+  if (!isAuthorized && error) {
+    return <ErrorDisplay error={error} />;
+  }
+
+  // 加载状态
+  if (loading) {
+    return <LoadingSpinner fullScreen />;
   }
 
   return (
@@ -79,17 +64,21 @@ function CustomerChatContent() {
             </div>
           </div>
           
-          {/* 切换历史会话显示的按钮 */}
-          <button
-            onClick={() => setShowHistory(!showHistory)}
-            className="flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
-            title={showHistory ? "隐藏历史会话" : "显示历史会话"}
-          >
-            <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            {showHistory ? "隐藏历史" : "显示历史"}
-          </button>
+          <div className="flex items-center space-x-3">
+            <ChatWebSocketStatus />
+            
+            {/* 切换历史会话显示的按钮 */}
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className="flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
+              title={showHistory ? "隐藏历史会话" : "显示历史会话"}
+            >
+              <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {showHistory ? "隐藏历史" : "显示历史"}
+            </button>
+          </div>
         </div>
       </div>
       
@@ -121,10 +110,7 @@ function CustomerChatContent() {
                 <h3 className="text-lg font-medium text-gray-700 mb-2">开始新的对话</h3>
                 <p className="text-gray-500 mb-4">选择历史会话或开始新的咨询</p>
                 <button
-                  onClick={() => {
-                    // 创建新会话的逻辑将在ChatWindow中处理
-                    router.push('/customer/chat');
-                  }}
+                  onClick={() => router.push('/customer/chat')}
                   className="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
                 >
                   <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">

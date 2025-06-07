@@ -5,15 +5,13 @@ import { type Message } from '@/types/chat'
 import ChatMessage from '@/components/chat/ChatMessage'
 import { SearchBar } from '@/components/chat/SearchBar'
 import MessageInput from '@/components/chat/MessageInput'
-import { 
-  getOrCreateConversation
-} from '@/service/chatService'
+import { getOrCreateConversation } from '@/service/chatService'
 import { useAuthContext } from '@/contexts/AuthContext'
 import { useSearchParams, useRouter } from 'next/navigation'
 
 // 自定义hooks
 import { useChatMessages } from '@/hooks/useChatMessages'
-import { useWebSocket } from '@/contexts/WebSocketContext'
+import { useWebSocketByPage } from '@/hooks/useWebSocketByPage'
 import { useSearch } from '@/hooks/useSearch'
 
 interface ChatWindowProps {
@@ -21,39 +19,28 @@ interface ChatWindowProps {
 }
 
 export default function ChatWindow({ conversationId }: ChatWindowProps) {
-  console.log('ChatWindow 组件正在渲染，conversationId:', conversationId)
-  
   const router = useRouter();
   const searchParams = useSearchParams()
   const { user } = useAuthContext();
   
-  console.log('ChatWindow 组件状态:', { 
-    hasRouter: !!router, 
-    hasSearchParams: !!searchParams, 
-    hasUser: !!user 
-  })
-  
-  // 简化后的状态管理 - 只保留核心状态  
+  // 状态管理
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(
     conversationId || searchParams?.get('conversationId') || null
   )
   
-  // 聊天区域引用和挂载状态
+  // 引用和挂载状态
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const mounted = useRef(false)
 
   // 组件挂载状态管理
   useEffect(() => {
     mounted.current = true
-    console.log('ChatWindow: 组件实际挂载, mounted=true')
-    
     return () => {
       mounted.current = false
-      console.log('ChatWindow: 组件实际卸载, mounted=false')
     }
   }, [])
 
-  // 使用自定义hooks
+  // 自定义hooks
   const {
     messages,
     importantMessages,
@@ -76,20 +63,18 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     clearSearch
   } = useSearch(messages)
 
-  // 使用新的全局WebSocket架构
-  const { lastJsonMessage } = useWebSocket()
+  // 使用页面级WebSocket架构
+  const { lastMessage } = useWebSocketByPage()
 
-  // 监听props/searchParams中的conversationId变化
+  // 监听conversationId变化
   useEffect(() => {
     if (conversationId) {
       if (conversationId !== currentConversationId) {
-        console.log(`ChatWindow props中的conversationId变化: ${conversationId}`)
         setCurrentConversationId(conversationId)
       }
     } else {
       const urlConversationId = searchParams?.get('conversationId')
       if (urlConversationId && urlConversationId !== currentConversationId) {
-        console.log(`ChatWindow URL中的conversationId变化: ${urlConversationId}`)
         setCurrentConversationId(urlConversationId)
       }
     }
@@ -102,16 +87,12 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     }
   }, [])
 
-  // 监听WebSocket消息 - 新架构
+  // 监听WebSocket消息
   useEffect(() => {
-    if (!lastJsonMessage || !currentConversationId) return
+    if (!lastMessage || !currentConversationId) return
 
-    // 只处理当前会话的消息
-    if (lastJsonMessage.action === 'new_message' && 
-        lastJsonMessage.data?.conversation_id === currentConversationId) {
-      console.log(`ChatWindow收到当前会话的WebSocket消息:`, lastJsonMessage.data)
-      
-      // 静默更新消息列表
+    if (lastMessage.action === 'new_message' && 
+        lastMessage.data?.conversation_id === currentConversationId) {
       silentlyUpdateMessages().then(hasNewMessage => {
         if (hasNewMessage) {
           setTimeout(scrollToBottom, 100)
@@ -120,41 +101,32 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         console.error('更新消息失败:', error)
       })
     }
-  }, [lastJsonMessage, currentConversationId, silentlyUpdateMessages, scrollToBottom])
+  }, [lastMessage, currentConversationId, silentlyUpdateMessages, scrollToBottom])
 
-  // 新消息自动滚动到底部
+  // 新消息自动滚动
   useEffect(() => {
     scrollToBottom()
   }, [showImportantOnly ? importantMessages : messages, scrollToBottom])
 
-  // 处理发送消息到本地状态中
+  // 处理发送消息
   const handleSendMessage = useCallback(async (message: Message) => {
-    console.log('🔥 ChatWindow handleSendMessage 开始执行')
-
-    // 检查用户认证状态
     if (!user) {
       throw new Error('用户未登录，请重新登录')
     }
 
-    // 处理会话ID和异步发送
     let targetConversationId = currentConversationId
 
     try {
-      // 如果没有会话ID，创建一个新会话
+      // 如果没有会话ID，创建新会话
       if (!targetConversationId) {
-        console.log('没有会话ID，正在创建新会话...')
         const conversation = await getOrCreateConversation()
-        console.log('新会话创建成功:', conversation)
         targetConversationId = conversation.id
         setCurrentConversationId(conversation.id)
-        
         router.replace(`?conversationId=${conversation.id}`, { scroll: false })
       }
 
       message.conversationId = targetConversationId;
       addMessage(message);
-
-      // 滚动到底部显示新消息
       setTimeout(scrollToBottom, 100)
       
     } catch (error) {
@@ -223,7 +195,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         {importantMessages.length > 0 && (
           <div className="sticky top-0 z-10 mb-2 flex justify-end">
             <button
-              className={`rounded-full px-3 py-1 text-xs font-medium flex items-center space-x-1 ${
+              className={`rounded-full px-3 py-1 text-xs font-medium flex items-center space-x-1 transition-colors ${
                 showImportantOnly 
                 ? 'bg-orange-100 text-orange-700 border border-orange-300' 
                 : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
@@ -246,7 +218,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           </div>
         )}
 
-        {/* 显示分组后的消息列表 */}
+        {/* 分组消息列表 */}
         {messageGroups.map((group) => (
           <div key={group.date} className="space-y-4">
             {/* 日期分隔符 */}
@@ -256,7 +228,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
               <div className="h-px flex-grow bg-gray-200" />
             </div>
             
-            {/* 当前日期组的消息 */}
+            {/* 消息列表 */}
             {group.messages.map(msg => (
               <ChatMessage
                 key={msg.localId || msg.id}
@@ -268,6 +240,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
           </div>
         ))}
         
+        {/* 空状态 */}
         {showImportantOnly && importantMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-32 text-gray-500">
             <svg className="h-12 w-12 mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -284,7 +257,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         )}
       </div>
       
-      {/* 消息输入组件 - 现在完全自管理所有输入功能 */}
+      {/* 消息输入组件 */}
       <MessageInput
         conversationId={currentConversationId}
         onSendMessage={handleSendMessage}
