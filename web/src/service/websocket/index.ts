@@ -288,14 +288,42 @@ export class WebSocketClient {
       // 分发到处理器
       const handled = this.handlerRegistry.dispatchMessage(adaptedMessage);
       
-      if (this.config.debug) {
-        console.log('WebSocket收到消息:', adaptedMessage, handled ? '(已处理)' : '(未处理)');
+      // 只在开发模式下且消息类型重要时输出日志
+      if (this.config.debug && this.shouldLogMessage(adaptedMessage)) {
+        console.log('WebSocket收到消息:', {
+          action: (adaptedMessage as any).action || 'unknown',
+          type: adaptedMessage.type || 'unknown',
+          timestamp: new Date().toISOString(),
+          handled
+        });
       }
     } catch (error) {
-      if (this.config.debug) {
-        console.error('处理WebSocket消息出错:', error);
-      }
+      console.error('处理WebSocket消息出错:', error);
     }
+  }
+
+  /**
+   * 判断是否应该记录消息日志
+   * @param message 消息对象
+   * @returns 是否应该记录
+   */
+  private shouldLogMessage(message: any): boolean {
+    const action = message.action || '';
+    const type = message.type || '';
+    
+    // 心跳消息不记录
+    if (type === 'heartbeat' || action === 'ping' || action === 'pong') {
+      return false;
+    }
+    
+    // 频繁的状态更新消息减少记录
+    if (action === 'typing_update' || action === 'presence_update') {
+      // 每10次记录一次
+      return Math.random() < 0.1;
+    }
+    
+    // 其他消息正常记录
+    return true;
   }
   
   /**

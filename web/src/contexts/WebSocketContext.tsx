@@ -82,8 +82,8 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
       }
     };
 
-    // 监听认证状态变化
-    const checkAuthInterval = setInterval(initializeConnection, 2000);
+    // 监听认证状态变化 - 减少检查频率
+    const checkAuthInterval = setInterval(initializeConnection, 5000);
     
     // 立即检查一次
     initializeConnection();

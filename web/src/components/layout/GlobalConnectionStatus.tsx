@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import { ConnectionStatus } from '@/service/websocket/types';
 
@@ -9,35 +10,62 @@ import { ConnectionStatus } from '@/service/websocket/types';
  */
 export function GlobalConnectionStatus() {
   const { connectionStatus } = useWebSocket();
+  const [showStatus, setShowStatus] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
-  // 只在非连接状态时显示
-  if (connectionStatus === ConnectionStatus.CONNECTED) {
+  // 延迟显示状态，避免频繁闪烁
+  useEffect(() => {
+    if (connectionStatus === ConnectionStatus.CONNECTED) {
+      setShowStatus(false);
+      setRetryCount(0);
+      return;
+    }
+
+    // 如果是断开连接状态，延迟3秒后显示
+    const timer = setTimeout(() => {
+      setShowStatus(true);
+             if (connectionStatus === ConnectionStatus.DISCONNECTED) {
+         setRetryCount((prev: number) => prev + 1);
+       }
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [connectionStatus]);
+
+  // 如果连接正常或不需要显示状态，则不渲染
+  if (connectionStatus === ConnectionStatus.CONNECTED || !showStatus) {
     return null;
   }
 
-  const statusConfig = {
-    [ConnectionStatus.CONNECTING]: {
-      bgColor: 'bg-blue-50 border-blue-200',
-      textColor: 'text-blue-700',
-      iconColor: 'text-blue-500',
-      message: '正在连接服务器...',
-      showSpinner: true
-    },
-    [ConnectionStatus.ERROR]: {
-      bgColor: 'bg-red-50 border-red-200',
-      textColor: 'text-red-700',
-      iconColor: 'text-red-500',
-      message: '连接服务器失败，正在自动重试...',
-      showSpinner: false
-    },
-    [ConnectionStatus.DISCONNECTED]: {
-      bgColor: 'bg-yellow-50 border-yellow-200',
-      textColor: 'text-yellow-700',
-      iconColor: 'text-yellow-500',
-      message: '与服务器断开连接，正在重新连接...',
-      showSpinner: true
-    }
+  const getStatusConfig = () => {
+    const baseConfig = {
+      [ConnectionStatus.CONNECTING]: {
+        bgColor: 'bg-blue-50 border-blue-200',
+        textColor: 'text-blue-700',
+        iconColor: 'text-blue-500',
+        message: '正在连接服务器...',
+        showSpinner: true
+      },
+      [ConnectionStatus.ERROR]: {
+        bgColor: 'bg-red-50 border-red-200',
+        textColor: 'text-red-700',
+        iconColor: 'text-red-500',
+        message: retryCount > 3 ? '服务器连接异常，请检查网络或稍后重试' : '连接服务器失败，正在自动重试...',
+        showSpinner: retryCount <= 3
+      },
+      [ConnectionStatus.DISCONNECTED]: {
+        bgColor: 'bg-yellow-50 border-yellow-200',
+        textColor: 'text-yellow-700',
+        iconColor: 'text-yellow-500',
+        message: retryCount > 5 ? '连接服务器超时，请检查后端服务是否启动' : `与服务器断开连接，正在重新连接...${retryCount > 1 ? ` (${retryCount}/10)` : ''}`,
+        showSpinner: retryCount <= 5
+      }
+    };
+    
+    return baseConfig;
   };
+
+  const statusConfig = getStatusConfig();
 
   const config = statusConfig[connectionStatus] || statusConfig[ConnectionStatus.DISCONNECTED];
 

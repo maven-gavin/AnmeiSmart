@@ -105,17 +105,34 @@ export class ChatWebSocketManager {
     
     // 设置事件处理器回调
     eventHandler.addNewMessageCallback((data: any) => {
-      console.log('收到新消息广播:', data);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('收到新消息广播:', {
+          messageId: data.message?.id,
+          conversationId: data.conversation_id,
+          timestamp: new Date().toISOString()
+        });
+      }
       this.handleMessage({ action: 'new_message', data });
     });
     
     eventHandler.addPresenceUpdateCallback((data: any) => {
-      console.log('收到用户在线状态更新:', data);
+      if (process.env.NODE_ENV === 'development' && Math.random() < 0.2) {
+        console.log('收到用户在线状态更新:', {
+          userId: data.user_id,
+          status: data.status,
+          conversationId: data.conversation_id
+        });
+      }
       this.handleMessage({ action: 'presence_update', data });
     });
     
     eventHandler.addEventCallback((data: any) => {
-      console.log('收到分布式WebSocket事件:', data);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('收到分布式WebSocket事件:', {
+          type: data.type || data.action,
+          timestamp: new Date().toISOString()
+        });
+      }
       this.handleMessage(data);
     });
     
