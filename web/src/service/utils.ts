@@ -136,11 +136,25 @@ export function generateDeviceId(): string {
  * @returns Promise<string | undefined>
  */
 export async function getClientIP(): Promise<string | undefined> {
+  // 检查是否在浏览器环境中
+  if (typeof window === 'undefined') {
+    console.log('服务器端环境，跳过IP获取');
+    return undefined;
+  }
+
   try {
     // 方法1: 使用公共IP服务 (推荐用于生产环境)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
     const response = await fetch('https://api.ipify.org?format=json', {
-      timeout: 5000
-    } as any);
+      signal: controller.signal,
+      headers: {
+        'Accept': 'application/json',
+      }
+    });
+    
+    clearTimeout(timeoutId);
     
     if (response.ok) {
       const data = await response.json();
@@ -152,9 +166,17 @@ export async function getClientIP(): Promise<string | undefined> {
   
   try {
     // 方法2: 备用服务
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
     const response = await fetch('https://jsonip.com', {
-      timeout: 5000
-    } as any);
+      signal: controller.signal,
+      headers: {
+        'Accept': 'application/json',
+      }
+    });
+    
+    clearTimeout(timeoutId);
     
     if (response.ok) {
       const data = await response.json();
@@ -165,13 +187,32 @@ export async function getClientIP(): Promise<string | undefined> {
   }
   
   try {
-    // 方法3: 使用WebRTC获取本地IP（可能被浏览器策略限制）
+    // 方法3: 尝试通过后端API获取IP
+    const response = await fetch('/api/client-ip', {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return data.ip;
+    }
+  } catch (error) {
+    console.warn('通过后端API获取IP失败:', error);
+  }
+  
+  try {
+    // 方法4: 使用WebRTC获取本地IP（可能被浏览器策略限制）
     return await getLocalIP();
   } catch (error) {
     console.warn('通过WebRTC获取IP失败:', error);
   }
   
-  return undefined;
+  // 如果所有方法都失败，返回默认值
+  console.log('所有IP获取方法都失败，使用默认值');
+  return 'unknown';
 }
 
 /**
@@ -226,11 +267,18 @@ export async function getDeviceInfo(): Promise<DeviceInfo> {
   const deviceType = detectDeviceType();
   const deviceId = generateDeviceId();
   
-  let ip: string | undefined;
-  try {
-    ip = await getClientIP();
-  } catch (error) {
-    console.warn('获取IP地址失败:', error);
+  let ip: string | undefined = 'unknown';
+  
+  // 只在浏览器环境中尝试获取IP
+  if (typeof window !== 'undefined') {
+    try {
+      ip = await getClientIP();
+    } catch (error) {
+      console.warn('获取IP地址失败:', error);
+      ip = 'unknown';
+    }
+  } else {
+    console.log('服务器端环境，使用默认IP值');
   }
 
   const deviceInfo: DeviceInfo = {
@@ -238,9 +286,9 @@ export async function getDeviceInfo(): Promise<DeviceInfo> {
     isMobile: deviceType === DeviceType.MOBILE,
     isTablet: deviceType === DeviceType.TABLET,
     isDesktop: deviceType === DeviceType.DESKTOP,
-    userAgent: typeof window !== 'undefined' ? navigator.userAgent : '',
+    userAgent: typeof window !== 'undefined' ? navigator.userAgent : 'Server-Side',
     deviceId,
-    platform: typeof window !== 'undefined' ? navigator.platform : '',
+    platform: typeof window !== 'undefined' ? navigator.platform : 'Server',
     screenWidth: typeof window !== 'undefined' ? window.screen.width : 0,
     screenHeight: typeof window !== 'undefined' ? window.screen.height : 0,
     ip
