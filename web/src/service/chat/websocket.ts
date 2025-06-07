@@ -157,14 +157,14 @@ export class ChatWebSocketManager {
         screenResolution: this.deviceInfo ? `${this.deviceInfo.screenWidth}x${this.deviceInfo.screenHeight}` : undefined
       };
       
-      console.log('连接分布式WebSocket (纯连接层):', {
+      console.log('连接分布式WebSocket (全局连接层):', {
         userId: connectionParams.userId,
         connectionId: connectionParams.connectionId,
         deviceType: connectionParams.deviceType,
         userAgent: connectionParams.userAgent?.substring(0, 50) + '...', // 截断用户代理字符串
         deviceInfo: this.deviceInfo ? formatDeviceInfo(this.deviceInfo) : 'unknown',
-        architecture: 'distributed',
-        note: 'conversationId不传递给WebSocket，仅用于前端业务逻辑'
+        architecture: 'distributed-global',
+        mode: conversationId === 'global' ? 'global-connection' : 'legacy-mode'
       });
       
       if (!this.wsClient) {

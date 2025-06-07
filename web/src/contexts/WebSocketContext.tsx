@@ -8,10 +8,9 @@ import { ConnectionStatus } from '@/service/websocket/types';
 interface WebSocketContextType {
   isConnected: boolean;
   connectionStatus: ConnectionStatus;
-  connect: (conversationId: string) => Promise<void>;
+  lastJsonMessage: any | null;
+  connect: () => Promise<void>;
   disconnect: () => void;
-  addMessageHandler: (action: string, handler: (data: any) => void) => void;
-  removeMessageHandler: (action: string) => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -23,8 +22,9 @@ interface WebSocketProviderProps {
 export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
-  const currentConversationId = useRef<string | null>(null);
+  const [lastJsonMessage, setLastJsonMessage] = useState<any | null>(null);
   const mounted = useRef(true);
+  const isConnecting = useRef(false);
 
   // 连接状态监听器
   useEffect(() => {
@@ -35,55 +35,90 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
       setConnectionStatus(newStatus);
       setIsConnected(newStatus === ConnectionStatus.CONNECTED);
       
-      console.log('分布式WebSocket连接状态更新:', {
+      console.log('全局WebSocket连接状态更新:', {
         oldStatus: event.oldStatus,
         newStatus: newStatus,
-        conversationId: currentConversationId.current,
-        architecture: 'distributed-redis-pubsub'
+        architecture: 'distributed-global-connection'
       });
     };
 
     chatWebSocket.addConnectionStatusListener(statusListener);
 
     return () => {
-      mounted.current = false;
       chatWebSocket.removeConnectionStatusListener(statusListener);
     };
   }, []);
 
-  // 连接到指定会话
-  const connect = async (conversationId: string) => {
+  // 消息监听器 - 全局消息处理
+  useEffect(() => {
+    const messageHandler = (data: any) => {
+      if (!mounted.current) return;
+      
+      console.log('收到全局WebSocket消息:', data);
+      setLastJsonMessage(data);
+    };
+
+    // 注册全局消息处理器
+    chatWebSocket.addMessageHandler('*', messageHandler);
+    chatWebSocket.addMessageHandler('new_message', messageHandler);
+    chatWebSocket.addMessageHandler('presence_update', messageHandler);
+    chatWebSocket.addMessageHandler('typing_update', messageHandler);
+
+    return () => {
+      chatWebSocket.removeMessageHandler('*');
+      chatWebSocket.removeMessageHandler('new_message');
+      chatWebSocket.removeMessageHandler('presence_update');
+      chatWebSocket.removeMessageHandler('typing_update');
+    };
+  }, []);
+
+  // 自动连接 - 用户登录后建立全局连接
+  useEffect(() => {
+    const initializeConnection = async () => {
+      const user = authService.getCurrentUser();
+      if (user && !isConnected && !isConnecting.current && mounted.current) {
+        console.log('用户已登录，建立全局WebSocket连接');
+        await connect();
+      }
+    };
+
+    // 监听认证状态变化
+    const checkAuthInterval = setInterval(initializeConnection, 2000);
+    
+    // 立即检查一次
+    initializeConnection();
+
+    return () => {
+      clearInterval(checkAuthInterval);
+    };
+  }, [isConnected]);
+
+  // 全局连接方法 - 不需要conversationId
+  const connect = async () => {
+    if (isConnecting.current || isConnected) return;
+    
     try {
       const user = authService.getCurrentUser();
       if (!user) {
-        console.error('用户未登录，无法建立WebSocket连接');
+        console.log('用户未登录，无法建立WebSocket连接');
         return;
       }
 
-      // 如果已连接到相同会话，无需重连
-      if (currentConversationId.current === conversationId && isConnected) {
-        console.log('已连接到相同会话，无需重连');
-        return;
-      }
-
-      // 先断开现有连接
-      if (isConnected) {
-        disconnect();
-      }
-
-      currentConversationId.current = conversationId;
+      isConnecting.current = true;
       
-      console.log('建立分布式WebSocket连接:', {
+      console.log('建立全局分布式WebSocket连接:', {
         userId: user.id,
-        conversationId,
-        architecture: 'distributed-redis-pubsub'
+        userRoles: user.roles,
+        architecture: 'distributed-global-connection'
       });
 
-      await chatWebSocket.connect(user.id, conversationId);
+      // 连接到全局端点，不指定具体会话
+      await chatWebSocket.connect(user.id, 'global');
       
     } catch (error) {
-      console.error('WebSocket连接失败:', error);
-      currentConversationId.current = null;
+      console.error('全局WebSocket连接失败:', error);
+    } finally {
+      isConnecting.current = false;
     }
   };
 
@@ -91,23 +126,39 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const disconnect = () => {
     try {
       chatWebSocket.disconnect();
-      currentConversationId.current = null;
       setIsConnected(false);
       setConnectionStatus(ConnectionStatus.DISCONNECTED);
+      setLastJsonMessage(null);
+      console.log('全局WebSocket连接已断开');
     } catch (error) {
       console.error('断开WebSocket连接失败:', error);
     }
   };
 
-  // 添加消息处理器
-  const addMessageHandler = (action: string, handler: (data: any) => void) => {
-    chatWebSocket.addMessageHandler(action, handler);
-  };
+  // 页面可见性处理
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !isConnected) {
+        console.log('页面变为可见，检查全局WebSocket连接');
+        connect();
+      }
+    };
 
-  // 移除消息处理器
-  const removeMessageHandler = (action: string) => {
-    chatWebSocket.removeMessageHandler(action);
-  };
+    const handleFocus = () => {
+      if (!isConnected) {
+        console.log('窗口获得焦点，检查全局WebSocket连接');
+        connect();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [isConnected]);
 
   // 组件卸载时清理
   useEffect(() => {
@@ -120,10 +171,9 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const contextValue: WebSocketContextType = {
     isConnected,
     connectionStatus,
+    lastJsonMessage,
     connect,
     disconnect,
-    addMessageHandler,
-    removeMessageHandler,
   };
 
   return (
