@@ -139,30 +139,6 @@ if settings.MONGODB_URL:
     except Exception as e:
         logger.error(f"MongoDB连接错误: {str(e)}")
 
-# Weaviate配置 - 条件导入
-weaviate_client = None
-if settings.WEAVIATE_URL:
-    try:
-        if importlib.util.find_spec("weaviate"):
-            import weaviate
-            # 使用v3客户端API连接Weaviate
-            weaviate_auth_config = weaviate.AuthApiKey(api_key=settings.WEAVIATE_API_KEY) if settings.WEAVIATE_API_KEY else None
-            weaviate_client = weaviate.Client(
-                url=settings.WEAVIATE_URL,
-                auth_client_secret=weaviate_auth_config
-            )
-            # 测试连接
-            weaviate_client.schema.get()
-            logger.info("Weaviate连接成功")
-        else:
-            logger.warning("未安装Weaviate客户端依赖(weaviate-client)，Weaviate功能将不可用")
-    except Exception as e:
-        logger.warning(f"Weaviate连接警告: {str(e)}")
-
 # MongoDB连接管理
 def get_mongodb() -> Any:
-    return mongodb
-
-# Weaviate连接管理
-def get_weaviate() -> Any:
-    return weaviate_client 
+    return mongodb 

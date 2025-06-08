@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import users, auth, roles, chat, ai, system, customer, websocket
+from app.api.v1.endpoints import users, auth, roles, chat, ai, system, customer, websocket, files
 
 api_router = APIRouter()
 
@@ -17,6 +17,9 @@ api_router.include_router(websocket.router, tags=["websocket"])
 
 # 聊天系统路由
 api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
+
+# 文件上传路由
+api_router.include_router(files.router, prefix="/files", tags=["files"])
 
 # AI服务路由
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"])

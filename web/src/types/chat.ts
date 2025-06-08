@@ -22,11 +22,21 @@ export type SenderType = 'user' | 'consultant' | 'doctor' | 'ai' | 'system' | 'c
 // 消息发送状态
 export type MessageStatus = 'pending' | 'sent' | 'failed';
 
+// 文件信息接口
+export interface FileInfo {
+  file_url: string;
+  file_name: string;
+  file_size: number;
+  file_type: string; // image, document, audio, video, archive
+  mime_type: string;
+  object_name?: string;
+}
+
 export interface Message {
   id: string;
   conversationId: string; // 所属会话ID
   content: string;
-  type: 'text' | 'image' | 'voice';
+  type: 'text' | 'image' | 'voice' | 'file';
   sender: {
     id: string;
     type: SenderType;
@@ -37,6 +47,8 @@ export interface Message {
   isRead?: boolean;
   isImportant?: boolean;
   isSystemMessage?: boolean;
+  // 文件消息相关
+  file_info?: FileInfo; // 文件消息的文件信息
   // 新增字段：消息发送状态相关
   status?: MessageStatus; // 消息状态：pending | sent | failed
   localId?: string; // 本地临时ID，用于发送前的消息标识

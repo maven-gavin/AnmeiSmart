@@ -23,8 +23,6 @@ except Exception as e:
     print("-" * 50)
     print("DATABASE_URL=postgresql://postgres:difyai123456@localhost:5432/anmeismart")
     print("MONGODB_URL=mongodb://localhost:27017")
-    print("WEAVIATE_URL=http://localhost:8080")
-    print("WEAVIATE_API_KEY=your_key_here")
     print("SECRET_KEY=your_secret_key_here")
     print("-" * 50)
     sys.exit(1)

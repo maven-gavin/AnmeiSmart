@@ -8,7 +8,6 @@
 - SQLAlchemy - ORM框架
 - PostgreSQL - 关系型数据库
 - MongoDB - 非关系型数据库
-- Weaviate - 向量搜索引擎
 - Pydantic - 数据验证
 - JWT - 用户认证
 
@@ -17,7 +16,6 @@
 - Python 3.12 或更高版本
 - PostgreSQL 15或更高版本
 - MongoDB 6.0或更高版本
-- Weaviate (可选)
 
 ## 安装步骤
 
@@ -43,8 +41,6 @@ pip install -r requirements.txt
 ```
 DATABASE_URL=postgresql://用户名:密码@localhost:5432/AnmeiSmart
 MONGODB_URL=mongodb://localhost:27017
-WEAVIATE_URL=http://localhost:8080
-WEAVIATE_API_KEY=你的密钥
 SECRET_KEY=你的密钥
 ```
 
@@ -324,7 +320,6 @@ api/
 
    - 用于非结构化数据
    - 用户行为日志、系统日志等
-3. Weaviate
 
    - 向量数据库
    - 用于相似搜索和AI推荐

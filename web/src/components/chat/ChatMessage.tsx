@@ -7,6 +7,7 @@ import {
   saveMessage
 } from '@/service/chatService';
 import toast from 'react-hot-toast';
+import FileMessage from './FileMessage';
 
 export interface ChatMessageProps {
   message: Message;
@@ -281,6 +282,11 @@ export default function ChatMessage({
   
   // 渲染消息内容
   const renderMessageContent = () => {
+    // 文件消息展示
+    if (message.type === 'file' && message.file_info) {
+      return <FileMessage fileInfo={message.file_info} />;
+    }
+    
     // 图片消息展示
     if (message.type === 'image' && typeof message.content === 'string') {
       return (

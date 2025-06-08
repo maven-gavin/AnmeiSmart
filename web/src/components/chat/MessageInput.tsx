@@ -8,10 +8,11 @@ import FAQSection from '@/components/chat/FAQSection';
 import ConsultantTakeover from '@/components/chat/ConsultantTakeover';
 import { useRecording } from '@/hooks/useRecording';
 import { useMediaUpload } from '@/hooks/useMediaUpload';
-import { type Message } from '@/types/chat';
+import { type Message, type FileInfo } from '@/types/chat';
 import { v4 as uuidv4 } from 'uuid';
 import { authService } from "@/service/authService";
 import { AppError, ErrorType } from '@/service/errors';
+import FileSelector from './FileSelector';
 
 interface MessageInputProps {
   conversationId?: string | null;
@@ -35,6 +36,7 @@ export default function MessageInput({
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [showFileSelector, setShowFileSelector] = useState(false);
 
   // 录音相关状态
   const {
@@ -168,6 +170,43 @@ function createVoiceMessage(audioUrl: string): Message {
   return voiceMessage;
 }
 
+/**
+ * 发送文件消息
+ */
+function createFileMessage(fileInfo: FileInfo): Message {
+  const currentUser = authService.getCurrentUser();
+  if (!currentUser) {
+    throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
+  }
+
+  const localId = `local_${uuidv4()}`;
+  const now = new Date().toISOString();
+
+  // 创建文件消息（sent状态，因为文件已经上传成功）
+  const fileMessage: Message = {
+    id: localId,
+    localId,
+    conversationId: conversationId || '',
+    content: fileInfo.file_name, // 显示文件名
+    type: 'file',
+    file_info: fileInfo,
+    sender: {
+      id: currentUser.id,
+      type: currentUser.currentRole || 'customer',
+      name: currentUser.name,
+      avatar: currentUser.avatar || '/avatars/user.png',
+    },
+    timestamp: now,
+    createdAt: now,
+    status: 'sent', // 文件消息直接标记为已发送
+    canRetry: false,
+    canDelete: true,
+    canRecall: true,
+  };
+  
+  return fileMessage;
+}
+
 
   // 处理发送文本消息
   const handleSendMessage = useCallback(async () => {
@@ -232,6 +271,36 @@ function createVoiceMessage(audioUrl: string): Message {
     }, 100);
   }, []);
 
+  // 处理文件选择
+  const handleFileSelect = useCallback((file: File) => {
+    console.log('文件已选择:', file.name);
+    // 这里可以添加文件选择后的处理逻辑，比如显示预览
+  }, []);
+
+  // 处理文件上传成功
+  const handleFileUpload = useCallback(async (fileInfo: FileInfo) => {
+    try {
+      setSendError(null);
+      
+      // 创建文件消息并发送
+      const fileMessage = createFileMessage(fileInfo);
+      await onSendMessage(fileMessage);
+      
+      // 关闭文件选择器
+      setShowFileSelector(false);
+      
+      console.log('文件消息发送成功:', fileInfo.file_name);
+    } catch (error) {
+      console.error('发送文件消息失败:', error);
+      setSendError(error instanceof Error ? error.message : '发送文件消息失败');
+    }
+  }, [onSendMessage]);
+
+  // 切换文件选择器显示
+  const toggleFileSelector = useCallback(() => {
+    setShowFileSelector(!showFileSelector);
+  }, [showFileSelector]);
+
   // 获取FAQ组件的按钮和面板
   const faqSection = FAQSection({
     onSelectFAQ: handleFAQSelect,
@@ -283,6 +352,20 @@ function createVoiceMessage(audioUrl: string): Message {
       
       {/* FAQ面板 - 在输入区域上方显示 */}
       {faqSection.panel}
+      
+      {/* 文件选择器 */}
+      {showFileSelector && (
+        <div className="border-t border-gray-200 bg-gray-50 p-4">
+          <FileSelector
+            conversationId={conversationId}
+            onFileSelect={handleFileSelect}
+            onFileUpload={handleFileUpload}
+            disabled={isSending}
+            accept="*/*"
+            maxSize={50 * 1024 * 1024} // 50MB
+          />
+        </div>
+      )}
       
       {/* 隐藏的文件输入 */}
       <input
@@ -354,6 +437,26 @@ function createVoiceMessage(audioUrl: string): Message {
                 strokeLinejoin="round"
                 strokeWidth={2}
                 d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 002 2z"
+              />
+            </svg>
+          </button>
+          
+          <button 
+            className={`flex-shrink-0 ${showFileSelector ? 'text-orange-500' : 'text-gray-500 hover:text-gray-700'}`}
+            title="文件"
+            onClick={toggleFileSelector}
+          >
+            <svg
+              className="h-6 w-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
               />
             </svg>
           </button>

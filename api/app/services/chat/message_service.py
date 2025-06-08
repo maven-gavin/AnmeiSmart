@@ -3,6 +3,7 @@
 """
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_
 from datetime import datetime
 import logging
 
@@ -21,6 +22,55 @@ class MessageService:
     def __init__(self, db: Session):
         self.db = db
     
+    async def can_access_conversation(self, conversation_id: str, user_id: str) -> bool:
+        """
+        检查用户是否有权限访问会话
+        
+        Args:
+            conversation_id: 会话ID
+            user_id: 用户ID
+            
+        Returns:
+            是否有权限
+        """
+        try:
+            # 查询会话是否存在且用户有访问权限
+            conversation = self.db.query(Conversation).filter(
+                and_(
+                    Conversation.id == conversation_id,
+                    Conversation.customer_id == user_id
+                )
+            ).first()
+            
+            # 如果用户是会话的客户，则有权限访问
+            if conversation:
+                return True
+            
+            # 检查用户是否是分配的顾问
+            conversation = self.db.query(Conversation).filter(
+                and_(
+                    Conversation.id == conversation_id,
+                    Conversation.assigned_consultant_id == user_id
+                )
+            ).first()
+            
+            if conversation:
+                return True
+            
+            # 检查用户是否是管理员或其他特殊角色
+            user = self.db.query(User).filter(User.id == user_id).first()
+            if user and user.role in ['admin', 'operator']:
+                # 管理员和运营人员可以访问所有会话
+                conversation = self.db.query(Conversation).filter(
+                    Conversation.id == conversation_id
+                ).first()
+                return conversation is not None
+            
+            return False
+        except Exception as e:
+            logger.error(f"检查会话访问权限失败: {str(e)}")
+            return False
+
     async def create_message(
         self,
         conversation_id: str,

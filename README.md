@@ -71,7 +71,7 @@ wsClient.sendMessage({
 
 - 前端: Next.js, React, TypeScript, TailwindCSS
 - 后端: FastAPI, Python, PostgreSQL, MongoDB
-- AI: OpenAI API, Weaviate向量数据库
+- AI: OpenAI API
 - Tauri 2.0：支持桌面和移动端
 - Rust：Tauri后端逻辑
 - 响应式设计：适配不同屏幕尺寸

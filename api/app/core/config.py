@@ -21,8 +21,6 @@ class Settings(BaseSettings):
     # 数据库配置
     DATABASE_URL: str = "postgresql://postgres:difyai123456@localhost:5432/anmeismart"
     MONGODB_URL: str = "mongodb://localhost:27017"
-    WEAVIATE_URL: str = "http://localhost:8080"
-    WEAVIATE_API_KEY: str = "WVF5YThaHlkYwhGUSmCRgsX3tD5ngdN8pkih"
     MONGODB_ENABLED: bool = True
     
     # Redis配置
@@ -31,6 +29,13 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: str = "difyai123456"
     REDIS_DB: int = 0
+    
+    # Minio配置
+    MINIO_ENDPOINT: str = "localhost:9000"
+    MINIO_ACCESS_KEY: str = "minioadmin"
+    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_SECURE: bool = False
+    MINIO_BUCKET_NAME: str = "chat-files"
     
     # JWT配置
     SECRET_KEY: str = "difyai123456"
@@ -61,7 +66,7 @@ class Settings(BaseSettings):
     APNS_TEAM_ID: str = ""
     APNS_BUNDLE_ID: str = ""
     
-    model_config = ConfigDict(case_sensitive=True, env_file=".env")
+    model_config = ConfigDict(case_sensitive=True, env_file=".env", extra="ignore")
 
 @lru_cache()
 def get_settings() -> Settings:

@@ -1,6 +1,7 @@
 from datetime import datetime
-from typing import Optional, List, Literal, Dict, Any
+from typing import Optional, List, Literal, Dict, Any, Union
 from pydantic import BaseModel, ConfigDict, Field
+import json
 
 
 class MessageSender(BaseModel):
@@ -9,6 +10,16 @@ class MessageSender(BaseModel):
     name: str
     avatar: Optional[str] = None
     type: Literal["customer", "consultant", "doctor", "ai", "system"]
+
+
+class FileInfo(BaseModel):
+    """文件信息模型"""
+    file_url: str
+    file_name: str
+    file_size: int
+    file_type: str  # image, document, audio, video, archive
+    mime_type: str
+    object_name: Optional[str] = None
 
 
 class MessageBase(BaseModel):
@@ -44,6 +55,7 @@ class MessageInfo(MessageBase):
     timestamp: datetime
     is_read: bool = False
     is_important: bool = False
+    file_info: Optional[FileInfo] = None  # 文件消息的文件信息
 
     @staticmethod
     def from_model(message) -> "MessageInfo":
@@ -78,15 +90,33 @@ class MessageInfo(MessageBase):
             type=sender_type
         )
         
+        # 处理文件消息的内容
+        content = getattr(message, 'content', '')
+        message_type = getattr(message, 'type', 'text')
+        file_info = None
+        
+        # 如果是文件消息，解析文件信息
+        if message_type == 'file' and content:
+            try:
+                file_data = json.loads(content) if isinstance(content, str) else content
+                if isinstance(file_data, dict) and 'file_url' in file_data:
+                    file_info = FileInfo(**file_data)
+                    # 对于文件消息，content显示文件名
+                    content = file_data.get('file_name', '文件')
+            except (json.JSONDecodeError, TypeError, ValueError):
+                # 如果解析失败，保持原始内容
+                pass
+        
         return MessageInfo(
             id=getattr(message, 'id', ''),
             conversation_id=getattr(message, 'conversation_id', ''),
-            content=getattr(message, 'content', ''),
-            type=getattr(message, 'type', 'text'),
+            content=content,
+            type=message_type,
             sender=sender,
             timestamp=getattr(message, 'timestamp', datetime.now()),
             is_read=getattr(message, 'is_read', False),
-            is_important=getattr(message, 'is_important', False)
+            is_important=getattr(message, 'is_important', False),
+            file_info=file_info
         )
 
 
@@ -163,6 +193,18 @@ class ConversationInfo(ConversationBase):
             last_message=last_msg_schema,
             is_ai_controlled=is_ai_controlled
         )
+
+
+class FileUploadResponse(BaseModel):
+    """文件上传响应模型"""
+    success: bool
+    message: str
+    file_info: Optional[FileInfo] = None
+
+
+class FileUploadRequest(BaseModel):
+    """文件上传请求模型"""
+    conversation_id: str
 
 
 class WebSocketMessage(BaseModel):
