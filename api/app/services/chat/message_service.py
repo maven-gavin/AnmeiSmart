@@ -59,12 +59,14 @@ class MessageService:
             
             # 检查用户是否是管理员或其他特殊角色
             user = self.db.query(User).filter(User.id == user_id).first()
-            if user and user.role in ['admin', 'operator']:
-                # 管理员和运营人员可以访问所有会话
-                conversation = self.db.query(Conversation).filter(
-                    Conversation.id == conversation_id
-                ).first()
-                return conversation is not None
+            if user:
+                user_role_names = [role.name for role in user.roles]
+                if any(role_name in ['admin', 'operator'] for role_name in user_role_names):
+                    # 管理员和运营人员可以访问所有会话
+                    conversation = self.db.query(Conversation).filter(
+                        Conversation.id == conversation_id
+                    ).first()
+                    return conversation is not None
             
             return False
         except Exception as e:

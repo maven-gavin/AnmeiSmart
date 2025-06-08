@@ -11,7 +11,7 @@ from app.core.security import create_access_token, get_current_user, create_refr
 from app.db.base import get_db
 from app.db.models.user import User
 from app.services import user_service
-from app.schemas.token import Token, RefreshTokenRequest
+from app.schemas.token import Token, AccessToken, RefreshTokenRequest
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, SwitchRoleRequest
 
 router = APIRouter()
@@ -232,7 +232,7 @@ async def get_roles(
     user_roles = await user_service.get_user_roles(db, user_id=current_user.id)
     return user_roles
 
-@router.post("/switch-role", response_model=Token)
+@router.post("/switch-role", response_model=AccessToken)
 async def switch_role(
     *,
     db: Session = Depends(get_db),

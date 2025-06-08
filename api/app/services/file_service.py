@@ -5,6 +5,7 @@
 import os
 import uuid
 import mimetypes
+from datetime import datetime
 from typing import Optional, Dict, Any, List, Iterator, IO
 from fastapi import UploadFile, HTTPException
 import logging
@@ -517,4 +518,381 @@ class FileService:
             if category in types_by_category:
                 types_by_category[category].append(mime_type)
         
-        return types_by_category 
+        return types_by_category
+    
+    # ================== 断点续传相关方法 ==================
+    
+    @with_db
+    def create_upload_session(
+        self, 
+        upload_id: str,
+        file_name: str,
+        file_size: int,
+        chunk_size: int,
+        conversation_id: str,
+        user_id: str,
+        db: Session = None
+    ) -> None:
+        """
+        创建上传会话
+        
+        Args:
+            upload_id: 上传ID
+            file_name: 文件名
+            file_size: 文件大小
+            chunk_size: 分片大小
+            conversation_id: 会话ID
+            user_id: 用户ID
+            db: 数据库会话
+        """
+        try:
+            from app.db.models.upload import UploadSession
+            
+            total_chunks = (file_size + chunk_size - 1) // chunk_size
+            
+            upload_session = UploadSession(
+                upload_id=upload_id,
+                file_name=file_name,
+                file_size=file_size,
+                chunk_size=chunk_size,
+                total_chunks=total_chunks,
+                conversation_id=conversation_id,
+                user_id=user_id,
+                status='uploading'
+            )
+            
+            db.add(upload_session)
+            db.commit()
+            
+        except Exception as e:
+            logger.error(f"创建上传会话失败: {str(e)}")
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"创建上传会话失败: {str(e)}")
+    
+    @with_db
+    def get_upload_status(self, upload_id: str, db: Session = None) -> Dict[str, Any]:
+        """
+        获取上传状态
+        
+        Args:
+            upload_id: 上传ID
+            db: 数据库会话
+            
+        Returns:
+            上传状态信息
+        """
+        try:
+            from app.db.models.upload import UploadSession, UploadChunk
+            
+            upload_session = db.query(UploadSession).filter(
+                UploadSession.upload_id == upload_id
+            ).first()
+            
+            if not upload_session:
+                return {
+                    "status": "not_found",
+                    "uploaded_chunks": 0,
+                    "total_chunks": 0
+                }
+            
+            # 计算已上传的分片数量
+            uploaded_count = db.query(UploadChunk).filter(
+                UploadChunk.upload_id == upload_id,
+                UploadChunk.status == 'completed'
+            ).count()
+            
+            status = "completed" if uploaded_count == upload_session.total_chunks else "uploading"
+            
+            return {
+                "status": status,
+                "uploaded_chunks": uploaded_count,
+                "total_chunks": upload_session.total_chunks,
+                "file_size": upload_session.file_size,
+                "created_at": upload_session.created_at
+            }
+            
+        except Exception as e:
+            logger.error(f"获取上传状态失败: {str(e)}")
+            return {
+                "status": "not_found",
+                "uploaded_chunks": 0,
+                "total_chunks": 0
+            }
+    
+    @with_db
+    def upload_chunk(
+        self,
+        upload_id: str,
+        chunk_index: int,
+        chunk_data: bytes,
+        user_id: str,
+        db: Session = None
+    ) -> bool:
+        """
+        上传单个分片
+        
+        Args:
+            upload_id: 上传ID
+            chunk_index: 分片索引
+            chunk_data: 分片数据
+            user_id: 用户ID
+            db: 数据库会话
+            
+        Returns:
+            是否上传成功
+        """
+        try:
+            from app.db.models.upload import UploadSession, UploadChunk
+            
+            # 验证上传会话
+            upload_session = db.query(UploadSession).filter(
+                UploadSession.upload_id == upload_id,
+                UploadSession.user_id == user_id
+            ).first()
+            
+            if not upload_session:
+                logger.error(f"上传会话不存在或无权限: {upload_id}")
+                return False
+            
+            # 检查分片是否已存在
+            existing_chunk = db.query(UploadChunk).filter(
+                UploadChunk.upload_id == upload_id,
+                UploadChunk.chunk_index == chunk_index
+            ).first()
+            
+            if existing_chunk and existing_chunk.status == 'completed':
+                logger.info(f"分片 {chunk_index} 已存在，跳过上传")
+                return True
+            
+            # 构建分片存储路径
+            chunk_object_name = f"chunks/{upload_id}/chunk_{chunk_index:06d}"
+            
+            # 上传分片到MinIO
+            chunk_url = self.minio_client.upload_file_data(
+                object_name=chunk_object_name,
+                file_data=chunk_data,
+                content_type="application/octet-stream"
+            )
+            
+            # 记录分片信息
+            if existing_chunk:
+                existing_chunk.object_name = chunk_object_name
+                existing_chunk.chunk_size = len(chunk_data)
+                existing_chunk.status = 'completed'
+                existing_chunk.updated_at = datetime.now()
+            else:
+                chunk_record = UploadChunk(
+                    upload_id=upload_id,
+                    chunk_index=chunk_index,
+                    object_name=chunk_object_name,
+                    chunk_size=len(chunk_data),
+                    status='completed'
+                )
+                db.add(chunk_record)
+            
+            db.commit()
+            
+            logger.info(f"分片 {chunk_index} 上传成功: {chunk_url}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"分片上传失败: {str(e)}")
+            db.rollback()
+            return False
+    
+    @with_db
+    def complete_upload(
+        self,
+        upload_id: str,
+        conversation_id: str,
+        user_id: str,
+        db: Session = None
+    ) -> Dict[str, Any]:
+        """
+        完成文件上传，合并所有分片
+        
+        Args:
+            upload_id: 上传ID
+            conversation_id: 会话ID
+            user_id: 用户ID
+            db: 数据库会话
+            
+        Returns:
+            完整文件信息
+        """
+        try:
+            from app.db.models.upload import UploadSession, UploadChunk
+            import tempfile
+            import os
+            
+            # 获取上传会话
+            upload_session = db.query(UploadSession).filter(
+                UploadSession.upload_id == upload_id,
+                UploadSession.user_id == user_id,
+                UploadSession.conversation_id == conversation_id
+            ).first()
+            
+            if not upload_session:
+                raise HTTPException(status_code=404, detail="上传会话不存在")
+            
+            # 获取所有已完成的分片
+            chunks = db.query(UploadChunk).filter(
+                UploadChunk.upload_id == upload_id,
+                UploadChunk.status == 'completed'
+            ).order_by(UploadChunk.chunk_index).all()
+            
+            if len(chunks) != upload_session.total_chunks:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"分片不完整: {len(chunks)}/{upload_session.total_chunks}"
+                )
+            
+            # 创建临时文件来合并分片
+            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                temp_path = temp_file.name
+                
+                # 按顺序合并分片
+                for chunk in chunks:
+                    try:
+                        # 从MinIO下载分片
+                        chunk_stream = self.minio_client.client.get_object(
+                            self.minio_client.bucket_name,
+                            chunk.object_name
+                        )
+                        
+                        # 写入临时文件
+                        for data in chunk_stream.stream():
+                            temp_file.write(data)
+                            
+                    except Exception as e:
+                        logger.error(f"下载分片 {chunk.chunk_index} 失败: {str(e)}")
+                        raise HTTPException(status_code=500, detail=f"合并文件失败")
+            
+            try:
+                # 生成最终文件路径
+                file_extension = os.path.splitext(upload_session.file_name)[1]
+                unique_filename = f"{uuid.uuid4().hex}{file_extension}"
+                final_object_name = f"{conversation_id}/{user_id}/{unique_filename}"
+                
+                # 上传完整文件到MinIO
+                with open(temp_path, 'rb') as temp_file:
+                    file_data = temp_file.read()
+                
+                # 推导文件类型
+                mime_type, _ = mimetypes.guess_type(upload_session.file_name)
+                if not mime_type:
+                    mime_type = "application/octet-stream"
+                
+                file_url = self.minio_client.upload_file_data(
+                    object_name=final_object_name,
+                    file_data=file_data,
+                    content_type=mime_type
+                )
+                
+                # 清理分片
+                self._cleanup_chunks(upload_id, db)
+                
+                # 更新上传会话状态
+                upload_session.status = 'completed'
+                upload_session.final_object_name = final_object_name
+                upload_session.updated_at = datetime.now()
+                db.commit()
+                
+                logger.info(f"文件合并完成: {upload_session.file_name} -> {file_url}")
+                
+                # 返回文件信息
+                file_category = self.get_file_category(mime_type)
+                return {
+                    "file_url": file_url,
+                    "file_name": upload_session.file_name,
+                    "file_size": upload_session.file_size,
+                    "file_type": file_category,
+                    "mime_type": mime_type,
+                    "object_name": final_object_name
+                }
+                
+            finally:
+                # 清理临时文件
+                try:
+                    os.unlink(temp_path)
+                except:
+                    pass
+                    
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"完成上传失败: {str(e)}")
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"完成上传失败: {str(e)}")
+    
+    @with_db
+    def _cleanup_chunks(self, upload_id: str, db: Session = None) -> None:
+        """
+        清理上传的分片
+        
+        Args:
+            upload_id: 上传ID
+            db: 数据库会话
+        """
+        try:
+            from app.db.models.upload import UploadChunk
+            
+            chunks = db.query(UploadChunk).filter(
+                UploadChunk.upload_id == upload_id
+            ).all()
+            
+            # 删除MinIO中的分片
+            for chunk in chunks:
+                try:
+                    self.minio_client.delete_file(chunk.object_name)
+                except Exception as e:
+                    logger.warning(f"删除分片失败 {chunk.object_name}: {str(e)}")
+            
+            # 删除数据库记录
+            db.query(UploadChunk).filter(
+                UploadChunk.upload_id == upload_id
+            ).delete()
+            
+            db.commit()
+            
+        except Exception as e:
+            logger.error(f"清理分片失败: {str(e)}")
+    
+    @with_db 
+    def cancel_upload(self, upload_id: str, user_id: str, db: Session = None) -> bool:
+        """
+        取消上传
+        
+        Args:
+            upload_id: 上传ID
+            user_id: 用户ID
+            db: 数据库会话
+            
+        Returns:
+            是否取消成功
+        """
+        try:
+            from app.db.models.upload import UploadSession
+            
+            upload_session = db.query(UploadSession).filter(
+                UploadSession.upload_id == upload_id,
+                UploadSession.user_id == user_id
+            ).first()
+            
+            if not upload_session:
+                return False
+            
+            # 清理分片
+            self._cleanup_chunks(upload_id, db)
+            
+            # 删除上传会话
+            db.delete(upload_session)
+            db.commit()
+            
+            logger.info(f"上传已取消: {upload_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"取消上传失败: {str(e)}")
+            db.rollback()
+            return False 

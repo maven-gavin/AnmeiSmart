@@ -62,13 +62,13 @@ const userStorage = {
  * API 请求工具
  */
 const apiRequest = {
-  async post<T = unknown>(endpoint: string, data?: unknown, includeAuth = false): Promise<T> {
+  async post<T = unknown>(endpoint: string, data?: unknown, includeAuth = true): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
 
-    // 如果需要认证，添加令牌
+    // 默认情况下尝试添加认证令牌（除非明确指定不需要）
     if (includeAuth) {
       const token = await tokenManager.getValidToken();
       if (token) {
@@ -256,13 +256,37 @@ class AuthService {
       throw new AppError(ErrorType.AUTHORIZATION, 403, '用户没有该角色权限');
     }
     
-    const updatedUser: AuthUser = {
-      ...currentUser,
-      currentRole: role,
-    };
-    
-    userStorage.setUser(updatedUser);
-    return updatedUser;
+    try {
+      // 调用后端API切换角色并获取新令牌
+      const response = await apiRequest.post<{ access_token: string; token_type: string }>('/auth/switch-role', {
+        role
+      });
+      
+      // 更新令牌
+      tokenManager.setToken(response.access_token);
+      
+      // 更新用户信息
+      const updatedUser: AuthUser = {
+        ...currentUser,
+        currentRole: role,
+      };
+      
+      userStorage.setUser(updatedUser);
+      return updatedUser;
+    } catch (error) {
+      console.error('角色切换失败:', error);
+      
+      if (error instanceof AppError) {
+        throw error;
+      }
+      
+      throw new AppError(
+        ErrorType.AUTHORIZATION,
+        500,
+        '角色切换失败，请稍后重试',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
   }
 
   /**

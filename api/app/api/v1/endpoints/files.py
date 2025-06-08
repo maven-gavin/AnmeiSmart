@@ -3,6 +3,7 @@
 遵循DDD架构：Controller层只做参数校验和调用Service层
 """
 import json
+from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
 from fastapi.responses import StreamingResponse
@@ -13,7 +14,21 @@ from app.db.base import get_db
 from app.db.models.user import User
 from app.services.file_service import FileService
 from app.services.chat.message_service import MessageService
-from app.schemas.chat import FileUploadResponse, MessageInfo
+from app.schemas.file import (
+    FileUploadResponse, ChunkUploadRequest, 
+    UploadStatusResponse, CompleteUploadRequest
+)
+from app.schemas.chat import MessageInfo
+
+
+def get_user_role(user: User) -> str:
+    """获取用户的当前角色"""
+    if hasattr(user, '_active_role') and user._active_role:
+        return user._active_role
+    elif user.roles:
+        return user.roles[0].name
+    else:
+        return 'customer'  # 默认角色
 
 router = APIRouter()
 
@@ -59,7 +74,7 @@ async def upload_file(
             content=json.dumps(file_info_dict),  # 将文件信息存储为JSON
             message_type="file",
             sender_id=current_user.id,
-            sender_type=current_user.role,
+            sender_type=get_user_role(current_user),
             is_important=False
         )
         
@@ -317,7 +332,8 @@ async def cleanup_orphaned_files(
     """
     try:
         # 只有管理员可以执行清理操作
-        if current_user.role != 'admin':
+        user_role_names = [role.name for role in current_user.roles]
+        if 'admin' not in user_role_names:
             raise HTTPException(status_code=403, detail="只有管理员可以执行此操作")
         
         file_service = FileService()
@@ -331,4 +347,215 @@ async def cleanup_orphaned_files(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"文件清理失败: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"文件清理失败: {str(e)}")
+
+
+# ================== 断点续传相关端点 ==================
+
+@router.get("/upload-status/{upload_id}", response_model=UploadStatusResponse)
+async def get_upload_status(
+    upload_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    获取上传状态
+    
+    Args:
+        upload_id: 上传ID
+        current_user: 当前用户
+        
+    Returns:
+        上传状态信息
+    """
+    try:
+        file_service = FileService()
+        status_info = file_service.get_upload_status(upload_id)
+        
+        return UploadStatusResponse(**status_info)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取上传状态失败: {str(e)}")
+
+
+@router.post("/upload-chunk")
+async def upload_chunk(
+    chunk: UploadFile = File(...),
+    chunk_index: int = Form(...),
+    total_chunks: int = Form(...),
+    upload_id: str = Form(...),
+    conversation_id: str = Form(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    上传文件分片
+    
+    Args:
+        chunk: 分片文件
+        chunk_index: 分片索引
+        total_chunks: 总分片数
+        upload_id: 上传ID
+        conversation_id: 会话ID
+        current_user: 当前用户
+        
+    Returns:
+        上传结果
+    """
+    try:
+        file_service = FileService()
+        
+        # 读取分片数据
+        chunk_data = await chunk.read()
+        
+        # 上传分片
+        success = file_service.upload_chunk(
+            upload_id=upload_id,
+            chunk_index=chunk_index,
+            chunk_data=chunk_data,
+            user_id=current_user.id
+        )
+        
+        if success:
+            return {"success": True, "message": f"分片 {chunk_index} 上传成功"}
+        else:
+            raise HTTPException(status_code=500, detail=f"分片 {chunk_index} 上传失败")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"分片上传失败: {str(e)}")
+
+
+@router.post("/complete-upload", response_model=FileUploadResponse)
+async def complete_upload(
+    request: CompleteUploadRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    完成文件上传，合并所有分片
+    
+    Args:
+        request: 完成上传请求
+        db: 数据库会话
+        current_user: 当前用户
+        
+    Returns:
+        文件上传响应
+    """
+    try:
+        file_service = FileService()
+        message_service = MessageService(db)
+        
+        # 验证用户对会话的访问权限
+        if not await message_service.can_access_conversation(request.conversationId, current_user.id):
+            raise HTTPException(status_code=403, detail="无权限访问此会话")
+        
+        # 完成上传并合并分片
+        file_info_dict = file_service.complete_upload(
+            upload_id=request.uploadId,
+            conversation_id=request.conversationId,
+            user_id=current_user.id
+        )
+        
+        # 创建文件消息
+        message_info = await message_service.create_message(
+            conversation_id=request.conversationId,
+            content=json.dumps(file_info_dict),  # 将文件信息存储为JSON
+            message_type="file",
+            sender_id=current_user.id,
+            sender_type=get_user_role(current_user),
+            is_important=False
+        )
+        
+        return FileUploadResponse(
+            success=True,
+            message="文件上传完成",
+            file_info=file_info_dict
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"完成上传失败: {str(e)}")
+
+
+@router.post("/start-resumable-upload")
+async def start_resumable_upload(
+    file_name: str = Form(...),
+    file_size: int = Form(...),
+    chunk_size: int = Form(...),
+    conversation_id: str = Form(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    开始断点续传上传
+    
+    Args:
+        file_name: 文件名
+        file_size: 文件大小
+        chunk_size: 分片大小
+        conversation_id: 会话ID
+        current_user: 当前用户
+        
+    Returns:
+        上传会话信息
+    """
+    try:
+        file_service = FileService()
+        
+        # 生成上传ID
+        import uuid
+        upload_id = f"upload_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:8]}"
+        
+        # 创建上传会话
+        file_service.create_upload_session(
+            upload_id=upload_id,
+            file_name=file_name,
+            file_size=file_size,
+            chunk_size=chunk_size,
+            conversation_id=conversation_id,
+            user_id=current_user.id
+        )
+        
+        total_chunks = (file_size + chunk_size - 1) // chunk_size
+        
+        return {
+            "success": True,
+            "upload_id": upload_id,
+            "total_chunks": total_chunks,
+            "chunk_size": chunk_size
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"开始上传失败: {str(e)}")
+
+
+@router.delete("/cancel-upload/{upload_id}")
+async def cancel_upload(
+    upload_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    取消上传
+    
+    Args:
+        upload_id: 上传ID
+        current_user: 当前用户
+        
+    Returns:
+        取消结果
+    """
+    try:
+        file_service = FileService()
+        
+        success = file_service.cancel_upload(upload_id, current_user.id)
+        
+        if success:
+            return {"success": True, "message": "上传已取消"}
+        else:
+            raise HTTPException(status_code=404, detail="上传会话不存在或无权限")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"取消上传失败: {str(e)}")

@@ -49,6 +49,9 @@ class User(BaseModel):
     consultant = relationship("Consultant", back_populates="user", uselist=False, cascade="all, delete-orphan")
     operator = relationship("Operator", back_populates="user", uselist=False, cascade="all, delete-orphan")
     administrator = relationship("Administrator", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    
+    # 上传会话关联
+    upload_sessions = relationship("UploadSession", back_populates="user", cascade="all, delete-orphan")
 
 class Doctor(BaseModel):
     """医生特有信息表，存储医生扩展信息"""

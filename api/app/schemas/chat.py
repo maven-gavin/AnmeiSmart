@@ -1,7 +1,14 @@
+"""
+聊天领域Schema
+包含消息、会话等聊天相关的数据模型
+"""
 from datetime import datetime
-from typing import Optional, List, Literal, Dict, Any, Union
+from typing import Optional, List, Literal, Dict, Any
 from pydantic import BaseModel, ConfigDict, Field
 import json
+
+# 从文件领域导入FileInfo，用于文件消息的处理
+from .file import FileInfo
 
 
 class MessageSender(BaseModel):
@@ -10,16 +17,6 @@ class MessageSender(BaseModel):
     name: str
     avatar: Optional[str] = None
     type: Literal["customer", "consultant", "doctor", "ai", "system"]
-
-
-class FileInfo(BaseModel):
-    """文件信息模型"""
-    file_url: str
-    file_name: str
-    file_size: int
-    file_type: str  # image, document, audio, video, archive
-    mime_type: str
-    object_name: Optional[str] = None
 
 
 class MessageBase(BaseModel):
@@ -193,27 +190,3 @@ class ConversationInfo(ConversationBase):
             last_message=last_msg_schema,
             is_ai_controlled=is_ai_controlled
         )
-
-
-class FileUploadResponse(BaseModel):
-    """文件上传响应模型"""
-    success: bool
-    message: str
-    file_info: Optional[FileInfo] = None
-
-
-class FileUploadRequest(BaseModel):
-    """文件上传请求模型"""
-    conversation_id: str
-
-
-class WebSocketMessage(BaseModel):
-    """WebSocket消息模型"""
-    action: Literal[
-        "connect", "disconnect", "message", "typing", 
-        "read", "takeover", "switchtoai", "error"
-    ]
-    data: Optional[dict] = None
-    conversation_id: Optional[str] = None
-    sender_id: Optional[str] = None
-    timestamp: Optional[datetime] = None

@@ -24,6 +24,7 @@ class Conversation(BaseModel):
     customer = relationship("User", backref="conversations", foreign_keys=[customer_id])
     assigned_consultant = relationship("User", foreign_keys=[assigned_consultant_id])
     messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
+    upload_sessions = relationship("UploadSession", back_populates="conversation", cascade="all, delete-orphan")
 
 
 class Message(BaseModel):
