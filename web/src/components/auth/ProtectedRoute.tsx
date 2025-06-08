@@ -36,8 +36,8 @@ export default function ProtectedRoute({ children, requiredRoles }: ProtectedRou
       );
 
       if (!hasRequiredRole) {
-        // 用户没有所需角色权限，重定向到首页或访问拒绝页面
-        router.push('/access-denied');
+        // 用户没有所需角色权限，重定向到权限不足页面
+        router.push('/unauthorized');
         return;
       }
     }

@@ -47,7 +47,7 @@ export function useRoleGuard(options: RoleGuardOptions = {}) {
       setError(`无权访问，需要${requiredRole}角色`);
       setIsAuthorized(false);
       const timer = setTimeout(() => {
-        router.push('/');
+        router.push('/unauthorized');
       }, redirectDelay);
       
       return () => clearTimeout(timer);

@@ -8,6 +8,33 @@ export default function UnauthorizedPage() {
   const router = useRouter();
   const { user, logout } = useAuthContext();
 
+  const handleBackHome = () => {
+    // 智能重定向到用户对应角色的首页
+    if (user) {
+      const role = user.currentRole || (user.roles.length > 0 ? user.roles[0] : null);
+      if (role) {
+        const path = role === 'consultant' ? '/consultant' : 
+                    role === 'doctor' ? '/doctor' : 
+                    role === 'customer' ? '/customer' : 
+                    role === 'admin' ? '/admin' : '/';
+        router.push(path);
+      } else {
+        router.push('/');
+      }
+    } else {
+      router.push('/');
+    }
+  };
+
+  const handleSwitchAccount = () => {
+    logout();
+    router.push('/login');
+  };
+
+  const handleSwitchRole = () => {
+    router.push('/login?switch=true');
+  };
+
   return (
     <div className="flex h-screen flex-col items-center justify-center bg-gray-50 px-4">
       <div className="text-center">
@@ -30,43 +57,44 @@ export default function UnauthorizedPage() {
           </div>
         </div>
         <h1 className="mb-4 text-3xl font-bold text-gray-900">
-          访问受限
+          访问权限不足
         </h1>
-        <p className="mb-8 text-lg text-gray-600">
-          很抱歉，您没有访问此页面的权限。
+        <p className="mb-8 max-w-md text-lg text-gray-600 mx-auto">
+          {user 
+            ? '很抱歉，您没有访问此页面的权限。请联系管理员或切换到具有相应权限的角色。' 
+            : '请先登录以访问此页面。'
+          }
         </p>
-        <div className="flex flex-col space-y-2 sm:flex-row sm:space-x-3 sm:space-y-0">
+        <div className="flex flex-col space-y-3 sm:flex-row sm:space-x-4 sm:space-y-0 sm:justify-center">
           <Button
             className="bg-orange-500 hover:bg-orange-600"
-            onClick={() => {
-              // 返回首页或用户对应角色的首页
-              if (user) {
-                const role = user.currentRole || (user.roles.length > 0 ? user.roles[0] : null);
-                if (role) {
-                  const path = role === 'consultant' ? '/consultant' : 
-                              role === 'doctor' ? '/doctor' : 
-                              role === 'customer' ? '/customer' : 
-                              role === 'admin' ? '/admin' : '/';
-                  router.push(path);
-                } else {
-                  router.push('/');
-                }
-              } else {
-                router.push('/');
-              }
-            }}
+            onClick={handleBackHome}
           >
             返回首页
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              logout();
-              router.push('/login');
-            }}
-          >
-            切换账号
-          </Button>
+          {!user ? (
+            <Button
+              variant="outline"
+              onClick={() => router.push('/login')}
+            >
+              前往登录
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                onClick={handleSwitchRole}
+              >
+                切换角色
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleSwitchAccount}
+              >
+                切换账号
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </div>

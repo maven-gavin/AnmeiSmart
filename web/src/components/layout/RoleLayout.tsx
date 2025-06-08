@@ -33,8 +33,8 @@ export default function RoleLayout({ children, requiredRole }: RoleLayoutProps) 
             setLoading(false);
           });
         } else {
-          // 如果用户没有所需角色权限，则跳转到默认页面
-          router.push('/');
+          // 如果用户没有所需角色权限，则跳转到权限不足页面
+          router.push('/unauthorized');
         }
       } else {
         setLoading(false);
