@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import FileMessage from './FileMessage';
+import FileMessage from './message/FileMessage';
 import toast from 'react-hot-toast';
 
 interface FileInfo {

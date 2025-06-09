@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import ChatMessage from '@/components/chat/ChatMessage';
+import ChatMessage from '@/components/chat/message/ChatMessage';
 import { type Message } from '@/types/chat';
 
 // Mock message data

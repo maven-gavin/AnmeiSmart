@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { type Message } from '@/types/chat'
-import ChatMessage from '@/components/chat/ChatMessage'
+import ChatMessage from '@/components/chat/message/ChatMessage'
 import { SearchBar } from '@/components/chat/SearchBar'
 import MessageInput from '@/components/chat/MessageInput'
 import { getOrCreateConversation } from '@/service/chatService'

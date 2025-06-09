@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import FileSelector from '@/components/chat/FileSelector';
-import FileMessage from '@/components/chat/FileMessage';
+import FileMessage from '@/components/chat/message/FileMessage';
 import { type FileInfo } from '@/types/chat';
 
 export default function TestFileUploadPage() {

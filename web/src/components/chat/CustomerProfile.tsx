@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { type CustomerProfile as ICustomerProfile, ConsultationHistoryItem, Message } from '@/types/chat';
 import { getCustomerProfile, getCustomerConsultationHistory, getConversationMessages } from '@/service/chatService';
 import { useRouter } from 'next/navigation';
-import ChatMessage from '@/components/chat/ChatMessage';
+import ChatMessage from '@/components/chat/message/ChatMessage';
 
 interface CustomerProfileProps {
   customerId?: string;

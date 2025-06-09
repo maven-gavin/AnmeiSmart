@@ -36,7 +36,7 @@ export interface Message {
   id: string;
   conversationId: string; // 所属会话ID
   content: string;
-  type: 'text' | 'image' | 'voice' | 'file';
+  type: 'text' | 'image' | 'voice' | 'video' | 'file';
   sender: {
     id: string;
     type: SenderType;
