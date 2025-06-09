@@ -1,236 +1,153 @@
-# WebSocket 新架构使用指南
+# 🏗️ 消息发送架构设计
 
-## 概述
+### 📋 核心组件职责
 
-新的WebSocket架构采用全局连接模式，通过React Context提供统一的状态管理和消息分发。
+#### 1. **MessageInput.tsx** - 消息输入协调器
 
-## 核心原则
+```typescript
+职责：
+✅ 统一管理所有类型的消息输入
+✅ 创建消息对象（createTextMessage、createImageMessage、createVoiceMessage、createFileMessage）
+✅ 协调各个子组件的交互
+✅ 通过 onSendMessage 接口向上传递消息
 
-1. **全局唯一连接**：应用启动时建立唯一的WebSocket连接
-2. **事件驱动**：组件通过监听 `lastJsonMessage`来消费实时事件
-3. **自动过滤**：组件根据消息中的 `conversationId`过滤相关消息
-
-## 使用方式
-
-### 1. 在聊天组件中使用
-
-```tsx
-'use client';
-
-import { useWebSocket } from '@/contexts/WebSocketContext';
-import { useEffect, useState } from 'react';
-
-function ChatWindow({ conversationId }: { conversationId: string }) {
-  const { lastJsonMessage, isConnected } = useWebSocket();
-  const [messages, setMessages] = useState<any[]>([]);
-
-  // 监听新消息事件
-  useEffect(() => {
-    if (lastJsonMessage?.action === 'new_message') {
-      const data = lastJsonMessage.data;
-    
-      // 只处理当前会话的消息
-      if (data.conversation_id === conversationId) {
-        console.log('收到当前会话的新消息:', data);
-        setMessages(prev => [...prev, data]);
-      }
-    }
-  }, [lastJsonMessage, conversationId]);
-
-  // 监听在线状态更新
-  useEffect(() => {
-    if (lastJsonMessage?.action === 'presence_update') {
-      const data = lastJsonMessage.data;
-      console.log('用户在线状态更新:', data);
-      // 更新用户在线状态显示
-    }
-  }, [lastJsonMessage]);
-
-  return (
-    <div>
-      <div>连接状态: {isConnected ? '已连接' : '未连接'}</div>
-      <div>
-        {messages.map(msg => (
-          <div key={msg.id}>{msg.content}</div>
-        ))}
-      </div>
-    </div>
-  );
-}
+特点：
+- 单一入口：所有消息发送都通过 onSendMessage 接口
+- 类型统一：统一的消息创建逻辑
+- 状态管理：管理发送状态和错误处理
 ```
 
-### 2. 在顾问界面中监听客户消息
+#### 2. **MediaPreview.tsx** - 媒体预览处理器
 
-```tsx
-'use client';
+```typescript
+职责：
+✅ 专注于媒体文件的预览展示
+✅ 处理文件上传到存储服务
+✅ 通过回调向父组件传递上传后的URL
+✅ 不直接参与消息创建和发送
 
-import { useWebSocket } from '@/contexts/WebSocketContext';
-import { useEffect } from 'react';
-
-function ConsultantDashboard() {
-  const { lastJsonMessage } = useWebSocket();
-
-  // 监听所有客户的新消息
-  useEffect(() => {
-    if (lastJsonMessage?.action === 'new_message') {
-      const data = lastJsonMessage.data;
-    
-      // 如果是客户发送的消息，显示通知
-      if (data.sender_type === 'customer') {
-        console.log('收到客户消息:', data);
-        // 显示新消息通知
-        showNotification(`客户 ${data.sender_name} 发送了新消息`);
-      }
-    }
-  }, [lastJsonMessage]);
-
-  return (
-    <div>
-      {/* 顾问界面内容 */}
-    </div>
-  );
-}
+设计原则：
+- 关注点分离：只管预览和上传，不管消息逻辑
+- 回调机制：onSendImage、onSendAudio 回调
+- 错误边界：独立的错误处理和用户提示
 ```
 
-### 3. 监听多种事件类型
+#### 3. **useMediaUpload.ts** - 媒体状态管理
 
-```tsx
-'use client';
+```typescript
+职责：
+✅ 管理图片和语音的预览状态
+✅ 处理文件选择和本地预览
+✅ 提供状态清理方法
 
-import { useWebSocket } from '@/contexts/WebSocketContext';
-import { useEffect } from 'react';
-
-function RealtimeComponent() {
-  const { lastJsonMessage } = useWebSocket();
-
-  useEffect(() => {
-    if (!lastJsonMessage) return;
-
-    switch (lastJsonMessage.action) {
-      case 'new_message':
-        handleNewMessage(lastJsonMessage.data);
-        break;
-    
-      case 'presence_update':
-        handlePresenceUpdate(lastJsonMessage.data);
-        break;
-    
-      case 'typing_update':
-        handleTypingUpdate(lastJsonMessage.data);
-        break;
-    
-      default:
-        console.log('未处理的WebSocket事件:', lastJsonMessage);
-    }
-  }, [lastJsonMessage]);
-
-  const handleNewMessage = (data: any) => {
-    // 处理新消息
-  };
-
-  const handlePresenceUpdate = (data: any) => {
-    // 处理在线状态更新
-  };
-
-  const handleTypingUpdate = (data: any) => {
-    // 处理输入状态更新
-  };
-
-  return <div>实时组件</div>;
-}
+特点：
+- 纯状态管理：不涉及业务逻辑
+- 可复用：可在多个组件中使用
+- 简洁API：清晰的状态和操作方法
 ```
 
-## 事件格式
+#### 4. **ChatMessage.tsx** - 消息显示器
 
-### 新消息事件
+```typescript
+职责：
+✅ 根据消息类型渲染不同的显示效果
+✅ 处理消息状态（pending、sent、failed）
+✅ 提供消息操作（重试、删除、撤销、标记重点）
+✅ 自动处理pending消息的发送
 
-```json
-{
-  "action": "new_message",
-  "data": {
-    "id": "msg_123",
-    "conversation_id": "conv_456",
-    "content": "消息内容",
-    "sender_type": "customer",
-    "sender_name": "张三",
-    "created_at": "2024-01-01T12:00:00Z"
-  }
-}
+特点：
+- 多态显示：支持文本、图片、语音、文件等类型
+- 状态驱动：根据消息状态展示不同UI
+- 自治处理：自动发送pending消息
 ```
 
-### 在线状态事件
+### 🔄 数据流设计
 
-```json
-{
-  "action": "presence_update", 
-  "data": {
-    "user_id": "user_123",
-    "status": "online",
-    "last_seen": "2024-01-01T12:00:00Z"
-  }
-}
+#### **发送流程**
+
+```
+1. 用户输入 → 2. 组件处理 → 3. 消息创建 → 4. 统一发送 → 5. 状态更新 → 6. 显示反馈
 ```
 
-## 连接状态管理
+#### **具体流程示例**
 
-### 全局连接状态
-新架构使用全局连接状态指示器，位于应用顶层：
-- **位置**：`layout.tsx` 中的 `<GlobalConnectionStatus />`
-- **显示逻辑**：只在连接异常时显示顶部横幅
-- **自动重连**：WebSocket连接断开时自动重连，无需用户干预
+**📝 文本消息：**
 
-### 重连机制
-WebSocket连接具备智能重连功能：
-1. **自动重连**：连接断开3秒后自动重试
-2. **页面可见性**：页面切换回来时检查并重连
-3. **网络恢复**：监听网络状态，网络恢复时自动重连
-4. **窗口焦点**：窗口获得焦点时检查连接状态
-
-## 注意事项
-
-1. **消息过滤**：组件必须根据 `conversationId`过滤消息，避免处理无关消息
-2. **性能优化**：避免在 `useEffect`中进行复杂计算，使用 `useMemo`缓存处理结果
-3. **错误处理**：始终检查 `lastJsonMessage`的结构，避免访问不存在的属性
-4. **清理副作用**：组件卸载时清理相关状态和订阅
-5. **连接状态**：不要在聊天组件中显示连接状态，使用全局状态指示器
-
-## 迁移指南
-
-### 从旧Hook迁移
-
-**旧代码**：
-
-```tsx
-// ❌ 旧架构 - 已删除
-import { useChatWebSocket } from '@/hooks/useChatWebSocket';
-
-function ChatComponent({ conversationId }) {
-  const { wsStatus, setupMessageListener } = useChatWebSocket(userId, conversationId);
-  // ...
-}
+```
+用户输入文字 → MessageInput → createTextMessage() → onSendMessage() → 父组件保存 → ChatMessage显示
 ```
 
-**新代码**：
+**🖼️ 图片消息：**
 
-```tsx
-// ✅ 新架构
-import { useWebSocket } from '@/contexts/WebSocketContext';
-
-function ChatComponent({ conversationId }) {
-  const { isConnected, lastJsonMessage } = useWebSocket();
-  
-  useEffect(() => {
-    if (lastJsonMessage?.action === 'new_message' && 
-        lastJsonMessage.data.conversation_id === conversationId) {
-      // 处理消息
-    }
-  }, [lastJsonMessage, conversationId]);
-}
+```
+用户选择图片 → useMediaUpload管理状态 → MediaPreview预览 → 
+上传到存储 → 回调传递URL → createImageMessage() → onSendMessage() → 
+父组件保存 → ChatMessage显示
 ```
 
-## 架构优势
+**🎵 语音消息：**
 
-1. **简化代码**：不再需要管理多个WebSocket连接
-2. **性能优化**：全局单一连接，减少资源消耗
-3. **状态统一**：全局状态管理，避免状态不一致
-4. **易于扩展**：新的事件类型只需在组件中添加处理逻辑
+```
+用户录音 → useRecording管理录音 → MediaPreview预览 → 
+上传到存储 → 回调传递URL → createVoiceMessage() → onSendMessage() → 
+父组件保存 → ChatMessage显示
+```
+
+### 🎨 设计原则
+
+#### **1. 单一职责原则 (SRP)**
+
+- 每个组件只负责一个明确的功能
+- MediaPreview只管预览，不管发送
+- MessageInput只管协调，不管具体上传
+
+#### **2. 开闭原则 (OCP)**
+
+- 易于扩展新的消息类型
+- 可以添加新的媒体处理方式
+- 不影响现有代码结构
+
+#### **3. 依赖倒置 (DIP)**
+
+- 通过接口和回调解耦
+- 父组件控制发送逻辑
+- 子组件专注于具体实现
+
+#### **4. 一致性原则**
+
+- 统一的消息对象结构
+- 一致的错误处理方式
+- 统一的UI主题（橙色）
+
+### 📦 文件结构
+
+```
+web/src/
+├── components/chat/
+│   ├── MessageInput.tsx      # 消息输入协调器
+│   ├── MediaPreview.tsx      # 媒体预览处理器
+│   ├── ChatMessage.tsx       # 消息显示器
+│   ├── FileMessage.tsx       # 文件消息显示
+│   └── RecordingControls.tsx # 录音控制
+├── hooks/
+│   ├── useMediaUpload.ts     # 媒体上传状态管理
+│   └── useRecording.ts       # 录音状态管理
+├── service/
+│   ├── fileService.ts        # 文件服务
+│   └── chatService.ts        # 聊天服务
+├── utils/
+│   └── messageUtils.ts       # 消息工具函数
+└── types/
+    └── chat.ts               # 类型定义
+```
+
+### 🎯 架构优势
+
+1. **✅ 高内聚低耦合**：组件职责清晰，依赖关系简单
+2. **✅ 易于测试**：每个组件都可以独立测试
+3. **✅ 易于扩展**：新增消息类型只需添加对应的创建函数
+4. **✅ 用户体验一致**：统一的错误处理和状态提示
+5. **✅ 代码复用**：工具函数和状态管理可复用
+6. **✅ 类型安全**：完整的 TypeScript 类型支持
+
+这个架构确保了消息发送功能的**可维护性**、**可扩展性**和**用户体验**的完美平衡！🚀

@@ -259,6 +259,38 @@ function createFileMessage(fileInfo: FileInfo): Message {
     onUpdateMessages?.();
   }, [onUpdateMessages]);
 
+  // 处理图片发送
+  const handleSendImage = useCallback(async (imageUrl: string) => {
+    try {
+      setSendError(null);
+      
+      // 使用现有的createImageMessage函数创建图片消息
+      const imageMessage = createImageMessage(imageUrl);
+      await onSendMessage(imageMessage);
+      
+      console.log('图片消息发送成功');
+    } catch (error) {
+      console.error('发送图片消息失败:', error);
+      setSendError(error instanceof Error ? error.message : '发送图片消息失败');
+    }
+  }, [onSendMessage]);
+
+  // 处理语音发送  
+  const handleSendAudio = useCallback(async (audioUrl: string) => {
+    try {
+      setSendError(null);
+      
+      // 使用现有的createVoiceMessage函数创建语音消息
+      const voiceMessage = createVoiceMessage(audioUrl);
+      await onSendMessage(voiceMessage);
+      
+      console.log('语音消息发送成功');
+    } catch (error) {
+      console.error('发送语音消息失败:', error);
+      setSendError(error instanceof Error ? error.message : '发送语音消息失败');
+    }
+  }, [onSendMessage]);
+
   // FAQ选择处理 - 填入输入框而不是直接发送
   const handleFAQSelect = useCallback((faqMessage: string) => {
     setMessage(faqMessage);
@@ -348,6 +380,8 @@ function createFileMessage(fileInfo: FileInfo): Message {
         onCancelAudio={cancelAudioPreview}
         onSendSuccess={handleMediaSendSuccess}
         onUpdateMessages={onUpdateMessages}
+        onSendImage={handleSendImage}
+        onSendAudio={handleSendAudio}
       />
       
       {/* FAQ面板 - 在输入区域上方显示 */}
@@ -494,7 +528,9 @@ function createFileMessage(fileInfo: FileInfo): Message {
             <Button
               onClick={handleSendMessage}
               disabled={isSending || !message.trim()}
-              className={isSending ? 'opacity-70 cursor-not-allowed' : ''}
+              className={`bg-orange-500 hover:bg-orange-600 text-white border-0 shadow-sm transition-colors ${
+                isSending ? 'opacity-70 cursor-not-allowed' : ''
+              }`}
             >
               {isSending ? (
                 <span className="flex items-center">
