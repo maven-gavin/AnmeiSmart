@@ -57,6 +57,7 @@ def main():
     parser.add_argument("--skip-setup", action="store_true", help="跳过数据库创建步骤")
     parser.add_argument("--force", action="store_true", help="强制重新创建表结构")
     parser.add_argument("--migration-only", action="store_true", help="只执行迁移，不初始化数据")
+    parser.add_argument("--fresh", action="store_true", help="完全重置：删除所有数据，重新开始")
     args = parser.parse_args()
     
     print_banner()
@@ -76,13 +77,13 @@ def main():
         
         # 3. 运行数据库初始化脚本
         init_args = []
-        if args.force:
-            init_args.append("--force")
+        if args.force or args.fresh:
+            init_args.append("--drop-all")
         run_script("init_db.py", init_args)
         
         # 4. 运行数据扩展初始化脚本
         seed_args = []
-        if args.force:
+        if args.force or args.fresh:
             seed_args.append("--force")
         run_script("seed_db.py", seed_args)
         

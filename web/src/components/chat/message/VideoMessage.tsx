@@ -4,6 +4,7 @@ import React, { useState, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { tokenManager } from '@/service/tokenManager';
 import { MessageContentProps } from './ChatMessage';
+import { MediaMessageContent } from '@/types/chat';
 
 export default function VideoMessage({ message, searchTerm, compact }: MessageContentProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -13,16 +14,40 @@ export default function VideoMessage({ message, searchTerm, compact }: MessageCo
 
   // 获取视频URL
   const getVideoUrl = (): string => {
-    if (typeof message.content === 'string') {
-      const content = message.content;
-      if (content.includes('/chat-files/')) {
-        const objectName = content.split('/chat-files/')[1];
-        return `/api/v1/files/preview/${encodeURIComponent(objectName)}`;
-      } else {
-        return content;
+    if (message.type === 'media') {
+      const mediaContent = message.content as MediaMessageContent;
+      const mediaInfo = mediaContent.media_info;
+      
+      if (mediaInfo?.url) {
+        // 如果是内部文件路径，转换为预览端点
+        if (mediaInfo.url.includes('/chat-files/')) {
+          const objectName = mediaInfo.url.split('/chat-files/')[1];
+          return `/api/v1/files/preview/${encodeURIComponent(objectName)}`;
+        }
+        // 外部URL直接返回
+        return mediaInfo.url;
       }
     }
+    
     throw new Error('无效的视频数据');
+  };
+
+  // 获取文件名
+  const getFileName = (): string => {
+    if (message.type === 'media') {
+      const mediaContent = message.content as MediaMessageContent;
+      return mediaContent.media_info?.name || `video_${Date.now()}.mp4`;
+    }
+    return `video_${Date.now()}.mp4`;
+  };
+
+  // 获取文件大小
+  const getFileSize = (): number => {
+    if (message.type === 'media') {
+      const mediaContent = message.content as MediaMessageContent;
+      return mediaContent.media_info?.size_bytes || 0;
+    }
+    return 0;
   };
 
   // 下载视频
@@ -53,8 +78,7 @@ export default function VideoMessage({ message, searchTerm, compact }: MessageCo
       const a = document.createElement('a');
       a.href = url;
       
-      const fileName = message.file_info?.file_name || 
-                     `video_${new Date().getTime()}.mp4`;
+      const fileName = getFileName();
       a.download = fileName;
       
       document.body.appendChild(a);
@@ -153,16 +177,14 @@ export default function VideoMessage({ message, searchTerm, compact }: MessageCo
         </div>
 
         {/* 视频信息 */}
-        {message.file_info && (
-          <div className="mt-2 text-xs text-gray-500">
-            <span>{message.file_info.file_name}</span>
-            {message.file_info.file_size && (
-              <span className="ml-2">
-                ({(message.file_info.file_size / (1024 * 1024)).toFixed(1)} MB)
-              </span>
-            )}
-          </div>
-        )}
+        <div className="mt-2 text-xs text-gray-500">
+          <span>{getFileName()}</span>
+          {getFileSize() > 0 && (
+            <span className="ml-2">
+              ({(getFileSize() / (1024 * 1024)).toFixed(1)} MB)
+            </span>
+          )}
+        </div>
       </div>
     );
   } catch (error) {

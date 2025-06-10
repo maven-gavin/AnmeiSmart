@@ -1,7 +1,7 @@
 """
 聊天服务 - 整合消息和会话管理功能
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from sqlalchemy.orm import Session, joinedload
 from datetime import datetime
 import logging
@@ -109,20 +109,19 @@ class ChatService:
         self.db.commit()
         self.db.refresh(new_conversation)
         
-        # 创建欢迎消息
-        welcome_message = "欢迎来到安美智享！我是您的AI助手，有什么可以帮助您的吗？"
+        # 创建欢迎消息 - 使用新的结构化格式
+        welcome_text = "欢迎来到安美智享！我是您的AI助手，有什么可以帮助您的吗？"
         
         if new_conversation.assigned_consultant_id:
             consultant = self.db.query(User).filter(
                 User.id == new_conversation.assigned_consultant_id
             ).first()
             consultant_name = consultant.username if consultant else "顾问"
-            welcome_message = f"会话已创建，已为您分配专属顾问{consultant_name}，稍后将为您服务！"
+            welcome_text = f"会话已创建，已为您分配专属顾问{consultant_name}，稍后将为您服务！"
         
-        await self.message_service.create_message(
+        await self.message_service.create_text_message(
             conversation_id=new_conversation.id,
-            content=welcome_message,
-            message_type="system",
+            text=welcome_text,
             sender_id=creator_id,
             sender_type="system"
         )
@@ -189,14 +188,16 @@ class ChatService:
     async def send_message(
         self,
         conversation_id: str,
-        content: str,
+        content: Union[str, Dict[str, Any]],  # 支持字符串或结构化内容
         message_type: str,
         sender_id: str,
         sender_type: str,
         is_important: bool = False,
-        auto_assign_on_first_message: bool = True
+        auto_assign_on_first_message: bool = True,
+        reply_to_message_id: Optional[str] = None,
+        extra_metadata: Optional[Dict[str, Any]] = None
     ) -> MessageInfo:
-        """发送消息"""
+        """发送消息 - 支持新的结构化内容格式"""
         # 验证会话存在和权限
         if not self._verify_conversation_access(conversation_id, sender_id, sender_type):
             raise ValueError(f"会话不存在或无权访问: {conversation_id}")
@@ -222,10 +223,18 @@ class ChatService:
                 customer = self.db.query(User).filter(User.id == conversation.customer_id).first()
                 customer_tags = getattr(customer, 'tags', []) if customer else []
                 
+                # 提取文本内容用于顾问匹配
+                text_for_matching = content
+                if isinstance(content, dict) and 'text' in content:
+                    text_for_matching = content['text']
+                elif isinstance(content, dict):
+                    # 如果是其他结构化内容，转换为字符串
+                    text_for_matching = str(content)
+                
                 # 使用匹配器找到最佳顾问
                 best_consultant_id = self.conversation_matcher.find_best_consultant(
                     customer_id=conversation.customer_id,
-                    conversation_content=content,
+                    conversation_content=text_for_matching,
                     customer_tags=customer_tags
                 )
                 
@@ -244,7 +253,9 @@ class ChatService:
             message_type=message_type,
             sender_id=sender_id,
             sender_type=sender_type,
-            is_important=is_important
+            is_important=is_important,
+            reply_to_message_id=reply_to_message_id,
+            extra_metadata=extra_metadata
         )
         
         # 通过新的广播服务发送消息通知
@@ -262,11 +273,117 @@ class ChatService:
             logger.warning("BroadcastingService未注入，消息未广播")
         
         return message
-    
+
+    async def send_text_message(
+        self,
+        conversation_id: str,
+        text: str,
+        sender_id: str,
+        sender_type: str,
+        is_important: bool = False,
+        reply_to_message_id: Optional[str] = None
+    ) -> MessageInfo:
+        """便利方法：发送文本消息"""
+        message = await self.message_service.create_text_message(
+            conversation_id=conversation_id,
+            text=text,
+            sender_id=sender_id,
+            sender_type=sender_type,
+            is_important=is_important,
+            reply_to_message_id=reply_to_message_id
+        )
+        
+        # 广播消息
+        if self.broadcasting_service:
+            try:
+                await self.broadcasting_service.broadcast_message(
+                    conversation_id=conversation_id,
+                    message_data=message.dict(),
+                    exclude_user_id=sender_id
+                )
+            except Exception as e:
+                logger.error(f"文本消息广播失败: {e}")
+        
+        return message
+
+    async def send_media_message(
+        self,
+        conversation_id: str,
+        media_url: str,
+        media_name: str,
+        mime_type: str,
+        size_bytes: int,
+        sender_id: str,
+        sender_type: str,
+        text: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        is_important: bool = False,
+        reply_to_message_id: Optional[str] = None,
+        upload_method: Optional[str] = None
+    ) -> MessageInfo:
+        """便利方法：发送媒体消息"""
+        message = await self.message_service.create_media_message(
+            conversation_id=conversation_id,
+            media_url=media_url,
+            media_name=media_name,
+            mime_type=mime_type,
+            size_bytes=size_bytes,
+            sender_id=sender_id,
+            sender_type=sender_type,
+            text=text,
+            metadata=metadata,
+            is_important=is_important,
+            reply_to_message_id=reply_to_message_id,
+            upload_method=upload_method
+        )
+        
+        # 广播消息
+        if self.broadcasting_service:
+            try:
+                await self.broadcasting_service.broadcast_message(
+                    conversation_id=conversation_id,
+                    message_data=message.dict(),
+                    exclude_user_id=sender_id
+                )
+            except Exception as e:
+                logger.error(f"媒体消息广播失败: {e}")
+        
+        return message
+
+    async def send_system_event_message(
+        self,
+        conversation_id: str,
+        event_type: str,
+        status: str,
+        sender_id: Optional[str] = None,
+        event_data: Optional[Dict[str, Any]] = None
+    ) -> MessageInfo:
+        """便利方法：发送系统事件消息"""
+        message = await self.message_service.create_system_event_message(
+            conversation_id=conversation_id,
+            event_type=event_type,
+            status=status,
+            sender_id=sender_id,
+            event_data=event_data
+        )
+        
+        # 广播消息
+        if self.broadcasting_service:
+            try:
+                await self.broadcasting_service.broadcast_message(
+                    conversation_id=conversation_id,
+                    message_data=message.dict(),
+                    exclude_user_id=None  # 系统消息广播给所有人
+                )
+            except Exception as e:
+                logger.error(f"系统事件消息广播失败: {e}")
+        
+        return message
+
     async def send_message_and_broadcast(
         self,
         conversation_id: str,
-        content: str,
+        content: Union[str, Dict[str, Any]],
         message_type: str,
         sender_id: str,
         sender_type: str,
@@ -274,9 +391,9 @@ class ChatService:
         auto_assign_on_first_message: bool = True
     ) -> MessageInfo:
         """
-        发送消息并广播（新方法，推荐使用）
+        发送消息并广播（保持API兼容性）
         
-        这个方法整合了消息保存和实时广播功能，是send_message的增强版本
+        这个方法整合了消息保存和实时广播功能，是send_message的别名
         """
         return await self.send_message(
             conversation_id=conversation_id,

@@ -1,23 +1,38 @@
 """
-消息服务 - 处理消息的创建、存储和查询
+聊天消息服务层
+负责处理消息的创建、更新和查询逻辑
+
+支持统一消息模型的四种类型：
+- text: 纯文本消息
+- media: 媒体文件消息
+- system: 系统事件消息  
+- structured: 结构化卡片消息
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
 from datetime import datetime
 import logging
+import json
 
 from app.db.models.chat import Message, Conversation
 from app.db.models.user import User
 from app.db.uuid_utils import message_id
-from app.schemas.chat import MessageCreate, MessageInfo
+from app.schemas.chat import (
+    MessageCreate, MessageInfo, 
+    TextMessageContent, MediaMessageContent, SystemEventContent,
+    create_text_message_content, create_media_message_content, create_system_event_content,
+    create_appointment_card_content,
+    create_service_recommendation_content,
+    AppointmentCardData
+)
 from app.core.events import event_bus, EventTypes, create_message_event
 
 logger = logging.getLogger(__name__)
 
 
 class MessageService:
-    """消息服务类"""
+    """消息服务类，提供消息相关的业务逻辑"""
     
     def __init__(self, db: Session):
         self.db = db
@@ -73,69 +88,300 @@ class MessageService:
             logger.error(f"检查会话访问权限失败: {str(e)}")
             return False
 
-    async def create_message(
+    def create_message(
         self,
         conversation_id: str,
-        content: str,
-        message_type: str,
-        sender_id: Optional[str],  # 允许None，用于AI消息
+        sender_id: str,
         sender_type: str,
-        is_important: bool = False
-    ) -> MessageInfo:
-        """创建新消息"""
-        logger.info(f"创建消息: conversation_id={conversation_id}, sender_id={sender_id}")
+        content: Dict[str, Any],
+        message_type: str,
+        is_important: bool = False,
+        reply_to_message_id: Optional[str] = None,
+        reactions: Optional[Dict[str, List[str]]] = None,
+        extra_metadata: Optional[Dict[str, Any]] = None
+    ) -> Message:
+        """
+        创建新消息
         
-        # 验证会话存在
-        conversation = self.db.query(Conversation).filter(
-            Conversation.id == conversation_id
-        ).first()
-        
-        if not conversation:
-            raise ValueError(f"会话不存在: {conversation_id}")
-        
-        # 对于AI消息和系统消息，使用特殊的sender_id处理
-        actual_sender_id = sender_id
-        if sender_type in ["ai", "system"] and sender_id is None:
-            # AI消息和系统消息使用特殊的ID，不关联真实用户表
-            actual_sender_id = f"{sender_type}_system"
-        
-        # 创建消息
-        new_message = Message(
-            id=message_id(),
+        Args:
+            conversation_id: 会话ID
+            sender_id: 发送者ID
+            sender_type: 发送者类型
+            content: 结构化消息内容
+            message_type: 消息类型 (text, media, system, structured)
+            is_important: 是否重要
+            reply_to_message_id: 回复的消息ID
+            reactions: 消息反应
+            extra_metadata: 额外元数据
+            
+        Returns:
+            创建的消息实例
+        """
+        message = Message(
             conversation_id=conversation_id,
+            sender_id=sender_id,
+            sender_type=sender_type,
             content=content,
             type=message_type,
-            sender_id=actual_sender_id,
-            sender_type=sender_type,
-            is_read=False,
             is_important=is_important,
-            timestamp=datetime.now()
+            reply_to_message_id=reply_to_message_id,
+            reactions=reactions,
+            extra_metadata=extra_metadata
         )
         
-        self.db.add(new_message)
-        
-        # 更新会话最后更新时间
-        conversation.updated_at = datetime.now()
-        
+        self.db.add(message)
         self.db.commit()
-        self.db.refresh(new_message)
+        self.db.refresh(message)
         
-        logger.info(f"消息创建成功: message_id={new_message.id}")
+        return message
+
+    def create_text_message(
+        self,
+        conversation_id: str,
+        sender_id: str,
+        sender_type: str,
+        text: str,
+        is_important: bool = False,
+        reply_to_message_id: Optional[str] = None,
+        extra_metadata: Optional[Dict[str, Any]] = None
+    ) -> Message:
+        """
+        创建文本消息的便利方法
         
-        # 发布消息创建事件
-        event = create_message_event(
+        Args:
+            conversation_id: 会话ID
+            sender_id: 发送者ID  
+            sender_type: 发送者类型
+            text: 文本内容
+            is_important: 是否重要
+            reply_to_message_id: 回复的消息ID
+            extra_metadata: 额外元数据
+            
+        Returns:
+            创建的消息实例
+        """
+        content = create_text_message_content(text)
+        
+        return self.create_message(
             conversation_id=conversation_id,
-            user_id=actual_sender_id,
-            content=content,
-            message_type=message_type,
+            sender_id=sender_id,
             sender_type=sender_type,
+            content=content,
+            message_type="text",
             is_important=is_important,
-            message_id=new_message.id
+            reply_to_message_id=reply_to_message_id,
+            extra_metadata=extra_metadata
         )
-        await event_bus.publish_async(event)
+
+    def create_media_message(
+        self,
+        conversation_id: str,
+        sender_id: str,
+        sender_type: str,
+        media_url: str,
+        media_name: str,
+        mime_type: str,
+        size_bytes: int,
+        text: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        is_important: bool = False,
+        reply_to_message_id: Optional[str] = None,
+        upload_method: Optional[str] = None
+    ) -> Message:
+        """
+        创建媒体消息的便利方法
         
-        return MessageInfo.from_model(new_message)
-    
+        Args:
+            conversation_id: 会话ID
+            sender_id: 发送者ID
+            sender_type: 发送者类型
+            media_url: 媒体文件URL
+            media_name: 媒体文件名
+            mime_type: MIME类型
+            size_bytes: 文件大小
+            text: 附带文字（可选）
+            metadata: 媒体元数据（如宽高、时长等）
+            is_important: 是否重要
+            reply_to_message_id: 回复的消息ID
+            upload_method: 上传方式
+            
+        Returns:
+            创建的消息实例
+        """
+        content = create_media_message_content(
+            media_url=media_url,
+            media_name=media_name,
+            mime_type=mime_type,
+            size_bytes=size_bytes,
+            text=text,
+            metadata=metadata
+        )
+        
+        # 将上传方式添加到额外元数据中
+        extra_metadata = {"upload_method": upload_method} if upload_method else None
+        
+        return self.create_message(
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+            sender_type=sender_type,
+            content=content,
+            message_type="media",
+            is_important=is_important,
+            reply_to_message_id=reply_to_message_id,
+            extra_metadata=extra_metadata
+        )
+
+    def create_system_event_message(
+        self,
+        conversation_id: str,
+        event_type: str,
+        status: Optional[str] = None,
+        event_data: Optional[Dict[str, Any]] = None
+    ) -> Message:
+        """
+        创建系统事件消息的便利方法
+        
+        Args:
+            conversation_id: 会话ID
+            event_type: 事件类型
+            status: 事件状态
+            event_data: 事件数据
+            
+        Returns:
+            创建的消息实例
+        """
+        content = create_system_event_content(
+            event_type=event_type,
+            status=status,
+            **(event_data or {})
+        )
+        
+        return self.create_message(
+            conversation_id=conversation_id,
+            sender_id="system",
+            sender_type="system",
+            content=content,
+            message_type="system"
+        )
+
+    def create_appointment_card_message(
+        self,
+        conversation_id: str,
+        sender_id: str,
+        sender_type: str,
+        appointment_data: AppointmentCardData,
+        title: str = "预约确认",
+        subtitle: Optional[str] = None
+    ) -> Message:
+        """
+        创建预约确认卡片消息
+        
+        Args:
+            conversation_id: 会话ID
+            sender_id: 发送者ID
+            sender_type: 发送者类型
+            appointment_data: 预约数据
+            title: 卡片标题
+            subtitle: 卡片副标题
+            
+        Returns:
+            创建的消息实例
+        """
+        content = create_appointment_card_content(
+            appointment_data=appointment_data,
+            title=title,
+            subtitle=subtitle
+        )
+        
+        return self.create_message(
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+            sender_type=sender_type,
+            content=content,
+            message_type="structured",
+            is_important=True  # 预约消息通常标记为重要
+        )
+
+    def create_service_recommendation_message(
+        self,
+        conversation_id: str,
+        sender_id: str,
+        sender_type: str,
+        services: List[Dict[str, Any]],
+        title: str = "推荐服务"
+    ) -> Message:
+        """
+        创建服务推荐卡片消息
+        
+        Args:
+            conversation_id: 会话ID
+            sender_id: 发送者ID
+            sender_type: 发送者类型
+            services: 推荐服务列表
+            title: 卡片标题
+            
+        Returns:
+            创建的消息实例
+        """
+        content = create_service_recommendation_content(
+            services=services,
+            title=title
+        )
+        
+        return self.create_message(
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+            sender_type=sender_type,
+            content=content,
+            message_type="structured"
+        )
+
+    def create_custom_structured_message(
+        self,
+        conversation_id: str,
+        sender_id: str,
+        sender_type: str,
+        card_type: str,
+        title: str,
+        data: Dict[str, Any],
+        subtitle: Optional[str] = None,
+        components: Optional[List[Dict[str, Any]]] = None,
+        actions: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> Message:
+        """
+        创建自定义结构化消息
+        
+        Args:
+            conversation_id: 会话ID
+            sender_id: 发送者ID
+            sender_type: 发送者类型
+            card_type: 卡片类型
+            title: 卡片标题
+            data: 卡片数据
+            subtitle: 卡片副标题
+            components: 卡片组件
+            actions: 卡片操作
+            
+        Returns:
+            创建的消息实例
+        """
+        content = {
+            "card_type": card_type,
+            "title": title,
+            "subtitle": subtitle,
+            "data": data,
+            "components": components,
+            "actions": actions
+        }
+        
+        return self.create_message(
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+            sender_type=sender_type,
+            content=content,
+            message_type="structured"
+        )
+
     def get_conversation_messages(
         self,
         conversation_id: str,

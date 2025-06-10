@@ -14,6 +14,15 @@ from .chat import (
     ConversationBase,
     ConversationCreate,
     ConversationInfo,
+    # 新增的消息内容结构
+    TextMessageContent,
+    MediaInfo,
+    MediaMessageContent,
+    SystemEventContent,
+    # 便利函数
+    create_text_message_content,
+    create_media_message_content,
+    create_system_event_content,
 )
 
 # 文件领域
@@ -50,6 +59,15 @@ __all__ = [
     "ConversationBase",
     "ConversationCreate", 
     "ConversationInfo",
+    # 新增的消息内容结构
+    "TextMessageContent",
+    "MediaInfo",
+    "MediaMessageContent",
+    "SystemEventContent",
+    # 便利函数
+    "create_text_message_content",
+    "create_media_message_content",
+    "create_system_event_content",
     
     # 文件领域
     "FileInfo",

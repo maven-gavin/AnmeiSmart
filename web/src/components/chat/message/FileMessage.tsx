@@ -4,6 +4,7 @@ import React, { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { tokenManager } from '@/service/tokenManager';
 import { MessageContentProps } from './ChatMessage';
+import { MediaMessageContent } from '@/types/chat';
 
 interface FileInfo {
   file_url: string;
@@ -23,11 +24,46 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo }: 
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // 从消息或props中获取文件信息
+  // 从新消息结构中获取文件信息
   const getFileInfo = (): FileInfo => {
     if (fileInfo) return fileInfo;
-    if (message.file_info) return message.file_info;
+    
+    // 适配新的MediaMessageContent结构
+    if (message.type === 'media') {
+      const mediaContent = message.content as MediaMessageContent;
+      const mediaInfo = mediaContent.media_info;
+      
+      if (mediaInfo) {
+        return {
+          file_url: mediaInfo.url,
+          file_name: mediaInfo.name,
+          file_size: mediaInfo.size_bytes,
+          file_type: getFileTypeFromMimeType(mediaInfo.mime_type),
+          mime_type: mediaInfo.mime_type,
+          object_name: extractObjectName(mediaInfo.url)
+        };
+      }
+    }
+    
     throw new Error('缺少文件信息');
+  };
+
+  // 从MIME类型推断文件类型
+  const getFileTypeFromMimeType = (mimeType: string): string => {
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType.startsWith('video/')) return 'video';
+    if (mimeType.startsWith('audio/')) return 'audio';
+    if (mimeType.includes('pdf') || mimeType.includes('document') || mimeType.includes('text')) return 'document';
+    if (mimeType.includes('zip') || mimeType.includes('compressed')) return 'archive';
+    return 'document';
+  };
+
+  // 从URL中提取对象名称
+  const extractObjectName = (url: string): string | undefined => {
+    if (url.includes('/chat-files/')) {
+      return url.split('/chat-files/')[1];
+    }
+    return undefined;
   };
 
   // 格式化文件大小
@@ -95,7 +131,6 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo }: 
     if (fileInfo.object_name) {
       return `/api/v1/files/download/${encodeURIComponent(fileInfo.object_name)}`;
     }
-    // 回退到原始URL（兼容性）
     return fileInfo.file_url;
   }, []);
 
@@ -104,7 +139,6 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo }: 
     if (fileInfo.object_name) {
       return `/api/v1/files/preview/${encodeURIComponent(fileInfo.object_name)}`;
     }
-    // 回退到原始URL（兼容性）
     return fileInfo.file_url;
   }, []);
 
@@ -194,14 +228,12 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo }: 
           throw new Error('无法预览此文件');
         }
         
-        // 如果检查通过，打开新窗口进行预览
-        // 注意：由于安全限制，我们暂时使用下载作为fallback
+        // 如果检查通过，开始下载文件
         toast('正在准备预览，开始下载文件...', { icon: '📎' });
         handleDownload(fileInfo);
       } catch (error) {
         console.error('预览失败:', error);
         toast.error(error instanceof Error ? error.message : '预览失败');
-        // 预览失败时fallback到下载
         handleDownload(fileInfo);
       }
     } else {
@@ -304,14 +336,8 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo }: 
                 onClick={() => setIsPreviewOpen(false)}
                 onError={(e) => {
                   console.error('图片预览加载失败');
-                  // 如果预览失败，回退到原始URL
-                  if (currentFileInfo.object_name && (e.target as HTMLImageElement).src !== currentFileInfo.file_url) {
-                    (e.target as HTMLImageElement).src = currentFileInfo.file_url;
-                  } else {
-                    // 如果还是失败，显示错误信息
-                    toast.error('图片加载失败');
-                    setIsPreviewOpen(false);
-                  }
+                  toast.error('图片加载失败');
+                  setIsPreviewOpen(false);
                 }}
               />
               

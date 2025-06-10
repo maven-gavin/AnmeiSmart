@@ -152,6 +152,12 @@ def initialize_database(drop_all=False):
                 connection.execute(text("GRANT ALL ON SCHEMA public TO postgres;"))
                 connection.execute(text("GRANT ALL ON SCHEMA public TO public;"))
                 
+                # 删除alembic版本表，强制重新开始迁移
+                try:
+                    connection.execute(text("DROP TABLE IF EXISTS alembic_version;"))
+                except Exception:
+                    pass  # 忽略错误，可能表不存在
+                
                 # 恢复外键约束检查
                 connection.execute(text("SET session_replication_role = 'origin';"))
                 

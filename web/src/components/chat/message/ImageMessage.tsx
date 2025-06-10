@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
-import { MessageContentProps } from './ChatMessage';
+import type { MessageContentProps } from './ChatMessage';
 import { FileService } from '@/service/fileService';
 import { API_BASE_URL } from '@/config';
+import { MediaMessageContent } from '@/types/chat';
 
 // 图片缓存 - 避免重复请求
 const imageCache = new Map<string, string>();
@@ -30,24 +31,31 @@ export default function ImageMessage({ message, searchTerm, compact }: MessageCo
   const [authenticatedImageUrl, setAuthenticatedImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 提取图片对象名称 - 使用useMemo优化
+  // 提取图片对象名称 - 使用useMemo优化，适配新的消息模型
   const objectName = useMemo(() => {
     try {
-      if (message.type === 'file' && message.file_info?.object_name) {
-        return message.file_info.object_name;
-      } else if (typeof message.content === 'string' && message.content.trim()) {
-        const content = message.content.trim();
-        if (content.includes('/chat-files/')) {
-          return content.split('/chat-files/')[1];
+      // 检查是否为媒体消息
+      if (message.type === 'media') {
+        const mediaContent = message.content as MediaMessageContent;
+        
+        // 如果有media_info，使用其中的URL
+        if (mediaContent.media_info?.url) {
+          const url = mediaContent.media_info.url;
+          // 如果是内部文件路径，提取对象名称
+          if (url.includes('/chat-files/')) {
+            return url.split('/chat-files/')[1];
+          }
+          // 外部URL直接返回
+          return url;
         }
-        return content; // 外部URL
       }
+      
       throw new Error('无效的图片数据');
     } catch (error) {
       console.error('解析图片URL失败:', error);
       return null;
     }
-  }, [message.type, message.content, message.file_info?.object_name]);
+  }, [message.type, message.content]);
 
   // 创建认证图片URL - 使用useCallback优化
   const createAuthenticatedImageUrl = useCallback(async (objectName: string): Promise<string> => {
@@ -140,7 +148,15 @@ export default function ImageMessage({ message, searchTerm, compact }: MessageCo
     try {
       const a = document.createElement('a');
       a.href = authenticatedImageUrl;
-      a.download = message.file_info?.file_name || `image_${Date.now()}.jpg`;
+      
+      // 从media_info结构中获取文件名
+      let fileName = `image_${Date.now()}.jpg`;
+      if (message.type === 'media') {
+        const mediaContent = message.content as MediaMessageContent;
+        fileName = mediaContent.media_info?.name || fileName;
+      }
+      
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -149,17 +165,27 @@ export default function ImageMessage({ message, searchTerm, compact }: MessageCo
       console.error('图片下载失败:', error);
       toast.error('图片下载失败');
     }
-  }, [authenticatedImageUrl, message.file_info?.file_name]);
+  }, [authenticatedImageUrl, message.type, message.content]);
 
   // 复制图片链接
   const copyImageLink = useCallback(() => {
-    const originalUrl = message.content as string;
-    navigator.clipboard.writeText(originalUrl).then(() => {
-      toast.success('图片链接已复制到剪贴板');
-    }).catch(() => {
-      toast.error('复制失败');
-    });
-  }, [message.content]);
+    if (message.type === 'media') {
+      const mediaContent = message.content as MediaMessageContent;
+      const originalUrl = mediaContent.media_info?.url || '';
+      
+      if (originalUrl) {
+        navigator.clipboard.writeText(originalUrl).then(() => {
+          toast.success('图片链接已复制到剪贴板');
+        }).catch(() => {
+          toast.error('复制失败');
+        });
+      } else {
+        toast.error('无法获取图片链接');
+      }
+    } else {
+      toast.error('无法获取图片链接');
+    }
+  }, [message.type, message.content]);
 
   // 渲染加载状态
   const renderLoadingState = () => (

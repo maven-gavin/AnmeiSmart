@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageContentProps } from './ChatMessage';
+import { MediaMessageContent } from '@/types/chat';
 
 export default function VoiceMessage({ message, searchTerm, compact }: MessageContentProps) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -13,16 +14,31 @@ export default function VoiceMessage({ message, searchTerm, compact }: MessageCo
 
   // 获取语音URL
   const getAudioUrl = (): string => {
-    if (typeof message.content === 'string') {
-      const content = message.content;
-      if (content.includes('/chat-files/')) {
-        const objectName = content.split('/chat-files/')[1];
-        return `/api/v1/files/preview/${encodeURIComponent(objectName)}`;
-      } else {
-        return content;
+    if (message.type === 'media') {
+      const mediaContent = message.content as MediaMessageContent;
+      const mediaInfo = mediaContent.media_info;
+      
+      if (mediaInfo?.url) {
+        // 如果是内部文件路径，转换为预览端点
+        if (mediaInfo.url.includes('/chat-files/')) {
+          const objectName = mediaInfo.url.split('/chat-files/')[1];
+          return `/api/v1/files/preview/${encodeURIComponent(objectName)}`;
+        }
+        // 外部URL直接返回
+        return mediaInfo.url;
       }
     }
+    
     throw new Error('无效的语音数据');
+  };
+
+  // 获取音频时长
+  const getAudioDuration = (): number => {
+    if (message.type === 'media') {
+      const mediaContent = message.content as MediaMessageContent;
+      return mediaContent.media_info?.metadata?.duration_seconds || 0;
+    }
+    return 0;
   };
 
   // 格式化时间

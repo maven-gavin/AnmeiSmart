@@ -1,31 +1,41 @@
 'use client';
 
 import React from 'react';
-import { MessageContentProps } from './ChatMessage';
+import { Message, TextMessageContent } from '@/types/chat';
+import { MessageUtils } from '@/utils/messageUtils';
 
-export default function TextMessage({ message, searchTerm, compact }: MessageContentProps) {
-  // 高亮搜索文本
-  const highlightText = (text: string, searchTerm: string) => {
-    if (!searchTerm.trim() || !text) return text;
+interface TextMessageProps {
+  message: Message;
+  searchTerm?: string;
+}
+
+const TextMessage: React.FC<TextMessageProps> = ({ message, searchTerm }) => {
+  const content = message.content as TextMessageContent;
+  const text = content.text || '';
+
+  // 高亮搜索关键词
+  const highlightText = (text: string, searchTerm?: string) => {
+    if (!searchTerm || !text) return text;
     
-    const parts = text.split(new RegExp(`(${searchTerm})`, 'gi'));
+    const regex = new RegExp(`(${searchTerm})`, 'gi');
+    const parts = text.split(regex);
     
-    return (
-      <>
-        {parts.map((part, index) => 
-          part.toLowerCase() === searchTerm.toLowerCase() 
-            ? <span key={index} className="bg-yellow-200 text-gray-900">{part}</span> 
-            : part
-        )}
-      </>
+    return parts.map((part, index) => 
+      regex.test(part) ? (
+        <mark key={index} className="bg-yellow-200 px-1 rounded">
+          {part}
+        </mark>
+      ) : part
     );
   };
 
   return (
-    <p className="break-words whitespace-pre-line">
-      {searchTerm?.trim() && typeof message.content === 'string'
-        ? highlightText(message.content, searchTerm)
-        : message.content}
-    </p>
+    <div className="text-message">
+      <div className="whitespace-pre-wrap break-words">
+        {highlightText(text, searchTerm)}
+      </div>
+    </div>
   );
-} 
+};
+
+export default TextMessage; 

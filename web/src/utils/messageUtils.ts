@@ -153,4 +153,288 @@ export function getMessageSortKey(timestamp: string, id: string): string {
     // 如果时间格式无效，使用ID
     return `0_${id}`;
   }
-} 
+}
+
+import { 
+  Message, 
+  MessageContent, 
+  MediaInfo, 
+  TextMessageContent, 
+  MediaMessageContent, 
+  SystemEventContent,
+  StructuredMessageContent,
+  CreateTextMessageData,
+  CreateMediaMessageData,
+  CreateSystemEventData,
+  AppointmentCardData,
+  CardComponent
+} from '@/types/chat';
+
+/**
+ * 消息工具类 - 提供处理新旧消息格式的便利方法
+ */
+export class MessageUtils {
+  /**
+   * 获取消息的文本内容
+   */
+  static getTextContent(message: Message): string | null {
+    switch (message.type) {
+      case 'text':
+        return (message.content as TextMessageContent).text;
+      case 'media':
+        return (message.content as MediaMessageContent).text || null;
+      case 'system':
+        const systemContent = message.content as SystemEventContent;
+        return MessageUtils.formatSystemEventText(systemContent);
+      case 'structured':
+        const structuredContent = message.content as StructuredMessageContent;
+        return structuredContent.title;
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * 获取消息的媒体信息
+   */
+  static getMediaInfo(message: Message): MediaInfo | null {
+    if (message.type === 'media') {
+      return (message.content as MediaMessageContent).media_info;
+    }
+    return null;
+  }
+
+  /**
+   * 获取结构化消息的卡片数据
+   */
+  static getStructuredCardData(message: Message): any | null {
+    if (message.type === 'structured') {
+      return (message.content as StructuredMessageContent).data;
+    }
+    return null;
+  }
+
+  /**
+   * 判断是否为文本消息
+   */
+  static isTextMessage(message: Message): boolean {
+    return message.type === 'text';
+  }
+
+  /**
+   * 判断是否为媒体消息
+   */
+  static isMediaMessage(message: Message): boolean {
+    return message.type === 'media';
+  }
+
+  /**
+   * 判断是否为系统消息
+   */
+  static isSystemMessage(message: Message): boolean {
+    return message.type === 'system';
+  }
+
+  /**
+   * 判断是否为结构化消息（卡片）
+   */
+  static isStructuredMessage(message: Message): boolean {
+    return message.type === 'structured';
+  }
+
+  /**
+   * 判断是否为预约确认卡片
+   */
+  static isAppointmentCard(message: Message): boolean {
+    return message.type === 'structured' && 
+           (message.content as StructuredMessageContent).card_type === 'appointment_confirmation';
+  }
+
+  /**
+   * 格式化系统事件为可读文本
+   */
+  static formatSystemEventText(content: SystemEventContent): string {
+    const { system_event_type, status, participants } = content;
+    
+    switch (system_event_type) {
+      case 'user_joined':
+        return '用户加入了会话';
+      case 'user_left':
+        return '用户离开了会话';
+      case 'takeover':
+        return status === 'completed' ? '专家已接管会话' : '正在转接专家...';
+      case 'release':
+        return '会话已转回AI助手';
+      case 'video_call_status':
+        if (status === 'ended' && content.duration_seconds) {
+          const duration = MessageUtils.formatDuration(content.duration_seconds);
+          return `通话结束，时长 ${duration}`;
+        }
+        return `视频通话${status === 'initiated' ? '发起' : status}`;
+      default:
+        return '系统消息';
+    }
+  }
+
+  /**
+   * 获取消息的显示文本（用于会话列表等）
+   */
+  static getDisplayText(message: Message): string {
+    switch (message.type) {
+      case 'text':
+        return (message.content as TextMessageContent).text;
+      case 'media':
+        const mediaContent = message.content as MediaMessageContent;
+        const mediaType = MessageUtils.getMediaType(mediaContent.media_info.mime_type);
+        return mediaContent.text || `[${mediaType}]`;
+      case 'system':
+        return MessageUtils.formatSystemEventText(message.content as SystemEventContent);
+      case 'structured':
+        const structuredContent = message.content as StructuredMessageContent;
+        return `[${MessageUtils.getCardTypeDisplayName(structuredContent.card_type)}] ${structuredContent.title}`;
+      default:
+        return '未知消息类型';
+    }
+  }
+
+  /**
+   * 获取卡片类型的显示名称
+   */
+  static getCardTypeDisplayName(cardType: string): string {
+    switch (cardType) {
+      case 'appointment_confirmation':
+        return '预约确认';
+      case 'service_recommendation':
+        return '服务推荐';
+      case 'consultation_summary':
+        return '咨询总结';
+      default:
+        return '卡片';
+    }
+  }
+
+  /**
+   * 获取媒体类型
+   */
+  static getMediaType(mimeType: string): string {
+    if (mimeType.startsWith('image/')) return '图片';
+    if (mimeType.startsWith('video/')) return '视频';
+    if (mimeType.startsWith('audio/')) return '语音';
+    if (mimeType.includes('pdf')) return 'PDF';
+    if (mimeType.includes('word') || mimeType.includes('document')) return '文档';
+    if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return '表格';
+    return '文件';
+  }
+
+  /**
+   * 格式化文件大小
+   */
+  static formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  /**
+   * 格式化时长（秒 -> 分:秒）
+   */
+  static formatDuration(seconds: number): string {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  }
+
+  /**
+   * 创建文本消息内容
+   */
+  static createTextMessageContent(text: string): TextMessageContent {
+    return { text };
+  }
+
+  /**
+   * 创建媒体消息内容
+   */
+  static createMediaMessageContent(
+    mediaInfo: MediaInfo, 
+    text?: string
+  ): MediaMessageContent {
+    return {
+      media_info: mediaInfo,
+      text
+    };
+  }
+
+  /**
+   * 创建系统事件内容
+   */
+  static createSystemEventContent(
+    eventType: string,
+    data?: { [key: string]: any }
+  ): SystemEventContent {
+    return {
+      system_event_type: eventType,
+      ...data
+    };
+  }
+
+  /**
+   * 创建预约确认卡片内容
+   */
+  static createAppointmentCardContent(
+    appointmentData: AppointmentCardData,
+    title: string = '预约确认',
+    subtitle?: string
+  ): StructuredMessageContent {
+    return {
+      card_type: 'appointment_confirmation',
+      title,
+      subtitle,
+      data: appointmentData,
+      actions: {
+        primary: { text: '确认预约', action: 'confirm_appointment', data: { appointment_id: appointmentData.appointment_id } },
+        secondary: { text: '重新安排', action: 'reschedule', data: { appointment_id: appointmentData.appointment_id } }
+      }
+    };
+  }
+
+  /**
+   * 创建服务推荐卡片内容
+   */
+  static createServiceRecommendationContent(
+    services: any[],
+    title: string = '推荐服务'
+  ): StructuredMessageContent {
+    return {
+      card_type: 'service_recommendation',
+      title,
+      data: { services },
+      actions: {
+        primary: { text: '查看详情', action: 'view_services' }
+      }
+    };
+  }
+}
+
+// 导出便利函数
+export const {
+  getTextContent,
+  getMediaInfo,
+  isTextMessage,
+  isMediaMessage,
+  isSystemMessage,
+  isStructuredMessage,
+  isAppointmentCard,
+  getDisplayText,
+  getStructuredCardData,
+  getCardTypeDisplayName,
+  getMediaType,
+  formatFileSize,
+  formatDuration,
+  createTextMessageContent,
+  createMediaMessageContent,
+  createSystemEventContent,
+  createAppointmentCardContent,
+  createServiceRecommendationContent
+} = MessageUtils; 
