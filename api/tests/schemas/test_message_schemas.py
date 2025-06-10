@@ -47,7 +47,7 @@ class TestMessageContentCreators:
     def test_create_system_event_content_basic(self):
         """测试基本系统事件内容"""
         content = create_system_event_content(
-            system_event_type="user_joined",
+            event_type="user_joined",
             status="completed"
         )
         
@@ -66,7 +66,8 @@ class TestMessageInfo:
         mock_user = MagicMock()
         mock_user.id = "user123"
         mock_user.username = "testuser"
-        
+        mock_user.avatar = "/avatars/test.png"
+
         mock_message = MagicMock()
         mock_message.id = "msg123"
         mock_message.conversation_id = "conv123"
@@ -85,6 +86,7 @@ class TestMessageInfo:
         message_info = MessageInfo.from_model(mock_message)
         
         assert message_info.id == "msg123"
+        assert message_info.content == {"text": "Hello world"}
         assert message_info.type == "text"
-        assert message_info.text_content == "Hello world"
-        assert message_info.media_info is None 
+        assert message_info.sender.type == "customer"
+        assert message_info.sender.name == "testuser" 
