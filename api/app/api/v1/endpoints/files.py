@@ -144,13 +144,14 @@ async def preview_file(
 ):
     """
     文件预览端点（用于图片、PDF等）
+    根据文件大小和类型智能选择传输方式
     
     Args:
         object_name: Minio中的对象名称
         current_user: 当前用户
         
     Returns:
-        文件流响应
+        文件流响应或完整文件响应
     """
     try:
         file_service = FileService()
@@ -159,14 +160,13 @@ async def preview_file(
         if not file_service.can_access_file(object_name, current_user.id):
             raise HTTPException(status_code=403, detail="无权限访问此文件")
         
-        # 获取文件流
-        file_stream = file_service.get_file_stream(object_name)
-        if not file_stream:
-            raise HTTPException(status_code=404, detail="文件不存在")
-        
         # 获取文件信息
         file_info = file_service.get_file_metadata(object_name)
+        if not file_info:
+            raise HTTPException(status_code=404, detail="文件不存在")
+        
         content_type = file_info.get('content_type', 'application/octet-stream')
+        file_size = file_info.get('size', 0)
         
         # 只允许安全的预览类型
         safe_preview_types = [
@@ -177,14 +177,38 @@ async def preview_file(
         if content_type not in safe_preview_types:
             raise HTTPException(status_code=400, detail="此文件类型不支持预览")
         
-        return StreamingResponse(
-            file_stream,
-            media_type=content_type,
-            headers={
-                "Cache-Control": "private, max-age=3600",
-                "X-Content-Type-Options": "nosniff"
-            }
-        )
+        # 根据文件大小和类型选择传输方式
+        if file_service.should_use_streaming(object_name):
+            # 大文件使用流式传输
+            file_stream = file_service.get_file_stream(object_name)
+            if not file_stream:
+                raise HTTPException(status_code=404, detail="文件不存在")
+            
+            return StreamingResponse(
+                file_stream,
+                media_type=content_type,
+                headers={
+                    "Cache-Control": "private, max-age=3600",
+                    "X-Content-Type-Options": "nosniff",
+                    "Content-Length": str(file_size)
+                }
+            )
+        else:
+            # 小文件使用完整响应
+            file_data = file_service.get_file_data(object_name)
+            if not file_data:
+                raise HTTPException(status_code=404, detail="文件不存在")
+            
+            from fastapi.responses import Response
+            return Response(
+                content=file_data,
+                media_type=content_type,
+                headers={
+                    "Cache-Control": "private, max-age=3600",
+                    "X-Content-Type-Options": "nosniff",
+                    "Content-Length": str(len(file_data))
+                }
+            )
         
     except HTTPException:
         raise

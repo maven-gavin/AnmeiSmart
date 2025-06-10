@@ -5,9 +5,7 @@
 
 import { tokenManager } from './tokenManager';
 import { AppError, ErrorType, errorHandler } from './errors';
-
-// API基础URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
+import { API_BASE_URL } from '@/config';
 
 /**
  * API 响应接口
@@ -90,6 +88,11 @@ class ResponseHandler {
         const contentType = response.headers.get('content-type');
         if (contentType?.includes('application/json')) {
           data = await response.json();
+        } else if (contentType?.startsWith('image/') || 
+                   contentType?.includes('pdf') || 
+                   contentType?.includes('octet-stream')) {
+          // 对于二进制数据，返回Blob
+          data = await response.blob() as unknown as T;
         } else {
           // 非JSON响应，尝试解析为文本
           data = await response.text() as unknown as T;

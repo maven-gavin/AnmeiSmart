@@ -239,10 +239,86 @@ class FileService:
                 self.minio_client.bucket_name, 
                 object_name
             )
-            return response.stream()
+            logger.info(f"成功获取文件流: {object_name}")
+            
+            # 直接读取全部数据并返回为生成器
+            # 这样可以避免流式传输的复杂性问题
+            def get_data():
+                try:
+                    data = response.read()
+                    logger.info(f"读取文件数据: {len(data)} bytes, 文件头: {data[:20].hex() if data else 'empty'}")
+                    
+                    # 分块返回数据
+                    chunk_size = 8192  # 8KB chunks
+                    for i in range(0, len(data), chunk_size):
+                        chunk = data[i:i + chunk_size]
+                        yield chunk
+                        
+                except Exception as e:
+                    logger.error(f"读取文件数据失败: {str(e)}")
+                    raise
+            
+            return get_data()
         except Exception as e:
             logger.error(f"获取文件流失败: {str(e)}")
             return None
+
+    def get_file_data(self, object_name: str) -> Optional[bytes]:
+        """
+        获取完整文件数据（适用于小文件）
+        
+        Args:
+            object_name: 文件对象名称
+            
+        Returns:
+            文件数据字节
+        """
+        try:
+            response = self.minio_client.client.get_object(
+                self.minio_client.bucket_name, 
+                object_name
+            )
+            
+            data = response.read()
+            logger.info(f"读取完整文件数据: {object_name}, 大小: {len(data)} bytes")
+            response.close()
+            response.release_conn()
+            
+            return data
+        except Exception as e:
+            logger.error(f"获取完整文件数据失败: {str(e)}")
+            return None
+
+    def should_use_streaming(self, object_name: str) -> bool:
+        """
+        判断是否应该使用流式传输
+        
+        Args:
+            object_name: 文件对象名称
+            
+        Returns:
+            是否使用流式传输
+        """
+        try:
+            metadata = self.get_file_metadata(object_name)
+            if not metadata:
+                return True  # 无法获取元数据时默认使用流式
+            
+            file_size = metadata.get('size', 0)
+            content_type = metadata.get('content_type', '')
+            
+            # 小于5MB的图片和文档使用完整响应
+            if file_size < 5 * 1024 * 1024:  # 5MB
+                if (content_type.startswith('image/') or 
+                    content_type in ['application/pdf', 'text/plain']):
+                    return False
+            
+            # 大文件或音视频文件使用流式传输
+            return True
+            
+        except Exception as e:
+            logger.error(f"判断传输方式失败: {str(e)}")
+            return True  # 出错时默认使用流式
     
     def get_file_metadata(self, object_name: str) -> Dict[str, Any]:
         """

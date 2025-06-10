@@ -5,18 +5,10 @@
 
 import { jwtUtils } from './jwt';
 import { AppError, ErrorType } from './errors';
+import { API_BASE_URL, AUTH_CONFIG } from '@/config';
 
 // 检查是否在浏览器环境
 const isBrowser = typeof window !== 'undefined';
-
-// 存储键名常量
-const STORAGE_KEYS = {
-  TOKEN: 'auth_token',
-  REFRESH_TOKEN: 'refresh_token'
-} as const;
-
-// API基础URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 /**
  * 安全的本地存储工具
@@ -54,7 +46,7 @@ const secureStorage = {
   clear(): boolean {
     if (!isBrowser) return false;
     try {
-      Object.values(STORAGE_KEYS).forEach(key => {
+      Object.values(AUTH_CONFIG).forEach(key => {
         localStorage.removeItem(key);
       });
       return true;
@@ -74,7 +66,7 @@ export class TokenManager {
    * 获取当前存储的令牌
    */
   getToken(): string | null {
-    const token = secureStorage.getItem(STORAGE_KEYS.TOKEN);
+    const token = secureStorage.getItem(AUTH_CONFIG.TOKEN_STORAGE_KEY);
     return token && jwtUtils.isValidFormat(token) ? token : null;
   }
 
@@ -86,7 +78,7 @@ export class TokenManager {
       console.error('尝试存储无效格式的令牌');
       return false;
     }
-    return secureStorage.setItem(STORAGE_KEYS.TOKEN, token);
+    return secureStorage.setItem(AUTH_CONFIG.TOKEN_STORAGE_KEY, token);
   }
 
   /**

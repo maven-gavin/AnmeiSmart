@@ -6,17 +6,13 @@
 import { AuthUser, LoginCredentials, UserRole } from '@/types/auth';
 import { tokenManager } from './tokenManager';
 import { AppError, ErrorType, errorHandler } from './errors';
+import { apiClient } from './apiClient';
+import { API_BASE_URL, AUTH_CONFIG } from '@/config';
 // 移除未使用的导入
 // import { mockUsers } from './mockData';
 
 // 检查是否在浏览器环境中运行
 const isBrowser = typeof window !== 'undefined';
-
-// API基础URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
-
-// 用户存储键
-const USER_STORAGE_KEY = 'auth_user';
 
 /**
  * 安全的用户存储工具
@@ -26,7 +22,7 @@ const userStorage = {
     if (!isBrowser) return null;
     
     try {
-      const userStr = localStorage.getItem(USER_STORAGE_KEY);
+      const userStr = localStorage.getItem(AUTH_CONFIG.USER_STORAGE_KEY);
       return userStr ? JSON.parse(userStr) : null;
     } catch (error) {
       console.error('用户信息解析失败:', error);
@@ -38,7 +34,7 @@ const userStorage = {
     if (!isBrowser) return false;
     
     try {
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+      localStorage.setItem(AUTH_CONFIG.USER_STORAGE_KEY, JSON.stringify(user));
       return true;
     } catch (error) {
       console.error('用户信息存储失败:', error);
@@ -50,7 +46,7 @@ const userStorage = {
     if (!isBrowser) return false;
     
     try {
-      localStorage.removeItem(USER_STORAGE_KEY);
+      localStorage.removeItem(AUTH_CONFIG.USER_STORAGE_KEY);
       return true;
     } catch {
       return false;
@@ -58,72 +54,7 @@ const userStorage = {
   }
 };
 
-/**
- * API 请求工具
- */
-const apiRequest = {
-  async post<T = unknown>(endpoint: string, data?: unknown, includeAuth = true): Promise<T> {
-    const url = `${API_BASE_URL}${endpoint}`;
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
 
-    // 默认情况下尝试添加认证令牌（除非明确指定不需要）
-    if (includeAuth) {
-      const token = await tokenManager.getValidToken();
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-    }
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: data ? JSON.stringify(data) : undefined,
-      });
-
-      if (!response.ok) {
-        throw await errorHandler.fromResponse(response);
-      }
-
-      return await response.json();
-    } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      throw errorHandler.fromNetworkError(error as Error);
-    }
-  },
-
-  async get<T = unknown>(endpoint: string): Promise<T> {
-    const token = await tokenManager.getValidToken();
-    if (!token) {
-      throw new AppError(ErrorType.AUTHENTICATION, 401, '未授权访问');
-    }
-
-    const url = `${API_BASE_URL}${endpoint}`;
-    
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw await errorHandler.fromResponse(response);
-      }
-
-      return await response.json();
-    } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      throw errorHandler.fromNetworkError(error as Error);
-    }
-  }
-};
 
 /**
  * 身份验证服务类
@@ -134,7 +65,7 @@ class AuthService {
    */
   async login(credentials: LoginCredentials): Promise<{ user: AuthUser; token: string }> {
     try {
-      // 调用登录接口
+      // 调用登录接口 - 使用原生fetch处理表单数据
       const formData = new URLSearchParams({
         username: credentials.username,
         password: credentials.password,
@@ -162,19 +93,19 @@ class AuthService {
       // 存储令牌
       tokenManager.setToken(token);
 
-      // 获取用户信息和角色
-      const [userData, roles] = await Promise.all([
-        apiRequest.get<any>('/auth/me'),
-        apiRequest.get<UserRole[]>('/auth/roles')
+      // 获取用户信息和角色 - 使用统一的apiClient
+      const [userResponse, rolesResponse] = await Promise.all([
+        apiClient.get<any>('/auth/me'),
+        apiClient.get<UserRole[]>('/auth/roles')
       ]);
 
       // 创建用户对象
       const authUser: AuthUser = {
-        id: userData.id.toString(),
-        name: userData.username,
-        email: userData.email,
-        roles,
-        currentRole: roles.length > 0 ? roles[0] : undefined,
+        id: userResponse.data.id.toString(),
+        name: userResponse.data.username,
+        email: userResponse.data.email,
+        roles: rolesResponse.data || [],
+        currentRole: rolesResponse.data && rolesResponse.data.length > 0 ? rolesResponse.data[0] : undefined,
       };
 
       // 存储用户信息
@@ -257,13 +188,13 @@ class AuthService {
     }
     
     try {
-      // 调用后端API切换角色并获取新令牌
-      const response = await apiRequest.post<{ access_token: string; token_type: string }>('/auth/switch-role', {
+      // 调用后端API切换角色并获取新令牌 - 使用统一的apiClient
+      const response = await apiClient.post<{ access_token: string; token_type: string }>('/auth/switch-role', {
         role
       });
       
       // 更新令牌
-      tokenManager.setToken(response.access_token);
+      tokenManager.setToken(response.data!.access_token);
       
       // 更新用户信息
       const updatedUser: AuthUser = {

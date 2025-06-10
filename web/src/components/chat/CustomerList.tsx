@@ -7,7 +7,6 @@ import { Customer } from '@/types/chat';
 import { useAuthContext } from '@/contexts/AuthContext';
 
 // 常量定义
-const REFRESH_INTERVAL = 30000; // 30秒
 const MAX_TAGS_DISPLAY = 2;
 const MAX_UNREAD_DISPLAY = 99;
 
@@ -314,10 +313,6 @@ export default function CustomerList({
     if (user) {
       // 首次加载时显示加载状态
       loadCustomers(true);
-      
-      // 定期刷新客户在线状态，但不显示加载状态
-      const interval = setInterval(() => loadCustomers(false), REFRESH_INTERVAL);
-      return () => clearInterval(interval);
     }
   }, [user, loadCustomers]);
   

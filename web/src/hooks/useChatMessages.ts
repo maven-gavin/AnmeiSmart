@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { type Message, type MessageStatus, type SenderType } from '@/types/chat'
+import { type Message } from '@/types/chat'
 import { 
   getConversationMessages, 
   markMessageAsImportant,
@@ -63,7 +63,6 @@ export function useChatMessages({ conversationId, mounted }: UseChatMessagesProp
 
   // 获取消息
   const fetchMessages = useCallback(async () => {
-    console.log(`=================== fetchMessages: conversationId=== ${conversationId}，mounted.current=== ${mounted.current}`)
     if (!conversationId || !mounted.current) return
 
     try {
@@ -125,13 +124,9 @@ export function useChatMessages({ conversationId, mounted }: UseChatMessagesProp
 
   }, [showImportantOnly])
 
-  const countRef = useRef(0)
   // 当 conversationId 变化时自动获取消息
   useEffect(() => {
-    countRef.current ++
-    console.log(`=================== useChatMessages: countRef 变化为 ${countRef.current}，开始获取消息 mounted.current=== ${mounted.current}`)
     if (conversationId && mounted.current) {
-      console.log(`useChatMessages: conversationId 变化为 ${conversationId}，开始获取消息`)
       fetchMessages()
     } else if (!conversationId) {
       // 如果没有 conversationId，清空消息

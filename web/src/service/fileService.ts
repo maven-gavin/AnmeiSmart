@@ -2,20 +2,18 @@
  * 前端文件服务
  * 处理文件上传、验证和管理
  */
-import { tokenManager } from '@/service/tokenManager';
+import { apiClient } from './apiClient';
 import { FileInfo } from '@/types/chat';
+import { FILE_CONFIG } from '@/config';
 
 export class FileService {
-  private static readonly MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-  private static readonly API_BASE = '/api/v1/files';
-
   /**
    * 验证文件
    */
   static validateFile(file: File): { valid: boolean; error?: string } {
     // 检查文件大小
-    if (file.size > this.MAX_FILE_SIZE) {
-      const sizeMB = Math.round(this.MAX_FILE_SIZE / (1024 * 1024));
+    if (file.size > FILE_CONFIG.MAX_FILE_SIZE) {
+      const sizeMB = Math.round(FILE_CONFIG.MAX_FILE_SIZE / (1024 * 1024));
       return {
         valid: false,
         error: `文件大小超出限制，最大允许 ${sizeMB}MB`
@@ -43,37 +41,22 @@ export class FileService {
       throw new Error(validation.error);
     }
 
-    // 获取认证token
-    const token = await tokenManager.getValidToken();
-    if (!token) {
-      throw new Error('用户未登录');
-    }
-
     // 构建FormData
     const formData = new FormData();
     formData.append('file', file);
     formData.append('conversation_id', conversationId);
 
-    // 发送请求
-    const response = await fetch(`${FileService.API_BASE}/upload`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-      body: formData,
-    });
+    // 使用统一的apiClient发送请求
+    const response = await apiClient.upload<{ success: boolean; message: string; file_info: FileInfo }>(
+      FILE_CONFIG.API_ENDPOINTS.upload, 
+      formData
+    );
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || `上传失败: ${response.status}`);
+    if (!response.data?.success) {
+      throw new Error(response.data?.message || '上传失败');
     }
 
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error(result.message || '上传失败');
-    }
-
-    return result.file_info;
+    return response.data.file_info;
   }
 
   /**
@@ -81,27 +64,14 @@ export class FileService {
    */
   async getFileInfo(objectName: string): Promise<FileInfo | null> {
     try {
-      const token = await tokenManager.getValidToken();
-      if (!token) {
-        throw new Error('用户未登录');
-      }
-
-      const response = await fetch(`${FileService.API_BASE}/info/${encodeURIComponent(objectName)}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.status === 404) {
+      const response = await apiClient.get<FileInfo>(
+        `${FILE_CONFIG.API_ENDPOINTS.info}/${encodeURIComponent(objectName)}`
+      );
+      return response.data || null;
+    } catch (error: any) {
+      if (error.status === 404) {
         return null;
       }
-
-      if (!response.ok) {
-        throw new Error(`获取文件信息失败: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
       console.error('获取文件信息失败:', error);
       return null;
     }
@@ -112,19 +82,10 @@ export class FileService {
    */
   async deleteFile(objectName: string): Promise<boolean> {
     try {
-      const token = await tokenManager.getValidToken();
-      if (!token) {
-        throw new Error('用户未登录');
-      }
-
-      const response = await fetch(`${FileService.API_BASE}/delete/${encodeURIComponent(objectName)}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      return response.ok;
+      const response = await apiClient.delete(
+        `${FILE_CONFIG.API_ENDPOINTS.delete}/${encodeURIComponent(objectName)}`
+      );
+      return response.status >= 200 && response.status < 300;
     } catch (error) {
       console.error('删除文件失败:', error);
       return false;
@@ -135,14 +96,14 @@ export class FileService {
    * 获取文件预览URL
    */
   static getPreviewUrl(objectName: string): string {
-    return `${FileService.API_BASE}/preview/${encodeURIComponent(objectName)}`;
+    return `${FILE_CONFIG.API_ENDPOINTS.preview}/${encodeURIComponent(objectName)}`;
   }
 
   /**
    * 获取文件下载URL
    */
   static getDownloadUrl(objectName: string): string {
-    return `${FileService.API_BASE}/download/${encodeURIComponent(objectName)}`;
+    return `${FILE_CONFIG.API_ENDPOINTS.download}/${encodeURIComponent(objectName)}`;
   }
 
   /**
@@ -188,5 +149,25 @@ export class FileService {
       return '📦';
     }
     return '📎';
+  }
+
+  /**
+   * 获取认证的文件预览流
+   */
+  async getFilePreviewStream(objectName: string): Promise<Blob> {
+    const response = await apiClient.request<Blob>(
+      `${FILE_CONFIG.API_ENDPOINTS.preview}/${encodeURIComponent(objectName)}`,
+      {
+        headers: {
+          'Accept': 'image/*,application/pdf,text/plain'
+        }
+      }
+    );
+
+    if (!response.data) {
+      throw new Error('获取文件流失败');
+    }
+
+    return response.data;
   }
 } 
