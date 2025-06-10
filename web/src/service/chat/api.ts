@@ -4,19 +4,24 @@
  */
 
 import { apiClient } from '../apiClient';
-import type { 
-  Conversation, 
+import { 
   Message, 
-  CustomerProfile, 
-  Customer,
-  ConversationApiResponse,
-  MessageApiResponse,
-  CreateConversationRequest,
-  UpdateConversationTitleRequest,
+  MessageContent, 
+  Conversation, 
+  SenderType, 
+  CustomerProfile 
+} from '@/types/chat';
+import { 
+  ConversationApiResponse, 
+  MessageApiResponse, 
   AIServiceRequest,
-  SenderType
+  AI_INFO
 } from './types';
-import { AI_INFO } from './types';
+import { 
+  Customer,
+  CreateConversationRequest,
+  UpdateConversationTitleRequest
+} from './types';
 
 /**
  * 聊天API服务类
@@ -172,17 +177,39 @@ export class ChatApiService {
    */
   public static async getCustomerList(): Promise<Customer[]> {
     const response = await apiClient.get<any[]>('/customers/');
-    return response.data?.map(customer => ({
-      id: customer.id,
-      name: customer.name || "未知用户",
-      avatar: customer.avatar || '/avatars/user.png',
-      isOnline: customer.is_online || false,
-      lastMessage: customer.last_message?.content || '',
-      lastMessageTime: customer.last_message?.created_at || customer.updated_at,
-      unreadCount: customer.unread_count || 0,
-      tags: customer.tags || [],
-      priority: customer.priority || 'medium'
-    })) || [];
+    return response.data?.map(customer => {
+      // 处理lastMessage的结构化内容
+      let lastMessageText = '';
+      if (customer.last_message?.content) {
+        const content = customer.last_message.content;
+        if (typeof content === 'string') {
+          lastMessageText = content;
+        } else if (typeof content === 'object') {
+          // 新的结构化格式
+          if (content.text) {
+            lastMessageText = content.text;
+          } else if (content.media_info && content.text) {
+            lastMessageText = content.text || '[媒体消息]';
+          } else if (content.media_info) {
+            lastMessageText = '[媒体消息]';
+          } else {
+            lastMessageText = JSON.stringify(content);
+          }
+        }
+      }
+
+      return {
+        id: customer.id,
+        name: customer.name || "未知用户",
+        avatar: customer.avatar || '/avatars/user.png',
+        isOnline: customer.is_online || false,
+        lastMessage: lastMessageText,
+        lastMessageTime: customer.last_message?.created_at || customer.updated_at,
+        unreadCount: customer.unread_count || 0,
+        tags: customer.tags || [],
+        priority: customer.priority || 'medium'
+      };
+    }) || [];
   }
   
   // ===== 数据格式化方法 =====
@@ -224,11 +251,57 @@ export class ChatApiService {
    * 格式化消息对象
    */
   private static formatMessage(msg: MessageApiResponse): Message {
+    // 处理消息内容：确保content是结构化格式
+    let formattedContent: MessageContent;
+    let messageType: 'text' | 'media' | 'system' | 'structured';
+
+    // 处理type字段，映射旧的类型到新的类型
+    const rawType = msg.type || 'text';
+    if (rawType === 'image' || rawType === 'voice' || rawType === 'file') {
+      messageType = 'media';
+    } else if (rawType === 'text') {
+      messageType = 'text';
+    } else if (rawType === 'system') {
+      messageType = 'system';
+    } else if (rawType === 'structured') {
+      messageType = 'structured';
+    } else {
+      messageType = 'text'; // 默认为text
+    }
+
+    // 处理消息内容
+    if (typeof msg.content === 'string') {
+      // 旧格式：字符串内容，转换为新的结构化格式
+      if (messageType === 'media') {
+        // 媒体消息：尝试从URL推断媒体类型
+        const mimeType = this.inferMimeTypeFromUrl(msg.content);
+        formattedContent = {
+          text: '',
+          media_info: {
+            url: msg.content,
+            name: this.getFileNameFromUrl(msg.content),
+            mime_type: mimeType,
+            size_bytes: 0,
+            metadata: {}
+          }
+        };
+      } else {
+        // 文本消息
+        formattedContent = { text: msg.content };
+      }
+    } else if (typeof msg.content === 'object' && msg.content !== null) {
+      // 新格式：已经是结构化内容
+      formattedContent = msg.content as MessageContent;
+    } else {
+      // 异常情况：使用默认文本内容
+      formattedContent = { text: '' };
+    }
+
     return {
       id: msg.id,
       conversationId: msg.conversation_id || '',
-      content: msg.content,
-      type: (msg.type as "text" | "image" | "voice") || 'text',
+      content: formattedContent,
+      type: messageType,
       sender: {
         id: msg.sender?.id || msg.sender_id || '',
         name: msg.sender?.name || msg.sender_name || '未知',
@@ -237,9 +310,54 @@ export class ChatApiService {
         type: (msg.sender?.type || msg.sender_type || 'user') as SenderType,
       },
       timestamp: msg.timestamp || msg.created_at || new Date().toISOString(),
-      isImportant: msg.is_important || false,
-      isRead: msg.is_read || false,
-      isSystemMessage: msg.is_system_message || false
+      is_important: msg.is_important || false,
+      is_read: msg.is_read || false
     };
+  }
+
+  // 辅助方法：从URL推断MIME类型
+  private static inferMimeTypeFromUrl(url: string): string {
+    const ext = url.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'mp3':
+        return 'audio/mpeg';
+      case 'wav':
+        return 'audio/wav';
+      case 'ogg':
+        return 'audio/ogg';
+      case 'm4a':
+        return 'audio/m4a';
+      case 'mp4':
+        return 'video/mp4';
+      case 'webm':
+        return 'video/webm';
+      case 'pdf':
+        return 'application/pdf';
+      case 'txt':
+        return 'text/plain';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
+  // 辅助方法：从URL获取文件名
+  private static getFileNameFromUrl(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      const fileName = pathname.split('/').pop();
+      return fileName || 'unknown_file';
+    } catch {
+      return 'unknown_file';
+    }
   }
 } 

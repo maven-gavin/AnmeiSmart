@@ -11,10 +11,6 @@
 from datetime import datetime
 from typing import Optional, List, Literal, Dict, Any, Union
 from pydantic import BaseModel, ConfigDict, Field
-import json
-
-# 从文件领域导入FileInfo，用于媒体消息的处理
-from .file import FileInfo
 
 
 class MessageSender(BaseModel):
@@ -114,6 +110,7 @@ class MessageCreate(MessageBase):
 
 class MessageCreateRequest(MessageBase):
     """HTTP API创建消息的请求模型 - 不包含会自动推导的字段"""
+    is_important: Optional[bool] = False
     reply_to_message_id: Optional[str] = None
     extra_metadata: Optional[Dict[str, Any]] = None
 

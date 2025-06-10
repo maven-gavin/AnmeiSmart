@@ -78,7 +78,7 @@ export interface ConversationApiResponse {
 export interface MessageApiResponse {
   id: string;
   conversation_id?: string;
-  content: string;
+  content: any;
   type?: string;
   sender?: {
     id: string;

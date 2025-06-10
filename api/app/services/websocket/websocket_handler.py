@@ -62,15 +62,19 @@ class WebSocketHandler:
             message_type = message_data.get("type", "text")
             sender_type = message_data.get("sender_type", "user")
             is_important = message_data.get("is_important", False)
+            reply_to_message_id = message_data.get("reply_to_message_id")
             
-            if not content.strip():
+            # 验证content内容（支持新的JSON格式）
+            if not self._validate_content(content, message_type):
                 return self.create_error_response("消息内容不能为空")
             
             # 根据sender_type确定角色
             # 从token或其他方式获取真实的用户角色
             actual_sender_type = sender_type
             
-            logger.info(f"处理消息: user_id={user_id}, sender_type={actual_sender_type}, content_length={len(content)}")
+            # 计算内容长度（用于日志）
+            content_length = self._get_content_length(content)
+            logger.info(f"处理消息: user_id={user_id}, sender_type={actual_sender_type}, content_length={content_length}")
             
             # 创建消息事件，让业务层处理消息保存和后续逻辑
             event = create_message_event(
@@ -79,7 +83,8 @@ class WebSocketHandler:
                 content=content,
                 message_type=message_type,
                 sender_type=actual_sender_type,
-                is_important=is_important
+                is_important=is_important,
+                reply_to_message_id=reply_to_message_id
             )
             
             # 发布事件，让业务层处理
@@ -90,6 +95,38 @@ class WebSocketHandler:
         except Exception as e:
             logger.error(f"处理消息失败: {e}")
             return self.create_error_response(f"发送消息失败: {str(e)}")
+    
+    def _validate_content(self, content: Any, message_type: str) -> bool:
+        """验证消息内容"""
+        if not content:
+            return False
+        
+        # 如果是旧格式的字符串，直接验证
+        if isinstance(content, str):
+            return bool(content.strip())
+        
+        # 如果是新格式的字典，根据消息类型验证
+        if isinstance(content, dict):
+            if message_type == "text":
+                return bool(content.get("text", "").strip())
+            elif message_type == "media":
+                return bool(content.get("media_info"))
+            elif message_type == "system":
+                return bool(content.get("system_event_type"))
+        
+        return False
+    
+    def _get_content_length(self, content: Any) -> int:
+        """获取内容长度（用于日志）"""
+        if isinstance(content, str):
+            return len(content)
+        elif isinstance(content, dict):
+            if "text" in content:
+                return len(content["text"])
+            else:
+                return len(str(content))
+        else:
+            return len(str(content))
     
     async def handle_typing(
         self, 

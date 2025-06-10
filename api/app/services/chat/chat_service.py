@@ -119,7 +119,7 @@ class ChatService:
             consultant_name = consultant.username if consultant else "顾问"
             welcome_text = f"会话已创建，已为您分配专属顾问{consultant_name}，稍后将为您服务！"
         
-        await self.message_service.create_text_message(
+        self.message_service.create_text_message(
             conversation_id=new_conversation.id,
             text=welcome_text,
             sender_id=creator_id,
@@ -508,12 +508,11 @@ class ChatService:
         conversation.updated_at = datetime.now()
         
         # 创建关闭消息
-        await self.message_service.create_message(
+        self.message_service.create_system_event_message(
             conversation_id=conversation_id,
-            content="会话已关闭",
-            message_type="system",
-            sender_id=user_id,
-            sender_type="system"
+            event_type="conversation_closed",
+            status="closed",
+            event_data={"closed_by": user_id}
         )
         
         self.db.commit()

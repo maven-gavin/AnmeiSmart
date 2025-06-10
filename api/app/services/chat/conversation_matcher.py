@@ -35,8 +35,8 @@ class ConversationMatcher:
         """
         try:
             # 获取所有可用的顾问
-            available_consultants = self.db.query(User).filter(
-                User.role == 'consultant',
+            available_consultants = self.db.query(User).join(User.roles).filter(
+                User.roles.any(name='consultant'),
                 User.is_active == True
             ).all()
             
@@ -94,9 +94,9 @@ class ConversationMatcher:
             
             if recent_consultant_message:
                 # 验证该顾问是否仍然可用
-                consultant = self.db.query(User).filter(
+                consultant = self.db.query(User).join(User.roles).filter(
                     User.id == recent_consultant_message.sender_id,
-                    User.role == 'consultant',
+                    User.roles.any(name='consultant'),
                     User.is_active == True
                 ).first()
                 
@@ -263,12 +263,15 @@ class ConversationMatcher:
             consultant = self.db.query(User).filter(User.id == consultant_id).first()
             consultant_name = consultant.username if consultant else "顾问"
             
-            await message_service.create_message(
+            message_service.create_system_event_message(
                 conversation_id=conversation_id,
-                content=f"您的咨询已分配给{consultant_name}，稍后将为您服务",
-                message_type="system",
-                sender_id="system",
-                sender_type="system"
+                event_type="consultant_assigned",
+                status="assigned",
+                event_data={
+                    "consultant_id": consultant_id,
+                    "consultant_name": consultant_name,
+                    "message": f"您的咨询已分配给{consultant_name}，稍后将为您服务"
+                }
             )
             
             self.db.commit()

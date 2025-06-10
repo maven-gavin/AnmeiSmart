@@ -88,6 +88,59 @@ class MessageService:
             logger.error(f"检查会话访问权限失败: {str(e)}")
             return False
 
+    def _validate_message_content(self, content: Dict[str, Any], message_type: str) -> None:
+        """
+        验证消息内容的有效性
+        
+        Args:
+            content: 消息内容
+            message_type: 消息类型
+            
+        Raises:
+            ValueError: 内容验证失败时抛出
+        """
+        if content is None:
+            raise ValueError("消息内容不能为空")
+        
+        if not isinstance(content, dict):
+            raise ValueError("消息内容必须是对象")
+        
+        if len(content) == 0:
+            if message_type == "system":
+                raise ValueError("系统事件消息内容不能为空")
+        
+        # 验证特定类型的必需字段和字段一致性
+        if message_type == "text":
+            if "text" not in content:
+                raise ValueError("文本消息必须包含text字段")
+            # 检查是否包含不应该出现的字段
+            invalid_fields = set(content.keys()) - {"text"}
+            if invalid_fields:
+                raise ValueError(f"文本消息包含无效字段: {', '.join(invalid_fields)}")
+        elif message_type == "media":
+            if "media_info" not in content:
+                raise ValueError("媒体消息必须包含media_info字段")
+            # 验证media_info结构
+            media_info = content["media_info"]
+            if not isinstance(media_info, dict):
+                raise ValueError("media_info必须是对象")
+            required_fields = ["url", "name", "mime_type", "size_bytes"]
+            for field in required_fields:
+                if field not in media_info:
+                    raise ValueError(f"media_info缺少必需字段: {field}")
+            # 检查是否包含不应该出现的字段（除了text和media_info）
+            invalid_fields = set(content.keys()) - {"text", "media_info"}
+            if invalid_fields:
+                raise ValueError(f"媒体消息包含无效字段: {', '.join(invalid_fields)}")
+        elif message_type == "system":
+            if "system_event_type" not in content and "event_type" not in content:
+                raise ValueError("系统事件消息必须包含system_event_type或event_type字段")
+        elif message_type == "structured":
+            required_fields = ["card_type", "title"]
+            for field in required_fields:
+                if field not in content:
+                    raise ValueError(f"结构化消息缺少必需字段: {field}")
+
     def create_message(
         self,
         conversation_id: str,
@@ -117,6 +170,9 @@ class MessageService:
         Returns:
             创建的消息实例
         """
+        # 验证消息内容
+        self._validate_message_content(content, message_type)
+        
         message = Message(
             conversation_id=conversation_id,
             sender_id=sender_id,
@@ -430,6 +486,26 @@ class MessageService:
         
         logger.info(f"已标记 {updated_count} 条消息为已读")
         return updated_count
+    
+    def mark_message_as_read(self, message_id: str) -> bool:
+        """标记单个消息为已读"""
+        logger.info(f"标记单个消息已读: message_id={message_id}")
+        
+        message = self.db.query(Message).filter(
+            Message.id == message_id
+        ).first()
+        
+        if not message:
+            logger.warning(f"消息不存在: message_id={message_id}")
+            return False
+        
+        # 更新已读状态
+        message.is_read = True
+        
+        self.db.commit()
+        
+        logger.info(f"消息已标记为已读: message_id={message_id}")
+        return True
     
     def get_unread_message_count(self, conversation_id: str, user_id: str) -> int:
         """获取用户在会话中的未读消息数"""
