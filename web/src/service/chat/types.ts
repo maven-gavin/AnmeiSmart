@@ -95,6 +95,9 @@ export interface MessageApiResponse {
   is_important?: boolean;
   is_read?: boolean;
   is_system_message?: boolean;
+  reply_to_message_id?: string;
+  reactions?: { [emoji: string]: string[] };
+  extra_metadata?: { [key: string]: any };
 }
 
 /**

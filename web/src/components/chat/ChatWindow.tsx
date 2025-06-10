@@ -5,7 +5,7 @@ import { type Message } from '@/types/chat'
 import ChatMessage from '@/components/chat/message/ChatMessage'
 import { SearchBar } from '@/components/chat/SearchBar'
 import MessageInput from '@/components/chat/MessageInput'
-import { getOrCreateConversation } from '@/service/chatService'
+import { getOrCreateConversation, markMessageAsImportant } from '@/service/chatService'
 import { useAuthContext } from '@/contexts/AuthContext'
 import { useSearchParams, useRouter } from 'next/navigation'
 
@@ -134,6 +134,47 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     }
   }, [currentConversationId, router, user, scrollToBottom])
 
+  // 消息操作回调函数
+  const handleToggleImportant = useCallback(async (messageId: string) => {
+    if (!currentConversationId) return;
+    
+    try {
+      const message = messages.find(msg => msg.id === messageId);
+      if (message) {
+        await markMessageAsImportant(currentConversationId, messageId, !message.is_important);
+        // 更新本地状态
+        silentlyUpdateMessages();
+      }
+    } catch (error) {
+      console.error('标记重点消息失败:', error);
+    }
+  }, [currentConversationId, messages, silentlyUpdateMessages]);
+
+  const handleReaction = useCallback(async (messageId: string, emoji: string) => {
+    // TODO: 实现消息反应功能
+    console.log('添加反应:', messageId, emoji);
+  }, []);
+
+  const handleReply = useCallback((message: Message) => {
+    // TODO: 实现回复功能
+    console.log('回复消息:', message);
+  }, []);
+
+  const handleDelete = useCallback(async (messageId: string) => {
+    // TODO: 实现删除消息功能
+    console.log('删除消息:', messageId);
+  }, []);
+
+  const handleRetry = useCallback(async (message: Message) => {
+    // TODO: 实现重试发送功能
+    console.log('重试发送:', message);
+  }, []);
+
+  const handleCardAction = useCallback((action: string, data: any) => {
+    // TODO: 实现卡片操作功能
+    console.log('卡片操作:', action, data);
+  }, []);
+
   // 按日期分组消息
   const messageGroups = useMemo(() => {
     const formatMessageDate = (timestamp: string): string => {
@@ -235,6 +276,12 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
                 message={msg}
                 isSelected={selectedMessageId === msg.id}
                 searchTerm={showSearch ? searchTerm : ''}
+                onToggleImportant={handleToggleImportant}
+                onReaction={handleReaction}
+                onReply={handleReply}
+                onDelete={handleDelete}
+                onRetry={handleRetry}
+                onCardAction={handleCardAction}
               />
             ))}
           </div>

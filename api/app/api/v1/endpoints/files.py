@@ -3,6 +3,7 @@
 遵循DDD架构：Controller层只做参数校验和调用Service层
 """
 import json
+import logging
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
@@ -19,6 +20,8 @@ from app.schemas.file import (
     UploadStatusResponse, CompleteUploadRequest
 )
 from app.schemas.chat import MessageInfo
+
+logger = logging.getLogger(__name__)
 
 
 def get_user_role(user: User) -> str:
@@ -58,7 +61,12 @@ async def upload_file(
         message_service = MessageService(db)
         
         # 验证用户对会话的访问权限
-        if not await message_service.can_access_conversation(conversation_id, current_user.id):
+        logger.info(f"验证会话访问权限: conversation_id={conversation_id}, user_id={current_user.id}, user_email={current_user.email}")
+        
+        can_access = await message_service.can_access_conversation(conversation_id, current_user.id)
+        logger.info(f"权限验证结果: can_access={can_access}")
+        
+        if not can_access:
             raise HTTPException(status_code=403, detail="无权限访问此会话")
         
         # 上传文件到Minio
@@ -68,14 +76,19 @@ async def upload_file(
             user_id=current_user.id
         )
         
-        # 创建文件消息
-        message_info = await message_service.create_message(
+        # 创建媒体消息
+        message_info = message_service.create_media_message(
             conversation_id=conversation_id,
-            content=json.dumps(file_info_dict),  # 将文件信息存储为JSON
-            message_type="file",
             sender_id=current_user.id,
             sender_type=get_user_role(current_user),
-            is_important=False
+            media_url=file_info_dict["file_url"],
+            media_name=file_info_dict["file_name"],
+            mime_type=file_info_dict["mime_type"],
+            size_bytes=file_info_dict["file_size"],
+            text=None,  # 文件上传没有附带文字
+            metadata={"file_type": file_info_dict["file_type"]},
+            is_important=False,
+            upload_method="file_picker"
         )
         
         return FileUploadResponse(
@@ -471,24 +484,29 @@ async def complete_upload(
         message_service = MessageService(db)
         
         # 验证用户对会话的访问权限
-        if not await message_service.can_access_conversation(request.conversationId, current_user.id):
+        if not await message_service.can_access_conversation(request.conversation_id, current_user.id):
             raise HTTPException(status_code=403, detail="无权限访问此会话")
         
         # 完成上传并合并分片
         file_info_dict = file_service.complete_upload(
-            upload_id=request.uploadId,
-            conversation_id=request.conversationId,
+            upload_id=request.upload_id,
+            conversation_id=request.conversation_id,
             user_id=current_user.id
         )
         
-        # 创建文件消息
-        message_info = await message_service.create_message(
-            conversation_id=request.conversationId,
-            content=json.dumps(file_info_dict),  # 将文件信息存储为JSON
-            message_type="file",
+        # 创建媒体消息
+        message_info = message_service.create_media_message(
+            conversation_id=request.conversation_id,
             sender_id=current_user.id,
             sender_type=get_user_role(current_user),
-            is_important=False
+            media_url=file_info_dict["file_url"],
+            media_name=file_info_dict["file_name"],
+            mime_type=file_info_dict["mime_type"],
+            size_bytes=file_info_dict["file_size"],
+            text=None,  # 分片上传没有附带文字
+            metadata={"file_type": file_info_dict["file_type"]},
+            is_important=False,
+            upload_method="chunked_upload"
         )
         
         return FileUploadResponse(

@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { Message, TextMessageContent } from '@/types/chat';
-import { MessageUtils } from '@/utils/messageUtils';
 
 interface TextMessageProps {
   message: Message;

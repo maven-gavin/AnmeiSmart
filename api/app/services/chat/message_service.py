@@ -49,6 +49,8 @@ class MessageService:
             是否有权限
         """
         try:
+            logger.info(f"开始检查会话访问权限: conversation_id={conversation_id}, user_id={user_id}")
+            
             # 查询会话是否存在且用户有访问权限
             conversation = self.db.query(Conversation).filter(
                 and_(
@@ -57,8 +59,9 @@ class MessageService:
                 )
             ).first()
             
-            # 如果用户是会话的客户，则有权限访问
+            logger.info(f"查询作为客户的会话: found={conversation is not None}")
             if conversation:
+                logger.info(f"会话 {conversation_id} 的客户ID: {conversation.customer_id}, 匹配用户ID: {user_id}")
                 return True
             
             # 检查用户是否是分配的顾问
@@ -69,23 +72,39 @@ class MessageService:
                 )
             ).first()
             
+            logger.info(f"查询作为顾问的会话: found={conversation is not None}")
             if conversation:
+                logger.info(f"会话 {conversation_id} 的顾问ID: {conversation.assigned_consultant_id}, 匹配用户ID: {user_id}")
                 return True
             
             # 检查用户是否是管理员或其他特殊角色
             user = self.db.query(User).filter(User.id == user_id).first()
             if user:
                 user_role_names = [role.name for role in user.roles]
+                logger.info(f"用户 {user_id} 的角色: {user_role_names}")
                 if any(role_name in ['admin', 'operator'] for role_name in user_role_names):
                     # 管理员和运营人员可以访问所有会话
                     conversation = self.db.query(Conversation).filter(
                         Conversation.id == conversation_id
                     ).first()
+                    logger.info(f"管理员用户访问会话: conversation_exists={conversation is not None}")
                     return conversation is not None
+            else:
+                logger.warning(f"找不到用户: {user_id}")
+            
+            # 最后检查会话是否存在并打印详细信息
+            conversation = self.db.query(Conversation).filter(
+                Conversation.id == conversation_id
+            ).first()
+            
+            if conversation:
+                logger.info(f"会话详情: id={conversation.id}, customer_id={conversation.customer_id}, assigned_consultant_id={conversation.assigned_consultant_id}")
+            else:
+                logger.warning(f"会话不存在: {conversation_id}")
             
             return False
         except Exception as e:
-            logger.error(f"检查会话访问权限失败: {str(e)}")
+            logger.error(f"检查会话访问权限失败: {str(e)}", exc_info=True)
             return False
 
     def _validate_message_content(self, content: Dict[str, Any], message_type: str) -> None:

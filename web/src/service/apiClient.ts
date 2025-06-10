@@ -23,6 +23,7 @@ export interface ApiResponse<T = unknown> {
 export interface RequestConfig extends RequestInit {
   skipAuth?: boolean;
   timeout?: number;
+  skipContentType?: boolean;
 }
 
 /**
@@ -33,9 +34,12 @@ class RequestInterceptor {
    * 准备请求头
    */
   async prepareHeaders(config: RequestConfig): Promise<Record<string, string>> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
+    const headers: Record<string, string> = {};
+
+    // 只有在不跳过Content-Type时才设置默认值
+    if (!config.skipContentType) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     // 添加配置中的headers
     if (config.headers) {
@@ -279,15 +283,16 @@ class ApiClient {
     formData: FormData,
     config?: RequestConfig
   ): Promise<ApiResponse<T>> {
+    // 为文件上传创建特殊的配置，跳过默认的Content-Type设置
     const requestConfig: RequestConfig = {
       ...config,
       method: 'POST',
       body: formData,
       headers: {
-        // 移除Content-Type让浏览器自动设置multipart/form-data边界
         ...config?.headers,
-        'Content-Type': undefined,
-      } as HeadersInit,
+        // 不设置Content-Type，让浏览器自动设置multipart/form-data边界
+      },
+      skipContentType: true, // 添加标记来跳过Content-Type设置
     };
 
     return this.request<T>(endpoint, requestConfig);

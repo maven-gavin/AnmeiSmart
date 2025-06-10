@@ -52,38 +52,45 @@ export const errorHandler = {
   /**
    * 根据HTTP状态码创建错误
    */
-  fromHttpStatus(status: number, message?: string, detail?: string): AppError {
+  fromHttpStatus(status: number, message?: string | any, detail?: string): AppError {
+    // 如果message是对象，尝试提取字符串
+    let errorMessage = message;
+    if (typeof message === 'object') {
+      if (message && typeof message === 'object') {
+        errorMessage = message.message || message.detail || JSON.stringify(message);
+      }
+    }
     switch (status) {
       case 401:
         return new AppError(
           ErrorType.AUTHENTICATION, 
           status, 
-          message || '认证失败，请重新登录'
+          errorMessage || '认证失败，请重新登录'
         );
       case 403:
         return new AppError(
           ErrorType.AUTHORIZATION, 
           status, 
-          message || '权限不足，无法访问此资源'
+          errorMessage || '权限不足，无法访问此资源'
         );
       case 422:
         return new AppError(
           ErrorType.VALIDATION, 
           status, 
-          message || '请求参数验证失败',
+          errorMessage || '请求参数验证失败',
           detail
         );
       case 500:
         return new AppError(
           ErrorType.SERVER, 
           status, 
-          message || '服务器内部错误'
+          errorMessage || '服务器内部错误'
         );
       default:
         return new AppError(
           ErrorType.UNKNOWN, 
           status, 
-          message || '未知错误'
+          errorMessage || '未知错误'
         );
     }
   },

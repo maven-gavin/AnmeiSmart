@@ -106,7 +106,7 @@ export class ChatApiService {
     messageId: string, 
     isImportant: boolean
   ): Promise<void> {
-    await apiClient.put(`${this.BASE_PATH}/conversations/${conversationId}/messages/${messageId}/important`, {
+    await apiClient.patch(`${this.BASE_PATH}/conversations/${conversationId}/messages/${messageId}/important`, {
       is_important: isImportant
     });
   }
@@ -255,9 +255,9 @@ export class ChatApiService {
     let formattedContent: MessageContent;
     let messageType: 'text' | 'media' | 'system' | 'structured';
 
-    // 处理type字段，映射旧的类型到新的类型
+    // 处理type字段，支持新旧格式
     const rawType = msg.type || 'text';
-    if (rawType === 'image' || rawType === 'voice' || rawType === 'file') {
+    if (rawType === 'media' || rawType === 'image' || rawType === 'voice' || rawType === 'file') {
       messageType = 'media';
     } else if (rawType === 'text') {
       messageType = 'text';
@@ -311,7 +311,10 @@ export class ChatApiService {
       },
       timestamp: msg.timestamp || msg.created_at || new Date().toISOString(),
       is_important: msg.is_important || false,
-      is_read: msg.is_read || false
+      is_read: msg.is_read || false,
+      reply_to_message_id: msg.reply_to_message_id || undefined,
+      reactions: msg.reactions || undefined,
+      extra_metadata: msg.extra_metadata || undefined
     };
   }
 
