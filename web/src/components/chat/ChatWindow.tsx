@@ -233,31 +233,32 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         className="flex-1 overflow-y-auto p-4 space-y-4"
       >
         {/* 重点消息切换按钮 */}
-        {importantMessages.length > 0 && (
-          <div className="sticky top-0 z-10 mb-2 flex justify-end">
-            <button
-              className={`rounded-full px-3 py-1 text-xs font-medium flex items-center space-x-1 transition-colors ${
-                showImportantOnly 
-                ? 'bg-orange-100 text-orange-700 border border-orange-300' 
-                : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
-              }`}
-              onClick={toggleShowImportantOnly}
+        <div className="sticky top-0 z-10 mb-2 flex justify-end">
+          <button
+            className={`rounded-full px-3 py-1 text-xs font-medium flex items-center space-x-1 transition-colors ${
+              showImportantOnly 
+              ? 'bg-orange-100 text-orange-700 border border-orange-300' 
+              : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+            }`}
+            onClick={toggleShowImportantOnly}
+          >
+            <svg 
+              className={`h-4 w-4 ${showImportantOnly ? 'text-orange-500' : 'text-gray-500'}`} 
+              fill="currentColor" 
+              viewBox="0 0 20 20"
             >
-              <svg 
-                className={`h-4 w-4 ${showImportantOnly ? 'text-orange-500' : 'text-gray-500'}`} 
-                fill="currentColor" 
-                viewBox="0 0 20 20"
-              >
-                <path 
-                  fillRule="evenodd" 
-                  d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" 
-                  clipRule="evenodd" 
-                />
-              </svg>
-              <span>{showImportantOnly ? '查看全部消息' : '仅显示重点标记'}</span>
-            </button>
-          </div>
-        )}
+              <path 
+                fillRule="evenodd" 
+                d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" 
+                clipRule="evenodd" 
+              />
+            </svg>
+            <span>
+              {showImportantOnly ? '查看全部消息' : '仅显示重点标记'}
+              {importantMessages.length > 0 && ` (${importantMessages.length})`}
+            </span>
+          </button>
+        </div>
 
         {/* 分组消息列表 */}
         {messageGroups.map((group) => (

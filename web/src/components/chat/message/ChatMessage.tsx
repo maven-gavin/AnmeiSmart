@@ -164,10 +164,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   // 结构化消息（卡片）使用特殊布局
   if (message.type === 'structured') {
     return (
-      <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4`}>
-        <div className={`max-w-md ${isOwn ? 'order-1' : 'order-2'}`}>
+      <div className="mb-4">
+        <div className="max-w-md">
           {/* 发送者信息 */}
-          {!isOwn && showAvatar && (
+          {showAvatar && (
             <div className="flex items-center mb-2">
               <img
                 src={message.sender.avatar || '/avatars/default.png'}
@@ -200,101 +200,93 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     );
   }
 
-  // 普通消息布局
+  // 普通消息布局 - 统一垂直列表布局
   return (
     <div 
-      className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4 relative group ${
+      className={`mb-4 relative group ${
         isSelected ? 'bg-yellow-50 rounded-lg p-2' : ''
       }`}
       onMouseEnter={() => setShowToolbar(true)}
       onMouseLeave={() => setShowToolbar(false)}
     >
-      {/* 头像 */}
-      {!isOwn && showAvatar && (
-        <img
-          src={message.sender.avatar || '/avatars/default.png'}
-          alt={message.sender.name}
-          className="w-8 h-8 rounded-full mr-3 mt-1"
-        />
-      )}
-      
-      <div className={`max-w-xs lg:max-w-md ${isOwn ? 'order-1' : 'order-2'} relative`}>
-        {/* 工具栏 */}
-        {renderToolbar()}
-        
-        {/* 发送者名称 */}
-        {!isOwn && showAvatar && (
-          <div className="text-sm text-gray-600 mb-1">
-            {message.sender.name}
-          </div>
+      <div className="flex items-start space-x-3">
+        {/* 头像 */}
+        {showAvatar && (
+          <img
+            src={message.sender.avatar || '/avatars/default.png'}
+            alt={message.sender.name}
+            className="w-8 h-8 rounded-full flex-shrink-0"
+          />
         )}
         
-        {/* 消息气泡 */}
-        <div
-          className={`
-            px-4 py-2 rounded-lg max-w-full break-words relative
-            ${isOwn 
-              ? 'bg-blue-500 text-white' 
-              : 'bg-gray-100 text-gray-900'
-            }
-            ${message.is_important ? 'ring-2 ring-yellow-400' : ''}
-            ${message.status === 'failed' ? 'border-red-300 bg-red-50' : ''}
-          `}
-        >
-          {renderMessageContent()}
+        <div className="flex-1 min-w-0 relative">
+          {/* 工具栏 */}
+          {renderToolbar()}
           
-          {/* 发送状态 */}
-          {message.status === 'pending' && (
-            <div className="absolute -bottom-1 -right-1">
-              <div className="w-4 h-4 bg-gray-300 rounded-full animate-pulse"></div>
-            </div>
-          )}
-          
-          {message.status === 'failed' && (
-            <button
-              onClick={() => onRetry?.(message)}
-              className="absolute -bottom-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
-              title="重新发送"
-            >
-              !
-            </button>
-          )}
-        </div>
-        
-        {/* 回复引用 */}
-        {message.reply_to_message_id && (
-          <div className="text-xs text-gray-500 mt-1">
-            回复了一条消息
-          </div>
-        )}
-        
-        {/* 时间戳 */}
-        {showTimestamp && (
-          <div className={`text-xs text-gray-500 mt-1 ${isOwn ? 'text-right' : 'text-left'}`}>
-            {formatDistanceToNow(new Date(message.timestamp), { 
-              addSuffix: true, 
-              locale: zhCN 
-            })}
+          {/* 发送者名称和时间戳 */}
+          <div className="flex items-center space-x-2 mb-1">
+            <span className="text-sm font-medium text-gray-900">
+              {message.sender.name}
+            </span>
+            {showTimestamp && (
+              <span className="text-xs text-gray-500">
+                {formatDistanceToNow(new Date(message.timestamp), { 
+                  addSuffix: true, 
+                  locale: zhCN 
+                })}
+              </span>
+            )}
             {message.status && (
-              <span className="ml-2">
+              <span className="text-xs text-gray-500">
                 {message.status === 'pending' && '发送中...'}
                 {message.status === 'failed' && '发送失败'}
               </span>
             )}
           </div>
-        )}
-        
-        {/* 反应 */}
-        {renderReactions()}
+          
+          {/* 消息内容 */}
+          <div
+            className={`
+              inline-block px-3 py-2 rounded-lg max-w-full break-words relative
+              ${isOwn 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-gray-100 text-gray-900'
+              }
+              ${message.is_important ? 'ring-2 ring-yellow-400' : ''}
+              ${message.status === 'failed' ? 'border-red-300 bg-red-50' : ''}
+            `}
+          >
+            {renderMessageContent()}
+            
+            {/* 发送状态 */}
+            {message.status === 'pending' && (
+              <div className="absolute -bottom-1 -right-1">
+                <div className="w-4 h-4 bg-gray-300 rounded-full animate-pulse"></div>
+              </div>
+            )}
+            
+            {message.status === 'failed' && (
+              <button
+                onClick={() => onRetry?.(message)}
+                className="absolute -bottom-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                title="重新发送"
+              >
+                !
+              </button>
+            )}
+          </div>
+          
+          {/* 回复引用 */}
+          {message.reply_to_message_id && (
+            <div className="text-xs text-gray-500 mt-1">
+              回复了一条消息
+            </div>
+          )}
+          
+          {/* 反应 */}
+          {renderReactions()}
+        </div>
       </div>
-      
-      {isOwn && showAvatar && (
-        <img
-          src={message.sender.avatar || '/avatars/default.png'}
-          alt={message.sender.name}
-          className="w-8 h-8 rounded-full ml-3 mt-1"
-        />
-      )}
     </div>
   );
 };
