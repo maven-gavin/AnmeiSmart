@@ -48,7 +48,7 @@ export interface MessageData {
     avatar?: string;         // 发送者头像
   };
   timestamp: string;         // 消息时间戳
-  isImportant?: boolean;     // 是否标记为重要
+  is_important?: boolean;    // 是否标记为重要
   isSystemMessage?: boolean; // 是否为系统消息
   metadata?: Record<string, any>; // 额外元数据
 }

@@ -85,7 +85,7 @@ export async function saveMessage(message: Message): Promise<Message> {
     console.log('开始保存消息:', {
       localId: message.localId,
       conversationId: message.conversationId,
-      content: message.content.substring(0, 50) + (message.content.length > 50 ? '...' : ''),
+      content: JSON.stringify(message.content).substring(0, 50) + '...',
       status: message.status
     });
 
@@ -94,7 +94,7 @@ export async function saveMessage(message: Message): Promise<Message> {
       throw new AppError(ErrorType.VALIDATION, 400, '消息缺少会话ID');
     }
 
-    if (!message.content?.trim()) {
+    if (!message.content) {
       throw new AppError(ErrorType.VALIDATION, 400, '消息内容不能为空');
     }
 
@@ -350,7 +350,7 @@ export async function markMessageAsImportant(conversationId: string, messageId: 
     // 更新本地状态
     const updatedMessage = {
       ...messages[messageIndex],
-      isImportant,
+      is_important: isImportant,
     };
     
     // 更新本地消息
@@ -377,7 +377,7 @@ export async function markMessageAsImportant(conversationId: string, messageId: 
  */
 export function getImportantMessages(conversationId: string): Message[] {
   const messages = chatState.getChatMessages(conversationId);
-  return messages.filter(msg => msg.isImportant);
+  return messages.filter(msg => msg.is_important);
 }
 
 // ===== 客户档案和历史记录 =====

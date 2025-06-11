@@ -43,10 +43,9 @@ export function useChatMessages({ conversationId, mounted }: UseChatMessagesProp
         console.log('ChatWindow:静默更新，消息有变化，更新UI')
         setMessages(newMessages)
         
-        if (showImportantOnly) {
-          const important = newMessages.filter(msg => msg.isImportant)
-          setImportantMessages(important)
-        }
+        // 始终更新重点消息列表，不论当前是否显示重点消息
+        const important = newMessages.filter(msg => msg.is_important)
+        setImportantMessages(important)
 
         const newLastMessageId = newMessages.length > 0 
           ? newMessages[newMessages.length - 1].id 
@@ -59,7 +58,7 @@ export function useChatMessages({ conversationId, mounted }: UseChatMessagesProp
       console.error('ChatWindow:静默获取消息出错:', error)
       return false
     }
-  }, [conversationId, showImportantOnly, messages, mounted])
+  }, [conversationId, messages, mounted])
 
   // 获取消息
   const fetchMessages = useCallback(async () => {
@@ -72,7 +71,7 @@ export function useChatMessages({ conversationId, mounted }: UseChatMessagesProp
       if (!mounted.current) return
 
       setMessages(messagesData)
-      const important = messagesData.filter(msg => msg.isImportant)
+      const important = messagesData.filter(msg => msg.is_important)
       setImportantMessages(important)
 
     } catch (error) {
@@ -117,12 +116,10 @@ export function useChatMessages({ conversationId, mounted }: UseChatMessagesProp
   // 更新消息列表
   const updateMessages = useCallback((newMessages: Message[]) => {
     setMessages(newMessages)
-    if (showImportantOnly) {
-      const important = newMessages.filter(msg => msg.isImportant)
-      setImportantMessages(important)
-    }
-
-  }, [showImportantOnly])
+    // 始终更新重点消息列表
+    const important = newMessages.filter(msg => msg.is_important)
+    setImportantMessages(important)
+  }, [])
 
   // 当 conversationId 变化时自动获取消息
   useEffect(() => {

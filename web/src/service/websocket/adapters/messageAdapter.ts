@@ -72,9 +72,11 @@ export class MessageAdapter {
       timestamp: rawMessage.timestamp || now,
     };
     
-    // 添加可选字段
+    // 添加可选字段 - 支持两种字段名格式
     if (rawMessage.isImportant !== undefined) {
-      message.isImportant = !!rawMessage.isImportant;
+      message.is_important = !!rawMessage.isImportant;
+    } else if (rawMessage.is_important !== undefined) {
+      message.is_important = !!rawMessage.is_important;
     }
     
     if (rawMessage.metadata) {
