@@ -5,7 +5,7 @@ import { type Message } from '@/types/chat'
 import ChatMessage from '@/components/chat/message/ChatMessage'
 import { SearchBar } from '@/components/chat/SearchBar'
 import MessageInput from '@/components/chat/MessageInput'
-import { getOrCreateConversation, markMessageAsImportant } from '@/service/chatService'
+import { getOrCreateConversation, markMessageAsImportant, saveMessage } from '@/service/chatService'
 import { useAuthContext } from '@/contexts/AuthContext'
 import { useSearchParams, useRouter } from 'next/navigation'
 
@@ -166,9 +166,33 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   }, []);
 
   const handleRetry = useCallback(async (message: Message) => {
-    // TODO: 实现重试发送功能
-    console.log('重试发送:', message);
-  }, []);
+    if (!currentConversationId) return;
+    
+    try {
+      // 更新消息状态为pending
+      message.status = 'pending';
+      message.error = undefined;
+      
+      // 重新发送消息
+      const savedMessage = await saveMessage(message);
+      
+      // 发送成功，更新消息状态
+      message.status = 'sent';
+      message.id = savedMessage.id;
+      
+      // 刷新消息列表以反映状态变化
+      silentlyUpdateMessages();
+      
+    } catch (error) {
+      // 发送失败，恢复失败状态
+      message.status = 'failed';
+      message.error = error instanceof Error ? error.message : '重试发送失败';
+      console.error('重试发送消息失败:', error);
+      
+      // 刷新消息列表以反映状态变化
+      silentlyUpdateMessages();
+    }
+  }, [currentConversationId, silentlyUpdateMessages]);
 
   const handleCardAction = useCallback((action: string, data: any) => {
     // TODO: 实现卡片操作功能

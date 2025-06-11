@@ -10,9 +10,6 @@ interface MediaPreviewProps {
   audioPreview?: string | null;
   onCancelImage?: () => void;
   onCancelAudio?: () => void;
-  onSendSuccess?: () => void;
-  onUpdateMessages?: () => void;
-  onSendImage?: (imageUrl: string) => void;
   onSendAudio?: (audioUrl: string) => void;
 }
 
@@ -22,9 +19,6 @@ export function MediaPreview({
   audioPreview, 
   onCancelImage, 
   onCancelAudio,
-  onSendSuccess,
-  onUpdateMessages,
-  onSendImage,
   onSendAudio
 }: MediaPreviewProps) {
   const [sendError, setSendError] = useState<string | null>(null);
@@ -66,57 +60,6 @@ export function MediaPreview({
     return fileInfo.file_url;
   }, [conversationId, dataURLToFile]);
 
-  // 发送图片
-  const handleSendImage = useCallback(async () => {
-    if (!imagePreview) {
-      setSendError('没有图片可发送');
-      return;
-    }
-
-    if (!onSendImage) {
-      setSendError('发送功能未配置');
-      return;
-    }
-
-    setIsSending(true);
-    setSendError(null);
-
-    try {
-      const timestamp = Date.now();
-      const filename = `image_${timestamp}.png`;
-      
-      // 上传文件并获取URL
-      const imageUrl = await uploadMediaFile(imagePreview, filename, 'image');
-      
-      // 通过回调将URL传递给父组件，由父组件负责创建和发送消息
-      onSendImage(imageUrl);
-      
-      // 成功后清理和回调
-      toast.success('图片上传成功');
-      
-      if (onSendSuccess) {
-        onSendSuccess();
-      }
-      
-      if (onUpdateMessages) {
-        onUpdateMessages();
-      }
-
-      // 发送成功后清除预览
-      if (onCancelImage) {
-        onCancelImage();
-      }
-      
-    } catch (error) {
-      console.error('图片上传失败:', error);
-      const errorMessage = error instanceof Error ? error.message : '图片上传失败';
-      setSendError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setIsSending(false);
-    }
-  }, [imagePreview, uploadMediaFile, onSendImage, onSendSuccess, onUpdateMessages, onCancelImage]);
-
   // 发送语音
   const handleSendAudio = useCallback(async () => {
     if (!audioPreview) {
@@ -145,14 +88,6 @@ export function MediaPreview({
       // 成功后清理和回调
       toast.success('语音上传成功');
       
-      if (onSendSuccess) {
-        onSendSuccess();
-      }
-      
-      if (onUpdateMessages) {
-        onUpdateMessages();
-      }
-
       // 发送成功后清除预览
       if (onCancelAudio) {
         onCancelAudio();
@@ -166,7 +101,7 @@ export function MediaPreview({
     } finally {
       setIsSending(false);
     }
-  }, [audioPreview, uploadMediaFile, onSendAudio, onSendSuccess, onUpdateMessages, onCancelAudio]);
+  }, [audioPreview, uploadMediaFile, onSendAudio, onCancelAudio]);
 
   if (!imagePreview && !audioPreview) {
     return null;
@@ -201,43 +136,32 @@ export function MediaPreview({
         <div className="border-t border-gray-200 bg-gray-50 p-3">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium text-gray-700">图片预览</span>
-            <div className="flex items-center space-x-2">
-              {conversationId && onSendImage && (
-                <button
-                  onClick={handleSendImage}
-                  disabled={isSending}
-                  className="px-3 py-1 text-sm bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {isSending ? (
-                    <span className="flex items-center">
-                      <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      上传中...
-                    </span>
-                  ) : (
-                    '发送'
-                  )}
-                </button>
-              )}
-              <button 
-                onClick={onCancelImage}
-                disabled={isSending}
-                className="text-gray-500 hover:text-gray-700 disabled:opacity-50 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+            <button 
+              onClick={onCancelImage}
+              className="text-gray-500 hover:text-gray-700 transition-colors"
+              title="关闭图片预览"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <div className="relative">
+          <div className="relative inline-block">
             <img 
               src={imagePreview} 
               alt="预览图片" 
               className="max-h-40 max-w-full rounded-lg object-contain shadow-sm"
             />
+            {/* 图片缩略图删除按钮 - 在图片右下角 */}
+            <button 
+              onClick={onCancelImage}
+              className="absolute -bottom-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-md"
+              title="删除此图片"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
       )}

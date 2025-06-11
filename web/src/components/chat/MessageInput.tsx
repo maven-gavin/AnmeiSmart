@@ -14,6 +14,8 @@ import { authService } from "@/service/authService";
 import { AppError, ErrorType } from '@/service/errors';
 import FileSelector from './FileSelector';
 import { MessageUtils } from '@/utils/messageUtils';
+import { FileService } from '@/service/fileService';
+import { saveMessage } from '@/service/chatService';
 
 interface MessageInputProps {
   conversationId?: string | null;
@@ -59,7 +61,7 @@ function createTextMessage(content: string, conversationId: string): Message {
     createdAt: now,
     // 消息状态相关字段
     status: 'pending',
-    canRetry: false, // 初始时不可重试，失败后才设置为true
+    canRetry: true, // 失败后可重试
     canDelete: true, // 可以删除
     canRecall: false, // 初始时不可撤销，发送成功后1分钟内可撤销
   };
@@ -68,9 +70,9 @@ function createTextMessage(content: string, conversationId: string): Message {
 }
 
 /**
- * 发送图片消息
+ * 发送图片消息（支持附带文字）
  */
-function createImageMessage(imageUrl: string, conversationId: string): Message {
+function createImageMessage(imageUrl: string, text: string | undefined, conversationId: string): Message {
   const currentUser = authService.getCurrentUser();
   if (!currentUser) {
     throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
@@ -90,7 +92,7 @@ function createImageMessage(imageUrl: string, conversationId: string): Message {
         file_type: 'image'
       }
     },
-    text: undefined
+    text: text && text.trim() ? text.trim() : undefined
   };
   
   // 创建图片消息（pending状态）
@@ -109,7 +111,7 @@ function createImageMessage(imageUrl: string, conversationId: string): Message {
     timestamp: now,
     createdAt: now,
     status: 'pending',
-    canRetry: false,
+    canRetry: true,
     canDelete: true,
     canRecall: false,
   };
@@ -254,37 +256,109 @@ export default function MessageInput({
     cancelAudioPreview
   } = useMediaUpload();
 
-  // 处理发送文本消息
+  // 处理发送文本或图片消息
   const handleSendMessage = useCallback(async () => {
-    if (!message.trim() || isSending) return;
+    // 检查是否有可发送的内容
+    const hasText = message.trim();
+    const hasImage = imagePreview;
+    
+    if (!hasText && !hasImage) return;
+    if (isSending) return;
 
     try {
       setIsSending(true);
       setSendError(null);
       
-      // 直接调用父组件的发送方法，父组件负责本地添加和异步发送
-      const userMessage = createTextMessage(message, conversationId || '');
-      await onSendMessage(userMessage);
-      
-      // 发送成功后清空输入
-      setMessage('');
+      if (hasImage) {
+        // 有图片时，上传图片并创建媒体消息
+        const timestamp = Date.now();
+        const filename = `image_${timestamp}.png`;
+        
+        // 1. 上传图片文件
+        const file = dataURLToFile(imagePreview, filename);
+        const fileService = new FileService();
+        const fileInfo = await fileService.uploadFile(file, conversationId || '');
+        
+        // 2. 创建包含图片和文字的媒体消息
+        const imageMessage = createImageMessage(
+          fileInfo.file_url, 
+          hasText ? message : undefined, 
+          conversationId || ''
+        );
+        
+        // 3. 立即添加到本地消息列表
+        await onSendMessage(imageMessage);
+        
+        // 4. 使用HTTP发送到后端
+        try {
+          const savedMessage = await saveMessage(imageMessage);
+          // 发送成功，更新消息状态
+          imageMessage.status = 'sent';
+          imageMessage.id = savedMessage.id;
+        } catch (error) {
+          // 发送失败，更新消息状态
+          imageMessage.status = 'failed';
+          imageMessage.error = error instanceof Error ? error.message : '发送失败';
+          console.error('图片消息发送失败:', error);
+        }
+        
+        // 5. 清理状态
+        setMessage('');
+        cancelImagePreview();
+        
+      } else if (hasText) {
+        // 纯文本消息
+        const userMessage = createTextMessage(message, conversationId || '');
+        
+        // 立即添加到本地消息列表
+        await onSendMessage(userMessage);
+        
+        // 使用HTTP发送到后端
+        try {
+          const savedMessage = await saveMessage(userMessage);
+          userMessage.status = 'sent';
+          userMessage.id = savedMessage.id;
+        } catch (error) {
+          userMessage.status = 'failed';
+          userMessage.error = error instanceof Error ? error.message : '发送失败';
+          console.error('文本消息发送失败:', error);
+        }
+        
+        // 清空输入
+        setMessage('');
+      }
     } catch (error) {
       console.error('发送消息失败:', error);
       setSendError(error instanceof Error ? error.message : '发送消息失败，请稍后重试');
     } finally {
       setIsSending(false);
     }
-  }, [message, isSending, onSendMessage, conversationId]);
+  }, [message, imagePreview, isSending, onSendMessage, conversationId, cancelImagePreview]);
+
+  // 添加 dataURLToFile 函数
+  const dataURLToFile = useCallback((dataURL: string, filename: string): File => {
+    const arr = dataURL.split(',');
+    const mime = arr[0].match(/:(.*?);/)?.[1] || 'application/octet-stream';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    
+    return new File([u8arr], filename, { type: mime });
+  }, []);
 
   // 处理键盘事件
   const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!isSending && message.trim()) {
+      if (!isSending && (message.trim() || imagePreview)) {
         handleSendMessage();
       }
     }
-  }, [handleSendMessage, isSending, message]);
+  }, [handleSendMessage, isSending, message, imagePreview]);
 
   // 处理开始录音
   const handleStartRecording = useCallback(async () => {
@@ -299,27 +373,6 @@ export default function MessageInput({
       setAudioPreview(audioUrl);
     }
   }, [stopRecording, setAudioPreview]);
-
-  // 媒体发送完成回调
-  const handleMediaSendSuccess = useCallback(() => {
-    onUpdateMessages?.();
-  }, [onUpdateMessages]);
-
-  // 处理图片发送
-  const handleSendImage = useCallback(async (imageUrl: string) => {
-    try {
-      setSendError(null);
-      
-      // 使用现有的createImageMessage函数创建图片消息
-      const imageMessage = createImageMessage(imageUrl, conversationId || '');
-      await onSendMessage(imageMessage);
-      
-      console.log('图片消息发送成功');
-    } catch (error) {
-      console.error('发送图片消息失败:', error);
-      setSendError(error instanceof Error ? error.message : '发送图片消息失败');
-    }
-  }, [onSendMessage, conversationId]);
 
   // 处理语音发送  
   const handleSendAudio = useCallback(async (audioUrl: string) => {
@@ -426,9 +479,6 @@ export default function MessageInput({
         audioPreview={audioPreview}
         onCancelImage={cancelImagePreview}
         onCancelAudio={cancelAudioPreview}
-        onSendSuccess={handleMediaSendSuccess}
-        onUpdateMessages={onUpdateMessages}
-        onSendImage={handleSendImage}
         onSendAudio={handleSendAudio}
       />
       
@@ -575,7 +625,7 @@ export default function MessageInput({
             />
             <Button
               onClick={handleSendMessage}
-              disabled={isSending || !message.trim()}
+              disabled={isSending || (!message.trim() && !imagePreview)}
               className={`bg-orange-500 hover:bg-orange-600 text-white border-0 shadow-sm transition-colors ${
                 isSending ? 'opacity-70 cursor-not-allowed' : ''
               }`}
