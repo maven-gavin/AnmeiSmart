@@ -19,7 +19,7 @@ interface FileMessageProps extends MessageContentProps {
   fileInfo?: FileInfo;
 }
 
-export default function FileMessage({ message, searchTerm, compact, fileInfo }: FileMessageProps) {
+export default function FileMessage({ message, searchTerm, compact, fileInfo, onRetry }: FileMessageProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);

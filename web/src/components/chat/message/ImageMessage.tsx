@@ -24,7 +24,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', cleanupBlobUrls);
 }
 
-export default function ImageMessage({ message, searchTerm, compact }: MessageContentProps) {
+export default function ImageMessage({ message, searchTerm, compact, onRetry }: MessageContentProps) {
   const [imageExpanded, setImageExpanded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [authenticatedImageUrl, setAuthenticatedImageUrl] = useState<string | null>(null);
@@ -335,6 +335,38 @@ export default function ImageMessage({ message, searchTerm, compact }: MessageCo
           loading="lazy"
           style={{ minHeight: '100px' }}
         />
+        
+        {/* 发送状态指示器 */}
+        {message.status === 'pending' && (
+          <div className="absolute top-2 right-2 bg-white bg-opacity-80 rounded-full p-1">
+            <div className="w-3 h-3 bg-gray-400 rounded-full animate-pulse"></div>
+          </div>
+        )}
+        
+        {message.status === 'failed' && (
+          <div 
+            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 cursor-pointer hover:bg-red-600 transition-colors" 
+            title="点击重新发送"
+            onClick={(e) => {
+              e.stopPropagation(); // 防止触发图片点击事件
+              onRetry?.(message);
+            }}
+          >
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          </div>
+        )}
+        
+        {/* 重要标记 */}
+        {message.is_important && (
+          <div className="absolute top-2 left-2 bg-yellow-400 text-yellow-800 rounded-full p-1">
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+            </svg>
+          </div>
+        )}
+        
         {/* 文本内容 - 如果存在的话，显示在图片下方 */}
         {mediaContent.text && (
           <div className={`mt-3 ${compact ? 'text-xs' : 'text-sm'} text-gray-800 break-words`}>

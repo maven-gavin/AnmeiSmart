@@ -8,7 +8,7 @@ import FileMessage from './FileMessage';
 import VideoMessage from './VideoMessage';
 import VoiceMessage from './VoiceMessage';
 
-export default function MediaMessage({ message, searchTerm, compact }: MessageContentProps) {
+export default function MediaMessage({ message, searchTerm, compact, onRetry }: MessageContentProps) {
   // 确保是媒体消息
   if (message.type !== 'media') {
     return <div className="text-red-500">错误：非媒体消息类型</div>;
@@ -25,17 +25,17 @@ export default function MediaMessage({ message, searchTerm, compact }: MessageCo
 
   // 根据MIME类型选择合适的组件
   if (mime_type.startsWith('image/')) {
-    return <ImageMessage message={message} searchTerm={searchTerm} compact={compact} />;
+    return <ImageMessage message={message} searchTerm={searchTerm} compact={compact} onRetry={onRetry} />;
   }
   
   if (mime_type.startsWith('video/')) {
-    return <VideoMessage message={message} searchTerm={searchTerm} compact={compact} />;
+    return <VideoMessage message={message} searchTerm={searchTerm} compact={compact} onRetry={onRetry} />;
   }
   
   if (mime_type.startsWith('audio/')) {
-    return <VoiceMessage message={message} searchTerm={searchTerm} compact={compact} />;
+    return <VoiceMessage message={message} searchTerm={searchTerm} compact={compact} onRetry={onRetry} />;
   }
 
   // 其他文件类型使用通用文件组件
-  return <FileMessage message={message} searchTerm={searchTerm} compact={compact} />;
+  return <FileMessage message={message} searchTerm={searchTerm} compact={compact} onRetry={onRetry} />;
 } 

@@ -10,6 +10,7 @@ export interface MessageContentProps {
   message: Message;
   searchTerm?: string;
   compact?: boolean;
+  onRetry?: (message: Message) => void;
 }
 
 import TextMessage from './TextMessage';
@@ -56,7 +57,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
         return <TextMessage message={message} searchTerm={searchTerm} />;
       
       case 'media':
-        return <MediaMessage message={message} searchTerm={searchTerm} />;
+        return <MediaMessage message={message} searchTerm={searchTerm} onRetry={onRetry} />;
       
       case 'system':
         return <SystemMessage message={message} />;
@@ -247,25 +248,28 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
           {/* 消息内容 */}
           <div
             className={`
-              inline-block px-3 py-2 rounded-lg max-w-full break-words relative
-              ${isOwn 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-gray-100 text-gray-900'
+              ${message.type === 'media' 
+                ? 'max-w-full' // 媒体消息不需要气泡样式
+                : `inline-block px-3 py-2 rounded-lg max-w-full break-words relative
+                   ${isOwn 
+                     ? 'bg-blue-500 text-white' 
+                     : 'bg-gray-100 text-gray-900'
+                   }`
               }
-              ${message.is_important ? 'ring-2 ring-yellow-400' : ''}
+              ${message.is_important && message.type !== 'media' ? 'ring-2 ring-yellow-400' : ''}
               ${message.status === 'failed' ? 'border-red-300 bg-red-50' : ''}
             `}
           >
             {renderMessageContent()}
             
-            {/* 发送状态 */}
-            {message.status === 'pending' && (
+            {/* 发送状态 - 仅对非媒体消息显示 */}
+            {message.type !== 'media' && message.status === 'pending' && (
               <div className="absolute -bottom-1 -right-1">
                 <div className="w-4 h-4 bg-gray-300 rounded-full animate-pulse"></div>
               </div>
             )}
             
-            {message.status === 'failed' && (
+            {message.type !== 'media' && message.status === 'failed' && (
               <button
                 onClick={() => onRetry?.(message)}
                 className="absolute -bottom-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"

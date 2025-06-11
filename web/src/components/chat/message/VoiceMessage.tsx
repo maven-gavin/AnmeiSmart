@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MessageContentProps } from './ChatMessage';
 import { MediaMessageContent } from '@/types/chat';
 
-export default function VoiceMessage({ message, searchTerm, compact }: MessageContentProps) {
+export default function VoiceMessage({ message, searchTerm, compact, onRetry }: MessageContentProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -160,7 +160,7 @@ export default function VoiceMessage({ message, searchTerm, compact }: MessageCo
     }
 
     return (
-      <div className="flex items-center space-x-3 p-3 bg-white border border-gray-200 rounded-lg max-w-sm">
+      <div className="flex items-center space-x-3 p-3 bg-white border border-gray-200 rounded-lg max-w-sm relative">
         {/* 隐藏的音频元素 */}
         <audio ref={audioRef} src={audioUrl} preload="metadata" />
         
@@ -210,6 +210,37 @@ export default function VoiceMessage({ message, searchTerm, compact }: MessageCo
             <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
           </svg>
         </div>
+
+        {/* 发送状态指示器 */}
+        {message.status === 'pending' && (
+          <div className="absolute top-1 right-1 bg-white bg-opacity-80 rounded-full p-0.5">
+            <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
+          </div>
+        )}
+        
+        {message.status === 'failed' && (
+          <div 
+            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 cursor-pointer hover:bg-red-600 transition-colors z-10" 
+            title="点击重新发送"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRetry?.(message);
+            }}
+          >
+            <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          </div>
+        )}
+        
+        {/* 重要标记 */}
+        {message.is_important && (
+          <div className="absolute top-1 left-1 bg-yellow-400 text-yellow-800 rounded-full p-0.5 z-10">
+            <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+            </svg>
+          </div>
+        )}
       </div>
     );
   } catch (error) {
