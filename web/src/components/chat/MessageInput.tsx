@@ -233,7 +233,6 @@ export default function MessageInput({
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [showFileSelector, setShowFileSelector] = useState(false);
 
   // 录音相关状态
   const {
@@ -253,87 +252,128 @@ export default function MessageInput({
     triggerFileSelect,
     audioPreview,
     setAudioPreview,
-    cancelAudioPreview
+    cancelAudioPreview,
+    // 文件相关
+    filePreview,
+    fileInputForFileRef,
+    handleFileUpload: handleFileInputChange,
+    cancelFilePreview,
+    triggerFileUpload,
+    getTempFile
   } = useMediaUpload();
 
-  // 处理发送文本或图片消息
+  // 处理消息发送
   const handleSendMessage = useCallback(async () => {
-    // 检查是否有可发送的内容
-    const hasText = message.trim();
-    const hasImage = imagePreview;
+    const trimmedMessage = message.trim();
     
-    if (!hasText && !hasImage) return;
-    if (isSending) return;
+    // 检查是否有内容可发送（文字或文件）
+    if (!trimmedMessage && !imagePreview && !filePreview) {
+      return;
+    }
+
+    setIsSending(true);
+    setSendError(null);
 
     try {
-      setIsSending(true);
-      setSendError(null);
-      
-      if (hasImage) {
-        // 有图片时，上传图片并创建媒体消息
-        const timestamp = Date.now();
-        const filename = `image_${timestamp}.png`;
-        
-        // 1. 上传图片文件
-        const file = dataURLToFile(imagePreview, filename);
-        const fileService = new FileService();
-        const fileInfo = await fileService.uploadFile(file, conversationId || '');
-        
-        // 2. 创建包含图片和文字的媒体消息
-        const imageMessage = createImageMessage(
-          fileInfo.file_url, 
-          hasText ? message : undefined, 
-          conversationId || ''
-        );
-        
-        // 3. 立即添加到本地消息列表
+      // 如果有图片预览，优先发送图片消息（可能包含文字）
+      if (imagePreview) {
+        const imageMessage = await createImageMessage(imagePreview, trimmedMessage || undefined, conversationId || '');
         await onSendMessage(imageMessage);
         
-        // 4. 使用HTTP发送到后端
-        try {
-          const savedMessage = await saveMessage(imageMessage);
-          // 发送成功，更新消息状态
-          imageMessage.status = 'sent';
-          imageMessage.id = savedMessage.id;
-        } catch (error) {
-          // 发送失败，更新消息状态
-          imageMessage.status = 'failed';
-          imageMessage.error = error instanceof Error ? error.message : '发送失败';
-          console.error('图片消息发送失败:', error);
-        }
-        
-        // 5. 清理状态
+        // 清理状态
         setMessage('');
         cancelImagePreview();
+      }
+      // 如果有文件预览，发送文件消息
+      else if (filePreview) {
+        await sendFileMessage(filePreview, trimmedMessage || undefined);
         
-      } else if (hasText) {
-        // 纯文本消息
-        const userMessage = createTextMessage(message, conversationId || '');
+        // 清理状态
+        setMessage('');
+        cancelFilePreview();
+      }
+      // 如果只有文字，发送文字消息
+      else if (trimmedMessage) {
+        const textMessage = createTextMessage(trimmedMessage, conversationId || '');
+        await onSendMessage(textMessage);
         
-        // 立即添加到本地消息列表
-        await onSendMessage(userMessage);
-        
-        // 使用HTTP发送到后端
-        try {
-          const savedMessage = await saveMessage(userMessage);
-          userMessage.status = 'sent';
-          userMessage.id = savedMessage.id;
-        } catch (error) {
-          userMessage.status = 'failed';
-          userMessage.error = error instanceof Error ? error.message : '发送失败';
-          console.error('文本消息发送失败:', error);
-        }
-        
-        // 清空输入
+        // 清理状态
         setMessage('');
       }
+
     } catch (error) {
       console.error('发送消息失败:', error);
-      setSendError(error instanceof Error ? error.message : '发送消息失败，请稍后重试');
+      setSendError(error instanceof Error ? error.message : '发送失败');
     } finally {
       setIsSending(false);
     }
-  }, [message, imagePreview, isSending, onSendMessage, conversationId, cancelImagePreview]);
+  }, [message, imagePreview, filePreview, conversationId, onSendMessage, cancelImagePreview, cancelFilePreview]);
+
+  // 发送文件消息
+  const sendFileMessage = useCallback(async (fileInfo: FileInfo, text?: string) => {
+    try {
+      // 获取原始文件对象
+      const originalFile = getTempFile(fileInfo.file_url);
+      if (!originalFile) {
+        throw new Error('文件已丢失，请重新选择');
+      }
+
+      // 上传文件到服务器
+      const fileService = new FileService();
+      const uploadedFileInfo = await fileService.uploadFile(originalFile, conversationId || '');
+      
+      // 创建媒体消息内容
+      const mediaContent: MediaMessageContent = {
+        media_info: {
+          url: uploadedFileInfo.file_url,
+          name: uploadedFileInfo.file_name,
+          size_bytes: uploadedFileInfo.file_size,
+          mime_type: uploadedFileInfo.mime_type,
+          metadata: {
+            file_type: uploadedFileInfo.file_type,
+            object_name: uploadedFileInfo.object_name
+          }
+        },
+        text: text // 可能包含文字
+      };
+
+      const currentUser = authService.getCurrentUser();
+      if (!currentUser) {
+        throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
+      }
+
+      const localId = `local_${uuidv4()}`;
+      const now = new Date().toISOString();
+
+      // 创建文件消息
+      const fileMessage: Message = {
+        id: localId,
+        localId,
+        conversationId: conversationId || '',
+        content: mediaContent,
+        type: 'media',
+        sender: {
+          id: currentUser.id,
+          type: currentUser.currentRole || 'customer',
+          name: currentUser.name,
+          avatar: currentUser.avatar || '/avatars/user.png',
+        },
+        timestamp: now,
+        createdAt: now,
+        status: 'pending',
+        canRetry: true,
+        canDelete: true,
+        canRecall: false,
+      };
+
+      // 发送消息
+      await onSendMessage(fileMessage);
+      
+    } catch (error) {
+      console.error('发送文件消息失败:', error);
+      throw error;
+    }
+  }, [getTempFile, conversationId, onSendMessage]);
 
   // 添加 dataURLToFile 函数
   const dataURLToFile = useCallback((dataURL: string, filename: string): File => {
@@ -402,35 +442,7 @@ export default function MessageInput({
     }, 100);
   }, []);
 
-  // 处理文件选择
-  const handleFileSelect = useCallback((file: File) => {
-    console.log('文件已选择:', file.name);
-    // 这里可以添加文件选择后的处理逻辑，比如显示预览
-  }, []);
 
-  // 处理文件上传成功
-  const handleFileUpload = useCallback(async (fileInfo: FileInfo) => {
-    try {
-      setSendError(null);
-      
-      // 创建文件消息并发送
-      const fileMessage = createFileMessage(fileInfo, conversationId || '');
-      await onSendMessage(fileMessage);
-      
-      // 关闭文件选择器
-      setShowFileSelector(false);
-      
-      console.log('文件消息发送成功:', fileInfo.file_name);
-    } catch (error) {
-      console.error('发送文件消息失败:', error);
-      setSendError(error instanceof Error ? error.message : '发送文件消息失败');
-    }
-  }, [onSendMessage, conversationId]);
-
-  // 切换文件选择器显示
-  const toggleFileSelector = useCallback(() => {
-    setShowFileSelector(!showFileSelector);
-  }, [showFileSelector]);
 
   // 获取FAQ组件的按钮和面板
   const faqSection = FAQSection({
@@ -477,8 +489,10 @@ export default function MessageInput({
         conversationId={conversationId}
         imagePreview={imagePreview}
         audioPreview={audioPreview}
+        filePreview={filePreview}
         onCancelImage={cancelImagePreview}
         onCancelAudio={cancelAudioPreview}
+        onCancelFile={cancelFilePreview}
         onSendAudio={handleSendAudio}
       />
       
@@ -486,18 +500,7 @@ export default function MessageInput({
       {faqSection.panel}
       
       {/* 文件选择器 */}
-      {showFileSelector && (
-        <div className="border-t border-gray-200 bg-gray-50 p-4">
-          <FileSelector
-            conversationId={conversationId}
-            onFileSelect={handleFileSelect}
-            onFileUpload={handleFileUpload}
-            disabled={isSending}
-            accept="*/*"
-            maxSize={50 * 1024 * 1024} // 50MB
-          />
-        </div>
-      )}
+
       
       {/* 隐藏的文件输入 */}
       <input
@@ -506,6 +509,15 @@ export default function MessageInput({
         className="hidden"
         accept="image/*"
         onChange={handleImageUpload}
+      />
+      
+      {/* 隐藏的文件输入（用于普通文件） */}
+      <input
+        type="file"
+        ref={fileInputForFileRef}
+        className="hidden"
+        accept="*/*"
+        onChange={handleFileInputChange}
       />
       
       {/* 输入区域 */}
@@ -574,9 +586,9 @@ export default function MessageInput({
           </button>
           
           <button 
-            className={`flex-shrink-0 ${showFileSelector ? 'text-orange-500' : 'text-gray-500 hover:text-gray-700'}`}
+            className="flex-shrink-0 text-gray-500 hover:text-gray-700"
             title="文件"
-            onClick={toggleFileSelector}
+            onClick={triggerFileUpload}
           >
             <svg
               className="h-6 w-6"
