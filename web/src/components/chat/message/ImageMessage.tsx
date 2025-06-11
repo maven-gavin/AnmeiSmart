@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import type { MessageContentProps } from './ChatMessage';
 import { FileService } from '@/service/fileService';
-import { API_BASE_URL } from '@/config';
 import { MediaMessageContent } from '@/types/chat';
 
 // 图片缓存 - 避免重复请求
@@ -30,6 +29,7 @@ export default function ImageMessage({ message, searchTerm, compact }: MessageCo
   const [imageError, setImageError] = useState(false);
   const [authenticatedImageUrl, setAuthenticatedImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isModalMounted, setIsModalMounted] = useState(false);
 
   // 提取图片对象名称 - 使用useMemo优化，适配新的消息模型
   const objectName = useMemo(() => {
@@ -141,6 +141,38 @@ export default function ImageMessage({ message, searchTerm, compact }: MessageCo
     };
   }, [authenticatedImageUrl]);
 
+  // 键盘事件处理 - ESC关闭模态框
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && imageExpanded) {
+        setImageExpanded(false);
+      }
+    };
+
+    if (imageExpanded) {
+      document.addEventListener('keydown', handleKeyDown);
+      // 防止页面滚动
+      document.body.style.overflow = 'hidden';
+      
+      // 设置进入动画
+      setIsModalMounted(false);
+      const timer = setTimeout(() => {
+        setIsModalMounted(true);
+      }, 50);
+      
+      return () => {
+        clearTimeout(timer);
+      };
+    } else {
+      setIsModalMounted(false);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'unset';
+    };
+  }, [imageExpanded]);
+
   // 下载图片
   const downloadImage = useCallback(async () => {
     if (!authenticatedImageUrl) return;
@@ -219,68 +251,184 @@ export default function ImageMessage({ message, searchTerm, compact }: MessageCo
   );
 
   // 渲染图片
-  const renderImage = () => (
-    <div className="relative group max-w-[300px]">
-      <img 
-        src={authenticatedImageUrl!} 
-        alt="聊天图片" 
-        className="w-full h-auto max-h-60 rounded-lg cursor-pointer object-contain border border-gray-200 transition-all duration-200 group-hover:shadow-md bg-white"
-        onClick={() => setImageExpanded(true)}
-        onError={() => setImageError(true)}
-        loading="lazy"
-        style={{ minHeight: '100px' }}
-      />
-      
-      {/* 悬浮覆盖层 */}
-      <div className="absolute inset-0 bg-transparent group-hover:bg-black/20 rounded-lg transition-all duration-200 flex items-center justify-center">
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/50 rounded-full p-2">
-          <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-          </svg>
+  const renderImage = () => {
+    const mediaContent = message.content as MediaMessageContent;
+    
+    return (
+      <div className="relative group max-w-[300px]">
+        <img 
+          src={authenticatedImageUrl!} 
+          alt="聊天图片" 
+          className="w-full h-auto max-h-60 rounded-lg cursor-pointer object-contain border border-gray-200 transition-all duration-200 group-hover:shadow-md bg-white"
+          onClick={() => setImageExpanded(true)}
+          onError={() => setImageError(true)}
+          loading="lazy"
+          style={{ minHeight: '100px' }}
+        />
+        {/* 文本内容 - 如果存在的话，显示在图片下方 */}
+        {mediaContent.text && (
+          <div className={`mt-3 ${compact ? 'text-xs' : 'text-sm'} text-gray-800 break-words`}>
+            {searchTerm ? (
+              mediaContent.text.split(new RegExp(`(${searchTerm})`, 'gi')).map((part, index) => 
+                part.toLowerCase() === searchTerm.toLowerCase() ? (
+                  <mark key={index} className="bg-yellow-200 text-yellow-800 px-1 rounded">
+                    {part}
+                  </mark>
+                ) : (
+                  part
+                )
+              )
+            ) : (
+              mediaContent.text
+            )}
+          </div>
+        )}
+        
+        {/* 悬浮覆盖层 - 修复点击事件被阻止的问题 */}
+        <div className="absolute inset-0 bg-transparent group-hover:bg-black/20 rounded-lg transition-all duration-200 flex items-center justify-center pointer-events-none">
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/50 rounded-full p-2">
+            <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+            </svg>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // 渲染图片模态框
   const renderImageModal = () => {
     if (!imageExpanded || imageError || !authenticatedImageUrl) return null;
 
+    const mediaContent = message.content as MediaMessageContent;
+
+    const getModalClasses = () => {
+      const baseClasses = "fixed inset-0 z-50 bg-black/80 backdrop-blur-sm transition-all duration-300";
+      if (!isModalMounted) {
+        return `${baseClasses} opacity-0`;
+      }
+      return `${baseClasses} opacity-100`;
+    };
+
+    const getContentClasses = () => {
+      const baseClasses = "relative w-full max-w-7xl mx-auto bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-300";
+      if (!isModalMounted) {
+        return `${baseClasses} scale-95 opacity-0`;
+      }
+      return `${baseClasses} scale-100 opacity-100`;
+    };
+
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 p-4">
-        <div className="relative max-w-[90vw] max-h-[90vh]">
-          {/* 关闭按钮 */}
-          <button
-            onClick={() => setImageExpanded(false)}
-            className="absolute -top-12 right-0 text-white hover:text-gray-300 z-10 bg-black bg-opacity-50 rounded-full p-2 transition-colors"
+      <div 
+        className={getModalClasses()}
+        onClick={() => setImageExpanded(false)}
+      >
+        <div className="flex min-h-full items-center justify-center p-4">
+          <div 
+            className={getContentClasses()}
+            onClick={(e) => e.stopPropagation()}
           >
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          
-          {/* 图片 */}
-          <img
-            src={authenticatedImageUrl}
-            alt="聊天图片"
-            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-            onClick={() => setImageExpanded(false)}
-          />
-          
-          {/* 操作栏 */}
-          <div className="absolute -bottom-16 left-0 right-0 flex justify-center space-x-4">
-            <button
-              onClick={downloadImage}
-              className="px-4 py-2 bg-white bg-opacity-20 text-white rounded-lg hover:bg-opacity-30 transition-all text-sm backdrop-blur-sm"
-            >
-              下载
-            </button>
-            <button
-              onClick={copyImageLink}
-              className="px-4 py-2 bg-white bg-opacity-20 text-white rounded-lg hover:bg-opacity-30 transition-all text-sm backdrop-blur-sm"
-            >
-              复制链接
-            </button>
+            
+            {/* 头部区域 */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+              <div className="flex items-center space-x-3">
+                <img
+                  src={message.sender.avatar || '/avatars/default.png'}
+                  alt={message.sender.name}
+                  className="w-8 h-8 rounded-full"
+                />
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                    {message.sender.name}
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {mediaContent.media_info?.name || '图片'}
+                  </p>
+                </div>
+              </div>
+              
+              {/* 关闭按钮 */}
+              <button
+                onClick={() => setImageExpanded(false)}
+                className="rounded-full p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-gray-300 transition-colors"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* 图片内容区域 */}
+            <div className="relative bg-gray-50 dark:bg-gray-800 flex items-center justify-center min-h-[60vh] max-h-[80vh]">
+              <img
+                src={authenticatedImageUrl}
+                alt="聊天图片"
+                className="max-w-full max-h-full object-contain"
+                draggable={false}
+              />
+              
+              {/* 图片元信息 */}
+              {mediaContent.media_info?.metadata && (
+                <div className="absolute top-4 left-4 bg-black/50 text-white text-xs px-2 py-1 rounded-md backdrop-blur-sm">
+                  {mediaContent.media_info.metadata.width} × {mediaContent.media_info.metadata.height}
+                </div>
+              )}
+            </div>
+
+            {/* 文本内容区域 */}
+            {mediaContent.text && (
+              <div className="p-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
+                <div className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
+                  {searchTerm ? (
+                    mediaContent.text.split(new RegExp(`(${searchTerm})`, 'gi')).map((part, index) => 
+                      part.toLowerCase() === searchTerm.toLowerCase() ? (
+                        <mark key={index} className="bg-yellow-200 text-yellow-800 px-1 rounded">
+                          {part}
+                        </mark>
+                      ) : (
+                        part
+                      )
+                    )
+                  ) : (
+                    mediaContent.text
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* 底部操作栏 */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
+                <span>{mediaContent.media_info?.mime_type}</span>
+                {mediaContent.media_info?.size_bytes && (
+                  <>
+                    <span>•</span>
+                    <span>{(mediaContent.media_info.size_bytes / 1024).toFixed(1)} KB</span>
+                  </>
+                )}
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={copyImageLink}
+                  className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-orange-600 dark:text-orange-400 bg-white dark:bg-gray-700 border border-orange-300 dark:border-orange-600 rounded-md hover:bg-orange-50 dark:hover:bg-gray-600 hover:border-orange-400 transition-colors shadow-sm"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  复制链接
+                </button>
+                <button
+                  onClick={downloadImage}
+                  className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-md transition-colors shadow-sm"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  下载
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
