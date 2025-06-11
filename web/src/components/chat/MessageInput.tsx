@@ -8,11 +8,12 @@ import FAQSection from '@/components/chat/FAQSection';
 import ConsultantTakeover from '@/components/chat/ConsultantTakeover';
 import { useRecording } from '@/hooks/useRecording';
 import { useMediaUpload } from '@/hooks/useMediaUpload';
-import { type Message, type FileInfo } from '@/types/chat';
+import { type Message, type FileInfo, type MediaMessageContent, type TextMessageContent } from '@/types/chat';
 import { v4 as uuidv4 } from 'uuid';
 import { authService } from "@/service/authService";
 import { AppError, ErrorType } from '@/service/errors';
 import FileSelector from './FileSelector';
+import { MessageUtils } from '@/utils/messageUtils';
 
 interface MessageInputProps {
   conversationId?: string | null;
@@ -63,7 +64,7 @@ export default function MessageInput({
 /**
  * 发送文字消息
  */
-function createTextMessage( content: string): Message {
+function createTextMessage(content: string): Message {
   const currentUser = authService.getCurrentUser();
   if (!currentUser) {
     throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
@@ -73,12 +74,17 @@ function createTextMessage( content: string): Message {
   const localId = `local_${uuidv4()}`;
   const now = new Date().toISOString();
   
+  // 创建文本消息内容
+  const textContent: TextMessageContent = {
+    text: content
+  };
+  
   // 创建用户消息（pending状态）
   const userMessage: Message = {
     id: localId, // 使用临时ID，保存后会更新为服务器ID
     localId, // 本地标识
     conversationId: conversationId || '',
-    content,
+    content: textContent,
     type: 'text',
     sender: {
       id: currentUser.id,
@@ -110,13 +116,27 @@ function createImageMessage(imageUrl: string): Message {
   const localId = `local_${uuidv4()}`;
   const now = new Date().toISOString();
   
+  // 创建媒体消息内容（图片）
+  const mediaContent: MediaMessageContent = {
+    media_info: {
+      url: imageUrl,
+      name: `image_${Date.now()}.png`,
+      size_bytes: 0, // 临时值，实际值需要从服务器获取
+      mime_type: 'image/png',
+      metadata: {
+        file_type: 'image'
+      }
+    },
+    text: undefined
+  };
+  
   // 创建图片消息（pending状态）
   const imageMessage: Message = {
     id: localId,
     localId,
     conversationId: conversationId || '',
-    content: imageUrl,
-    type: 'image',
+    content: mediaContent,
+    type: 'media',
     sender: {
       id: currentUser.id,
       type: currentUser.currentRole || 'customer',
@@ -146,13 +166,27 @@ function createVoiceMessage(audioUrl: string): Message {
   const localId = `local_${uuidv4()}`;
   const now = new Date().toISOString();
 
+  // 创建媒体消息内容（语音）
+  const mediaContent: MediaMessageContent = {
+    media_info: {
+      url: audioUrl,
+      name: `voice_${Date.now()}.webm`,
+      size_bytes: 0, // 临时值，实际值需要从服务器获取
+      mime_type: 'audio/webm',
+      metadata: {
+        file_type: 'audio'
+      }
+    },
+    text: undefined
+  };
+
   // 创建语音消息（pending状态）
   const voiceMessage: Message = {
     id: localId,
     localId,
     conversationId: conversationId || '',
-    content: audioUrl,
-    type: 'voice',
+    content: mediaContent,
+    type: 'media',
     sender: {
       id: currentUser.id,
       type: currentUser.currentRole || 'customer',
@@ -182,14 +216,28 @@ function createFileMessage(fileInfo: FileInfo): Message {
   const localId = `local_${uuidv4()}`;
   const now = new Date().toISOString();
 
+  // 创建媒体消息内容（使用新的消息结构）
+  const mediaContent: MediaMessageContent = {
+    media_info: {
+      url: fileInfo.file_url,
+      name: fileInfo.file_name,
+      size_bytes: fileInfo.file_size,
+      mime_type: fileInfo.mime_type,
+      metadata: {
+        file_type: fileInfo.file_type,
+        object_name: fileInfo.object_name
+      }
+    },
+    text: undefined // 文件上传没有附带文字
+  };
+
   // 创建文件消息（sent状态，因为文件已经上传成功）
   const fileMessage: Message = {
     id: localId,
     localId,
     conversationId: conversationId || '',
-    content: fileInfo.file_name, // 显示文件名
-    type: 'file',
-    file_info: fileInfo,
+    content: mediaContent, // 使用MediaMessageContent结构
+    type: 'media', // 改为media类型
     sender: {
       id: currentUser.id,
       type: currentUser.currentRole || 'customer',
@@ -336,7 +384,9 @@ function createFileMessage(fileInfo: FileInfo): Message {
   // 获取FAQ组件的按钮和面板
   const faqSection = FAQSection({
     onSelectFAQ: handleFAQSelect,
-    messages
+    messages: messages.map(msg => ({
+      content: MessageUtils.getTextContent(msg) || ''
+    }))
   });
 
   return (
