@@ -30,6 +30,13 @@ export default function ImageMessage({ message, searchTerm, compact }: MessageCo
   const [authenticatedImageUrl, setAuthenticatedImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalMounted, setIsModalMounted] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [showImageError, setShowImageError] = useState(false);
+
+  // 最大重试次数
+  const MAX_RETRY_COUNT = 3;
+  // 重试延迟（毫秒）
+  const RETRY_DELAYS = [1000, 2000, 3000];
 
   // 提取图片对象名称 - 使用useMemo优化，适配新的消息模型
   const objectName = useMemo(() => {
@@ -58,7 +65,7 @@ export default function ImageMessage({ message, searchTerm, compact }: MessageCo
   }, [message.type, message.content]);
 
   // 创建认证图片URL - 使用useCallback优化
-  const createAuthenticatedImageUrl = useCallback(async (objectName: string): Promise<string> => {
+  const createAuthenticatedImageUrl = useCallback(async (objectName: string, attempt: number = 1): Promise<string> => {
     // 检查缓存
     if (imageCache.has(objectName)) {
       return imageCache.get(objectName)!;
@@ -71,6 +78,11 @@ export default function ImageMessage({ message, searchTerm, compact }: MessageCo
     }
 
     try {
+      // 更新重试计数（对于自动重试）
+      if (attempt > 1) {
+        setRetryCount(attempt - 1);
+      }
+      
       // 使用统一的文件服务获取图片
       const fileService = new FileService();
       const blob = await fileService.getFilePreviewStream(objectName);
@@ -86,13 +98,23 @@ export default function ImageMessage({ message, searchTerm, compact }: MessageCo
       
       return blobUrl;
     } catch (error) {
-      console.error('创建认证图片URL失败:', error);
+      console.error(`创建认证图片URL失败 (尝试 ${attempt}/${MAX_RETRY_COUNT}):`, error);
+      
+      // 如果还有重试次数，延迟后重试
+      if (attempt < MAX_RETRY_COUNT) {
+        const delay = RETRY_DELAYS[attempt - 1] || 1000;
+        console.log(`${delay}ms 后重试...`);
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return createAuthenticatedImageUrl(objectName, attempt + 1);
+      }
+      
       throw error;
     }
   }, []);
 
   // 加载图片 - 使用useCallback优化
-  const loadImage = useCallback(async () => {
+  const loadImage = useCallback(async (isManualRetry: boolean = false) => {
     if (!objectName) {
       setImageError(true);
       setIsLoading(false);
@@ -102,19 +124,29 @@ export default function ImageMessage({ message, searchTerm, compact }: MessageCo
     try {
       setIsLoading(true);
       setImageError(false);
+      setShowImageError(false);
       
+      // 对于手动重试，不在这里设置retryCount，因为createAuthenticatedImageUrl会处理
       const authUrl = await createAuthenticatedImageUrl(objectName);
       setAuthenticatedImageUrl(authUrl);
+      
+      // 成功后重置重试计数
+      setRetryCount(0);
     } catch (error) {
       console.error('加载图片失败:', error);
       setImageError(true);
       setAuthenticatedImageUrl(null);
+      
+      // 延迟显示错误状态，给用户更好的体验
+      setTimeout(() => {
+        setShowImageError(true);
+      }, 500);
     } finally {
       setIsLoading(false);
     }
   }, [objectName, createAuthenticatedImageUrl]);
 
-  // 错误重试
+  // 手动重试
   const retryLoad = useCallback(() => {
     if (objectName && imageCache.has(objectName)) {
       // 清除缓存的错误结果
@@ -124,8 +156,39 @@ export default function ImageMessage({ message, searchTerm, compact }: MessageCo
       }
       imageCache.delete(objectName);
     }
-    loadImage();
+    
+    // 重置自动重试计数，手动重试单独计算
+    setRetryCount(0);
+    loadImage(true);
   }, [objectName, loadImage]);
+
+  // 处理图片元素的错误事件
+  const handleImageError = useCallback(() => {
+    console.log('图片元素加载失败，尝试重新获取URL');
+    setImageError(true);
+    setShowImageError(true);
+    
+    // 清除当前的认证URL
+    if (authenticatedImageUrl && authenticatedImageUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(authenticatedImageUrl);
+    }
+    setAuthenticatedImageUrl(null);
+    
+    // 清除缓存
+    if (objectName && imageCache.has(objectName)) {
+      const cachedUrl = imageCache.get(objectName);
+      if (cachedUrl && cachedUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(cachedUrl);
+      }
+      imageCache.delete(objectName);
+    }
+  }, [authenticatedImageUrl, objectName]);
+
+  // 处理图片加载成功
+  const handleImageLoad = useCallback(() => {
+    setImageError(false);
+    setShowImageError(false);
+  }, []);
 
   // 组件挂载时加载图片
   useEffect(() => {
@@ -227,7 +290,9 @@ export default function ImageMessage({ message, searchTerm, compact }: MessageCo
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
-        <p className="text-sm">正在加载图片...</p>
+        <p className="text-sm">
+          {retryCount > 0 ? `正在重试加载图片... (${retryCount}/${MAX_RETRY_COUNT})` : '正在加载图片...'}
+        </p>
       </div>
     </div>
   );
@@ -240,11 +305,15 @@ export default function ImageMessage({ message, searchTerm, compact }: MessageCo
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 002 2z" />
         </svg>
         <p className="text-sm">图片加载失败</p>
+        {retryCount > 0 && (
+          <p className="text-xs text-gray-400 mt-1">已重试 {retryCount} 次</p>
+        )}
         <button 
           onClick={retryLoad}
-          className="text-xs text-blue-600 hover:text-blue-800 mt-1 px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+          disabled={isLoading}
+          className="text-xs text-blue-600 hover:text-blue-800 mt-1 px-2 py-1 rounded hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          重新加载
+          {isLoading ? '重试中...' : '重新加载'}
         </button>
       </div>
     </div>
@@ -261,7 +330,8 @@ export default function ImageMessage({ message, searchTerm, compact }: MessageCo
           alt="聊天图片" 
           className="w-full h-auto max-h-60 rounded-lg cursor-pointer object-contain border border-gray-200 transition-all duration-200 group-hover:shadow-md bg-white"
           onClick={() => setImageExpanded(true)}
-          onError={() => setImageError(true)}
+          onError={handleImageError}
+          onLoad={handleImageLoad}
           loading="lazy"
           style={{ minHeight: '100px' }}
         />
@@ -440,8 +510,12 @@ export default function ImageMessage({ message, searchTerm, compact }: MessageCo
     return renderLoadingState();
   }
 
-  if (imageError || !authenticatedImageUrl) {
+  if (showImageError || (imageError && !authenticatedImageUrl)) {
     return renderErrorState();
+  }
+
+  if (!authenticatedImageUrl) {
+    return renderLoadingState();
   }
 
   return (
