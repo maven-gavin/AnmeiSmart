@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 
 // FAQ类型定义
 export interface FAQ {
@@ -54,34 +54,19 @@ export default function FAQSection({
     setIsVisible(false);
   };
 
-  // 搜索FAQ
-  const searchFAQs = (query: string) => {
-    if (!query.trim()) {
-      // 如果搜索词为空，则基于最近的对话内容智能推荐
-      recommendFAQsBasedOnChat();
-      return;
-    }
-    
-    // 根据关键词过滤FAQ
-    const normalizedQuery = query.toLowerCase();
-    const filtered = allFAQs.filter(faq => 
-      faq.question.toLowerCase().includes(normalizedQuery) || 
-      faq.answer.toLowerCase().includes(normalizedQuery) ||
-      faq.tags.some(tag => tag.toLowerCase().includes(normalizedQuery))
-    );
-    
-    setRecommendedFAQs(filtered.length > 0 ? filtered : allFAQs.slice(0, 3));
-  };
-  
-  // 基于聊天记录推荐FAQ
-  const recommendFAQsBasedOnChat = () => {
-    if (messages.length === 0) {
-      setRecommendedFAQs(allFAQs.slice(0, 3));
-      return;
+  // 使用useMemo缓存消息内容，避免不必要的重新计算
+  const messagesHash = useMemo(() => {
+    return messages.map(msg => msg.content || '').join('|');
+  }, [messages]);
+
+  // 基于聊天记录推荐FAQ - 移除useCallback，改为普通函数
+  const recommendFAQsBasedOnChat = useCallback((msgs: Array<{content: string}>) => {
+    if (msgs.length === 0) {
+      return allFAQs.slice(0, 3);
     }
     
     // 获取最近的5条消息用于分析
-    const recentMessages = messages
+    const recentMessages = msgs
       .slice(-5)
       .map(msg => msg.content || '')
       .join(' ')
@@ -120,30 +105,40 @@ export default function FAQSection({
       .slice(0, 5)
       .map(({ id, question, answer, tags }) => ({ id, question, answer, tags }));
     
-    setRecommendedFAQs(topFAQs.length > 0 ? topFAQs : allFAQs.slice(0, 3));
-  };
+    return topFAQs.length > 0 ? topFAQs : allFAQs.slice(0, 3);
+  }, []);
 
-  // 监听searchQuery变化
-  useEffect(() => {
-    searchFAQs(searchQuery);
-  }, [searchQuery]);
+  // 计算推荐的FAQ，使用useMemo缓存结果
+  const computedRecommendedFAQs = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return recommendFAQsBasedOnChat(messages);
+    }
+    
+    // 根据关键词过滤FAQ
+    const normalizedQuery = searchQuery.toLowerCase();
+    const filtered = allFAQs.filter(faq => 
+      faq.question.toLowerCase().includes(normalizedQuery) || 
+      faq.answer.toLowerCase().includes(normalizedQuery) ||
+      faq.tags.some(tag => tag.toLowerCase().includes(normalizedQuery))
+    );
+    
+    return filtered.length > 0 ? filtered : allFAQs.slice(0, 3);
+  }, [searchQuery, messagesHash, recommendFAQsBasedOnChat]);
 
-  // 初始化时基于对话智能推荐FAQ
+  // 使用useEffect更新推荐FAQ状态
   useEffect(() => {
-    recommendFAQsBasedOnChat();
-  }, [messages]);
+    setRecommendedFAQs(computedRecommendedFAQs);
+  }, [computedRecommendedFAQs]);
 
   // 内部处理搜索输入
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSearchQuery(value);
-    searchFAQs(value);
   };
 
   // 内部处理搜索清除
   const handleClearSearch = () => {
     setSearchQuery('');
-    searchFAQs('');
   };
 
   // 渲染FAQ按钮

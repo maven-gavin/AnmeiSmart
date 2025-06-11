@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { type CustomerProfile as ICustomerProfile, ConsultationHistoryItem, Message } from '@/types/chat';
 import { getCustomerProfile, getCustomerConsultationHistory, getConversationMessages } from '@/service/chatService';
 import { useRouter } from 'next/navigation';
@@ -24,44 +24,46 @@ export default function CustomerProfile({ customerId = '101', conversationId }: 
   const [historyMessages, setHistoryMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   
-  // 从API获取客户档案
-  useEffect(() => {
-    const fetchProfile = async () => {
-      setLoading(true);
-      setError(null);
-      
-      try {
-        console.log(`开始获取客户档案，客户ID: ${customerId}`);
-        // 使用API获取客户档案
-        const profileData = await getCustomerProfile(customerId);
-        
-        if (profileData) {
-          console.log('获取客户档案成功:', profileData);
-          setProfile(profileData);
-          
-          // 获取咨询历史
-          const history = await getCustomerConsultationHistory(customerId);
-          setConsultationHistory(history);
-        } else {
-          setError('未找到客户档案');
-          console.error('未找到客户档案');
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : '获取客户档案失败';
-        setError(errorMessage);
-        console.error('获取客户档案失败:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    if (customerId) {
-      fetchProfile();
-    } else {
+  // 使用useCallback包装fetchProfile函数，防止无限循环
+  const fetchProfile = useCallback(async () => {
+    if (!customerId) {
       setLoading(false);
       setProfile(null);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log(`开始获取客户档案，客户ID: ${customerId}`);
+      // 使用API获取客户档案
+      const profileData = await getCustomerProfile(customerId);
+      
+      if (profileData) {
+        console.log('获取客户档案成功:', profileData);
+        setProfile(profileData);
+        
+        // 获取咨询历史
+        const history = await getCustomerConsultationHistory(customerId);
+        setConsultationHistory(history);
+      } else {
+        setError('未找到客户档案');
+        console.error('未找到客户档案');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '获取客户档案失败';
+      setError(errorMessage);
+      console.error('获取客户档案失败:', error);
+    } finally {
+      setLoading(false);
     }
   }, [customerId]);
+  
+  // 从API获取客户档案
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
   
   // 打开历史咨询详情
   const openHistoryDetail = (history: ConsultationHistoryItem) => {

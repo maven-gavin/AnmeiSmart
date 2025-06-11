@@ -24,47 +24,10 @@ interface MessageInputProps {
   messages?: Message[]; // 传递给FAQ使用
 }
 
-export default function MessageInput({
-  conversationId,
-  onSendMessage,
-  toggleSearch,
-  showSearch,
-  onUpdateMessages,
-  messages = []
-}: MessageInputProps) {
-
-  // 内部管理的状态
-  const [message, setMessage] = useState('');
-  const [isSending, setIsSending] = useState(false);
-  const [sendError, setSendError] = useState<string | null>(null);
-  const [showFileSelector, setShowFileSelector] = useState(false);
-
-  // 录音相关状态
-  const {
-    isRecording,
-    recordingTime,
-    startRecording,
-    stopRecording,
-    cancelRecording
-  } = useRecording();
-
-  // 媒体上传相关状态
-  const {
-    imagePreview,
-    fileInputRef,
-    handleImageUpload,
-    cancelImagePreview,
-    triggerFileSelect,
-    audioPreview,
-    setAudioPreview,
-    cancelAudioPreview
-  } = useMediaUpload();
-
-
 /**
  * 发送文字消息
  */
-function createTextMessage(content: string): Message {
+function createTextMessage(content: string, conversationId: string): Message {
   const currentUser = authService.getCurrentUser();
   if (!currentUser) {
     throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
@@ -107,7 +70,7 @@ function createTextMessage(content: string): Message {
 /**
  * 发送图片消息
  */
-function createImageMessage(imageUrl: string): Message {
+function createImageMessage(imageUrl: string, conversationId: string): Message {
   const currentUser = authService.getCurrentUser();
   if (!currentUser) {
     throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
@@ -157,7 +120,7 @@ function createImageMessage(imageUrl: string): Message {
 /**
  * 发送语音消息
  */
-function createVoiceMessage(audioUrl: string): Message {
+function createVoiceMessage(audioUrl: string, conversationId: string): Message {
   const currentUser = authService.getCurrentUser();
   if (!currentUser) {
     throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
@@ -207,7 +170,7 @@ function createVoiceMessage(audioUrl: string): Message {
 /**
  * 发送文件消息
  */
-function createFileMessage(fileInfo: FileInfo): Message {
+function createFileMessage(fileInfo: FileInfo, conversationId: string): Message {
   const currentUser = authService.getCurrentUser();
   if (!currentUser) {
     throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
@@ -255,6 +218,41 @@ function createFileMessage(fileInfo: FileInfo): Message {
   return fileMessage;
 }
 
+export default function MessageInput({
+  conversationId,
+  onSendMessage,
+  toggleSearch,
+  showSearch,
+  onUpdateMessages,
+  messages = []
+}: MessageInputProps) {
+
+  // 内部管理的状态
+  const [message, setMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [showFileSelector, setShowFileSelector] = useState(false);
+
+  // 录音相关状态
+  const {
+    isRecording,
+    recordingTime,
+    startRecording,
+    stopRecording,
+    cancelRecording
+  } = useRecording();
+
+  // 媒体上传相关状态
+  const {
+    imagePreview,
+    fileInputRef,
+    handleImageUpload,
+    cancelImagePreview,
+    triggerFileSelect,
+    audioPreview,
+    setAudioPreview,
+    cancelAudioPreview
+  } = useMediaUpload();
 
   // 处理发送文本消息
   const handleSendMessage = useCallback(async () => {
@@ -265,7 +263,7 @@ function createFileMessage(fileInfo: FileInfo): Message {
       setSendError(null);
       
       // 直接调用父组件的发送方法，父组件负责本地添加和异步发送
-      const userMessage = createTextMessage(message);
+      const userMessage = createTextMessage(message, conversationId || '');
       await onSendMessage(userMessage);
       
       // 发送成功后清空输入
@@ -276,7 +274,7 @@ function createFileMessage(fileInfo: FileInfo): Message {
     } finally {
       setIsSending(false);
     }
-  }, [message, isSending, onSendMessage]);
+  }, [message, isSending, onSendMessage, conversationId]);
 
   // 处理键盘事件
   const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -313,7 +311,7 @@ function createFileMessage(fileInfo: FileInfo): Message {
       setSendError(null);
       
       // 使用现有的createImageMessage函数创建图片消息
-      const imageMessage = createImageMessage(imageUrl);
+      const imageMessage = createImageMessage(imageUrl, conversationId || '');
       await onSendMessage(imageMessage);
       
       console.log('图片消息发送成功');
@@ -321,7 +319,7 @@ function createFileMessage(fileInfo: FileInfo): Message {
       console.error('发送图片消息失败:', error);
       setSendError(error instanceof Error ? error.message : '发送图片消息失败');
     }
-  }, [onSendMessage]);
+  }, [onSendMessage, conversationId]);
 
   // 处理语音发送  
   const handleSendAudio = useCallback(async (audioUrl: string) => {
@@ -329,7 +327,7 @@ function createFileMessage(fileInfo: FileInfo): Message {
       setSendError(null);
       
       // 使用现有的createVoiceMessage函数创建语音消息
-      const voiceMessage = createVoiceMessage(audioUrl);
+      const voiceMessage = createVoiceMessage(audioUrl, conversationId || '');
       await onSendMessage(voiceMessage);
       
       console.log('语音消息发送成功');
@@ -337,7 +335,7 @@ function createFileMessage(fileInfo: FileInfo): Message {
       console.error('发送语音消息失败:', error);
       setSendError(error instanceof Error ? error.message : '发送语音消息失败');
     }
-  }, [onSendMessage]);
+  }, [onSendMessage, conversationId]);
 
   // FAQ选择处理 - 填入输入框而不是直接发送
   const handleFAQSelect = useCallback((faqMessage: string) => {
@@ -363,7 +361,7 @@ function createFileMessage(fileInfo: FileInfo): Message {
       setSendError(null);
       
       // 创建文件消息并发送
-      const fileMessage = createFileMessage(fileInfo);
+      const fileMessage = createFileMessage(fileInfo, conversationId || '');
       await onSendMessage(fileMessage);
       
       // 关闭文件选择器
@@ -374,7 +372,7 @@ function createFileMessage(fileInfo: FileInfo): Message {
       console.error('发送文件消息失败:', error);
       setSendError(error instanceof Error ? error.message : '发送文件消息失败');
     }
-  }, [onSendMessage]);
+  }, [onSendMessage, conversationId]);
 
   // 切换文件选择器显示
   const toggleFileSelector = useCallback(() => {
