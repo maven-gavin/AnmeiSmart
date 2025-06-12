@@ -131,6 +131,11 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
 
   // 格式化时间
   const formatTime = (seconds: number): string => {
+    // 检查输入是否为有效数字
+    if (!isFinite(seconds) || seconds < 0) {
+      return '0:00';
+    }
+    
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
@@ -168,12 +173,29 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
     if (!audio || !authenticatedAudioUrl) return;
 
     const handleLoadedMetadata = () => {
-      setDuration(audio.duration);
+      const audioDuration = audio.duration;
+      console.log('音频元数据加载完成:', {
+        duration: audioDuration,
+        isFinite: isFinite(audioDuration),
+        src: audio.src
+      });
+      
+      // 确保时长是有效数字
+      if (isFinite(audioDuration) && audioDuration > 0) {
+        setDuration(audioDuration);
+      } else {
+        console.warn('音频时长无效:', audioDuration);
+        setDuration(0);
+      }
       setIsLoading(false);
     };
 
     const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
+      const currentTimeValue = audio.currentTime;
+      // 确保当前时间是有效数字
+      if (isFinite(currentTimeValue) && currentTimeValue >= 0) {
+        setCurrentTime(currentTimeValue);
+      }
     };
 
     const handlePlay = () => {
@@ -222,15 +244,18 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
   // 进度条点击处理
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const audio = audioRef.current;
-    if (!audio || duration === 0) return;
+    if (!audio || !isFinite(duration) || duration <= 0) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
-    const percentage = clickX / rect.width;
+    const percentage = Math.max(0, Math.min(1, clickX / rect.width));
     const newTime = percentage * duration;
     
-    audio.currentTime = newTime;
-    setCurrentTime(newTime);
+    // 确保新时间是有效的
+    if (isFinite(newTime) && newTime >= 0 && newTime <= duration) {
+      audio.currentTime = newTime;
+      setCurrentTime(newTime);
+    }
   };
 
   if (hasError) {
