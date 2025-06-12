@@ -13,7 +13,6 @@ interface MediaPreviewProps {
   onCancelImage?: () => void;
   onCancelAudio?: () => void;
   onCancelFile?: () => void;
-  onSendAudio?: (audioUrl: string) => void;
 }
 
 export function MediaPreview({ 
@@ -23,90 +22,9 @@ export function MediaPreview({
   filePreview,
   onCancelImage, 
   onCancelAudio,
-  onCancelFile,
-  onSendAudio
+  onCancelFile
 }: MediaPreviewProps) {
   const [sendError, setSendError] = useState<string | null>(null);
-  const [isSending, setIsSending] = useState(false);
-
-  // 将 base64 数据转换为 File 对象
-  const dataURLToFile = useCallback((dataURL: string, filename: string): File => {
-    const arr = dataURL.split(',');
-    const mime = arr[0].match(/:(.*?);/)?.[1] || 'application/octet-stream';
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    
-    while (n--) {
-      u8arr[n] = bstr.charCodeAt(n);
-    }
-    
-    return new File([u8arr], filename, { type: mime });
-  }, []);
-
-  // 上传媒体文件的通用方法
-  const uploadMediaFile = useCallback(async (
-    dataURL: string, 
-    filename: string, 
-    mediaType: 'image' | 'audio'
-  ): Promise<string> => {
-    if (!conversationId) {
-      throw new Error('会话ID不能为空');
-    }
-
-    // 1. 将预览数据转换为文件
-    const file = dataURLToFile(dataURL, filename);
-    
-    // 2. 上传文件到服务器
-    const fileService = new FileService();
-    const fileInfo = await fileService.uploadFile(file, conversationId);
-    
-    // 3. 返回文件URL供父组件使用
-    return fileInfo.file_url;
-  }, [conversationId, dataURLToFile]);
-
-  // 发送语音
-  const handleSendAudio = useCallback(async () => {
-    if (!audioPreview) {
-      setSendError('没有语音可发送');
-      return;
-    }
-
-    if (!onSendAudio) {
-      setSendError('发送功能未配置');
-      return;
-    }
-
-    setIsSending(true);
-    setSendError(null);
-
-    try {
-      const timestamp = Date.now();
-      const filename = `voice_${timestamp}.webm`;
-      
-      // 上传文件并获取URL
-      const audioUrl = await uploadMediaFile(audioPreview, filename, 'audio');
-      
-      // 通过回调将URL传递给父组件，由父组件负责创建和发送消息
-      onSendAudio(audioUrl);
-      
-      // 成功后清理和回调
-      toast.success('语音上传成功');
-      
-      // 发送成功后清除预览
-      if (onCancelAudio) {
-        onCancelAudio();
-      }
-      
-    } catch (error) {
-      console.error('语音上传失败:', error);
-      const errorMessage = error instanceof Error ? error.message : '语音上传失败';
-      setSendError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setIsSending(false);
-    }
-  }, [audioPreview, uploadMediaFile, onSendAudio, onCancelAudio]);
 
   if (!imagePreview && !audioPreview && !filePreview) {
     return null;
@@ -173,46 +91,82 @@ export function MediaPreview({
 
       {/* 音频预览 */}
       {audioPreview && (
-        <div className="border-t border-gray-200 bg-gray-50 p-3">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-gray-700">语音预览</span>
+        <div className="border-t border-gray-200 bg-gradient-to-r from-orange-50 to-red-50 p-4">
+          <div className="flex justify-between items-center mb-3">
             <div className="flex items-center space-x-2">
-              {conversationId && onSendAudio && (
-                <button
-                  onClick={handleSendAudio}
-                  disabled={isSending}
-                  className="px-3 py-1 text-sm bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {isSending ? (
-                    <span className="flex items-center">
-                      <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      上传中...
-                    </span>
-                  ) : (
-                    '发送'
-                  )}
-                </button>
-              )}
-              <button 
-                onClick={onCancelAudio}
-                disabled={isSending}
-                className="text-gray-500 hover:text-gray-700 disabled:opacity-50 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2a3 3 0 00-3 3v6a3 3 0 006 0V5a3 3 0 00-3-3z"/>
+                <path d="M19 10v1a7 7 0 01-14 0v-1a1 1 0 012 0v1a5 5 0 0010 0v-1a1 1 0 012 0z"/>
+                <path d="M12 18.5a1 1 0 01-1-1v-1a1 1 0 012 0v1a1 1 0 01-1 1z"/>
+                <path d="M8 21h8a1 1 0 010 2H8a1 1 0 010-2z"/>
+              </svg>
+              <span className="text-sm font-medium text-gray-700">语音预览</span>
             </div>
+            <button 
+              onClick={onCancelAudio}
+              className="text-gray-500 hover:text-gray-700 transition-colors"
+              title="关闭语音预览"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <audio 
-            src={audioPreview} 
-            controls 
-            className="w-full"
-            style={{ height: '40px' }}
-          />
+          
+          {/* 语音控件容器 */}
+          <div className="relative">
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+              <div className="flex items-center space-x-3">
+                {/* 语音图标 */}
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-orange-500" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2a3 3 0 00-3 3v6a3 3 0 006 0V5a3 3 0 00-3-3z"/>
+                      <path d="M19 10v1a7 7 0 01-14 0v-1a1 1 0 012 0v1a5 5 0 0010 0v-1a1 1 0 012 0z"/>
+                    </svg>
+                  </div>
+                </div>
+                
+                {/* 语音信息和控件 */}
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-900">录音内容</span>
+                    <span className="text-xs text-gray-500">点击播放试听</span>
+                  </div>
+                  
+                  {/* HTML5 音频控件 */}
+                  <audio 
+                    src={audioPreview} 
+                    controls 
+                    preload="metadata"
+                    className="w-full h-8"
+                    style={{
+                      outline: 'none',
+                      borderRadius: '4px'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* 语音删除按钮 - 在音频控件右下角 */}
+            <button 
+              onClick={onCancelAudio}
+              className="absolute -bottom-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-md z-10"
+              title="删除此语音"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          {/* 提示信息 */}
+          <div className="mt-3 text-center">
+            <p className="text-xs text-gray-500">
+              可以试听录音内容，满意后点击"发送"按钮发送语音消息
+            </p>
+          </div>
         </div>
       )}
 

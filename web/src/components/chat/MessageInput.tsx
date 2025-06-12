@@ -119,106 +119,9 @@ function createImageMessage(imageUrl: string, text: string | undefined, conversa
   return imageMessage;
 }
 
-/**
- * 发送语音消息
- */
-function createVoiceMessage(audioUrl: string, conversationId: string): Message {
-  const currentUser = authService.getCurrentUser();
-  if (!currentUser) {
-    throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
-  }
 
-  const localId = `local_${uuidv4()}`;
-  const now = new Date().toISOString();
 
-  // 创建媒体消息内容（语音）
-  const mediaContent: MediaMessageContent = {
-    media_info: {
-      url: audioUrl,
-      name: `voice_${Date.now()}.webm`,
-      size_bytes: 0, // 临时值，实际值需要从服务器获取
-      mime_type: 'audio/webm',
-      metadata: {
-        file_type: 'audio'
-      }
-    },
-    text: undefined
-  };
 
-  // 创建语音消息（pending状态）
-  const voiceMessage: Message = {
-    id: localId,
-    localId,
-    conversationId: conversationId || '',
-    content: mediaContent,
-    type: 'media',
-    sender: {
-      id: currentUser.id,
-      type: currentUser.currentRole || 'customer',
-      name: currentUser.name,
-      avatar: currentUser.avatar || '/avatars/user.png',
-    },
-    timestamp: now,
-    createdAt: now,
-    status: 'pending',
-    canRetry: false,
-    canDelete: true,
-    canRecall: false,
-  };
-  
-  return voiceMessage;
-}
-
-/**
- * 发送文件消息
- */
-function createFileMessage(fileInfo: FileInfo, conversationId: string): Message {
-  const currentUser = authService.getCurrentUser();
-  if (!currentUser) {
-    throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
-  }
-
-  const localId = `local_${uuidv4()}`;
-  const now = new Date().toISOString();
-
-  // 创建媒体消息内容（使用新的消息结构）
-  const mediaContent: MediaMessageContent = {
-    media_info: {
-      url: fileInfo.file_url,
-      name: fileInfo.file_name,
-      size_bytes: fileInfo.file_size,
-      mime_type: fileInfo.mime_type,
-      metadata: {
-        file_type: fileInfo.file_type,
-        object_name: fileInfo.object_name
-      }
-    },
-    text: undefined // 文件上传没有附带文字
-  };
-
-  // 创建文件消息（sent状态，因为文件已经上传成功）
-  const fileMessage: Message = {
-    id: localId,
-    localId,
-    conversationId: conversationId || '',
-    content: mediaContent, // 使用MediaMessageContent结构
-    type: 'media', // 改为media类型
-    sender: {
-      id: currentUser.id,
-      type: currentUser.currentRole || 'customer',
-      name: currentUser.name,
-      avatar: currentUser.avatar || '/avatars/user.png',
-    },
-    timestamp: now,
-    createdAt: now,
-    status: 'sent', // 文件消息直接标记为已发送
-    canRetry: false,
-    canDelete: true,
-    canRecall: true,
-  };
-  
-  return fileMessage;
-}
 
 export default function MessageInput({
   conversationId,
@@ -237,9 +140,12 @@ export default function MessageInput({
   // 录音相关状态
   const {
     isRecording,
+    isPaused,
     recordingTime,
     startRecording,
     stopRecording,
+    pauseRecording,
+    resumeRecording,
     cancelRecording
   } = useRecording();
 
@@ -266,8 +172,8 @@ export default function MessageInput({
   const handleSendMessage = useCallback(async () => {
     const trimmedMessage = message.trim();
     
-    // 检查是否有内容可发送（文字或文件）
-    if (!trimmedMessage && !imagePreview && !filePreview) {
+    // 检查是否有内容可发送（文字、图片、文件或语音）
+    if (!trimmedMessage && !imagePreview && !filePreview && !audioPreview) {
       return;
     }
 
@@ -292,6 +198,14 @@ export default function MessageInput({
         setMessage('');
         cancelFilePreview();
       }
+      // 如果有语音预览，发送语音消息
+      else if (audioPreview) {
+        await sendAudioMessage(audioPreview, trimmedMessage || undefined);
+        
+        // 清理状态
+        setMessage('');
+        cancelAudioPreview();
+      }
       // 如果只有文字，发送文字消息
       else if (trimmedMessage) {
         const textMessage = createTextMessage(trimmedMessage, conversationId || '');
@@ -307,7 +221,7 @@ export default function MessageInput({
     } finally {
       setIsSending(false);
     }
-  }, [message, imagePreview, filePreview, conversationId, onSendMessage, cancelImagePreview, cancelFilePreview]);
+  }, [message, imagePreview, filePreview, audioPreview, conversationId, onSendMessage, cancelImagePreview, cancelFilePreview, cancelAudioPreview]);
 
   // 发送文件消息
   const sendFileMessage = useCallback(async (fileInfo: FileInfo, text?: string) => {
@@ -375,60 +289,121 @@ export default function MessageInput({
     }
   }, [getTempFile, conversationId, onSendMessage]);
 
-  // 添加 dataURLToFile 函数
-  const dataURLToFile = useCallback((dataURL: string, filename: string): File => {
-    const arr = dataURL.split(',');
-    const mime = arr[0].match(/:(.*?);/)?.[1] || 'application/octet-stream';
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    
-    while (n--) {
-      u8arr[n] = bstr.charCodeAt(n);
+  // 发送语音消息
+  const sendAudioMessage = useCallback(async (audioUrl: string, text?: string) => {
+    try {
+      // 从 Object URL 获取 Blob 数据
+      const urlToFile = async (objectUrl: string, filename: string): Promise<File> => {
+        const response = await fetch(objectUrl);
+        const blob = await response.blob();
+        
+        // 获取实际的 MIME 类型
+        const mimeType = blob.type || 'audio/webm';
+        
+        return new File([blob], filename, { type: mimeType });
+      };
+
+      // 上传语音文件到服务器
+      const timestamp = Date.now();
+      const filename = `voice_${timestamp}.webm`;
+      const file = await urlToFile(audioUrl, filename);
+      
+      console.log('准备上传语音文件:', {
+        name: file.name,
+        type: file.type,
+        size: file.size
+      });
+      
+      const fileService = new FileService();
+      const uploadedFileInfo = await fileService.uploadFile(file, conversationId || '');
+      
+      // 创建媒体消息内容
+      const mediaContent: MediaMessageContent = {
+        media_info: {
+          url: uploadedFileInfo.file_url,
+          name: uploadedFileInfo.file_name,
+          size_bytes: uploadedFileInfo.file_size,
+          mime_type: uploadedFileInfo.mime_type,
+          metadata: {
+            file_type: uploadedFileInfo.file_type,
+            object_name: uploadedFileInfo.object_name
+          }
+        },
+        text: text // 可能包含文字
+      };
+
+      const currentUser = authService.getCurrentUser();
+      if (!currentUser) {
+        throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
+      }
+
+      const localId = `local_${uuidv4()}`;
+      const now = new Date().toISOString();
+
+      // 创建语音消息
+      const audioMessage: Message = {
+        id: localId,
+        localId,
+        conversationId: conversationId || '',
+        content: mediaContent,
+        type: 'media',
+        sender: {
+          id: currentUser.id,
+          type: currentUser.currentRole || 'customer',
+          name: currentUser.name,
+          avatar: currentUser.avatar || '/avatars/user.png',
+        },
+        timestamp: now,
+        createdAt: now,
+        status: 'pending',
+        canRetry: true,
+        canDelete: true,
+        canRecall: false,
+      };
+
+      // 发送消息
+      await onSendMessage(audioMessage);
+      
+      // 清理 Object URL 以释放内存
+      URL.revokeObjectURL(audioUrl);
+      
+    } catch (error) {
+      console.error('发送语音消息失败:', error);
+      throw error;
     }
-    
-    return new File([u8arr], filename, { type: mime });
-  }, []);
+  }, [conversationId, onSendMessage]);
 
   // 处理键盘事件
   const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!isSending && (message.trim() || imagePreview)) {
+      if (!isSending && (message.trim() || imagePreview || filePreview || audioPreview)) {
         handleSendMessage();
       }
     }
-  }, [handleSendMessage, isSending, message, imagePreview]);
+  }, [handleSendMessage, isSending, message, imagePreview, filePreview, audioPreview]);
 
   // 处理开始录音
   const handleStartRecording = useCallback(async () => {
-    cancelAudioPreview(); // 清除之前的音频预览
-    await startRecording();
+    try {
+      cancelAudioPreview(); // 清除之前的音频预览
+      await startRecording();
+    } catch (error) {
+      console.error('开始录音失败:', error);
+    }
   }, [startRecording, cancelAudioPreview]);
 
   // 处理停止录音
   const handleStopRecording = useCallback(async () => {
-    const audioUrl = await stopRecording();
-    if (audioUrl) {
-      setAudioPreview(audioUrl);
+    try {
+      const audioUrl = await stopRecording();
+      if (audioUrl) {
+        setAudioPreview(audioUrl);
+      }
+    } catch (error) {
+      console.error('停止录音失败:', error);
     }
   }, [stopRecording, setAudioPreview]);
-
-  // 处理语音发送  
-  const handleSendAudio = useCallback(async (audioUrl: string) => {
-    try {
-      setSendError(null);
-      
-      // 使用现有的createVoiceMessage函数创建语音消息
-      const voiceMessage = createVoiceMessage(audioUrl, conversationId || '');
-      await onSendMessage(voiceMessage);
-      
-      console.log('语音消息发送成功');
-    } catch (error) {
-      console.error('发送语音消息失败:', error);
-      setSendError(error instanceof Error ? error.message : '发送语音消息失败');
-    }
-  }, [onSendMessage, conversationId]);
 
   // FAQ选择处理 - 填入输入框而不是直接发送
   const handleFAQSelect = useCallback((faqMessage: string) => {
@@ -441,8 +416,6 @@ export default function MessageInput({
       }
     }, 100);
   }, []);
-
-
 
   // 获取FAQ组件的按钮和面板
   const faqSection = FAQSection({
@@ -479,9 +452,13 @@ export default function MessageInput({
       {/* 录音状态显示 */}
       <RecordingControls
         isRecording={isRecording}
+        isPaused={isPaused}
         recordingTime={recordingTime}
         onStopRecording={handleStopRecording}
         onCancelRecording={cancelRecording}
+        onPauseRecording={pauseRecording}
+        onResumeRecording={resumeRecording}
+        maxDuration={300}
       />
       
       {/* 媒体预览 */}
@@ -493,7 +470,6 @@ export default function MessageInput({
         onCancelImage={cancelImagePreview}
         onCancelAudio={cancelAudioPreview}
         onCancelFile={cancelFilePreview}
-        onSendAudio={handleSendAudio}
       />
       
       {/* FAQ面板 - 在输入区域上方显示 */}
@@ -637,7 +613,7 @@ export default function MessageInput({
             />
             <Button
               onClick={handleSendMessage}
-              disabled={isSending || (!message.trim() && !imagePreview)}
+              disabled={isSending || (!message.trim() && !imagePreview && !audioPreview && !filePreview)}
               className={`bg-orange-500 hover:bg-orange-600 text-white border-0 shadow-sm transition-colors ${
                 isSending ? 'opacity-70 cursor-not-allowed' : ''
               }`}

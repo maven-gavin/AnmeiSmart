@@ -22,7 +22,7 @@ export default function VideoMessage({ message, searchTerm, compact, onRetry }: 
         // 如果是内部文件路径，转换为预览端点
         if (mediaInfo.url.includes('/chat-files/')) {
           const objectName = mediaInfo.url.split('/chat-files/')[1];
-          return `/api/v1/files/preview/${encodeURIComponent(objectName)}`;
+          return `/api/v1/files/preview/${objectName}`;
         }
         // 外部URL直接返回
         return mediaInfo.url;

@@ -93,6 +93,8 @@ class ResponseHandler {
         if (contentType?.includes('application/json')) {
           data = await response.json();
         } else if (contentType?.startsWith('image/') || 
+                   contentType?.startsWith('audio/') ||
+                   contentType?.startsWith('video/') ||
                    contentType?.includes('pdf') || 
                    contentType?.includes('octet-stream')) {
           // 对于二进制数据，返回Blob

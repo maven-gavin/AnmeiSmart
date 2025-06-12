@@ -129,7 +129,7 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo, on
   // 获取安全的下载URL
   const getDownloadUrl = useCallback((fileInfo: FileInfo) => {
     if (fileInfo.object_name) {
-      return `/api/v1/files/download/${encodeURIComponent(fileInfo.object_name)}`;
+      return `/api/v1/files/download/${fileInfo.object_name}`;
     }
     return fileInfo.file_url;
   }, []);
@@ -137,7 +137,7 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo, on
   // 获取安全的预览URL
   const getPreviewUrl = useCallback((fileInfo: FileInfo) => {
     if (fileInfo.object_name) {
-      return `/api/v1/files/preview/${encodeURIComponent(fileInfo.object_name)}`;
+      return `/api/v1/files/preview/${fileInfo.object_name}`;
     }
     return fileInfo.file_url;
   }, []);

@@ -184,7 +184,12 @@ async def preview_file(
         # 只允许安全的预览类型
         safe_preview_types = [
             'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-            'application/pdf', 'text/plain'
+            'application/pdf', 'text/plain',
+            # 音频文件类型
+            'audio/webm', 'audio/webm;codecs=opus', 'audio/mpeg', 'audio/mp3',
+            'audio/mp4', 'audio/wav', 'audio/ogg', 'audio/aac',
+            # 视频文件类型
+            'video/webm', 'video/mp4', 'video/avi', 'video/mov'
         ]
         
         if content_type not in safe_preview_types:

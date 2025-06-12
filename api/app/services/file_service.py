@@ -35,7 +35,7 @@ class FileService:
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "text/plain", "text/csv",
         # 音频
-        "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/aac",
+        "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/aac", "audio/webm", "audio/webm;codecs=opus",
         # 视频
         "video/mp4", "video/mpeg", "video/quicktime", "video/x-msvideo",
         # 压缩文件

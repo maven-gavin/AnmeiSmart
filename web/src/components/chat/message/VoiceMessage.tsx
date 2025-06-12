@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { MessageContentProps } from './ChatMessage';
 import { MediaMessageContent } from '@/types/chat';
+import { FileService } from '@/service/fileService';
 
 export default function VoiceMessage({ message, searchTerm, compact, onRetry }: MessageContentProps) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -10,27 +11,114 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
   const [currentTime, setCurrentTime] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [authenticatedAudioUrl, setAuthenticatedAudioUrl] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // 获取语音URL
-  const getAudioUrl = (): string => {
+  // 调试：输出消息信息（可选）
+  // console.log('VoiceMessage 渲染:', {
+  //   messageType: message.type,
+  //   messageContent: message.content,
+  //   messageId: message.id
+  // });
+
+  // 获取对象名称
+  const getObjectName = (): string | null => {
     if (message.type === 'media') {
       const mediaContent = message.content as MediaMessageContent;
       const mediaInfo = mediaContent.media_info;
       
+      console.log('解析语音URL:', { mediaInfo });
+      
       if (mediaInfo?.url) {
-        // 如果是内部文件路径，转换为预览端点
+        // 如果是内部文件路径，提取对象名称
         if (mediaInfo.url.includes('/chat-files/')) {
           const objectName = mediaInfo.url.split('/chat-files/')[1];
-          return `/api/v1/files/preview/${encodeURIComponent(objectName)}`;
+          console.log('提取对象名称:', { originalUrl: mediaInfo.url, objectName });
+          return objectName;
         }
-        // 外部URL直接返回
+        // 外部URL，返回完整URL
+        console.log('使用外部URL:', mediaInfo.url);
         return mediaInfo.url;
       }
     }
     
-    throw new Error('无效的语音数据');
+    console.error('语音数据无效:', { messageType: message.type, content: message.content });
+    return null;
   };
+
+  // 创建认证的音频URL
+  const createAuthenticatedAudioUrl = useCallback(async (objectName: string): Promise<string> => {
+    try {
+      console.log('开始获取认证音频URL:', objectName);
+      
+      // 如果是外部URL，直接返回
+      if (objectName.startsWith('http')) {
+        return objectName;
+      }
+      
+      // 使用FileService获取认证的音频流
+      const fileService = new FileService();
+      const response = await fileService.getFilePreviewStream(objectName);
+      
+      // 详细检查返回的数据
+      console.log('API响应详情:', {
+        responseType: typeof response,
+        responseConstructor: response?.constructor?.name,
+        isBlob: response instanceof Blob,
+        blobSize: response instanceof Blob ? response.size : 'N/A',
+        blobType: response instanceof Blob ? response.type : 'N/A',
+        response: response
+      });
+      
+      // 确保返回的是Blob对象
+      if (!response || !(response instanceof Blob)) {
+        throw new Error(`API返回的不是Blob对象: ${typeof response}, ${(response as any)?.constructor?.name || 'unknown'}`);
+      }
+      
+      if (response.size === 0) {
+        throw new Error('接收到空的音频数据');
+      }
+      
+      console.log('准备创建blob URL，blob信息:', {
+        size: response.size,
+        type: response.type
+      });
+      
+      const blobUrl = URL.createObjectURL(response);
+      console.log('创建认证音频URL成功:', { objectName, blobUrl });
+      
+      return blobUrl;
+    } catch (error) {
+      console.error('创建认证音频URL失败:', error);
+      throw error;
+    }
+  }, []);
+
+  // 加载音频
+  const loadAudio = useCallback(async () => {
+    const objectName = getObjectName();
+    if (!objectName) {
+      setHasError(true);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setHasError(false);
+      
+      const authUrl = await createAuthenticatedAudioUrl(objectName);
+      setAuthenticatedAudioUrl(authUrl);
+      
+      console.log('音频URL设置成功:', authUrl);
+    } catch (error) {
+      console.error('加载音频失败:', error);
+      setHasError(true);
+      setAuthenticatedAudioUrl(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [createAuthenticatedAudioUrl]);
 
   // 获取音频时长
   const getAudioDuration = (): number => {
@@ -60,10 +148,24 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
     }
   };
 
+  // 组件挂载时加载音频
+  useEffect(() => {
+    loadAudio();
+  }, [loadAudio]);
+
+  // 组件卸载时清理资源
+  useEffect(() => {
+    return () => {
+      if (authenticatedAudioUrl && authenticatedAudioUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(authenticatedAudioUrl);
+      }
+    };
+  }, [authenticatedAudioUrl]);
+
   // 设置音频事件监听器
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !authenticatedAudioUrl) return;
 
     const handleLoadedMetadata = () => {
       setDuration(audio.duration);
@@ -87,7 +189,9 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
       setCurrentTime(0);
     };
 
-    const handleError = () => {
+    const handleError = (e: Event) => {
+      console.error('语音播放失败:', e);
+      console.error('音频URL:', audioRef.current?.src);
       setHasError(true);
       setIsLoading(false);
     };
@@ -113,7 +217,7 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
       audio.removeEventListener('error', handleError);
       audio.removeEventListener('canplay', handleCanPlay);
     };
-  }, []);
+  }, [authenticatedAudioUrl]);
 
   // 进度条点击处理
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -129,40 +233,42 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
     setCurrentTime(newTime);
   };
 
-  try {
-    const audioUrl = getAudioUrl();
-
-    if (hasError) {
-      return (
-        <div className="flex items-center space-x-3 p-3 bg-gray-100 rounded-lg max-w-sm">
-          <div className="text-red-500">
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div className="flex-1">
-            <p className="text-sm text-gray-700">语音消息加载失败</p>
-            <button 
-              onClick={() => {
-                setHasError(false);
-                setIsLoading(true);
-                if (audioRef.current) {
-                  audioRef.current.load();
-                }
-              }}
-              className="text-xs text-blue-600 hover:text-blue-800"
-            >
-              重新加载
-            </button>
-          </div>
-        </div>
-      );
-    }
-
+  if (hasError) {
     return (
-      <div className="flex items-center space-x-3 p-3 bg-white border border-gray-200 rounded-lg max-w-sm relative">
-        {/* 隐藏的音频元素 */}
-        <audio ref={audioRef} src={audioUrl} preload="metadata" />
+      <div className="flex items-center space-x-3 p-3 bg-gray-100 rounded-lg max-w-sm">
+        <div className="text-red-500">
+          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <div className="flex-1">
+          <p className="text-sm text-gray-700">语音消息加载失败</p>
+          <button 
+            onClick={() => {
+              console.log('尝试重新加载语音');
+              // 清理之前的URL
+              if (authenticatedAudioUrl && authenticatedAudioUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(authenticatedAudioUrl);
+              }
+              setAuthenticatedAudioUrl(null);
+              // 重新加载
+              loadAudio();
+            }}
+            className="text-xs text-blue-600 hover:text-blue-800"
+          >
+            重新加载
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center space-x-3 p-3 bg-white border border-gray-200 rounded-lg max-w-sm relative">
+      {/* 隐藏的音频元素 */}
+      {authenticatedAudioUrl && (
+        <audio ref={audioRef} src={authenticatedAudioUrl} preload="metadata" />
+      )}
         
         {/* 播放按钮 */}
         <button
@@ -243,16 +349,4 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
         )}
       </div>
     );
-  } catch (error) {
-    return (
-      <div className="flex items-center space-x-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-        <svg className="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-        </svg>
-        <span className="text-sm text-red-700">
-          语音消息加载失败：{error instanceof Error ? error.message : '无效的语音数据'}
-        </span>
-      </div>
-    );
-  }
 } 

@@ -65,7 +65,7 @@ export class FileService {
   async getFileInfo(objectName: string): Promise<FileInfo | null> {
     try {
       const response = await apiClient.get<FileInfo>(
-        `${FILE_CONFIG.API_ENDPOINTS.info}/${encodeURIComponent(objectName)}`
+        `${FILE_CONFIG.API_ENDPOINTS.info}/${objectName}`
       );
       return response.data || null;
     } catch (error: any) {
@@ -83,7 +83,7 @@ export class FileService {
   async deleteFile(objectName: string): Promise<boolean> {
     try {
       const response = await apiClient.delete(
-        `${FILE_CONFIG.API_ENDPOINTS.delete}/${encodeURIComponent(objectName)}`
+        `${FILE_CONFIG.API_ENDPOINTS.delete}/${objectName}`
       );
       return response.status >= 200 && response.status < 300;
     } catch (error) {
@@ -96,14 +96,14 @@ export class FileService {
    * 获取文件预览URL
    */
   static getPreviewUrl(objectName: string): string {
-    return `${FILE_CONFIG.API_ENDPOINTS.preview}/${encodeURIComponent(objectName)}`;
+    return `${FILE_CONFIG.API_ENDPOINTS.preview}/${objectName}`;
   }
 
   /**
    * 获取文件下载URL
    */
   static getDownloadUrl(objectName: string): string {
-    return `${FILE_CONFIG.API_ENDPOINTS.download}/${encodeURIComponent(objectName)}`;
+    return `${FILE_CONFIG.API_ENDPOINTS.download}/${objectName}`;
   }
 
   /**
@@ -155,12 +155,13 @@ export class FileService {
    * 获取认证的文件预览流
    */
   async getFilePreviewStream(objectName: string): Promise<Blob> {
-    const response = await apiClient.request<Blob>(
-      `${FILE_CONFIG.API_ENDPOINTS.preview}/${encodeURIComponent(objectName)}`,
+    const response = await apiClient.get<Blob>(
+      `${FILE_CONFIG.API_ENDPOINTS.preview}/${objectName}`,
       {
         headers: {
-          'Accept': 'image/*,application/pdf,text/plain'
-        }
+          'Accept': 'image/*,application/pdf,text/plain,audio/*,video/*'
+        },
+        skipContentType: true
       }
     );
 

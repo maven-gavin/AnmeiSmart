@@ -122,8 +122,12 @@ export function useMediaUpload() {
 
   // 取消音频预览
   const cancelAudioPreview = useCallback(() => {
+    // 如果是 Object URL，需要释放内存
+    if (audioPreview && audioPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(audioPreview)
+    }
     setAudioPreview(null)
-  }, [])
+  }, [audioPreview])
 
   // 触发图片文件选择
   const triggerFileSelect = useCallback(() => {
