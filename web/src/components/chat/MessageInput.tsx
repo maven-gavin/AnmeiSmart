@@ -332,6 +332,13 @@ export default function MessageInput({
         text: text // 可能包含文字
       };
 
+      console.log('创建语音消息内容:', {
+        textParam: text,
+        textType: typeof text,
+        textValue: JSON.stringify(text),
+        mediaContent: mediaContent
+      });
+
       const currentUser = authService.getCurrentUser();
       if (!currentUser) {
         throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');

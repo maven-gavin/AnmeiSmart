@@ -70,14 +70,15 @@ export function useRecording() {
       
       streamRef.current = stream
       
-      // 检测支持的MIME类型，优先选择最兼容的格式
-      let mimeType = 'audio/webm;codecs=opus'
+      // 检测支持的MIME类型，优先选择兼容性更好的格式
+      // 避免使用opus编解码器，因为它在某些浏览器中可能无法正确读取时长元数据
+      let mimeType = 'audio/webm'
       if (!MediaRecorder.isTypeSupported(mimeType)) {
-        mimeType = 'audio/webm'
+        mimeType = 'audio/mp4'
         if (!MediaRecorder.isTypeSupported(mimeType)) {
-          mimeType = 'audio/mp4'
+          mimeType = 'audio/ogg'
           if (!MediaRecorder.isTypeSupported(mimeType)) {
-            mimeType = 'audio/ogg'
+            mimeType = 'audio/webm;codecs=opus' // 最后才尝试opus
             if (!MediaRecorder.isTypeSupported(mimeType)) {
               mimeType = '' // 使用默认格式
             }

@@ -185,9 +185,32 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
         setDuration(audioDuration);
       } else {
         console.warn('音频时长无效:', audioDuration);
+        // 对于无法获取准确时长的音频，尝试通过其他方式估算
+        // 可以根据文件大小粗略估算时长，或设置为默认值
         setDuration(0);
       }
       setIsLoading(false);
+    };
+
+    // 处理音频可以播放时的事件，有时候这个时候能获取到正确的时长
+    const handleCanPlayThrough = () => {
+      if (!isFinite(duration) || duration <= 0) {
+        const audioDuration = audio.duration;
+        if (isFinite(audioDuration) && audioDuration > 0) {
+          console.log('通过canplaythrough事件获取到时长:', audioDuration);
+          setDuration(audioDuration);
+        }
+      }
+      setIsLoading(false);
+    };
+
+    // 处理音频开始播放时的事件
+    const handleDurationChange = () => {
+      const audioDuration = audio.duration;
+      if (isFinite(audioDuration) && audioDuration > 0 && (!isFinite(duration) || duration <= 0)) {
+        console.log('通过durationchange事件获取到时长:', audioDuration);
+        setDuration(audioDuration);
+      }
     };
 
     const handleTimeUpdate = () => {
@@ -229,6 +252,8 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('error', handleError);
     audio.addEventListener('canplay', handleCanPlay);
+    audio.addEventListener('canplaythrough', handleCanPlayThrough);
+    audio.addEventListener('durationchange', handleDurationChange);
 
     return () => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
@@ -238,8 +263,10 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('error', handleError);
       audio.removeEventListener('canplay', handleCanPlay);
+      audio.removeEventListener('canplaythrough', handleCanPlayThrough);
+      audio.removeEventListener('durationchange', handleDurationChange);
     };
-  }, [authenticatedAudioUrl]);
+  }, [authenticatedAudioUrl, duration]);
 
   // 进度条点击处理
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
