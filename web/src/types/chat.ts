@@ -213,6 +213,9 @@ export interface ConsultationHistoryItem {
   date: string;
   type: string;
   description: string;
+  satisfaction_rating?: number;
+  duration_minutes?: number;
+  has_summary?: boolean;
 }
 
 // 消息工具函数类型

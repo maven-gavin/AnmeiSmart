@@ -16,8 +16,48 @@ class Conversation(BaseModel):
     customer_id = Column(String(36), ForeignKey("users.id"), nullable=False, comment="顾客用户ID")
     assigned_consultant_id = Column(String(36), ForeignKey("users.id"), nullable=True, comment="分配的顾问用户ID")
     is_active = Column(Boolean, default=True, comment="会话是否激活")
-    consultation_type = Column(String, nullable=True, comment="咨询类型")
-    summary = Column(Text, nullable=True, comment="会话总结")
+    
+    # 优化的咨询类型和总结字段
+    consultation_type = Column(Enum("initial", "follow_up", "emergency", "specialized", "other", name="consultation_type"), 
+                              nullable=True, comment="咨询类型：初次咨询、复诊咨询、紧急咨询、专项咨询、其他")
+    
+    # 结构化的咨询总结，支持详细信息
+    consultation_summary = Column(JSON, nullable=True, comment="""
+    结构化咨询总结 JSON格式:
+    {
+        "basic_info": {
+            "start_time": "2024-01-01T09:00:00Z",
+            "end_time": "2024-01-01T10:30:00Z", 
+            "duration_minutes": 90,
+            "type": "initial",
+            "consultant_id": "consultant_id",
+            "customer_id": "customer_id"
+        },
+        "main_issues": [
+            "问题1描述",
+            "问题2描述"
+        ],
+        "solutions": [
+            "解决方案1",
+            "解决方案2"
+        ],
+        "follow_up_plan": [
+            "跟进计划1",
+            "跟进计划2"
+        ],
+        "satisfaction_rating": 5,
+        "additional_notes": "补充备注",
+        "tags": ["标签1", "标签2"],
+        "ai_generated": false,
+        "created_at": "2024-01-01T10:30:00Z",
+        "updated_at": "2024-01-01T10:30:00Z",
+        "version": 1
+    }
+    """)
+    
+    # 保留原summary字段作为简短摘要，向后兼容
+    summary = Column(Text, nullable=True, comment="会话简短摘要（向后兼容）")
+    
     is_ai_controlled = Column(Boolean, default=True, comment="当前会话是否由AI控制（True=AI，False=顾问接管）")
 
     # 关联关系

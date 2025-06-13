@@ -37,6 +37,12 @@ export default function CustomerProfile({ customerId, conversationId }: Customer
     setActiveTab('history');
   };
 
+  // 创建咨询总结
+  const handleCreateSummary = () => {
+    // TODO: 实现创建咨询总结的逻辑
+    console.log('创建咨询总结');
+  };
+
   // 加载状态
   if (loading) {
     return (
@@ -82,6 +88,7 @@ export default function CustomerProfile({ customerId, conversationId }: Customer
             currentConsultation={currentConsultation}
             onViewAllHistory={handleViewAllHistory}
             onOpenHistoryDetail={openHistoryDetail}
+            onCreateSummary={handleCreateSummary}
           />
         )}
         

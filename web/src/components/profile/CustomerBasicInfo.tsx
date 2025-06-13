@@ -8,9 +8,10 @@ interface CustomerBasicInfoProps {
   currentConsultation?: ConsultationHistoryItem;
   onViewAllHistory: () => void;
   onOpenHistoryDetail: (history: ConsultationHistoryItem) => void;
+  onCreateSummary: () => void;
 }
 
-export function CustomerBasicInfo({ profile, currentConsultation, onViewAllHistory, onOpenHistoryDetail }: CustomerBasicInfoProps) {
+export function CustomerBasicInfo({ profile, currentConsultation, onViewAllHistory, onOpenHistoryDetail, onCreateSummary }: CustomerBasicInfoProps) {
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold text-gray-800">客户档案</h3>
@@ -54,6 +55,7 @@ export function CustomerBasicInfo({ profile, currentConsultation, onViewAllHisto
         currentConsultation={currentConsultation}
         onViewAllHistory={onViewAllHistory}
         onOpenHistoryDetail={onOpenHistoryDetail}
+        onCreateSummary={onCreateSummary}
       />
     </div>
   );
