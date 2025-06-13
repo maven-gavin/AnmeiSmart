@@ -16,20 +16,16 @@ interface CustomerProfileProps {
 
 export default function CustomerProfile({ customerId, conversationId }: CustomerProfileProps) {
   const [activeTab, setActiveTab] = useState<'basic' | 'history' | 'risk'>('basic');
+  const [showCreateSummaryModal, setShowCreateSummaryModal] = useState(false);
   
   // 使用自定义hooks管理状态和逻辑
   const { profile, consultationHistory, currentConsultation, loading, error } = useCustomerProfile(customerId, conversationId);
   const {
     showHistoryModal,
     selectedHistory,
-    showMessagesPreview,
-    historyMessages,
-    loadingMessages,
     openHistoryDetail,
     closeHistoryDetail,
     viewHistoryConversation,
-    previewHistoryMessages,
-    toggleMessagesPreview
   } = useConsultationModal(customerId);
 
   // 切换到历史标签页
@@ -39,8 +35,61 @@ export default function CustomerProfile({ customerId, conversationId }: Customer
 
   // 创建咨询总结
   const handleCreateSummary = () => {
-    // TODO: 实现创建咨询总结的逻辑
-    console.log('创建咨询总结');
+    console.log('🎯 创建咨询总结被调用, conversationId:', conversationId);
+    if (conversationId) {
+      setShowCreateSummaryModal(true);
+    } else {
+      console.error('❌ 没有conversationId，无法创建总结');
+    }
+  };
+
+  // 保存咨询总结
+  const handleSaveSummary = async (summaryData: any) => {
+    console.log('💾 CustomerProfile handleSaveSummary 被调用');
+    console.log('📋 summaryData:', summaryData);
+    console.log('💬 conversationId:', conversationId);
+    
+    try {
+      // TODO: 调用API保存咨询总结
+      // 这里应该调用真实的API接口
+      console.log('📤 模拟保存咨询总结到API...');
+      
+      // 模拟API调用
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      console.log('✅ 咨询总结保存成功');
+    } catch (error) {
+      console.error('❌ 保存咨询总结失败:', error);
+      throw error;
+    }
+  };
+
+  // AI生成咨询总结
+  const handleAIGenerate = async (conversationId: string) => {
+    console.log('🤖 AI生成咨询总结 conversationId:', conversationId);
+    
+    try {
+      // TODO: 调用AI生成接口
+      console.log('📤 模拟AI生成咨询总结...');
+      
+      // 模拟AI生成的数据
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const mockAIData = {
+        main_issues: ['客户咨询AI生成的主要问题'],
+        solutions: ['AI建议的解决方案'],
+        follow_up_plan: ['AI制定的跟进计划'],
+        satisfaction_rating: 4,
+        additional_notes: 'AI生成的补充备注',
+        tags: ['AI', '自动生成']
+      };
+      
+      console.log('✅ AI生成完成:', mockAIData);
+      return mockAIData;
+    } catch (error) {
+      console.error('❌ AI生成失败:', error);
+      throw error;
+    }
   };
 
   // 加载状态
@@ -96,7 +145,6 @@ export default function CustomerProfile({ customerId, conversationId }: Customer
           <ConsultationHistory
             consultationHistory={consultationHistory}
             onOpenHistoryDetail={openHistoryDetail}
-            onPreviewMessages={previewHistoryMessages}
             onViewConversation={viewHistoryConversation}
           />
         )}
@@ -111,12 +159,8 @@ export default function CustomerProfile({ customerId, conversationId }: Customer
         isOpen={showHistoryModal}
         consultation={selectedHistory}
         onClose={closeHistoryDetail}
-        onPreviewMessages={previewHistoryMessages}
-        onViewConversation={viewHistoryConversation}
-        messages={historyMessages}
-        showMessagesPreview={showMessagesPreview}
-        loadingMessages={loadingMessages}
-        onTogglePreview={toggleMessagesPreview}
+        onSaveSummary={handleSaveSummary}
+        onAIGenerate={handleAIGenerate}
       />
     </div>
   );

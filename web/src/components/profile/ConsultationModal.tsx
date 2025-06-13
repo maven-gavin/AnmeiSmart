@@ -3,13 +3,6 @@
 import { useState, useEffect } from 'react';
 import { ConsultationHistoryItem, Message } from '@/types/chat';
 
-interface MessagePreviewProps {
-  show: boolean;
-  messages: Message[];
-  loading: boolean;
-  onToggle: () => void;
-}
-
 interface ConsultationSummaryData {
   main_issues: string[];
   solutions: string[];
@@ -22,14 +15,7 @@ interface ConsultationSummaryData {
 interface ConsultationModalProps {
   isOpen: boolean;
   consultation: ConsultationHistoryItem | null;
-  conversationId?: string;
   onClose: () => void;
-  onPreviewMessages: (conversationId: string) => Promise<void>;
-  onViewConversation: (conversationId: string) => void;
-  messages: Message[];
-  showMessagesPreview: boolean;
-  loadingMessages: boolean;
-  onTogglePreview: () => void;
   onSaveSummary?: (summaryData: ConsultationSummaryData) => Promise<void>;
   onAIGenerate?: (conversationId: string) => Promise<ConsultationSummaryData>;
 }
@@ -37,11 +23,18 @@ interface ConsultationModalProps {
 export function ConsultationModal({
   isOpen,
   consultation,
-  conversationId,
   onClose,
   onSaveSummary,
   onAIGenerate
 }: ConsultationModalProps) {
+  console.log('🎭 ConsultationModal 渲染');
+  console.log('📊 Props检查:', {
+    isOpen,
+    consultation: JSON.stringify(consultation),
+    onSaveSummary: typeof onSaveSummary,
+    onAIGenerate: typeof onAIGenerate
+  });
+
   const [isEditing, setIsEditing] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
@@ -57,7 +50,7 @@ export function ConsultationModal({
   });
 
   // 如果是新建总结且没有consultation数据
-  const isNewSummary = !consultation && conversationId;
+  const isNewSummary = !consultation;
 
   useEffect(() => {
     if (isOpen) {
@@ -94,11 +87,11 @@ export function ConsultationModal({
   }
 
   const handleAIGenerate = async () => {
-    if (!conversationId || !onAIGenerate) return;
+    if (!consultation || !onAIGenerate) return;
     
     setAiGenerating(true);
     try {
-      const aiData = await onAIGenerate(conversationId);
+      const aiData = await onAIGenerate(consultation.id);
       setSummaryData(aiData);
     } catch (error) {
       console.error('AI生成失败:', error);
@@ -108,24 +101,44 @@ export function ConsultationModal({
   };
 
   const handleSave = async () => {
-    if (!onSaveSummary) return;
+    console.log('🚀 handleSave 被调用');
+    console.log('📝 当前summaryData:', summaryData);
+    console.log('🔧 onSaveSummary函数:', typeof onSaveSummary, !!onSaveSummary);
+    console.log('💬 conversationId:', consultation?.id);
+    console.log('📋 consultation:', consultation);
+    
+    if (!onSaveSummary) {
+      console.error('❌ onSaveSummary 函数未提供');
+      setToast({ type: 'error', message: 'onSaveSummary 函数未提供' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
     
     setSaving(true);
+    console.log('⏳ 开始保存，setting saving = true');
+    
     try {
+      console.log('📤 调用 onSaveSummary...');
       await onSaveSummary(summaryData);
+      console.log('✅ onSaveSummary 调用成功');
+      
       setToast({ type: 'success', message: '咨询总结保存成功！' });
       setIsEditing(false);
       setIsCreating(false);
       setTimeout(() => {
+        console.log('🚪 关闭弹窗');
         onClose();
         setToast(null);
       }, 1500);
     } catch (error) {
-      console.error('保存失败:', error);
-      setToast({ type: 'error', message: '保存失败，请重试' });
+      console.error('❌ 保存失败详细错误:', error);
+      console.error('错误类型:', typeof error);
+      console.error('错误消息:', error instanceof Error ? error.message : String(error));
+      setToast({ type: 'error', message: `保存失败：${error instanceof Error ? error.message : '未知错误'}` });
       setTimeout(() => setToast(null), 3000);
     } finally {
       setSaving(false);
+      console.log('🏁 保存流程结束，setting saving = false');
     }
   };
 
@@ -379,6 +392,7 @@ export function ConsultationModal({
                 <>
                   <button 
                     onClick={() => {
+                      console.log('❌ 取消按钮被点击');
                       setIsEditing(false);
                       setIsCreating(false);
                     }}
@@ -387,7 +401,11 @@ export function ConsultationModal({
                     取消
                   </button>
                   <button 
-                    onClick={handleSave}
+                    onClick={() => {
+                      console.log('🖱️ 保存按钮被点击');
+                      console.log('🔍 当前状态:', { saving, isEditing, isCreating });
+                      handleSave();
+                    }}
                     disabled={saving}
                     className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                   >
