@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ChatWindow from '@/components/chat/ChatWindow'
 import CustomerList from '@/components/chat/CustomerList'
-import CustomerProfile from '@/components/chat/CustomerProfile'
+import CustomerProfile from '@/components/profile/CustomerProfile'
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { ErrorDisplay } from '@/components/ui/ErrorDisplay';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
@@ -134,7 +134,10 @@ export default function ChatPageClient() {
           {/* 右侧：客户资料 */}
           {selectedCustomerId && (
             <div className="w-80 flex-shrink-0 border-l border-gray-200 bg-white">
-              <CustomerProfile customerId={selectedCustomerId} />
+              <CustomerProfile 
+                customerId={selectedCustomerId} 
+                conversationId={selectedConversationId || undefined} 
+              />
             </div>
           )}
         </div>
