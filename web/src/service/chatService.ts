@@ -82,12 +82,7 @@ export function closeWebSocketConnection(): void {
  */
 export async function saveMessage(message: Message): Promise<Message> {
   try {
-    console.log('开始保存消息:', {
-      localId: message.localId,
-      conversationId: message.conversationId,
-      content: JSON.stringify(message.content).substring(0, 50) + '...',
-      status: message.status
-    });
+    console.log('开始保存消息:', JSON.stringify(message));
 
     // 验证必要字段
     if (!message.conversationId) {

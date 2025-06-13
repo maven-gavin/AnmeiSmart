@@ -40,6 +40,7 @@ router = APIRouter()
 async def upload_file(
     file: UploadFile = File(...),
     conversation_id: str = Form(...),
+    text: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -76,7 +77,7 @@ async def upload_file(
             user_id=current_user.id
         )
         
-        # 创建媒体消息
+        # 创建媒体消息，支持附带文字
         message_info = message_service.create_media_message(
             conversation_id=conversation_id,
             sender_id=current_user.id,
@@ -85,7 +86,7 @@ async def upload_file(
             media_name=file_info_dict["file_name"],
             mime_type=file_info_dict["mime_type"],
             size_bytes=file_info_dict["file_size"],
-            text=None,  # 文件上传没有附带文字
+            text=text.strip() if text and text.strip() else None,  # 支持附带文字
             metadata={"file_type": file_info_dict["file_type"]},
             is_important=False,
             upload_method="file_picker"

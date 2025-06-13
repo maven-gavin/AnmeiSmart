@@ -64,13 +64,6 @@ export default function MediaMessage({ message, searchTerm, compact, onRetry }: 
     <div className="space-y-2">
       {/* 媒体内容 */}
       {renderMediaComponent()}
-      
-      {/* 文字内容（如果存在） */}
-      {content.text && content.text.trim() && (
-        <div className="text-gray-900 text-sm leading-relaxed break-words">
-          {highlightText(content.text.trim(), searchTerm)}
-        </div>
-      )}
     </div>
   );
 } 

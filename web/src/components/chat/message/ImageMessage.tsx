@@ -71,8 +71,11 @@ export default function ImageMessage({ message, searchTerm, compact, onRetry }: 
       return imageCache.get(objectName)!;
     }
 
-    // 外部URL直接返回
-    if (objectName.startsWith('http://') || objectName.startsWith('https://')) {
+    // 外部URL、data URL（base64）、blob URL直接返回
+    if (objectName.startsWith('http://') || 
+        objectName.startsWith('https://') || 
+        objectName.startsWith('data:') || 
+        objectName.startsWith('blob:')) {
       imageCache.set(objectName, objectName);
       return objectName;
     }

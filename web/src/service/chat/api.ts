@@ -121,14 +121,7 @@ export class ChatApiService {
       type: message.type
     };
     
-    console.log('保存消息 - 发送请求:', {
-      messageId: message.id,
-      conversationId: message.conversationId,
-      messageType: message.type,
-      requestData: requestData,
-      contentText: (message.content as any).text,
-      contentType: typeof (message.content as any).text
-    });
+    console.log('保存消息 - 发送请求:', JSON.stringify(requestData));
     
     const response = await apiClient.post<MessageApiResponse>(
       `${this.BASE_PATH}/conversations/${message.conversationId}/messages`, 
@@ -139,10 +132,7 @@ export class ChatApiService {
       throw new Error('保存消息失败：响应数据为空');
     }
     
-    console.log('保存消息 - 服务器响应:', {
-      responseData: response.data,
-      responseContentText: response.data.content?.text
-    });
+    console.log('保存消息 - 服务器响应:', JSON.stringify(response.data));
     
     return this.formatMessage(response.data);
   }

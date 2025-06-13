@@ -239,6 +239,11 @@ class MessageInfo(MessageBase):
         content = getattr(message, 'content', {})
         message_type = getattr(message, 'type', 'text')
         
+        # 调试日志：记录模型转换过程
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"MessageInfo.from_model - 转换前: message_id={getattr(message, 'id', 'unknown')}, type={message_type}, raw_content={content}")
+        
         # 确保content是字典格式
         if not isinstance(content, dict):
             content = {"text": str(content)} if content else {"text": ""}
@@ -248,7 +253,7 @@ class MessageInfo(MessageBase):
         reactions = getattr(message, 'reactions', None)
         extra_metadata = getattr(message, 'extra_metadata', None)
         
-        return MessageInfo(
+        result = MessageInfo(
             id=getattr(message, 'id', ''),
             conversation_id=getattr(message, 'conversation_id', ''),
             content=content,
@@ -261,6 +266,11 @@ class MessageInfo(MessageBase):
             reactions=reactions,
             extra_metadata=extra_metadata
         )
+        
+        # 调试日志：记录转换后的结果
+        logger.info(f"MessageInfo.from_model - 转换后: message_id={result.id}, content={result.content}")
+        
+        return result
 
 
 # ===== 便利函数用于创建不同类型的消息 =====

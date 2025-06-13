@@ -125,14 +125,47 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         router.replace(`?conversationId=${conversation.id}`, { scroll: false })
       }
 
+      // 设置正确的会话ID
       message.conversationId = targetConversationId;
+      
+      // 立即添加到本地状态以提供即时反馈
       addMessage(message);
-      setTimeout(scrollToBottom, 100)
+      setTimeout(scrollToBottom, 100);
+      
+      // 异步保存到后端
+      try {
+        const savedMessage = await saveMessage(message);
+        
+        // 更新消息状态为成功，并使用服务器返回的ID
+        message.status = 'sent';
+        message.id = savedMessage.id;
+        
+        // 静默刷新消息列表以获取最新状态
+        setTimeout(() => {
+          silentlyUpdateMessages();
+        }, 100);
+        
+      } catch (saveError) {
+        // 保存失败，更新消息状态
+        message.status = 'failed';
+        message.error = saveError instanceof Error ? saveError.message : '发送失败';
+        console.error('保存消息到后端失败:', saveError);
+        
+        // 静默刷新消息列表以反映失败状态
+        setTimeout(() => {
+          silentlyUpdateMessages();
+        }, 100);
+      }
       
     } catch (error) {
       console.error('处理消息发送失败:', error)
+      // 如果是添加到本地状态之前就失败了，更新消息状态
+      if (message.status === 'pending') {
+        message.status = 'failed';
+        message.error = error instanceof Error ? error.message : '发送失败';
+      }
     }
-  }, [currentConversationId, router, user, scrollToBottom])
+  }, [currentConversationId, router, user, scrollToBottom, addMessage, silentlyUpdateMessages])
 
   // 消息操作回调函数
   const handleToggleImportant = useCallback(async (messageId: string) => {

@@ -192,6 +192,9 @@ class MessageService:
         # 验证消息内容
         self._validate_message_content(content, message_type)
         
+        # 调试日志：记录保存前的内容
+        logger.info(f"创建消息 - 保存前内容: conversation_id={conversation_id}, type={message_type}, content={content}")
+        
         message = Message(
             conversation_id=conversation_id,
             sender_id=sender_id,
@@ -207,6 +210,9 @@ class MessageService:
         self.db.add(message)
         self.db.commit()
         self.db.refresh(message)
+        
+        # 调试日志：记录保存后的内容
+        logger.info(f"创建消息 - 保存后内容: message_id={message.id}, content={message.content}")
         
         return message
 
