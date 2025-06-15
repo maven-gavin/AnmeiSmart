@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import users, auth, roles, chat, ai, system, customer, websocket, files, consultation_summary
+from app.api.v1.endpoints import users, auth, roles, chat, ai, system, customer, websocket, files, consultation_summary, consultant
 
 api_router = APIRouter()
 
@@ -32,6 +32,9 @@ api_router.include_router(system.router, prefix="/system", tags=["system"])
 
 # 客户领域路由
 api_router.include_router(customer.router, prefix="/customers", tags=["customers"])
+
+# 顾问方案推荐路由
+api_router.include_router(consultant.router, prefix="/consultant", tags=["consultant"])
 
 # 后续可添加其他路由
 # api_router.include_router(plans.router, prefix="/plans", tags=["plans"])

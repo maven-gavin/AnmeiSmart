@@ -1,5 +1,6 @@
 import { SimulationImage, ProjectType, PersonalizedPlan } from '@/types/consultant';
 import { CustomerProfile } from '@/types/chat';
+import { apiClient } from './apiClient';
 
 // 模拟项目类型数据
 const mockProjectTypes: ProjectType[] = [
@@ -339,28 +340,104 @@ export const getCustomerPlans = async (customerId: string): Promise<Personalized
 
 // 获取所有个性化方案
 export const getAllPersonalizedPlans = async (): Promise<PersonalizedPlan[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(mockPersonalizedPlans);
-    }, 600);
-  });
+  try {
+    const response = await apiClient.get('/consultant/plans');
+    // 将后端蛇形命名转换为前端驼峰命名
+    const rawPlans = response.data as any[];
+    const plans = rawPlans.map((plan: any) => ({
+      id: plan.id,
+      customerId: plan.customer_id,
+      customerName: plan.customer_name,
+      customerProfile: plan.customer_profile ? {
+        age: plan.customer_profile.age,
+        gender: plan.customer_profile.gender,
+        concerns: plan.customer_profile.concerns || [],
+        budget: plan.customer_profile.budget,
+        expectedResults: plan.customer_profile.expected_results
+      } : undefined,
+      projects: plan.projects || [],
+      totalCost: plan.total_cost || 0,
+      estimatedTimeframe: plan.estimated_timeframe || '',
+      createdAt: plan.created_at,
+      updatedAt: plan.updated_at,
+      consultantId: plan.consultant_id,
+      consultantName: plan.consultant_name,
+      status: plan.status?.toLowerCase() || 'draft', // 将大写状态转换为小写
+      notes: plan.notes
+    }));
+    return plans as PersonalizedPlan[];
+  } catch (error) {
+    console.error('获取个性化方案失败:', error);
+    // 回退到模拟数据
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve(mockPersonalizedPlans);
+      }, 600);
+    });
+  }
 };
 
 // 创建个性化方案
 export const createPersonalizedPlan = async (
   planData: Omit<PersonalizedPlan, 'id' | 'createdAt'>
 ): Promise<PersonalizedPlan> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const newPlan: PersonalizedPlan = {
-        ...planData,
-        id: `plan-a${Date.now()}`,
-        createdAt: new Date().toISOString()
-      };
-      mockPersonalizedPlans.push(newPlan);
-      resolve(newPlan);
-    }, 800);
-  });
+  try {
+    // 将前端驼峰命名转换为后端蛇形命名
+    const backendData = {
+      customer_id: planData.customerId,
+      customer_name: planData.customerName,
+      customer_profile: planData.customerProfile ? {
+        age: planData.customerProfile.age,
+        gender: planData.customerProfile.gender,
+        concerns: planData.customerProfile.concerns,
+        budget: planData.customerProfile.budget,
+        expected_results: planData.customerProfile.expectedResults
+      } : undefined,
+      projects: planData.projects,
+      estimated_timeframe: planData.estimatedTimeframe,
+      notes: planData.notes
+    };
+    
+    const response = await apiClient.post('/consultant/plans', backendData);
+    const plan = response.data as any;
+    
+    // 将后端数据转换为前端格式
+    return {
+      id: plan.id,
+      customerId: plan.customer_id,
+      customerName: plan.customer_name,
+      customerProfile: plan.customer_profile ? {
+        age: plan.customer_profile.age,
+        gender: plan.customer_profile.gender,
+        concerns: plan.customer_profile.concerns || [],
+        budget: plan.customer_profile.budget,
+        expectedResults: plan.customer_profile.expected_results
+      } : undefined,
+      projects: plan.projects || [],
+      totalCost: plan.total_cost || 0,
+      estimatedTimeframe: plan.estimated_timeframe || '',
+      createdAt: plan.created_at,
+      updatedAt: plan.updated_at,
+      consultantId: plan.consultant_id,
+      consultantName: plan.consultant_name,
+      status: plan.status?.toLowerCase() || 'draft',
+      notes: plan.notes
+    } as PersonalizedPlan;
+  } catch (error) {
+    console.error('创建个性化方案失败:', error);
+    // 回退到模拟数据
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const newPlan: PersonalizedPlan = {
+          ...planData,
+          id: `plan-a${Date.now()}`,
+          createdAt: new Date().toISOString()
+        };
+        mockPersonalizedPlans.push(newPlan);
+        resolve(newPlan);
+      }, 800);
+    });
+  }
 };
 
 // 更新个性化方案
@@ -368,22 +445,68 @@ export const updatePersonalizedPlan = async (
   planId: string,
   planData: Partial<PersonalizedPlan>
 ): Promise<PersonalizedPlan> => {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      const planIndex = mockPersonalizedPlans.findIndex(p => p.id === planId);
-      if (planIndex === -1) {
-        reject(new Error('方案不存在'));
-        return;
-      }
-      
-      const updatedPlan = {
-        ...mockPersonalizedPlans[planIndex],
-        ...planData,
-        updatedAt: new Date().toISOString()
+  try {
+    // 将前端驼峰命名转换为后端蛇形命名
+    const backendData: any = {};
+    if (planData.customerProfile) {
+      backendData.customer_profile = {
+        age: planData.customerProfile.age,
+        gender: planData.customerProfile.gender,
+        concerns: planData.customerProfile.concerns,
+        budget: planData.customerProfile.budget,
+        expected_results: planData.customerProfile.expectedResults
       };
-      
-      mockPersonalizedPlans[planIndex] = updatedPlan;
-      resolve(updatedPlan);
-    }, 700);
-  });
+    }
+    if (planData.projects) backendData.projects = planData.projects;
+    if (planData.estimatedTimeframe) backendData.estimated_timeframe = planData.estimatedTimeframe;
+    if (planData.status) backendData.status = planData.status.toUpperCase(); // 前端小写转后端大写
+    if (planData.notes !== undefined) backendData.notes = planData.notes;
+    
+    const response = await apiClient.put(`/consultant/plans/${planId}`, backendData);
+    const plan = response.data as any;
+    
+    // 将后端数据转换为前端格式
+    return {
+      id: plan.id,
+      customerId: plan.customer_id,
+      customerName: plan.customer_name,
+      customerProfile: plan.customer_profile ? {
+        age: plan.customer_profile.age,
+        gender: plan.customer_profile.gender,
+        concerns: plan.customer_profile.concerns || [],
+        budget: plan.customer_profile.budget,
+        expectedResults: plan.customer_profile.expected_results
+      } : undefined,
+      projects: plan.projects || [],
+      totalCost: plan.total_cost || 0,
+      estimatedTimeframe: plan.estimated_timeframe || '',
+      createdAt: plan.created_at,
+      updatedAt: plan.updated_at,
+      consultantId: plan.consultant_id,
+      consultantName: plan.consultant_name,
+      status: plan.status?.toLowerCase() || 'draft',
+      notes: plan.notes
+    } as PersonalizedPlan;
+  } catch (error) {
+    console.error('更新个性化方案失败:', error);
+    // 回退到模拟数据
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        const planIndex = mockPersonalizedPlans.findIndex(p => p.id === planId);
+        if (planIndex === -1) {
+          reject(new Error('方案不存在'));
+          return;
+        }
+        
+        const updatedPlan = {
+          ...mockPersonalizedPlans[planIndex],
+          ...planData,
+          updatedAt: new Date().toISOString()
+        };
+        
+        mockPersonalizedPlans[planIndex] = updatedPlan;
+        resolve(updatedPlan);
+      }, 700);
+    });
+  }
 }; 

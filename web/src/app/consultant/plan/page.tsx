@@ -1,16 +1,10 @@
-import { Suspense } from 'react';
 import PlanPageClient from './PlanPageClient';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 export const metadata = {
-  title: '个性化方案推荐 - 安美智享',
-  description: '医美顾问个性化方案推荐系统',
+  title: '方案管理 - 安美智享',
+  description: '管理客户的个性化医美方案'
 };
 
 export default function PlanPage() {
-  return (
-    <Suspense fallback={<LoadingSpinner />}>
-      <PlanPageClient />
-    </Suspense>
-  );
+  return <PlanPageClient />;
 } 

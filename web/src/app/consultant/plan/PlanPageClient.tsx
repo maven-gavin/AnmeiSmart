@@ -60,11 +60,14 @@ export default function PlanPageClient() {
   useEffect(() => {
     const fetchPlans = async () => {
       try {
+        setIsLoading(true);
         const data = await getAllPersonalizedPlans();
         setPlans(data);
-        setIsLoading(false);
       } catch (error) {
         console.error('获取方案失败', error);
+        // 显示错误信息但不阻塞UI
+        alert('获取方案数据失败，请检查网络连接或刷新页面重试');
+      } finally {
         setIsLoading(false);
       }
     };
@@ -143,9 +146,12 @@ export default function PlanPageClient() {
       // 选择新创建的方案
       setSelectedPlan(createdPlan);
       
+      alert('方案创建成功！');
+      
     } catch (error) {
       console.error('创建方案失败', error);
-      alert('创建方案失败，请重试');
+      const errorMessage = error instanceof Error ? error.message : '创建方案失败，请重试';
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -181,7 +187,7 @@ export default function PlanPageClient() {
     // 将方案状态更新为已分享
     const updatedPlan = {
       ...selectedPlan,
-      status: 'shared' as 'shared'
+              status: 'shared' as const
     };
     
     updatePersonalizedPlan(selectedPlan.id, updatedPlan)
@@ -201,9 +207,12 @@ export default function PlanPageClient() {
 
   // 过滤方案
   const filteredPlans = plans.filter(plan => {
+    // 添加安全检查，防止undefined错误
+    const customerName = plan.customerName || '';
+    const customerId = plan.customerId || '';
     const matchesSearch = 
-      plan.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      plan.customerId.toLowerCase().includes(searchTerm.toLowerCase());
+      customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customerId.toLowerCase().includes(searchTerm.toLowerCase());
     
     if (selectedTab === 'all') return matchesSearch;
     if (selectedTab === 'draft') return matchesSearch && plan.status === 'draft';
