@@ -8,13 +8,13 @@ AnmeiSmart是一个轻医美版的AI专家管理平台，不是AI给你看病，
 
 - 前端: Next.js, React, TypeScript, TailwindCSS
 - 后端: FastAPI, Python, PostgreSQL, MongoDB
-- AI: OpenAI API
+- AI: Dify API
 - Tauri 2.0：支持桌面和移动端
 - Rust：Tauri后端逻辑
 - 响应式设计：适配不同屏幕尺寸
 - PWA：渐进式Web应用支持
 
-## 实施步骤
+## 多端实现待实施步骤
 
 ### 第一阶段：桌面端实现
 
@@ -119,15 +119,15 @@ AnmeiSmart/
 │   │       ├── service/     # 服务层
 │   │       └── types/       # 类型定义
 ├── docs/                # 项目文档
-├── desktop/                # 新增：Tauri桌面应用
+├── desktop/                # （待新增）：Tauri桌面应用
 │   │   ├── src-tauri/         # Tauri Rust后端
 │   │   ├── src/               # 共享前端代码
 │   │   └── tauri.conf.json    # Tauri配置
-├── mobile/                 # 新增：Tauri移动应用
+├── mobile/                 # （待新增）：Tauri移动应用
 │   │   ├── src-tauri/         # 移动端Tauri配置
 │   │   ├── src/               # 移动端适配代码
 │   │   └── gen/               # 生成的移动端代码
-└── shared/                 # 新增：共享组件和逻辑
+└── shared/                 # （待新增）：共享组件和逻辑
     │    ├── components/        # 跨平台UI组件
     │    ├── services/          # 共享业务逻辑
     │    ├── types/             # 共享类型定义
@@ -222,52 +222,7 @@ npm run test:e2e:chat
 npm run test:e2e:basic
 ```
 
-### 常见测试问题与解决方案
-
-#### 1. API端点404错误
-
-**问题描述**：在执行测试时，创建会话相关的API调用返回404错误。
-
-```
-尝试创建会话 /api/v1/conversations... 404 {"detail":"Not Found"}
-```
-
-**原因分析**：测试工具中使用了错误的API路径，API路由配置将聊天功能设置为 `/api/v1/chat`前缀，正确的会话创建端点应为 `/api/v1/chat/conversations`。
-
-**解决方案**：运行 `npm run test:prepare`自动修复，或修改 `web/src/__tests__/e2e/chat/test-utils.ts`中的 `endpoints`数组，确保包含正确的端点：
-
-```typescript
-const endpoints = [
-  '/api/v1/chat/conversations',  // 正确的端点
-  // 其他备选端点
-];
-```
-
-#### 2. WebSocket连接问题
-
-**问题描述**：测试过程中WebSocket连接建立失败，导致实时消息无法发送或接收。
-
-**原因分析**：WebSocket服务器URL配置错误，或后端WebSocket服务未正确启动。
-
-**解决方案**：
-
-1. 检查 `chatService.ts`中的WebSocket URL配置
-2. 确保后端API服务已启动且包含WebSocket支持
-3. 检查WebSocket连接请求中是否包含必要的认证信息
-
-### API端点参考
-
-以下是系统主要API端点的参考：
-
-- `POST /api/v1/auth/login` - 用户登录 (使用表单格式提交)
-- `POST /api/v1/chat/conversations` - 创建聊天会话
-- `GET /api/v1/chat/conversations` - 获取会话列表
-- `GET /api/v1/chat/conversations/{id}` - 获取单个会话详情
-- `GET /api/v1/chat/conversations/{id}/messages` - 获取会话消息
-- `POST /api/v1/chat/conversations/{id}/messages` - 发送会话消息
-- `WebSocket /api/v1/chat/ws/{user_id}` - WebSocket连接端点
-
-## 主要测试场景
+### 主要测试场景
 
 ### 发送普通文本消息，AI应答
 

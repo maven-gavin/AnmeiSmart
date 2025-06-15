@@ -8,7 +8,6 @@
 - SQLAlchemy - ORM框架
 - PostgreSQL - 关系型数据库
 - MongoDB - 非关系型数据库
-
 - Pydantic - 数据验证
 - JWT - 用户认证
 
@@ -17,7 +16,6 @@
 - Python 3.12 或更高版本
 - PostgreSQL 15或更高版本
 - MongoDB 6.0或更高版本
-
 
 ## 安装步骤
 
@@ -285,24 +283,6 @@ api/
   - GET /{user_id} - 获取指定用户信息
 - `/api/v1/users/roles/all` - 获取所有角色
 
-## 开发规范
-
-1. 代码质量
-
-   - 所有函数必须有类型注解
-   - 禁止使用Any类型
-   - 所有API端点必须有文档字符串
-   - 单元测试覆盖率要求≥80%
-2. Git提交规范
-
-   - feat: 新功能
-   - fix: 修复bug
-   - docs: 文档更新
-   - style: 代码格式
-   - refactor: 重构
-   - test: 测试相关
-   - chore: 构建过程或辅助工具的变动
-
 ## 运行测试
 
 ```powershell
@@ -324,7 +304,6 @@ api/
    - 用于非结构化数据
    - 用户行为日志、系统日志等
 
-
 ## 贡献指南
 
 1. Fork项目
@@ -344,11 +323,13 @@ MIT
 Redis配置通过环境变量管理，支持两种配置方式：
 
 #### 方式1：使用REDIS_URL（推荐）
+
 ```bash
 REDIS_URL=redis://:password@host:port/db
 ```
 
 #### 方式2：使用分离配置参数
+
 ```bash
 REDIS_HOST=localhost
 REDIS_PORT=6379
@@ -359,11 +340,13 @@ REDIS_DB=0
 ### 配置步骤
 
 1. 复制环境变量示例文件：
+
 ```bash
 cp env.example .env
 ```
 
-2. 编辑`.env`文件，修改Redis配置：
+2. 编辑 `.env`文件，修改Redis配置：
+
 ```bash
 # Redis配置
 REDIS_URL=redis://:difyai123456@localhost:6379
@@ -374,6 +357,7 @@ REDIS_DB=0
 ```
 
 3. 确保Redis服务已启动：
+
 ```bash
 # 使用Docker启动Redis
 docker run -d --name redis -p 6379:6379 redis:7-alpine redis-server --requirepass difyai123456
@@ -385,6 +369,7 @@ redis-server --requirepass difyai123456
 ### WebSocket分布式架构
 
 项目使用Redis Pub/Sub实现分布式WebSocket架构，支持：
+
 - 跨实例消息广播
 - 多设备连接管理
 - 在线状态检测
@@ -404,7 +389,8 @@ redis-server --requirepass difyai123456
 
 ### 配置说明
 
-在`.env`文件中配置推送服务类型：
+在 `.env`文件中配置推送服务类型：
+
 ```bash
 # 推送通知配置
 NOTIFICATION_PROVIDER=logging  # 当前使用日志记录服务
@@ -436,11 +422,13 @@ INFO     内容: 您好，关于您的咨询问题...
 ### TODO: 未来扩展计划
 
 #### 真实推送服务集成
+
 - **Firebase FCM**：支持Android和Web推送
 - **Apple APNs**：支持iOS推送
 - **第三方服务**：极光推送、友盟推送等
 
 #### 高级功能
+
 - 用户推送偏好设置
 - 推送模板管理
 - 推送统计和监控
@@ -448,6 +436,7 @@ INFO     内容: 您好，关于您的咨询问题...
 - 推送失败重试机制
 
 #### 配置示例（未来使用）
+
 ```bash
 # Firebase FCM配置
 NOTIFICATION_PROVIDER=firebase
