@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import systemService, { SystemSettings, AIModelConfig } from '@/service/systemService';
+import { DifyConnectionManager } from '@/components/admin/DifyConnectionManager';
 
 export default function SystemSettingsPage() {
   const [activeTab, setActiveTab] = useState('general');
@@ -179,6 +180,12 @@ export default function SystemSettingsPage() {
           onClick={() => setActiveTab('security')}
         >
           安全与访问控制
+        </button>
+        <button
+          className={`mr-4 py-2 px-4 font-medium ${activeTab === 'dify' ? 'border-b-2 border-orange-500 text-orange-500' : 'text-gray-500'}`}
+          onClick={() => setActiveTab('dify')}
+        >
+          Dify管理
         </button>
       </div>
       
@@ -513,6 +520,11 @@ export default function SystemSettingsPage() {
               </button>
             </div>
           </div>
+        </div>
+        
+        {/* Dify管理 */}
+        <div className={activeTab === 'dify' ? 'block' : 'hidden'}>
+          <DifyConnectionManager />
         </div>
       </form>
     </div>

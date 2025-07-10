@@ -205,13 +205,8 @@ class AIService:
                 service.model = config.get("model", "gpt-3.5-turbo")
                 
             elif provider == "dify":
-                from .dify_service import DifyService
-                service_config = {
-                    "api_key": config["api_key"],
-                    "api_base_url": config["api_base_url"],
-                    "app_id": config.get("app_id", "")
-                }
-                service = DifyService(service_config)
+                from .dify_factory import DifyServiceFactory
+                service = DifyServiceFactory.create_from_env_config(config)
                 
             else:
                 logger.warning(f"未知的AI提供商: {provider}")
