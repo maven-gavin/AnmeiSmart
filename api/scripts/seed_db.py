@@ -22,7 +22,7 @@ from pathlib import Path
 
 try:
     from sqlalchemy.orm import Session
-    from app.db.models.user import User, Role, Doctor, Consultant, Operator, Administrator
+    from app.db.models.user import User, Role, Doctor, Consultant, Operator, Administrator, AdminLevel
     from app.db.models.customer import Customer, CustomerProfile
     from app.db.base import get_db, engine
     from app.services import user_service as crud_user

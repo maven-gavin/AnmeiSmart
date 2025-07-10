@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from app.schemas.customer import CustomerBase
+from app.db.models.user import AdminLevel
 
 class RoleBase(BaseModel):
     """角色基础模型"""
@@ -52,7 +53,7 @@ class OperatorBase(BaseModel):
 
 class AdministratorBase(BaseModel):
     """管理员信息基础模型"""
-    admin_level: int = 1
+    admin_level: str = AdminLevel.BASIC  # 与数据库模型保持一致，使用枚举值
     access_permissions: Optional[str] = None
 
 class UserCreate(UserBase):

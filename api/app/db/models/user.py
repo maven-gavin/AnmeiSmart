@@ -1,10 +1,18 @@
 from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, Table, Text, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+import enum
 
 from app.db.models.base_model import BaseModel, TimestampMixin
 from app.db.base import Base
 from app.db.uuid_utils import user_id, role_id
+
+
+class AdminLevel(str, enum.Enum):
+    """管理员级别枚举"""
+    BASIC = "basic"           # 基础管理员
+    ADVANCED = "advanced"     # 高级管理员
+    SUPER = "super"           # 超级管理员
 
 # 用户-角色关联表 (使用String类型的外键)
 user_roles = Table(
@@ -96,7 +104,7 @@ class Administrator(BaseModel):
     __table_args__ = {"comment": "系统管理员表，存储管理员扩展信息"}
     
     user_id = Column(String(36), ForeignKey("users.id"), unique=True, nullable=False, comment="用户ID")
-    admin_level = Column(String, default="1", comment="管理员级别")
+    admin_level = Column(String, default=AdminLevel.BASIC, comment="管理员级别")
     access_permissions = Column(Text, nullable=True, comment="权限描述")
     
     # 关联到基础用户表
