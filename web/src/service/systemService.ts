@@ -26,11 +26,9 @@ const systemService = {
    */
   async getSystemSettings(): Promise<SystemSettings> {
     try {
-      const response = await apiClient.get('/system/settings');
-      if (!response.ok) {
-        throw new Error(`获取系统设置失败: ${response.status}`);
-      }
-      return response.data?.data;
+      const response = await apiClient.get<{success: boolean, data: SystemSettings, message: string}>('/system/settings');
+      const responseData = response.data as any;
+      return responseData.data || responseData; // 兼容两种响应格式
     } catch (error) {
       console.error('获取系统设置失败:', error);
       throw error;
@@ -42,11 +40,9 @@ const systemService = {
    */
   async updateSystemSettings(settings: Partial<SystemSettings>): Promise<SystemSettings> {
     try {
-      const response = await apiClient.put('/system/settings', settings);
-      if (!response.ok) {
-        throw new Error(`更新系统设置失败: ${response.status}`);
-      }
-      return response.data?.data;
+      const response = await apiClient.put<{success: boolean, data: SystemSettings, message: string}>('/system/settings', settings);
+      const responseData = response.data as any;
+      return responseData.data || responseData; // 兼容两种响应格式
     } catch (error) {
       console.error('更新系统设置失败:', error);
       throw error;
@@ -58,11 +54,9 @@ const systemService = {
    */
   async getAIModels(): Promise<AIModelConfig[]> {
     try {
-      const response = await apiClient.get('/system/ai-models');
-      if (!response.ok) {
-        throw new Error(`获取AI模型配置失败: ${response.status}`);
-      }
-      return response.data?.data;
+      const response = await apiClient.get<{success: boolean, data: AIModelConfig[], message: string}>('/system/ai-models');
+      const responseData = response.data as any;
+      return responseData.data || responseData; // 兼容两种响应格式
     } catch (error) {
       console.error('获取AI模型配置失败:', error);
       throw error;
@@ -74,11 +68,9 @@ const systemService = {
    */
   async createAIModel(modelConfig: AIModelConfig): Promise<AIModelConfig> {
     try {
-      const response = await apiClient.post('/system/ai-models', modelConfig);
-      if (!response.ok) {
-        throw new Error(`创建AI模型配置失败: ${response.status}`);
-      }
-      return response.data?.data;
+      const response = await apiClient.post<{success: boolean, data: AIModelConfig, message: string}>('/system/ai-models', modelConfig);
+      const responseData = response.data as any;
+      return responseData.data || responseData; // 兼容两种响应格式
     } catch (error) {
       console.error('创建AI模型配置失败:', error);
       throw error;
@@ -90,11 +82,9 @@ const systemService = {
    */
   async updateAIModel(modelName: string, modelConfig: Partial<AIModelConfig>): Promise<AIModelConfig> {
     try {
-      const response = await apiClient.put(`/system/ai-models/${modelName}`, modelConfig);
-      if (!response.ok) {
-        throw new Error(`更新AI模型配置失败: ${response.status}`);
-      }
-      return response.data?.data;
+      const response = await apiClient.put<{success: boolean, data: AIModelConfig, message: string}>(`/system/ai-models/${modelName}`, modelConfig);
+      const responseData = response.data as any;
+      return responseData.data || responseData; // 兼容两种响应格式
     } catch (error) {
       console.error('更新AI模型配置失败:', error);
       throw error;
@@ -106,10 +96,7 @@ const systemService = {
    */
   async deleteAIModel(modelName: string): Promise<void> {
     try {
-      const response = await apiClient.delete(`/system/ai-models/${modelName}`);
-      if (!response.ok) {
-        throw new Error(`删除AI模型配置失败: ${response.status}`);
-      }
+      await apiClient.delete(`/system/ai-models/${modelName}`);
     } catch (error) {
       console.error('删除AI模型配置失败:', error);
       throw error;
@@ -121,11 +108,9 @@ const systemService = {
    */
   async toggleAIModelStatus(modelName: string): Promise<AIModelConfig> {
     try {
-      const response = await apiClient.post(`/system/ai-models/${modelName}/toggle`);
-      if (!response.ok) {
-        throw new Error(`切换AI模型状态失败: ${response.status}`);
-      }
-      return response.data?.data;
+      const response = await apiClient.post<{success: boolean, data: AIModelConfig, message: string}>(`/system/ai-models/${modelName}/toggle`);
+      const responseData = response.data as any;
+      return responseData.data || responseData; // 兼容两种响应格式
     } catch (error) {
       console.error('切换AI模型状态失败:', error);
       throw error;

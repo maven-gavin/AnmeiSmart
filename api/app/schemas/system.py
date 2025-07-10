@@ -28,10 +28,10 @@ class AIModelConfigInfo(BaseModel):
     def from_model(model) -> "AIModelConfigInfo":
         """从ORM模型转换"""
         return AIModelConfigInfo(
-            modelName=model.modelName,
-            apiKey=model.apiKey,
-            baseUrl=model.baseUrl,
-            maxTokens=int(model.maxTokens) if model.maxTokens else 2000,
+            modelName=model.model_name,
+            apiKey="••••••••••••••••••••",  # 隐藏真实API密钥
+            baseUrl=model.base_url,
+            maxTokens=int(model.max_tokens) if model.max_tokens else 2000,
             temperature=model.temperature,
             enabled=model.enabled,
             provider=model.provider,

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { apiClient } from '@/service/apiClient';
 
 interface DifyConnection {
   id: string;
@@ -55,11 +56,6 @@ export const DifyConnectionManager: React.FC = () => {
     is_default_for_type: false
   });
 
-  const getAuthHeaders = () => ({
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${localStorage.getItem('token')}`
-  });
-
   useEffect(() => {
     loadConnections();
     loadAgentTypes();
@@ -67,36 +63,26 @@ export const DifyConnectionManager: React.FC = () => {
 
   const loadConnections = async () => {
     try {
-      const response = await fetch('/api/v1/dify-management/connections', {
-        headers: getAuthHeaders()
-      });
+      const response = await apiClient.get('/dify-management/connections');
+      const data = response.data as { connections: DifyConnection[] };
+      setConnections(data.connections);
       
-      if (response.ok) {
-        const data = await response.json();
-        setConnections(data.connections);
-        
-        // 选择默认连接
-        const defaultConnection = data.connections.find((conn: DifyConnection) => conn.is_default);
-        if (defaultConnection) {
-          setSelectedConnection(defaultConnection.id);
-          loadApps(defaultConnection.id);
-        }
+      // 选择默认连接
+      const defaultConnection = data.connections.find((conn: DifyConnection) => conn.is_default);
+      if (defaultConnection) {
+        setSelectedConnection(defaultConnection.id);
+        loadApps(defaultConnection.id);
       }
     } catch (error) {
+      console.error('加载Dify连接失败:', error);
       toast.error('加载Dify连接失败');
     }
   };
 
   const loadAgentTypes = async () => {
     try {
-      const response = await fetch('/api/v1/dify-management/agent-types', {
-        headers: getAuthHeaders()
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setAgentTypes(data);
-      }
+      const response = await apiClient.get('/dify-management/agent-types');
+      setAgentTypes(response.data as AgentType[]);
     } catch (error) {
       console.error('加载Agent类型失败:', error);
     }
@@ -105,29 +91,21 @@ export const DifyConnectionManager: React.FC = () => {
   const createConnection = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/v1/dify-management/connections', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(newConnection)
+      await apiClient.post('/dify-management/connections', newConnection);
+      
+      toast.success('Dify连接创建成功');
+      setShowNewConnection(false);
+      setNewConnection({
+        name: '',
+        api_base_url: 'http://localhost/v1',
+        api_key: '',
+        description: '',
+        is_default: false
       });
-
-      if (response.ok) {
-        toast.success('Dify连接创建成功');
-        setShowNewConnection(false);
-        setNewConnection({
-          name: '',
-          api_base_url: 'http://localhost/v1',
-          api_key: '',
-          description: '',
-          is_default: false
-        });
-        loadConnections();
-      } else {
-        const errorData = await response.json();
-        toast.error(`创建连接失败: ${errorData.detail}`);
-      }
-    } catch (error) {
-      toast.error('创建连接失败');
+      loadConnections();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.detail || error?.message || '创建连接失败';
+      toast.error(`创建连接失败: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -135,11 +113,8 @@ export const DifyConnectionManager: React.FC = () => {
 
   const testConnection = async (connectionId: string) => {
     try {
-      const response = await fetch(`/api/v1/dify-management/connections/${connectionId}/test`, {
-        method: 'POST',
-        headers: getAuthHeaders()
-      });
-      const data = await response.json();
+      const response = await apiClient.post(`/dify-management/connections/${connectionId}/test`);
+      const data = response.data as any;
       
       if (data.success) {
         toast.success('连接测试成功');
@@ -154,11 +129,8 @@ export const DifyConnectionManager: React.FC = () => {
   const syncApps = async (connectionId: string) => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/v1/dify-management/connections/${connectionId}/sync`, {
-        method: 'POST',
-        headers: getAuthHeaders()
-      });
-      const data = await response.json();
+      const response = await apiClient.post(`/dify-management/connections/${connectionId}/sync`);
+      const data = response.data as any;
       
       if (data.success) {
         toast.success(data.message);
@@ -176,15 +148,11 @@ export const DifyConnectionManager: React.FC = () => {
 
   const loadApps = async (connectionId: string) => {
     try {
-      const response = await fetch(`/api/v1/dify-management/connections/${connectionId}/apps`, {
-        headers: getAuthHeaders()
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setApps(data.apps);
-      }
+      const response = await apiClient.get(`/dify-management/connections/${connectionId}/apps`);
+      const data = response.data as any;
+      setApps(data.apps);
     } catch (error) {
+      console.error('加载应用列表失败:', error);
       toast.error('加载应用列表失败');
     }
   };
@@ -194,33 +162,25 @@ export const DifyConnectionManager: React.FC = () => {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/v1/dify-management/apps/configure', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          connection_id: selectedConnection,
-          app_id: selectedApp.id,
-          app_name: selectedApp.name,
-          app_mode: selectedApp.mode,
-          ...appConfig
-        })
+      await apiClient.post('/dify-management/apps/configure', {
+        connection_id: selectedConnection,
+        app_id: selectedApp.id,
+        app_name: selectedApp.name,
+        app_mode: selectedApp.mode,
+        ...appConfig
       });
 
-      if (response.ok) {
-        toast.success('应用配置成功');
-        setShowAppConfig(false);
-        setSelectedApp(null);
-        setAppConfig({
-          agent_type: 'general_chat',
-          description: '',
-          is_default_for_type: false
-        });
-      } else {
-        const errorData = await response.json();
-        toast.error(`配置应用失败: ${errorData.detail}`);
-      }
-    } catch (error) {
-      toast.error('配置应用失败');
+      toast.success('应用配置成功');
+      setShowAppConfig(false);
+      setSelectedApp(null);
+      setAppConfig({
+        agent_type: 'general_chat',
+        description: '',
+        is_default_for_type: false
+      });
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.detail || error?.message || '配置应用失败';
+      toast.error(`配置应用失败: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
