@@ -11,6 +11,7 @@ from app.schemas.system import (
     AIModelConfigResponse,
     AIModelConfigListResponse
 )
+# 移除了Dify相关导入，现在使用独立的AI应用管理模块
 
 router = APIRouter()
 
@@ -156,6 +157,9 @@ def toggle_ai_model_status(
     _notify_ai_service_config_change()
     
     return toggle_response
+
+
+# 已移除的Dify管理端点 - 现在使用 /api/v1/ai-apps 端点
 
 
 def _notify_ai_service_config_change():

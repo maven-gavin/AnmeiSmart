@@ -205,8 +205,9 @@ class AIService:
                 service.model = config.get("model", "gpt-3.5-turbo")
                 
             elif provider == "dify":
-                from .dify_factory import DifyServiceFactory
-                service = DifyServiceFactory.create_from_env_config(config)
+                # Dify支持已迁移到AI Gateway架构
+                logger.warning("Dify集成已迁移到AI Gateway，请使用新的AI Gateway服务")
+                return None
                 
             else:
                 logger.warning(f"未知的AI提供商: {provider}")

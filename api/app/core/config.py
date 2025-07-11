@@ -53,6 +53,18 @@ class Settings(BaseSettings):
     OPENAI_API_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_MODEL: str = "gpt-3.5-turbo"
     
+    # AI Gateway配置（取代了原有的Dify配置）
+    # AI Gateway通过统一接口支持多个AI提供商
+    
+    # AI Gateway配置
+    AI_GATEWAY_CACHE_ENABLED: bool = True
+    AI_GATEWAY_CACHE_TTL: int = 300
+    AI_GATEWAY_CACHE_SIZE: int = 1000
+    AI_GATEWAY_CIRCUIT_BREAKER_THRESHOLD: int = 5
+    AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT: int = 60
+    AI_GATEWAY_DEFAULT_TIMEOUT: int = 30
+    AI_GATEWAY_MAX_RETRIES: int = 3
+    
     # 通知服务配置
     NOTIFICATION_PROVIDER: str = "logging"  # logging, firebase, apns
     

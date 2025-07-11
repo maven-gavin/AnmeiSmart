@@ -91,9 +91,7 @@ def get_active_ai_configs(db: Session) -> List[Dict[str, Any]]:
             "model": model.model_name,
             "temperature": model.temperature,
             "max_tokens": model.max_tokens,
-            "dify_connection_id": model.dify_connection_id,
-            "dify_app_id": model.dify_app_id,
-            "agent_type": model.agent_type,
+
             "is_enabled": model.enabled
         }
         for model in ai_models
@@ -133,8 +131,6 @@ def get_default_ai_config(db: Session) -> Optional[Dict[str, Any]]:
         "model": default_model.model_name,
         "temperature": default_model.temperature,
         "max_tokens": default_model.max_tokens,
-        "dify_connection_id": default_model.dify_connection_id,
-        "dify_app_id": default_model.dify_app_id,
-        "agent_type": default_model.agent_type,
+
         "is_enabled": default_model.enabled
     } 

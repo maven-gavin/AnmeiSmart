@@ -1,5 +1,7 @@
 """
-AI回复服务 - 处理AI自动回复逻辑
+AI回复服务 - 基于AI Gateway的新架构实现
+
+使用统一的AI Gateway调用AI能力，支持多提供商自动切换和降级。
 """
 import asyncio
 from typing import List, Dict, Any, Optional
@@ -11,6 +13,7 @@ from app.db.models.chat import Message, Conversation
 from app.core.events import event_bus, EventTypes, Event
 from .message_service import MessageService
 from app.schemas.chat import MessageInfo
+from app.services.ai.ai_gateway_service import get_ai_gateway_service
 
 logger = logging.getLogger(__name__)
 
@@ -54,51 +57,51 @@ class AIResponseService:
             return False
     
     async def generate_ai_response(self, conversation_id: str, user_message: str):
-        """生成AI回复"""
-        AI_SENDER_ID = None
+        """生成AI回复 - 使用AI Gateway"""
+        AI_SENDER_ID = "ai_system"
         AI_SENDER_TYPE = "ai"
+        
         try:
             logger.info(f"开始生成AI回复: conversation_id={conversation_id}, user_message={user_message}")
             
             # 获取会话历史
             history = self.get_conversation_history(conversation_id)
             
-            # 获取AI服务实例（传入数据库session以支持配置读取）
-            from app.services.ai import get_ai_service
-            ai_service = get_ai_service(self.db)
+            # 获取用户档案信息
+            user_profile = await self._get_user_profile_from_conversation(conversation_id)
             
-            # 设置超时时间
-            timeout = 5.0
-            
-            # 生成AI回复
-            ai_response = await asyncio.wait_for(
-                ai_service.get_response(user_message, history),
-                timeout=timeout
+            # 使用AI Gateway生成回复
+            ai_gateway = get_ai_gateway_service(self.db)
+            ai_response = await ai_gateway.customer_service_chat(
+                message=user_message,
+                user_id=self._get_user_id_from_conversation(conversation_id),
+                session_id=conversation_id,
+                conversation_history=history
             )
             
-            # 类型检查
-            if not isinstance(ai_response, dict):
-                logger.error(f"AI服务返回格式错误: {ai_response}")
-                await self.create_error_message(conversation_id, "AI服务返回格式错误")
+            # 检查AI响应是否成功
+            if not ai_response.success:
+                logger.error(f"AI回复生成失败: {ai_response.error_message}")
+                await self.create_error_message(conversation_id, ai_response.error_message or "AI服务暂时不可用")
                 return
             
             # 创建AI回复消息
             ai_message = await self.message_service.create_message(
                 conversation_id=conversation_id,
-                content=ai_response.get("content", "抱歉，我暂时无法回复"),
+                content={"text": ai_response.content},  # 使用新的消息格式
                 message_type="text",
                 sender_id=AI_SENDER_ID,
                 sender_type=AI_SENDER_TYPE
             )
             
-            logger.info(f"AI回复生成成功: message_id={ai_message.id}")
+            logger.info(f"AI回复生成成功: message_id={ai_message.id}, provider={ai_response.provider.value}")
             
             # 发布AI回复事件
             from app.core.events import create_message_event
             event = create_message_event(
                 conversation_id=conversation_id,
                 user_id="ai_system",
-                content=ai_message.content,
+                content=ai_response.content,
                 message_type="text",
                 sender_type=AI_SENDER_TYPE,
                 message_id=ai_message.id
@@ -106,13 +109,33 @@ class AIResponseService:
             event.type = EventTypes.AI_RESPONSE_GENERATED
             await event_bus.publish_async(event)
             
-        except asyncio.TimeoutError:
-            logger.error(f"AI回复生成超时: conversation_id={conversation_id}")
-            await self.create_timeout_message(conversation_id)
-            
         except Exception as e:
             logger.error(f"AI回复生成失败: conversation_id={conversation_id}, 错误={e}")
             await self.create_error_message(conversation_id, str(e))
+    
+    async def _get_user_profile_from_conversation(self, conversation_id: str) -> Optional[Dict[str, Any]]:
+        """从会话中获取用户档案信息"""
+        try:
+            conversation = self.db.query(Conversation).filter(Conversation.id == conversation_id).first()
+            if conversation and conversation.customer_id:
+                # 这里可以从Customer表获取用户档案信息
+                # 暂时返回基本信息
+                return {"user_type": "customer", "conversation_id": conversation_id}
+            return None
+        except Exception as e:
+            logger.error(f"获取用户档案失败: {e}")
+            return None
+    
+    def _get_user_id_from_conversation(self, conversation_id: str) -> str:
+        """从会话中获取用户ID"""
+        try:
+            conversation = self.db.query(Conversation).filter(Conversation.id == conversation_id).first()
+            if conversation and conversation.customer_id:
+                return conversation.customer_id
+            return f"anonymous_{conversation_id}"
+        except Exception as e:
+            logger.error(f"获取用户ID失败: {e}")
+            return f"anonymous_{conversation_id}"
     
     def get_conversation_history(self, conversation_id: str, limit: int = 10) -> List[Dict[str, Any]]:
         """获取会话历史用于AI上下文"""
