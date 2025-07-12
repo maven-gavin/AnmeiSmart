@@ -15,6 +15,9 @@ import { AppError, ErrorType } from '@/service/errors';
 import FileSelector from './FileSelector';
 import { MessageUtils } from '@/utils/messageUtils';
 import { apiClient } from '@/service/apiClient';
+import { useAuthContext } from '@/contexts/AuthContext';
+import PlanGenerationButton from './PlanGenerationButton';
+import { useSearchParams } from 'next/navigation';
 
 interface MessageInputProps {
   conversationId?: string | null;
@@ -82,11 +85,22 @@ export default function MessageInput({
   onUpdateMessages,
   messages = []
 }: MessageInputProps) {
+  const { user } = useAuthContext();
+  const searchParams = useSearchParams();
 
   // 内部管理的状态
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  
+  // 获取URL参数中的客户ID（仅在顾问界面）
+  const customerId = searchParams?.get('customerId');
+  
+  // 检查当前用户是否为顾问
+  const isConsultant = user?.currentRole === 'consultant';
+  
+  // 显示方案生成按钮的条件：是顾问且有会话ID和客户ID
+  const showPlanGeneration = isConsultant && conversationId && customerId;
 
   // 录音相关状态
   const {
@@ -482,6 +496,23 @@ export default function MessageInput({
           
           {/* 顾问接管按钮 - 使用专门的组件 */}
           <ConsultantTakeover conversationId={conversationId} />
+          
+          {/* AI方案生成按钮 - 仅对顾问显示 */}
+          {showPlanGeneration && (
+            <PlanGenerationButton
+              conversationId={conversationId}
+              customerId={customerId}
+              consultantId={user?.id || ''}
+              onPlanGenerated={(plan) => {
+                console.log('方案生成完成:', plan);
+                // 可以在这里处理方案生成完成后的逻辑
+                // 比如刷新消息列表或显示成功提示
+                if (onUpdateMessages) {
+                  onUpdateMessages();
+                }
+              }}
+            />
+          )}
                     
           <button className="flex-shrink-0 text-gray-500 hover:text-gray-700" title="表情">
             <svg

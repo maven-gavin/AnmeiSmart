@@ -324,6 +324,383 @@ class AIService:
             "metadata": {}
         }
     
+    async def extract_customer_info(self, conversation_text: str) -> Dict[str, Any]:
+        """
+        从对话中提取客户信息
+        
+        Args:
+            conversation_text: 对话文本内容
+            
+        Returns:
+            提取的结构化客户信息
+        """
+        try:
+            # 如果没有可用配置，使用基础的信息提取
+            if not self._active_configs:
+                return self._extract_info_basic(conversation_text)
+            
+            # 选择配置
+            config = self._default_config or self._active_configs[0]
+            service = self._get_service_instance(config)
+            
+            if not service:
+                logger.warning("无法获取AI服务实例，使用基础信息提取")
+                return self._extract_info_basic(conversation_text)
+            
+            # 构建专门的信息提取提示
+            extraction_prompt = self._build_info_extraction_prompt(conversation_text)
+            
+            # 调用AI服务
+            if hasattr(service, 'extract_customer_info'):
+                response = await service.extract_customer_info(extraction_prompt)
+            else:
+                # 使用通用响应方法
+                response = await service.generate_response(extraction_prompt)
+            
+            # 解析AI响应为结构化信息
+            return self._parse_extraction_response(response)
+            
+        except Exception as e:
+            logger.error(f"AI信息提取失败: {str(e)}")
+            return self._extract_info_basic(conversation_text)
+    
+    async def generate_beauty_plan(self, plan_request: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        生成美容方案
+        
+        Args:
+            plan_request: 方案生成请求，包含客户信息和生成选项
+            
+        Returns:
+            生成的方案内容
+        """
+        try:
+            # 如果没有可用配置，使用模板方案
+            if not self._active_configs:
+                return self._generate_template_plan(plan_request)
+            
+            # 选择配置
+            config = self._default_config or self._active_configs[0]
+            service = self._get_service_instance(config)
+            
+            if not service:
+                logger.warning("无法获取AI服务实例，使用模板方案")
+                return self._generate_template_plan(plan_request)
+            
+            # 构建方案生成提示
+            generation_prompt = self._build_plan_generation_prompt(plan_request)
+            
+            # 调用AI服务
+            if hasattr(service, 'generate_beauty_plan'):
+                response = await service.generate_beauty_plan(generation_prompt)
+            else:
+                # 使用通用响应方法
+                response = await service.generate_response(generation_prompt)
+            
+            # 解析AI响应为方案内容
+            return self._parse_plan_response(response)
+            
+        except Exception as e:
+            logger.error(f"AI方案生成失败: {str(e)}")
+            return self._generate_template_plan(plan_request)
+    
+    async def optimize_plan(self, optimization_request: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        优化方案
+        
+        Args:
+            optimization_request: 优化请求，包含原方案和优化要求
+            
+        Returns:
+            优化后的方案内容
+        """
+        try:
+            # 如果没有可用配置，使用规则优化
+            if not self._active_configs:
+                return self._optimize_plan_basic(optimization_request)
+            
+            # 选择配置
+            config = self._default_config or self._active_configs[0]
+            service = self._get_service_instance(config)
+            
+            if not service:
+                logger.warning("无法获取AI服务实例，使用基础优化")
+                return self._optimize_plan_basic(optimization_request)
+            
+            # 构建优化提示
+            optimization_prompt = self._build_optimization_prompt(optimization_request)
+            
+            # 调用AI服务
+            if hasattr(service, 'optimize_plan'):
+                response = await service.optimize_plan(optimization_prompt)
+            else:
+                # 使用通用响应方法
+                response = await service.generate_response(optimization_prompt)
+            
+            # 解析AI响应为优化方案
+            return self._parse_optimization_response(response)
+            
+        except Exception as e:
+            logger.error(f"AI方案优化失败: {str(e)}")
+            return self._optimize_plan_basic(optimization_request)
+    
+    def _build_info_extraction_prompt(self, conversation_text: str) -> str:
+        """构建信息提取提示"""
+        return f"""
+        请从以下医美咨询对话中提取客户信息，并以JSON格式返回：
+
+        对话内容：
+        {conversation_text}
+
+        请提取以下信息：
+        1. basic_info: 基础信息（年龄、性别、肌肤类型、病史等）
+        2. concerns: 关注点（主要困扰、次要困扰、严重程度、影响部位等）
+        3. budget: 预算信息（预算范围、付款偏好、灵活性等）
+        4. timeline: 时间安排（希望开始时间、可用时间、紧急程度等）
+        5. expectations: 期望（期望效果、以往经验、风险承受度等）
+        6. additional_notes: 其他备注
+        7. extraction_confidence: 提取置信度（0-1之间的数值）
+
+        请以标准JSON格式返回，如果某些信息未提及，设为null。
+        """
+    
+    def _build_plan_generation_prompt(self, plan_request: Dict[str, Any]) -> str:
+        """构建方案生成提示"""
+        customer_info = plan_request.get("customer_info", {})
+        generation_options = plan_request.get("generation_options", {})
+        
+        return f"""
+        请根据以下客户信息生成个性化的医美方案：
+
+        客户信息：
+        {json.dumps(customer_info, ensure_ascii=False, indent=2)}
+
+        生成选项：
+        {json.dumps(generation_options, ensure_ascii=False, indent=2)}
+
+        请生成包含以下部分的完整方案：
+        1. basic_info: 方案基础信息（标题、描述、目标关注点、难度级别、总时长）
+        2. analysis: 分析（皮肤分析、关注点优先级、治疗方法、预期时间线）
+        3. treatment_plan: 治疗计划（分阶段的具体治疗项目）
+        4. cost_breakdown: 费用明细（治疗费用、产品费用、维护费用、总费用、付款选项）
+        5. timeline: 时间线（开始日期、关键节点、完成日期）
+        6. risks_and_precautions: 风险和注意事项（潜在风险、禁忌症、注意事项、紧急联系方式）
+        7. aftercare: 后续护理（即时护理、长期护理、产品推荐）
+
+        请确保方案专业、详细、个性化，符合医美行业标准。以JSON格式返回。
+        """
+    
+    def _build_optimization_prompt(self, optimization_request: Dict[str, Any]) -> str:
+        """构建优化提示"""
+        original_content = optimization_request.get("original_content", {})
+        optimization_type = optimization_request.get("optimization_type", "")
+        requirements = optimization_request.get("requirements", {})
+        feedback = optimization_request.get("feedback", {})
+        
+        return f"""
+        请根据以下要求优化医美方案：
+
+        原方案内容：
+        {json.dumps(original_content, ensure_ascii=False, indent=2)}
+
+        优化类型：{optimization_type}
+
+        优化要求：
+        {json.dumps(requirements, ensure_ascii=False, indent=2)}
+
+        反馈意见：
+        {json.dumps(feedback, ensure_ascii=False, indent=2)}
+
+        请针对{optimization_type}进行优化，保持方案的专业性和完整性。
+        请返回优化后的完整方案，以JSON格式输出。
+        """
+    
+    def _extract_info_basic(self, conversation_text: str) -> Dict[str, Any]:
+        """基础信息提取（关键词匹配）"""
+        logger.info("使用基础信息提取")
+        
+        extracted_info = {
+            "basic_info": {},
+            "concerns": {},
+            "budget": {},
+            "timeline": {},
+            "expectations": {},
+            "additional_notes": "基于关键词匹配的基础信息提取",
+            "extraction_confidence": 0.3
+        }
+        
+        text_lower = conversation_text.lower()
+        
+        # 提取关注点
+        concerns_keywords = {
+            "痘痘": "acne",
+            "痤疮": "acne", 
+            "细纹": "fine_lines",
+            "皱纹": "wrinkles",
+            "色斑": "pigmentation",
+            "黑眼圈": "dark_circles",
+            "毛孔": "pores",
+            "暗沉": "dullness"
+        }
+        
+        found_concerns = []
+        for keyword, concern_type in concerns_keywords.items():
+            if keyword in text_lower:
+                found_concerns.append(concern_type)
+        
+        if found_concerns:
+            extracted_info["concerns"] = {
+                "primary_concern": found_concerns[0],
+                "secondary_concerns": found_concerns[1:] if len(found_concerns) > 1 else []
+            }
+        
+        # 提取预算信息
+        if "预算" in text_lower or "价格" in text_lower or "费用" in text_lower:
+            # 简单的数字提取
+            import re
+            numbers = re.findall(r'\d+', conversation_text)
+            if numbers:
+                extracted_info["budget"] = {
+                    "budget_range": f"{min(numbers)}-{max(numbers)}"
+                }
+        
+        return extracted_info
+    
+    def _generate_template_plan(self, plan_request: Dict[str, Any]) -> Dict[str, Any]:
+        """生成模板方案"""
+        logger.info("使用模板方案生成")
+        
+        customer_info = plan_request.get("customer_info", {})
+        concerns = customer_info.get("concerns", {})
+        primary_concern = concerns.get("primary_concern", "general_beauty")
+        
+        # 根据主要关注点选择模板
+        if primary_concern in ["acne", "痘痘", "痤疮"]:
+            return self._get_acne_treatment_template()
+        elif primary_concern in ["fine_lines", "wrinkles", "细纹", "皱纹"]:
+            return self._get_anti_aging_template()
+        elif primary_concern in ["pigmentation", "色斑"]:
+            return self._get_whitening_template()
+        else:
+            return self._get_general_beauty_template()
+    
+    def _get_acne_treatment_template(self) -> Dict[str, Any]:
+        """痤疮治疗模板"""
+        return {
+            "title": "痤疮综合治疗方案",
+            "description": "针对痤疮问题的个性化治疗方案",
+            "target_concerns": ["acne", "acne_scars"],
+            "difficulty_level": "intermediate",
+            "total_duration": "3-6个月"
+        }
+    
+    def _get_anti_aging_template(self) -> Dict[str, Any]:
+        """抗衰老模板"""
+        return {
+            "title": "抗衰老美肌方案",
+            "description": "针对细纹和衰老问题的综合治疗方案",
+            "target_concerns": ["fine_lines", "wrinkles", "skin_laxity"],
+            "difficulty_level": "intermediate",
+            "total_duration": "3-6个月"
+        }
+    
+    def _get_whitening_template(self) -> Dict[str, Any]:
+        """美白模板"""
+        return {
+            "title": "美白亮肤方案",
+            "description": "针对色斑和肤色暗沉的美白治疗方案",
+            "target_concerns": ["pigmentation", "dullness"],
+            "difficulty_level": "beginner",
+            "total_duration": "2-4个月"
+        }
+    
+    def _get_general_beauty_template(self) -> Dict[str, Any]:
+        """通用美容模板"""
+        return {
+            "title": "综合美肌方案",
+            "description": "个性化的综合美容护理方案",
+            "target_concerns": ["general_beauty"],
+            "difficulty_level": "beginner",
+            "total_duration": "3-6个月"
+        }
+    
+    def _optimize_plan_basic(self, optimization_request: Dict[str, Any]) -> Dict[str, Any]:
+        """基础方案优化"""
+        logger.info("使用基础方案优化")
+        
+        original_content = optimization_request.get("original_content", {})
+        optimization_type = optimization_request.get("optimization_type", "")
+        requirements = optimization_request.get("requirements", {})
+        
+        optimized_content = original_content.copy()
+        
+        # 简单的优化逻辑
+        if optimization_type == "cost" and "target_budget" in requirements:
+            target_budget = requirements["target_budget"]
+            if "cost_breakdown" in optimized_content:
+                optimized_content["cost_breakdown"]["total_cost"] = target_budget
+        
+        return optimized_content
+    
+    def _parse_extraction_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        """解析信息提取响应"""
+        try:
+            content = response.get("content", "")
+            # 尝试从响应中提取JSON
+            import json
+            if "{" in content and "}" in content:
+                json_start = content.find("{")
+                json_end = content.rfind("}") + 1
+                json_str = content[json_start:json_end]
+                return json.loads(json_str)
+        except Exception as e:
+            logger.error(f"解析信息提取响应失败: {e}")
+        
+        # 如果解析失败，返回基础结构
+        return {
+            "basic_info": {},
+            "concerns": {},
+            "budget": {},
+            "timeline": {},
+            "expectations": {},
+            "additional_notes": "AI响应解析失败",
+            "extraction_confidence": 0.1
+        }
+    
+    def _parse_plan_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        """解析方案生成响应"""
+        try:
+            content = response.get("content", "")
+            # 尝试从响应中提取JSON
+            import json
+            if "{" in content and "}" in content:
+                json_start = content.find("{")
+                json_end = content.rfind("}") + 1
+                json_str = content[json_start:json_end]
+                return json.loads(json_str)
+        except Exception as e:
+            logger.error(f"解析方案生成响应失败: {e}")
+        
+        # 如果解析失败，返回基础模板
+        return self._get_general_beauty_template()
+    
+    def _parse_optimization_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        """解析优化响应"""
+        try:
+            content = response.get("content", "")
+            # 尝试从响应中提取JSON
+            import json
+            if "{" in content and "}" in content:
+                json_start = content.find("{")
+                json_end = content.rfind("}") + 1
+                json_str = content[json_start:json_end]
+                return json.loads(json_str)
+        except Exception as e:
+            logger.error(f"解析优化响应失败: {e}")
+        
+        # 如果解析失败，返回原内容
+        return response.get("original_content", {})
+
     def reload_configurations(self) -> None:
         """重新加载配置（用于配置变更时的动态更新）"""
         self._service_instances.clear()  # 清除缓存

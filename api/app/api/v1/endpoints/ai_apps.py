@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.api import deps
-from app.services.ai.ai_app_config_service import create_ai_app_config_service
+from app.services.system_service import get_system_settings, update_system_settings
+from app.db.models.system import AIModelConfig
 import logging
 
 logger = logging.getLogger(__name__)

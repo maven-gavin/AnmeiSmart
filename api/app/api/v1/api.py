@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import users, auth, roles, chat, ai, system, customer, websocket, files, consultation_summary, consultant, ai_apps, ai_gateway
+from app.api.v1.endpoints import users, auth, roles, chat, ai, system, customer, websocket, files, consultation_summary, consultant, ai_gateway, plan_generation
 
 api_router = APIRouter()
 
@@ -38,11 +38,11 @@ api_router.include_router(consultant.router, prefix="/consultant", tags=["consul
 
 # 原Dify管理路由已删除，功能已迁移到AI Gateway
 
-# AI应用管理路由
-api_router.include_router(ai_apps.router, prefix="/ai-apps", tags=["ai-apps"])
-
 # AI Gateway路由
 api_router.include_router(ai_gateway.router, prefix="/ai-gateway", tags=["ai-gateway"])
+
+# AI辅助方案生成路由
+api_router.include_router(plan_generation.router, prefix="/plan-generation", tags=["plan-generation"])
 
 # 后续可添加其他路由
 # api_router.include_router(plans.router, prefix="/plans", tags=["plans"])
