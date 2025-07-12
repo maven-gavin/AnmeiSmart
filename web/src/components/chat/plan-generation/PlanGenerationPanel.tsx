@@ -28,7 +28,8 @@ import {
   optimizePlan,
   getPlanGenerationSession,
   getPlanGenerationSessionByConversation,
-  getSessionVersions
+  getSessionVersions,
+  getDraft
 } from '@/service/planGenerationService';
 
 interface PlanGenerationPanelProps {
@@ -61,7 +62,7 @@ export default function PlanGenerationPanel({
   
   // 表单状态
   const [optimizationFeedback, setOptimizationFeedback] = useState('');
-  const [optimizationType, setOptimizationType] = useState<'content' | 'cost' | 'time'>('content');
+  const [optimizationType, setOptimizationType] = useState<'content' | 'cost' | 'timeline'>('content');
 
   // 初始化会话
   useEffect(() => {
@@ -81,8 +82,8 @@ export default function PlanGenerationPanel({
         existingSession = await createPlanGenerationSession({
           conversation_id: conversationId,
           customer_id: customerId,
+          consultant_id: consultantId,
           session_metadata: {
-            consultant_id: consultantId,
             created_from: 'chat_interface'
           }
         });
@@ -133,14 +134,7 @@ export default function PlanGenerationPanel({
       setProgress(25);
       
       const analysisResult = await analyzeConversationInfo({
-        session_id: session.id,
-        conversation_id: conversationId,
-        options: {
-          extract_preferences: true,
-          extract_budget: true,
-          extract_timeline: true,
-          extract_medical_history: true
-        }
+        conversation_id: conversationId
       });
       
       setAnalysis(analysisResult);
@@ -170,23 +164,17 @@ export default function PlanGenerationPanel({
       setStep('generating');
       setProgress(75);
       
-      const plan = await generatePlan({
-        session_id: session.id,
-        customer_info: analysis.extracted_info || {},
-        requirements: {
-          budget_range: analysis.budget_info,
-          timeline_preference: analysis.timeline_info,
-          treatment_preferences: analysis.preferences
-        },
+      const planResponse = await generatePlan({
+        conversation_id: conversationId,
         generation_options: {
-          include_alternatives: true,
           include_timeline: true,
-          include_cost_breakdown: true,
-          include_risk_assessment: true
+          include_cost_breakdown: true
         }
       });
       
-      setCurrentDraft(plan);
+      // 获取生成的草稿
+      const draft = await getDraft(planResponse.draft_id);
+      setCurrentDraft(draft);
       setProgress(100);
       setStep('completed');
       setActiveTab('generation');
@@ -196,7 +184,7 @@ export default function PlanGenerationPanel({
       
       // 通知外部组件
       if (onPlanGenerated) {
-        onPlanGenerated(plan);
+        onPlanGenerated(draft);
       }
       
     } catch (error) {
@@ -215,13 +203,12 @@ export default function PlanGenerationPanel({
       setStep('optimizing');
       
       const optimizedPlan = await optimizePlan({
-        session_id: session.id,
         draft_id: currentDraft.id,
         optimization_type: optimizationType,
         feedback: optimizationFeedback,
         requirements: {
           maintain_budget: optimizationType !== 'cost',
-          maintain_timeline: optimizationType !== 'time',
+          maintain_timeline: optimizationType !== 'timeline',
           maintain_treatments: optimizationType !== 'content'
         }
       });
@@ -373,21 +360,21 @@ export default function PlanGenerationPanel({
                   <div>
                     <h4 className="font-medium">推荐项目</h4>
                     <p className="text-sm text-gray-600">
-                      {currentDraft.plan_content?.recommended_treatments?.join(', ') || '暂无数据'}
+                      {currentDraft.content?.recommended_treatments?.join(', ') || '暂无数据'}
                     </p>
                   </div>
                   
                   <div>
                     <h4 className="font-medium">预估费用</h4>
                     <p className="text-sm text-gray-600">
-                      {currentDraft.plan_content?.cost_estimate || '暂无数据'}
+                      {currentDraft.content?.cost_estimate || '暂无数据'}
                     </p>
                   </div>
                   
                   <div>
                     <h4 className="font-medium">预计时间</h4>
                     <p className="text-sm text-gray-600">
-                      {currentDraft.plan_content?.timeline || '暂无数据'}
+                      {currentDraft.content?.timeline || '暂无数据'}
                     </p>
                   </div>
                 </div>
@@ -442,14 +429,17 @@ export default function PlanGenerationPanel({
             <div className="space-y-4">
               <div>
                 <Label htmlFor="optimization-type">优化类型</Label>
-                <Select value={optimizationType} onValueChange={setOptimizationType}>
+                <Select 
+                  value={optimizationType} 
+                  onValueChange={(value: "content" | "cost" | "timeline") => setOptimizationType(value)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="选择优化类型" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="content">内容优化</SelectItem>
                     <SelectItem value="cost">费用优化</SelectItem>
-                    <SelectItem value="time">时间优化</SelectItem>
+                    <SelectItem value="timeline">时间优化</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -523,7 +513,7 @@ export default function PlanGenerationPanel({
                       <div className="flex items-center gap-2">
                         <span className="font-medium">版本 {version.version}</span>
                         {currentDraft?.id === version.id && (
-                          <Badge variant="default" size="sm">当前</Badge>
+                          <Badge variant="default">当前</Badge>
                         )}
                       </div>
                       <p className="text-sm text-gray-600">
@@ -531,7 +521,7 @@ export default function PlanGenerationPanel({
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" size="sm">
+                      <Badge variant="outline">
                         {version.status}
                       </Badge>
                     </div>
@@ -578,7 +568,11 @@ export default function PlanGenerationPanel({
         </div>
       )}
       
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs 
+        defaultValue={activeTab} 
+        onValueChange={(value: string) => setActiveTab(value as "analysis" | "generation" | "optimization" | "versions")} 
+        className="w-full"
+      >
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="analysis">信息分析</TabsTrigger>
           <TabsTrigger value="generation">方案生成</TabsTrigger>
