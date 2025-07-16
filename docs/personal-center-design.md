@@ -35,14 +35,8 @@
 
 **默认角色设置** ⭐核心功能
 
-- 设置登录后的默认角色（用户有多角色时）
-- 角色切换历史记录
+- 设置登录后的默认角色（用户有多角色时，仅首次登录时应用）
 - 角色权限查看（只读）
-
-**角色偏好**
-
-- 每个角色的工作台个性化配置
-- 常用功能快捷方式设置
 
 #### 1.3 安全设置
 
@@ -59,12 +53,6 @@
 - 登录日志查看
 
 #### 1.4 偏好设置
-
-**界面偏好**
-
-- 主题设置（亮色/暗色）
-- 语言设置（中文/英文）
-- 字体大小调整
 
 **通知偏好**
 
@@ -157,17 +145,15 @@ PUT /api/v1/profile/default-role         # 设置默认角色
 **数据模型扩展**
 
 ```sql
--- 用户偏好设置表
+-- 用户偏好设置表（简化版）
 CREATE TABLE user_preferences (
     user_id VARCHAR(36) PRIMARY KEY,
-    theme VARCHAR(20) DEFAULT 'light',
-    language VARCHAR(10) DEFAULT 'zh-CN',
-    font_size VARCHAR(10) DEFAULT 'medium',
     notification_enabled BOOLEAN DEFAULT true,
     email_notification BOOLEAN DEFAULT true,
     push_notification BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- 用户默认角色设置表
@@ -175,7 +161,8 @@ CREATE TABLE user_default_roles (
     user_id VARCHAR(36) PRIMARY KEY,
     default_role VARCHAR(50) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- 登录历史表
@@ -186,9 +173,24 @@ CREATE TABLE login_history (
     user_agent TEXT,
     login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     login_role VARCHAR(50),
-    location VARCHAR(100)
+    location VARCHAR(100),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 ```
+
+**核心实现逻辑**
+
+1. **默认角色应用逻辑**：
+
+   - 用户首次登录时，检查是否设置了默认角色
+   - 如果设置了且用户拥有该角色，自动切换到默认角色
+   - 后续登录记住用户上次使用的角色（通过JWT token中的active_role）
+2. **数据同步策略**：
+
+   - 个人中心的信息修改直接操作现有的users表和相关扩展表
+   - 与现有的customer/profile页面共享相同的数据源
+   - 通过统一的用户服务接口(user_service.py)确保数据一致性
+   - 使用相同的API接口（/api/v1/auth/me, /api/v1/users/me）
 
 ## 用户界面设计
 
@@ -228,16 +230,37 @@ CREATE TABLE login_history (
 
 - 当前拥有的角色列表
 - 默认角色设置（下拉选择）
-- 角色切换历史
 - 各角色权限说明（只读）
 
 ## 权限控制
 
 ### 5.1 访问权限
 
+**基本访问权限**
+
 - 所有已认证用户可访问个人中心
-- 部分敏感信息需要二次验证
-- 管理员可查看（不可编辑）其他用户的基本信息
+- 用户只能查看和修改自己的信息
+
+**功能模块权限**
+
+- **基本信息**：所有用户可查看修改（姓名、邮箱、手机号、头像）
+- **安全设置**：所有用户可访问（密码修改、登录历史查看）
+- **偏好设置**：所有用户可访问（通知偏好设置）
+- **隐私设置**：所有用户可访问（信息可见性控制）
+- **角色管理**：只有多角色用户可见（默认角色设置、权限查看）
+
+**敏感操作权限**
+
+- 密码修改：需要验证当前密码
+- 邮箱修改：需要新邮箱验证码确认
+- 手机号修改：需要新手机号验证码确认
+- 账户注销：需要管理员审核
+
+**管理员特殊权限**
+
+- 可查看（不可编辑）其他用户的基本信息
+- 可查看用户的登录历史
+- 可处理账户注销申请
 
 ### 5.2 数据权限
 
@@ -265,7 +288,6 @@ CREATE TABLE login_history (
 
 - [ ] 隐私控制
 - [ ] 数据导出
-- [ ] 多因子认证
 - [ ] 设备管理
 
 ## 注意事项
@@ -285,3 +307,42 @@ CREATE TABLE login_history (
 - [ ] 界面响应式设计适配移动端
 - [ ] 所有表单验证正确工作
 - [ ] 权限控制符合安全要求
+
+## 技术实现详细说明
+
+### 默认角色实现逻辑
+
+1. **数据存储**：在 `user_default_roles` 表中存储用户的默认角色设置
+2. **首次登录检查**：
+   ```javascript
+   // 在authService.login中添加逻辑
+   if (isFirstLogin && userHasDefaultRole && userHasThisRole) {
+     await this.switchRole(defaultRole);
+   }
+   ```
+3. **角色记忆**：后续登录使用JWT token中的active_role
+4. **设置界面**：在个人中心提供下拉选择器设置默认角色
+
+### 数据同步方案
+
+1. **统一数据源**：
+
+   - 个人中心与现有profile页面使用相同的API接口
+   - 共享 `users` 表和各角色扩展表（`customers`, `doctors`, 等）
+   - 通过 `user_service.py` 统一处理数据更新
+2. **API复用**：
+
+   - 复用现有的 `/api/v1/auth/me` 和 `/api/v1/users/me` 接口
+   - 扩展现有的用户更新接口支持个人中心的新字段
+3. **前端同步**：
+
+   - 使用相同的 `authService` 和用户状态管理
+   - 个人中心的修改会触发全局用户状态更新
+
+### 集成现有系统
+
+个人中心作为新增功能，将与现有系统无缝集成：
+
+- 不破坏现有的用户管理功能
+- 复用现有的权限控制体系
+- 保持与现有API的兼容性
