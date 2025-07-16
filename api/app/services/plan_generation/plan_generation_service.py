@@ -24,7 +24,7 @@ from app.schemas.plan_generation import (
     PlanContent,
     PlanBasicInfo
 )
-from app.services.ai.ai_service import AIService
+from app.services.ai.ai_gateway_service import get_ai_gateway_service
 from .info_analysis_service import InfoAnalysisService
 from .plan_optimization_service import PlanOptimizationService
 from .plan_version_service import PlanVersionService
@@ -37,7 +37,7 @@ class PlanGenerationService:
     
     def __init__(self, db: Session):
         self.db = db
-        self.ai_service = AIService()
+        self.ai_gateway_service = get_ai_gateway_service(db)  # 使用AI Gateway服务
         self.info_analysis_service = InfoAnalysisService(db)
         self.plan_optimization_service = PlanOptimizationService(db)
         self.plan_version_service = PlanVersionService(db)
@@ -294,7 +294,7 @@ class PlanGenerationService:
         
         # 调用AI服务生成方案
         try:
-            ai_response = await self.ai_service.generate_beauty_plan(ai_request)
+            ai_response = await self.ai_gateway_service.generate_beauty_plan(ai_request)
             
             # 解析AI响应为方案内容
             plan_content = self._parse_ai_response_to_plan_content(ai_response)

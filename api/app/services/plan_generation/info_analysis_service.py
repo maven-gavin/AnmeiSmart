@@ -21,7 +21,7 @@ from app.schemas.plan_generation import (
     TimelineInfo,
     ExpectationsInfo
 )
-from app.services.ai.ai_service import AIService
+from app.services.ai.ai_gateway_service import get_ai_gateway_service
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class InfoAnalysisService:
     
     def __init__(self, db: Session):
         self.db = db
-        self.ai_service = AIService()
+        self.ai_service = get_ai_gateway_service(db)  # 传递数据库连接
     
     def create_completeness_record(self, session_id: str) -> InfoCompletenessInfo:
         """创建信息完整性记录"""

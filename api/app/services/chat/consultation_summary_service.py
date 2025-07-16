@@ -20,7 +20,7 @@ from app.schemas.chat import (
     ConsultationSummaryBasicInfo,
     ConsultationType
 )
-from app.services.ai.ai_service import AIService
+from app.services.ai.ai_gateway_service import get_ai_gateway_service
 
 
 class ConsultationSummaryService:
@@ -28,7 +28,7 @@ class ConsultationSummaryService:
     
     def __init__(self, db: Session):
         self.db = db
-        self.ai_service = AIService(db=db)
+        self.ai_service = get_ai_gateway_service(db)
     
     def get_conversation_summary(self, conversation_id: str, user_id: str) -> Optional[ConsultationSummaryResponse]:
         """获取会话的咨询总结"""
@@ -113,8 +113,8 @@ class ConsultationSummaryService:
         conversation_text = self._build_conversation_text(messages)
         ai_prompt = self._build_summary_prompt(conversation_text, request.include_suggestions, request.focus_areas)
         
-        # 调用AI服务生成总结
-        ai_response = await self.ai_service.get_response(ai_prompt)
+        # 调用AI Gateway生成总结
+        ai_response = await self.ai_service.summarize_consultation(conversation_text, "consultant")
         
         # 使用schema处理AI响应
         return AIGeneratedSummaryResponse.from_ai_response(ai_response, request.conversation_id)

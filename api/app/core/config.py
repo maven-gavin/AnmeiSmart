@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     OPENAI_API_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_MODEL: str = "gpt-3.5-turbo"
     
+    # Dify配置
+    DIFY_API_BASE_URL: str = "http://localhost/v1"
+
+    
     # AI Gateway配置（取代了原有的Dify配置）
     # AI Gateway通过统一接口支持多个AI提供商
     

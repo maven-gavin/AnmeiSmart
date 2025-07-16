@@ -14,7 +14,7 @@ from app.schemas.plan_generation import (
     PlanFeedback,
     PlanDraftStatus
 )
-from app.services.ai.ai_service import AIService
+from app.services.ai.ai_gateway_service import get_ai_gateway_service
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class PlanOptimizationService:
     
     def __init__(self, db: Session):
         self.db = db
-        self.ai_service = AIService()
+        self.ai_service = get_ai_gateway_service(db)  # 使用AI Gateway服务
     
     async def optimize_plan(
         self,
@@ -86,16 +86,39 @@ class PlanOptimizationService:
         logger.info(f"优化方案内容: type={optimization_type}")
         
         try:
-            # 构建优化请求
-            optimization_request = {
-                "original_content": original_content,
-                "optimization_type": optimization_type,
-                "requirements": requirements,
-                "feedback": feedback or {}
-            }
+            # 构建优化请求为美容方案生成请求
+            optimization_prompt = f"""请优化以下医美方案：
+
+原始方案：
+{original_content}
+
+优化类型：{optimization_type}
+优化要求：{requirements}
+客户反馈：{feedback or {}}
+
+请提供优化后的方案，保持原有结构但改进内容。"""
+
+            # 调用AI Gateway进行优化
+            from app.services.ai.interfaces import AIRequest, AIScenario, ChatContext
+            import time
             
-            # 调用AI服务进行优化
-            optimized_content = await self.ai_service.optimize_plan(optimization_request)
+            context = ChatContext(
+                user_id="optimizer",
+                session_id=f"optimize_{int(time.time())}"
+            )
+            
+            optimized_response = await self.ai_service.generate_beauty_plan(
+                optimization_prompt,
+                "optimizer",
+                {}
+            )
+            
+            # 从AI响应中提取优化后的内容
+            optimized_content = {
+                "content": optimized_response.content,
+                "success": optimized_response.success,
+                "provider": optimized_response.provider.value if hasattr(optimized_response.provider, 'value') else str(optimized_response.provider)
+            }
             
             return optimized_content
             

@@ -134,41 +134,56 @@ class AIGatewayService:
     def _create_dify_config(self) -> Optional[DifyConnectionConfig]:
         """创建Dify配置"""
         try:
-            # 从数据库或配置文件加载Dify连接信息
-            # 这里使用环境变量作为示例
-            base_url = getattr(self.settings, 'DIFY_API_BASE_URL', 'http://localhost/v1')
+            # 首先尝试从数据库加载配置
+            dify_settings = self._get_dify_settings_from_db()
             
-            # 配置不同的Dify应用
-            apps = {
-                "general_chat": DifyAppConfig(
-                    app_id="dify-chat-app-id",
-                    app_name="通用聊天助手",
-                    app_mode="chat",
-                    api_key=getattr(self.settings, 'DIFY_CHAT_API_KEY', ''),
-                    scenarios=[AIScenario.GENERAL_CHAT, AIScenario.CUSTOMER_SERVICE]
-                ),
-                "beauty_agent": DifyAppConfig(
-                    app_id="dify-beauty-agent-id", 
-                    app_name="医美方案专家",
-                    app_mode="agent",
-                    api_key=getattr(self.settings, 'DIFY_BEAUTY_API_KEY', ''),
-                    scenarios=[AIScenario.BEAUTY_PLAN, AIScenario.MEDICAL_ADVICE]
-                ),
-                "summary_workflow": DifyAppConfig(
-                    app_id="dify-summary-workflow-id",
-                    app_name="咨询总结工作流",
-                    app_mode="workflow", 
-                    api_key=getattr(self.settings, 'DIFY_SUMMARY_API_KEY', ''),
-                    scenarios=[AIScenario.CONSULTATION_SUMMARY]
-                )
-            }
+            if dify_settings and dify_settings.get("enabled"):
+                base_url = dify_settings["base_url"]
+                apps = {}
+                
+                # 配置不同的Dify应用
+                if dify_settings["apps"].get("chat"):
+                    chat_config = dify_settings["apps"]["chat"]
+                    apps["general_chat"] = DifyAppConfig(
+                        app_id=chat_config.get("app_id", "dify-chat-app"),
+                        app_name="通用聊天助手",
+                        app_mode="chat",
+                        api_key=chat_config["api_key"],
+                        scenarios=[AIScenario.GENERAL_CHAT, AIScenario.CUSTOMER_SERVICE]
+                    )
+                
+                if dify_settings["apps"].get("beauty"):
+                    beauty_config = dify_settings["apps"]["beauty"]
+                    apps["beauty_agent"] = DifyAppConfig(
+                        app_id=beauty_config.get("app_id", "dify-beauty-agent"), 
+                        app_name="医美方案专家",
+                        app_mode="agent",
+                        api_key=beauty_config["api_key"],
+                        scenarios=[AIScenario.BEAUTY_PLAN, AIScenario.MEDICAL_ADVICE]
+                    )
+                
+                if dify_settings["apps"].get("summary"):
+                    summary_config = dify_settings["apps"]["summary"]
+                    apps["summary_workflow"] = DifyAppConfig(
+                        app_id=summary_config.get("app_id", "dify-summary-workflow"),
+                        app_name="咨询总结工作流",
+                        app_mode="workflow", 
+                        api_key=summary_config["api_key"],
+                        scenarios=[AIScenario.CONSULTATION_SUMMARY]
+                    )
+                
+                if apps:
+                    logger.info(f"从数据库加载Dify配置，包含{len(apps)}个应用")
+                    return DifyConnectionConfig(
+                        base_url=base_url,
+                        apps=apps,
+                        timeout=dify_settings.get("timeout_seconds", 30),
+                        max_retries=dify_settings.get("max_retries", 3)
+                    )
             
-            return DifyConnectionConfig(
-                base_url=base_url,
-                apps=apps,
-                timeout=30,
-                max_retries=3
-            )
+            # 如果数据库中没有配置，不再从环境变量加载
+            logger.warning("No Dify configuration found in database. Please configure via admin panel at /admin/settings")
+            return None
         except Exception as e:
             logger.error(f"Failed to create Dify config: {e}")
             return None
@@ -326,6 +341,15 @@ class AIGatewayService:
         """重新加载配置"""
         logger.info("Reloading AI Gateway configuration")
         self._initialize_gateway()
+    
+    def _get_dify_settings_from_db(self) -> Optional[Dict[str, Any]]:
+        """从数据库获取Dify设置"""
+        try:
+            from app.services.dify_config_service import get_current_dify_settings
+            return get_current_dify_settings()
+        except Exception as e:
+            logger.error(f"从数据库获取Dify设置失败: {e}")
+            return None
 
 
 # 全局实例
