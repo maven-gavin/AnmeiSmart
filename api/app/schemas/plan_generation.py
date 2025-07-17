@@ -451,6 +451,10 @@ class GenerateGuidanceRequest(BaseModel):
     session_id: str = Field(..., description="会话ID")
     focus_areas: List[str] = Field(default=[], description="重点关注领域")
     max_questions: int = Field(5, description="最大问题数")
+    # 兼容旧端点参数
+    conversation_id: Optional[str] = Field(None, description="对话会话ID")
+    missing_categories: Optional[List[str]] = Field(None, description="缺失类别")
+    context: Optional[Dict[str, Any]] = Field(None, description="上下文")
 
 
 class PlanGenerationResponse(BaseModel):

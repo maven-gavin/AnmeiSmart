@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 
@@ -58,10 +58,9 @@ async def update_my_preferences(
     """
     return await profile_service.update_user_preferences(
         db=db,
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         preferences_data=preferences_data
     )
-
 
 @router.get("/default-role", response_model=UserDefaultRoleInfo)
 async def get_my_default_role(
@@ -71,7 +70,7 @@ async def get_my_default_role(
     """
     获取当前用户的默认角色设置
     """
-    default_role = await profile_service.get_user_default_role(db=db, user_id=current_user.id)
+    default_role = await profile_service.get_user_default_role(db=db, user_id=str(current_user.id))
     if not default_role:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -91,7 +90,7 @@ async def set_my_default_role(
     """
     return await profile_service.set_user_default_role(
         db=db,
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         default_role_data=default_role_data
     )
 
@@ -110,7 +109,7 @@ async def get_my_login_history(
     
     return await profile_service.get_user_login_history(
         db=db,
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         limit=limit
     )
 
@@ -118,7 +117,7 @@ async def get_my_login_history(
 @router.post("/login-history", response_model=LoginHistoryInfo, status_code=status.HTTP_201_CREATED)
 async def create_login_record(
     request: Request,
-    login_role: str = None,
+    login_role: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> LoginHistoryInfo:
@@ -150,7 +149,7 @@ async def check_should_apply_default_role(
     """
     default_role = await profile_service.should_apply_default_role(
         db=db, 
-        user_id=current_user.id
+        user_id=str(current_user.id)
     )
     
     return {
@@ -192,7 +191,7 @@ async def get_user_profile(
     """
     # 检查权限：只有管理员可以查看其他用户的信息
     user_roles = [role.name for role in current_user.roles]
-    if "admin" not in user_roles and current_user.id != user_id:
+    if ("admin" not in user_roles) and (str(current_user.id) != str(user_id)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="权限不足"
@@ -213,7 +212,7 @@ async def get_user_login_history(
     """
     # 检查权限：只有管理员可以查看其他用户的登录历史
     user_roles = [role.name for role in current_user.roles]
-    if "admin" not in user_roles and current_user.id != user_id:
+    if ("admin" not in user_roles) and (str(current_user.id) != str(user_id)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="权限不足"

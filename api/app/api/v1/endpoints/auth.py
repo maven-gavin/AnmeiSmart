@@ -1,6 +1,6 @@
 from datetime import timedelta
 from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
@@ -11,8 +11,10 @@ from app.core.security import create_access_token, get_current_user, create_refr
 from app.db.base import get_db
 from app.db.models.user import User
 from app.services import user_service
+from app.services.profile_service import ProfileService
 from app.schemas.token import Token, AccessToken, RefreshTokenRequest
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, SwitchRoleRequest
+from app.schemas.profile import LoginHistoryCreate
 
 router = APIRouter()
 settings = get_settings()
@@ -21,6 +23,7 @@ logger.setLevel(logging.DEBUG)
 
 @router.post("/login", response_model=Token)
 async def login(
+    request: Request,  # 新增
     db: Session = Depends(get_db),
     form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Any:
@@ -51,6 +54,18 @@ async def login(
         # 获取用户的第一个角色作为默认活跃角色
         active_role = userResponse.roles[0] if userResponse.roles else None
         logger.debug(f"用户登录成功: username={form_data.username}, user_id={userResponse.id}, active_role={active_role}")
+
+        # 登录成功后写入登录历史
+        ip_address = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent", "")
+        login_data = LoginHistoryCreate(
+            user_id=str(userResponse.id),
+            ip_address=ip_address,
+            user_agent=user_agent,
+            login_role=active_role or "",
+            location=""
+        )
+        await ProfileService.create_login_history(db=db, login_data=login_data)
         
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
@@ -200,7 +215,7 @@ async def read_users_me(
     
     返回当前已认证用户的详细信息
     """
-    userResponse = await user_service.get(db, id=current_user.id)
+    userResponse = await user_service.get(db, id=str(current_user.id))  # 修正：确保传递 str 类型
     return userResponse
 
 @router.put("/me", response_model=UserResponse)
@@ -215,7 +230,7 @@ async def update_user_me(
     
     允许用户更新自己的信息
     """
-    user_response = await user_service.update(db, user_id=current_user.id, obj_in=user_in)
+    user_response = await user_service.update(db, user_id=str(current_user.id), obj_in=user_in)  # 修正：确保传递 str 类型
     return user_response
 
 @router.get("/roles", response_model=List[str])
@@ -229,7 +244,7 @@ async def get_roles(
     返回当前用户的所有角色
     """
     # 从数据库获取用户角色
-    user_roles = await user_service.get_user_roles(db, user_id=current_user.id)
+    user_roles = await user_service.get_user_roles(db, user_id=str(current_user.id))  # 修正：确保传递 str 类型
     return user_roles
 
 @router.post("/switch-role", response_model=AccessToken)
@@ -246,6 +261,11 @@ async def switch_role(
     """
     # 获取真实的 User 对象
     user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:  # 修正：简化空值检查
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="用户不存在"
+        )
     # 检查用户是否拥有请求的角色
     user_roles = [role.name if hasattr(role, 'name') else role for role in user.roles]
     if role_request.role not in user_roles:
@@ -256,12 +276,10 @@ async def switch_role(
     
     # 生成包含新活跃角色的令牌
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    # 修复 user 可能为 None 或没有 id 属性的问题
     access_token = create_access_token(
-        subject=user.id, 
-        expires_delta=access_token_expires,
-        active_role=role_request.role
+        subject=str(user.id), expires_delta=access_token_expires, active_role=role_request.role
     )
-    
     return {
         "access_token": access_token,
         "token_type": "bearer"

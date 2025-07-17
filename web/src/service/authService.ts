@@ -273,6 +273,19 @@ class AuthService {
   hasAnyRole(roles: UserRole[]): boolean {
     return roles.some(role => this.hasRole(role));
   }
+
+  /**
+   * 获取当前用户所有角色
+   */
+  async getRoles(): Promise<string[]> {
+    try {
+      const response = await apiClient.get<string[]>("/auth/roles");
+      return response.data || [];
+    } catch (error) {
+      console.error('获取用户角色失败:', error);
+      return [];
+    }
+  }
 }
 
 // 导出单例实例

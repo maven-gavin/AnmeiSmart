@@ -64,7 +64,7 @@ async def create_session(
         session = service.create_session(
             conversation_id=session_data.conversation_id,
             customer_id=session_data.customer_id,
-            consultant_id=current_user.id,
+            consultant_id=str(current_user.id),  # 修正：确保为 str 类型主键值
             session_metadata=session_data.session_metadata
         )
         
@@ -213,7 +213,7 @@ async def generate_guidance_questions(
         
         # 验证会话访问权限
         plan_service = PlanGenerationService(db)
-        session = plan_service.get_session_by_conversation(request.conversation_id)
+        session = plan_service.get_session_by_conversation(request.conversation_id or "")  # 修正：确保为 str 类型，避免 None
         
         if not session:
             raise HTTPException(
@@ -231,8 +231,8 @@ async def generate_guidance_questions(
         
         guidance = await service.generate_guidance_questions(
             session.id,
-            request.missing_categories,
-            request.context
+            request.missing_categories if request.missing_categories is not None else [],
+            request.context if request.context is not None else {}
         )
         
         return {"guidance_questions": guidance}
@@ -276,13 +276,13 @@ async def generate_plan(
             )
         
         # 权限检查
-        if current_user.id != session.consultant_id and user_role != 'admin':
+        if (getattr(current_user, 'id', None) != getattr(session, 'consultant_id', None)) and user_role != 'admin':  # 修正：比较实际值
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="只有会话的顾问可以生成方案"
             )
         
-        response = await service.generate_plan(request, current_user.id)
+        response = await service.generate_plan(request, str(current_user.id))  # 修正：确保为 str 类型主键值
         
         return response
         
@@ -316,7 +316,7 @@ async def optimize_plan(
         
         # TODO: 添加更详细的权限检查（验证草稿归属）
         
-        optimized_draft = await service.optimize_plan(request, current_user.id)
+        optimized_draft = await service.optimize_plan(request, str(current_user.id))  # 修正：确保为 str 类型主键值
         
         return optimized_draft
         

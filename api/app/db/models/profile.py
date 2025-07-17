@@ -7,14 +7,21 @@ from app.db.uuid_utils import generate_uuid
 
 
 class UserPreferences(BaseModel):
-    """用户偏好设置表，存储用户的个性化偏好"""
+    """用户偏好设置表，存储用户个性化配置"""
     __tablename__ = "user_preferences"
-    __table_args__ = {"comment": "用户偏好设置表，存储用户个性化偏好"}
+    __table_args__ = {"comment": "用户偏好设置表，存储用户个性化配置"}
 
+    id = Column(
+        String(36), 
+        primary_key=True, 
+        default=generate_uuid, 
+        comment="偏好设置ID"
+    )
     user_id = Column(
         String(36), 
         ForeignKey("users.id", ondelete="CASCADE"), 
-        primary_key=True, 
+        nullable=False,
+        unique=True,
         comment="用户ID"
     )
     notification_enabled = Column(
@@ -45,10 +52,17 @@ class UserDefaultRole(BaseModel):
     __tablename__ = "user_default_roles"
     __table_args__ = {"comment": "用户默认角色设置表，存储用户首次登录的默认角色"}
 
+    id = Column(
+        String(36), 
+        primary_key=True, 
+        default=generate_uuid, 
+        comment="记录ID"
+    )
     user_id = Column(
         String(36), 
         ForeignKey("users.id", ondelete="CASCADE"), 
-        primary_key=True, 
+        nullable=False,
+        unique=True,
         comment="用户ID"
     )
     default_role = Column(
