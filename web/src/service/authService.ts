@@ -94,18 +94,19 @@ class AuthService {
       tokenManager.setToken(token);
 
       // 获取用户信息和角色 - 使用统一的apiClient
-      const [userResponse, rolesResponse] = await Promise.all([
-        apiClient.get<any>('/auth/me'),
-        apiClient.get<UserRole[]>('/auth/roles')
+      const [userResponse] = await Promise.all([
+        apiClient.get<any>('/auth/me')
       ]);
+
+      console.log("===============",JSON.stringify(userResponse))
 
       // 创建用户对象
       const authUser: AuthUser = {
         id: userResponse.data.id.toString(),
         name: userResponse.data.username,
         email: userResponse.data.email,
-        roles: rolesResponse.data || [],
-        currentRole: rolesResponse.data && rolesResponse.data.length > 0 ? rolesResponse.data[0] : undefined,
+        roles: userResponse.data.roles || [],
+        currentRole: userResponse.data.active_role,
       };
 
       // 存储用户信息

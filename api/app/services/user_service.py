@@ -9,6 +9,7 @@ from app.db.uuid_utils import user_id, role_id
 from app.core.password_utils import get_password_hash, verify_password
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, RoleResponse
 from fastapi import status
+from app.services.profile_service import ProfileService
 
 async def get(db: Session, id: str) -> Optional[UserResponse]:
     """
@@ -18,7 +19,9 @@ async def get(db: Session, id: str) -> Optional[UserResponse]:
     :return: UserResponse 或 None
     """
     user = db.query(User).filter(User.id == id).first()
-    return UserResponse.from_model(user) if user else None
+    userDefaultRoleInfo = await ProfileService.get_user_default_role(db, id)
+    default_role = userDefaultRoleInfo.default_role if userDefaultRoleInfo else None
+    return UserResponse.from_model(user, default_role) if user else None
 
 async def get_by_email(db: Session, email: str) -> Optional[UserResponse]:
     """
@@ -112,7 +115,7 @@ async def create(db: Session, obj_in: UserCreate) -> UserResponse:
     if existing_username:
         raise HTTPException(status_code=400, detail="用户名已被使用")
     db_obj = User(
-        id=obj_in.id if hasattr(obj_in, 'id') else user_id(),
+        id= user_id(),
         email=obj_in.email,
         username=obj_in.username,
         hashed_password=get_password_hash(obj_in.password),
@@ -198,7 +201,7 @@ async def authenticate(db: Session, username_or_email: str, password: str) -> Op
     """
     is_email = "@" in username_or_email
     user = db.query(User).filter(User.email == username_or_email if is_email else User.username == username_or_email).first()
-    if not user or not verify_password(password, user.hashed_password):
+    if not user or not verify_password(password, str(user.hashed_password)):
         return None
     return UserResponse.from_model(user)
 
@@ -263,4 +266,4 @@ async def get_multi(db: Session, skip: int = 0, limit: int = 100) -> List[UserRe
     :return: UserResponse列表
     """
     users = db.query(User).offset(skip).limit(limit).all()
-    return [UserResponse.from_model(user) for user in users] 
+    return [UserResponse.from_model(user) for user in users]

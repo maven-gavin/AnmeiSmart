@@ -14,8 +14,6 @@ export default function LoginForm() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showRoleSelector, setShowRoleSelector] = useState(false);
-  const [availableRoles, setAvailableRoles] = useState<UserRole[]>([]);
 
   // 从URL参数中获取错误信息和跳转URL
   useEffect(() => {
@@ -51,33 +49,28 @@ export default function LoginForm() {
       const params = new URLSearchParams(window.location.search);
       const returnUrl = params.get('returnUrl');
       
-      // 如果用户有多个角色，显示角色选择器
-      if (user.roles && user.roles.length > 1) {
-        setAvailableRoles(user.roles);
-        setShowRoleSelector(true);
-      } else if (user.roles && user.roles.length === 1) {
-        // 只有一个角色时，直接跳转到对应角色的页面或returnUrl
-        if (returnUrl) {
-          router.push(decodeURIComponent(returnUrl));
-        } else {
-          const role = user.roles[0];
-          const path = role === 'consultant' ? '/consultant' : 
-                      role === 'doctor' ? '/doctor' : 
-                      role === 'admin' ? '/admin' :
-                      role === 'operator' ? '/operator' : 
-                      role === 'customer' ? '/customer' : '/other';
-          router.push(path);
+      if (returnUrl) {
+        router.push(decodeURIComponent(returnUrl));
+      } else {
+        //如果用户设置了首选角色，就进入首选角色，反之进入默认角色
+        console.log("===============",JSON.stringify(user))
+        var role = user.roles[0];
+        if(user.currentRole != undefined){
+          role = user.currentRole;
         }
+
+        const path = role === 'consultant' ? '/consultant' : 
+                    role === 'doctor' ? '/doctor' : 
+                    role === 'admin' ? '/admin' :
+                    role === 'operator' ? '/operator' : 
+                    role === 'customer' ? '/customer' : '/other';
+        router.push(path);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '登录失败，请重试');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleRoleSelect = (role: UserRole) => {
-    // RoleSelector 组件会自行处理路由导航
   };
 
   const isLoading = loading || authLoading;
@@ -115,13 +108,7 @@ export default function LoginForm() {
         <p className="text-gray-500">医美智能服务平台</p>
       </div>
       
-      {showRoleSelector ? (
-        <div>
-          <h2 className="mb-4 text-center text-lg font-medium text-gray-800">选择角色</h2>
-          <RoleSelector onRoleSelect={handleRoleSelect} />
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label 
               htmlFor="username" 
@@ -200,7 +187,6 @@ export default function LoginForm() {
             <p className="mt-2 font-medium text-orange-600">顾客账号：customer1@example.com / 123456@Test</p>
           </div>
         </form>
-      )}
     </div>
   );
 } 

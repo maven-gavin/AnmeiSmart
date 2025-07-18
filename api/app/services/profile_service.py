@@ -62,11 +62,17 @@ class ProfileService:
         db.commit()
         db.refresh(db_preferences)
         
-        return UserPreferencesInfo.from_model(db_preferences)
+        result = UserPreferencesInfo.from_model(db_preferences)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="创建用户偏好设置失败"
+            )
+        return result
 
     @staticmethod
     async def update_user_preferences(
-        db: Session, 
+        db: Session,
         user_id: str, 
         preferences_data: UserPreferencesUpdate
     ) -> UserPreferencesInfo:
@@ -92,7 +98,13 @@ class ProfileService:
         db.commit()
         db.refresh(preferences)
         
-        return UserPreferencesInfo.from_model(preferences)
+        result = UserPreferencesInfo.from_model(preferences)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="更新用户偏好设置失败"
+            )
+        return result
 
     @staticmethod
     async def get_user_default_role(db: Session, user_id: str) -> Optional[UserDefaultRoleInfo]:
@@ -133,7 +145,7 @@ class ProfileService:
         
         if default_role_setting:
             # 更新现有设置
-            default_role_setting.default_role = default_role_data.default_role
+            setattr(default_role_setting, 'default_role', default_role_data.default_role)
             default_role_setting.updated_at = datetime.now()
         else:
             # 创建新设置
@@ -146,11 +158,17 @@ class ProfileService:
         db.commit()
         db.refresh(default_role_setting)
         
-        return UserDefaultRoleInfo.from_model(default_role_setting)
+        result = UserDefaultRoleInfo.from_model(default_role_setting)
+        if result is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="无法创建默认角色设置"
+            )
+        return result
 
     @staticmethod
     async def create_login_history(
-        db: Session, 
+        db: Session,
         login_data: LoginHistoryCreate
     ) -> LoginHistoryInfo:
         """创建登录历史记录"""
@@ -171,7 +189,13 @@ class ProfileService:
         db.commit()
         db.refresh(db_login_history)
         
-        return LoginHistoryInfo.from_model(db_login_history)
+        result = LoginHistoryInfo.from_model(db_login_history)
+        if result is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="无法创建登录历史记录"
+            )
+        return result
 
     @staticmethod
     async def get_user_login_history(
@@ -185,11 +209,10 @@ class ProfileService:
         ).order_by(desc(LoginHistory.login_time)).limit(limit).all()
         
         return [
-            LoginHistoryInfo.from_model(history) 
+            result 
             for history in login_histories
-            if LoginHistoryInfo.from_model(history) is not None
+            if (result := LoginHistoryInfo.from_model(history)) is not None
         ]
-
     @staticmethod
     async def get_user_profile(db: Session, user_id: str) -> UserProfileInfo:
         """获取用户完整的个人中心信息"""
@@ -200,7 +223,7 @@ class ProfileService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="用户不存在"
             )
-        
+            
         # 获取各项信息
         preferences = db.query(UserPreferences).filter(
             UserPreferences.user_id == user_id
@@ -214,13 +237,39 @@ class ProfileService:
             LoginHistory.user_id == user_id
         ).order_by(desc(LoginHistory.login_time)).limit(5).all()
         
-        return UserProfileInfo.from_model(
+        result = UserProfileInfo.from_model(
             user=user,
             preferences=preferences,
             default_role_setting=default_role_setting,
             recent_login_history=recent_login_history
         )
-
+        
+        if result is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="无法获取用户信息"
+            )
+        return result
+        # 获取各项信息
+        preferences = db.query(UserPreferences).filter(
+            UserPreferences.user_id == user_id
+        ).first()
+        
+        default_role_setting = db.query(UserDefaultRole).filter(
+            UserDefaultRole.user_id == user_id
+        ).first()
+        
+        recent_login_history = db.query(LoginHistory).filter(
+            LoginHistory.user_id == user_id
+        ).order_by(desc(LoginHistory.login_time)).limit(5).all()
+        
+        result = UserProfileInfo.from_model(
+            user=user,
+            preferences=preferences,
+            default_role_setting=default_role_setting,
+            recent_login_history=recent_login_history
+        )
+            
     @staticmethod
     async def should_apply_default_role(db: Session, user_id: str) -> Optional[str]:
         """检查是否应该应用默认角色（首次登录逻辑）"""
@@ -234,9 +283,8 @@ class ProfileService:
             default_role_setting = db.query(UserDefaultRole).filter(
                 UserDefaultRole.user_id == user_id
             ).first()
-            
             if default_role_setting:
-                return default_role_setting.default_role
+                return str(default_role_setting.default_role)
         
         return None
 
@@ -263,17 +311,15 @@ class ProfileService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="用户不存在"
             )
-        
         # 验证当前密码
-        if not verify_password(password_data.current_password, user.hashed_password):
+        if not verify_password(password_data.current_password, str(user.hashed_password)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="当前密码错误"
             )
-        
         # 更新密码
-        user.hashed_password = get_password_hash(password_data.new_password)
-        user.updated_at = datetime.now()
+        setattr(user, 'hashed_password', get_password_hash(password_data.new_password))
+        setattr(user, 'updated_at', datetime.now())
         
         db.commit()
         return True
