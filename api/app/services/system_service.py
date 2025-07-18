@@ -1,7 +1,10 @@
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from app.db.models.system import SystemSettings as ORMSystemSettings, AIModelConfig as ORMAIModelConfig
-from app.schemas.system import SystemSettingsUpdate, SystemSettings, SystemSettingsResponse, AIModelConfigInfo, AIModelConfigListResponse
+from app.schemas.system import (
+    SystemSettingsUpdate, SystemSettings, SystemSettingsResponse, 
+    AIModelConfigInfo, AIModelConfigListResponse, AIModelConfigCreate, AIModelConfigUpdate
+)
 
 
 def get_system_settings(db: Session) -> SystemSettingsResponse:
@@ -134,3 +137,106 @@ def get_default_ai_config(db: Session) -> Optional[Dict[str, Any]]:
 
         "is_enabled": default_model.enabled
     } 
+
+
+def create_ai_model_config(db: Session, model_create: AIModelConfigCreate) -> AIModelConfigInfo:
+    """
+    创建AI模型配置
+    :param db: 数据库会话
+    :param model_create: AI模型配置创建数据
+    :return: AIModelConfigInfo
+    """
+    # 检查模型名称是否已存在
+    existing_model = db.query(ORMAIModelConfig).filter(ORMAIModelConfig.model_name == model_create.modelName).first()
+    if existing_model:
+        raise ValueError(f"模型名称 '{model_create.modelName}' 已存在")
+    
+    # 创建新的AI模型配置
+    new_model = ORMAIModelConfig(
+        model_name=model_create.modelName,
+        provider=model_create.provider,
+        api_key=model_create.apiKey,
+        base_url=model_create.baseUrl,
+        max_tokens=model_create.maxTokens,
+        temperature=model_create.temperature,
+        enabled=model_create.enabled,
+        description=model_create.description
+    )
+    
+    db.add(new_model)
+    db.commit()
+    db.refresh(new_model)
+    
+    return AIModelConfigInfo.from_model(new_model)
+
+
+def update_ai_model_config(db: Session, model_name: str, model_update: AIModelConfigUpdate) -> Optional[AIModelConfigInfo]:
+    """
+    更新AI模型配置
+    :param db: 数据库会话
+    :param model_name: 模型名称
+    :param model_update: AI模型配置更新数据
+    :return: AIModelConfigInfo or None
+    """
+    # 查找要更新的模型
+    model = db.query(ORMAIModelConfig).filter(ORMAIModelConfig.model_name == model_name).first()
+    if not model:
+        return None
+    
+    # 更新字段
+    update_data = model_update.model_dump(exclude_unset=True)
+    
+    # 映射camelCase到snake_case字段名
+    field_mapping = {
+        'modelName': 'model_name',
+        'apiKey': 'api_key',
+        'baseUrl': 'base_url',
+        'maxTokens': 'max_tokens'
+    }
+    
+    for key, value in update_data.items():
+        if value is not None:
+            # 使用映射的字段名
+            db_field = field_mapping.get(key, key)
+            if hasattr(model, db_field):
+                setattr(model, db_field, value)
+    
+    db.commit()
+    db.refresh(model)
+    
+    return AIModelConfigInfo.from_model(model)
+
+
+def delete_ai_model_config(db: Session, model_name: str) -> bool:
+    """
+    删除AI模型配置
+    :param db: 数据库会话
+    :param model_name: 模型名称
+    :return: bool - 是否成功删除
+    """
+    model = db.query(ORMAIModelConfig).filter(ORMAIModelConfig.model_name == model_name).first()
+    if not model:
+        return False
+    
+    db.delete(model)
+    db.commit()
+    
+    return True
+
+
+def toggle_ai_model_status(db: Session, model_name: str) -> Optional[AIModelConfigInfo]:
+    """
+    切换AI模型启用状态
+    :param db: 数据库会话
+    :param model_name: 模型名称
+    :return: AIModelConfigInfo or None
+    """
+    model = db.query(ORMAIModelConfig).filter(ORMAIModelConfig.model_name == model_name).first()
+    if not model:
+        return None
+    
+    model.enabled = not model.enabled
+    db.commit()
+    db.refresh(model)
+    
+    return AIModelConfigInfo.from_model(model) 

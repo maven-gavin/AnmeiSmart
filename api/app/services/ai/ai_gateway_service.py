@@ -6,6 +6,7 @@ AI Gateway服务统一入口
 """
 
 import logging
+import time
 from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session
 
@@ -230,26 +231,50 @@ class AIGatewayService:
         
         return await self.gateway.execute_request(request)
     
-    async def generate_beauty_plan(self, requirements: str, user_id: str,
-                                 user_profile: Dict[str, Any]) -> PlanResponse:
+    async def generate_beauty_plan(self, user_profile: Dict[str, Any], 
+                                 requirements: List[str], user_id: str) -> PlanResponse:
         """生成医美方案"""
         if not self.gateway:
             raise Exception("AI Gateway not initialized")
         
+        # 构建方案生成的详细上下文
         context = ChatContext(
             user_id=user_id,
             session_id=f"plan_{user_id}_{int(time.time())}",
             user_profile=user_profile
         )
         
+        # 将需求列表转换为提示消息
+        requirements_text = "用户需求：" + "；".join(requirements)
+        
         request = AIRequest(
             scenario=AIScenario.BEAUTY_PLAN,
-            message=requirements,
+            message=requirements_text,
             context=context,
             parameters={"plan_type": "comprehensive", "include_cost": True}
         )
         
-        return await self.gateway.execute_request(request)
+        # 获取基础响应并转换为 PlanResponse
+        base_response = await self.gateway.execute_request(request)
+        
+        # 转换为 PlanResponse
+        return PlanResponse(
+            request_id=base_response.request_id,
+            content=base_response.content,
+            provider=base_response.provider,
+            scenario=base_response.scenario,
+            success=base_response.success,
+            error_message=base_response.error_message,
+            metadata=base_response.metadata,
+            usage=base_response.usage,
+            response_time=base_response.response_time,
+            timestamp=base_response.timestamp,
+            # PlanResponse 特有字段可以从 metadata 或 content 中解析
+            plan_sections=base_response.metadata.get("plan_sections") if base_response.metadata else None,
+            estimated_cost=base_response.metadata.get("estimated_cost") if base_response.metadata else None,
+            timeline=base_response.metadata.get("timeline") if base_response.metadata else None,
+            risks=base_response.metadata.get("risks") if base_response.metadata else None
+        )
     
     async def summarize_consultation(self, conversation_text: str, 
                                    user_id: str) -> SummaryResponse:
@@ -269,7 +294,27 @@ class AIGatewayService:
             parameters={"summary_type": "detailed", "include_sentiment": True}
         )
         
-        return await self.gateway.execute_request(request)
+        # 获取基础响应并转换为 SummaryResponse
+        base_response = await self.gateway.execute_request(request)
+        
+        # 转换为 SummaryResponse
+        return SummaryResponse(
+            request_id=base_response.request_id,
+            content=base_response.content,
+            provider=base_response.provider,
+            scenario=base_response.scenario,
+            success=base_response.success,
+            error_message=base_response.error_message,
+            metadata=base_response.metadata,
+            usage=base_response.usage,
+            response_time=base_response.response_time,
+            timestamp=base_response.timestamp,
+            # SummaryResponse 特有字段可以从 metadata 或 content 中解析
+            key_points=base_response.metadata.get("key_points") if base_response.metadata else None,
+            action_items=base_response.metadata.get("action_items") if base_response.metadata else None,
+            sentiment_score=base_response.metadata.get("sentiment_score") if base_response.metadata else None,
+            categories=base_response.metadata.get("categories") if base_response.metadata else None
+        )
     
     async def analyze_sentiment(self, text: str, user_id: str) -> SentimentResponse:
         """分析文本情感"""
@@ -287,7 +332,26 @@ class AIGatewayService:
             context=context
         )
         
-        return await self.gateway.execute_request(request)
+        # 获取基础响应并转换为 SentimentResponse
+        base_response = await self.gateway.execute_request(request)
+        
+        # 转换为 SentimentResponse
+        return SentimentResponse(
+            request_id=base_response.request_id,
+            content=base_response.content,
+            provider=base_response.provider,
+            scenario=base_response.scenario,
+            success=base_response.success,
+            error_message=base_response.error_message,
+            metadata=base_response.metadata,
+            usage=base_response.usage,
+            response_time=base_response.response_time,
+            timestamp=base_response.timestamp,
+            # SentimentResponse 特有字段可以从 metadata 中解析
+            sentiment_score=base_response.metadata.get("sentiment_score", 0.0) if base_response.metadata else 0.0,
+            confidence=base_response.metadata.get("confidence", 0.0) if base_response.metadata else 0.0,
+            emotions=base_response.metadata.get("emotions") if base_response.metadata else None
+        )
     
     async def customer_service_chat(self, message: str, user_id: str,
                                   session_id: str, 

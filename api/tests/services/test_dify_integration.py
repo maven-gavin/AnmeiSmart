@@ -90,9 +90,9 @@ def sample_ai_request():
         request_id="test-req-001",
         message="我想了解双眼皮手术的相关信息",
         scenario=AIScenario.BEAUTY_PLAN,
-        user_id="user-001",
-        session_id="session-001",
         context=ChatContext(
+            user_id="user-001",
+            session_id="session-001",
             user_profile={
                 "age": 25,
                 "gender": "female",

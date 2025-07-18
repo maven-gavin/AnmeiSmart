@@ -62,7 +62,7 @@ class ChatContext:
 class AIRequest:
     """统一的AI请求模型"""
     scenario: AIScenario
-    message: str
+    message: Union[str, Dict[str, Any]]  # 支持字符串或字典类型的消息
     request_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     context: Optional[ChatContext] = None
     parameters: Optional[Dict[str, Any]] = None
@@ -74,7 +74,16 @@ class AIRequest:
     @property
     def cache_key(self) -> str:
         """生成缓存键"""
-        return f"{self.scenario.value}:{hash(self.message)}:{hash(str(self.parameters))}"
+        # 安全处理message参数，支持字符串和字典类型
+        if isinstance(self.message, dict):
+            message_hash = hash(str(sorted(self.message.items())))
+        else:
+            message_hash = hash(str(self.message))
+        
+        # 安全处理parameters参数
+        params_hash = hash(str(self.parameters)) if self.parameters else hash("")
+        
+        return f"{self.scenario.value}:{message_hash}:{params_hash}"
 
 
 @dataclass

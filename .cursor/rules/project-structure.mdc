@@ -15,10 +15,7 @@ alwaysApply: false
 ## 关键文档
 - [医美项目全局分析规格说明书.md](mdc:docs/医美项目全局分析规格说明书.md)：系统价值、愿景、范围、业务需求、子领域与服务规范
 - [医美架构映射战略设计方案.md](mdc:docs/医美架构映射战略设计方案.md)：系统上下文、业务/应用/子领域架构、服务契约
-- [FILE_MAP.md](mdc:docs/FILE_MAP.md)：全项目文件结构与用途索引
-- [TODO.md](mdc:docs/TODO.md)：全局与集成开发任务清单
 - [UIUX需求文档.md](mdc:docs/UIUX需求文档.md)：各端页面结构、交互、视觉规范
-- [用户手册.md](mdc:docs/用户手册.md)：典型操作流程与功能说明
 - [需求.md](mdc:docs/需求.md)：产品需求说明书
 - [项目蓝图.md](mdc:docs/项目蓝图.md)：系统总体设计蓝图
 
@@ -36,5 +33,4 @@ alwaysApply: false
 
 
 ## 其他说明
-- 重要架构、业务、UI、需求变更需同步更新相关文档与[FILE_MAP.md](mdc:docs/FILE_MAP.md)
 - 参考[医美项目全局分析规格说明书.md](mdc:docs/医美项目全局分析规格说明书.md)与[医美架构映射战略设计方案.md](mdc:docs/医美架构映射战略设计方案.md)理解领域、服务、组件边界

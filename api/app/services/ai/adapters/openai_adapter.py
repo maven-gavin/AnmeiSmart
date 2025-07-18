@@ -311,7 +311,14 @@ class OpenAIAdapter(AIServiceInterface):
                 })
         
         # 添加当前消息
-        messages.append({"role": "user", "content": request.message})
+        # 处理字符串或字典类型的message
+        if isinstance(request.message, dict):
+            # 如果是字典，尝试提取文本内容
+            content = request.message.get('text', '') or request.message.get('content', '') or str(request.message)
+        else:
+            content = str(request.message)
+        
+        messages.append({"role": "user", "content": content})
         
         return messages
     

@@ -210,14 +210,14 @@ async def test_create_ai_model_as_admin(async_client: AsyncClient, admin_headers
 
 @pytest.mark.asyncio
 async def test_create_ai_model_duplicate_name(async_client: AsyncClient, admin_headers: Dict[str, str], db: Session):
-    model_create_data = AIModelConfigCreate(modelName=MODEL_NAME_CREATE, apiKey="key1", baseUrl="url1")
+    model_create_data = AIModelConfigCreate(modelName=MODEL_NAME_CREATE, provider="openai", apiKey="key1", baseUrl="url1")
     
     # First creation
     response1 = await async_client.post(f"{SYSTEM_API_ENDPOINT}/ai-models", headers=admin_headers, json=model_create_data.model_dump())
     assert response1.status_code == status.HTTP_201_CREATED
     
     # Second creation with same name
-    model_create_data_dup = AIModelConfigCreate(modelName=MODEL_NAME_CREATE, apiKey="key2", baseUrl="url2")
+    model_create_data_dup = AIModelConfigCreate(modelName=MODEL_NAME_CREATE, provider="openai", apiKey="key2", baseUrl="url2")
     response2 = await async_client.post(f"{SYSTEM_API_ENDPOINT}/ai-models", headers=admin_headers, json=model_create_data_dup.model_dump())
     assert response2.status_code == status.HTTP_400_BAD_REQUEST
     assert "已存在" in response2.json()["detail"] # Based on ValueError in system.py

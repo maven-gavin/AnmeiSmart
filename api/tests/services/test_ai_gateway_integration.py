@@ -46,15 +46,18 @@ def sample_requests():
             request_id="chat-req-001",
             message="你好，我想了解医美服务",
             scenario=AIScenario.GENERAL_CHAT,
-            user_id="user-001",
-            session_id="session-001"
+            context=ChatContext(
+                user_id="user-001",
+                session_id="session-001"
+            )
         ),
         "beauty_plan": AIRequest(
             request_id="plan-req-002",
             message="我想做面部提升，预算2万元",
             scenario=AIScenario.BEAUTY_PLAN,
-            user_id="user-002",
             context=ChatContext(
+                user_id="user-002",
+                session_id="session-002",
                 user_profile={
                     "age": 30,
                     "gender": "female",
@@ -67,13 +70,19 @@ def sample_requests():
             request_id="summary-req-003",
             message="总结今天的咨询内容...",
             scenario=AIScenario.CONSULTATION_SUMMARY,
-            user_id="user-003"
+            context=ChatContext(
+                user_id="user-003",
+                session_id="session-003"
+            )
         ),
         "sentiment": AIRequest(
             request_id="sentiment-req-004",
             message="我对今天的咨询非常满意",
             scenario=AIScenario.SENTIMENT_ANALYSIS,
-            user_id="user-004"
+            context=ChatContext(
+                user_id="user-004",
+                session_id="session-004"
+            )
         )
     }
 
@@ -106,7 +115,6 @@ def mock_dify_responses():
             provider=AIProvider.DIFY,
             scenario=AIScenario.GENERAL_CHAT,
             success=False,
-            error_code="503",
             error_message="Dify服务连接失败"
         )
     }

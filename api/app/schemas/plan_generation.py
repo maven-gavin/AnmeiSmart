@@ -249,7 +249,7 @@ class PlanGenerationSessionCreate(PlanGenerationSessionBase):
     session_metadata: Optional[Dict[str, Any]] = Field(None, description="会话元数据")
 
 
-class PlanGenerationSessionInfo(PlanGenerationSessionBase):
+class PlanGenerationSessionInfo(BaseModel):
     """方案生成会话完整信息"""
     model_config = ConfigDict(from_attributes=True)
     
@@ -264,7 +264,7 @@ class PlanGenerationSessionInfo(PlanGenerationSessionBase):
     updated_at: datetime = Field(..., description="更新时间")
 
     @staticmethod
-    def from_model(session) -> "PlanGenerationSessionInfo":
+    def from_model(session) -> Optional["PlanGenerationSessionInfo"]:
         """从数据库模型转换为Schema模型"""
         if not session:
             return None
@@ -276,9 +276,6 @@ class PlanGenerationSessionInfo(PlanGenerationSessionBase):
         
         return PlanGenerationSessionInfo(
             id=getattr(session, 'id', ''),
-            conversation_id=getattr(session, 'conversation_id', ''),
-            customer_id=getattr(session, 'customer_id', ''),
-            consultant_id=getattr(session, 'consultant_id', ''),
             status=getattr(session, 'status', PlanSessionStatus.collecting),
             required_info=getattr(session, 'required_info', {}),
             extracted_info=extracted_info,
@@ -305,14 +302,16 @@ class PlanDraftCreate(PlanDraftBase):
     generation_info: Optional[Dict[str, Any]] = Field(None, description="生成信息")
 
 
-class PlanDraftInfo(PlanDraftBase):
+class PlanDraftInfo(BaseModel):
     """方案草稿完整信息"""
     model_config = ConfigDict(from_attributes=True)
     
     id: str = Field(..., description="草稿ID")
+    session_id: str = Field(..., description="会话ID")
     version: int = Field(..., description="版本号")
     parent_version: Optional[int] = Field(None, description="父版本号")
     status: PlanDraftStatus = Field(..., description="草稿状态")
+    content: PlanContent = Field(..., description="方案内容")
     feedback: Optional[PlanFeedback] = Field(None, description="反馈意见")
     improvements: Optional[Dict[str, Any]] = Field(None, description="改进记录")
     generation_info: Optional[Dict[str, Any]] = Field(None, description="生成信息")
@@ -320,14 +319,38 @@ class PlanDraftInfo(PlanDraftBase):
     updated_at: datetime = Field(..., description="更新时间")
 
     @staticmethod
-    def from_model(draft) -> "PlanDraftInfo":
+    def from_model(draft) -> Optional["PlanDraftInfo"]:
         """从数据库模型转换为Schema模型"""
         if not draft:
             return None
         
         # 转换方案内容
-        content = PlanContent(**draft.content) if draft.content else None
-        
+        content = PlanContent(**draft.content) if draft.content else PlanContent(
+            basic_info=PlanBasicInfo(
+                title="",
+                description="",
+                difficulty_level="",
+                total_duration=None
+            ),
+            analysis=PlanAnalysis(
+                skin_analysis=None,
+                treatment_approach=None,
+                expected_timeline=None
+            ),
+            treatment_plan=TreatmentPlan(),
+            cost_breakdown=CostBreakdown(
+                treatment_costs=None,
+                product_costs=None,
+                maintenance_costs=None,
+                total_cost=None
+            ),
+            timeline=PlanTimeline(
+                start_date=None,
+                completion_date=None
+            ),
+            risks_and_precautions=RisksAndPrecautions(),
+            aftercare=Aftercare()
+        )
         # 转换反馈
         feedback = None
         if hasattr(draft, 'feedback') and draft.feedback:
@@ -360,11 +383,12 @@ class InfoCompletenessCreate(InfoCompletenessBase):
     pass
 
 
-class InfoCompletenessInfo(InfoCompletenessBase):
+class InfoCompletenessInfo(BaseModel):
     """信息完整性完整信息"""
     model_config = ConfigDict(from_attributes=True)
     
     id: str = Field(..., description="记录ID")
+    session_id: str = Field(..., description="会话ID")
     basic_info_status: InfoStatus = Field(..., description="基础信息状态")
     basic_info_score: float = Field(0.0, description="基础信息评分")
     concerns_status: InfoStatus = Field(..., description="关注点状态")
@@ -387,7 +411,7 @@ class InfoCompletenessInfo(InfoCompletenessBase):
     updated_at: datetime = Field(..., description="更新时间")
 
     @staticmethod
-    def from_model(info) -> "InfoCompletenessInfo":
+    def from_model(info) -> Optional["InfoCompletenessInfo"]:
         """从数据库模型转换为Schema模型"""
         if not info:
             return None

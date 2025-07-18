@@ -83,7 +83,7 @@ async def ai_chat(
         # 调用AI Gateway
         response = await ai_gateway.chat(
             message=request.message,
-            user_id=current_user.id,
+            user_id=str(current_user.id),
             session_id=request.session_id or f"chat_{current_user.id}",
             user_profile=user_profile
         )
@@ -123,15 +123,15 @@ async def generate_beauty_plan(
         # 增强用户档案信息
         enhanced_profile = {
             **request.user_profile,
-            "user_id": current_user.id,
+            "user_id": str(current_user.id),
             "username": current_user.username,
             "budget_range": request.budget_range,
             "timeline": request.timeline
         }
         
         response = await ai_gateway.generate_beauty_plan(
-            requirements=request.requirements,
-            user_id=current_user.id,
+            requirements=[request.requirements],  # 将字符串转换为列表
+            user_id=str(current_user.id),
             user_profile=enhanced_profile
         )
         
@@ -171,7 +171,7 @@ async def summarize_consultation(
         
         response = await ai_gateway.summarize_consultation(
             conversation_text=request.content,
-            user_id=current_user.id
+            user_id=str(current_user.id)
         )
         
         return {
@@ -210,7 +210,7 @@ async def analyze_sentiment(
         
         response = await ai_gateway.analyze_sentiment(
             text=request.text,
-            user_id=current_user.id
+            user_id=str(current_user.id)
         )
         
         return {

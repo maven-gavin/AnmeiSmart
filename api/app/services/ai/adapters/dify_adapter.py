@@ -99,15 +99,25 @@ class DifyAPIClient:
         """聊天完成API调用"""
         url = f"{self.config.base_url}/chat-messages"
         
+        # 处理字符串或字典类型的message
+        if isinstance(request.message, dict):
+            query_text = request.message.get('text', '') or request.message.get('content', '') or str(request.message)
+        else:
+            query_text = str(request.message)
+        
         # 构建请求体
         payload = {
             "inputs": self._build_inputs(request),
-            "query": request.message,
+            "query": query_text,
             "user": self._get_user_id(request),
-            "conversation_id": self._get_conversation_id(request),
             "response_mode": "blocking",  # 或 "streaming"
             "auto_generate_name": True
         }
+        
+        # 只有当conversation_id不为None时才添加
+        conversation_id = self._get_conversation_id(request)
+        if conversation_id:
+            payload["conversation_id"] = conversation_id
         
         # 添加Dify特有参数
         if app_config.variables:
@@ -261,7 +271,15 @@ class DifyAPIClient:
     def _get_conversation_id(self, request: AIRequest) -> Optional[str]:
         """获取会话ID"""
         if request.context and request.context.session_id:
-            return request.context.session_id
+            session_id = request.context.session_id
+            # 如果session_id是有效的UUID格式，直接使用
+            try:
+                import uuid
+                uuid.UUID(session_id)
+                return session_id
+            except (ValueError, AttributeError):
+                # 如果不是有效UUID，则不传递conversation_id，让Dify创建新的会话
+                return None
         return None
 
 
