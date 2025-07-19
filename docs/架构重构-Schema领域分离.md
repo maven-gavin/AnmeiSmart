@@ -89,71 +89,55 @@ from .websocket import (WebSocketMessage, ...)
 ## 文件变更清单
 
 ### 新增文件
+
 - `api/app/schemas/file.py` - 文件领域Schema
 - `api/app/schemas/websocket.py` - WebSocket领域Schema
 - `api/app/schemas/__init__.py` - Schema包初始化
 
 ### 修改文件
+
 - `api/app/schemas/chat.py` - 移除文件和WebSocket相关Schema
 - `api/app/api/v1/endpoints/files.py` - 更新导入引用
 
-### 导入变更
-
-**修改前**:
-```python
-from app.schemas.chat import FileUploadResponse, ChunkUploadRequest
-```
-
-**修改后**:
-```python
-from app.schemas.file import FileUploadResponse, ChunkUploadRequest
-from app.schemas.chat import MessageInfo
-```
-
-## 兼容性保证
-
-通过 `app/schemas/__init__.py` 文件，保证现有代码可以通过以下方式导入：
-
-```python
-# 方式1: 直接从对应领域导入
-from app.schemas.file import FileUploadResponse
-from app.schemas.chat import MessageInfo
-
-# 方式2: 从schemas包导入（推荐）
-from app.schemas import FileUploadResponse, MessageInfo
-```
-
-## 设计原则
+### 设计原则
 
 ### 1. 单一职责原则 (SRP)
+
 每个Schema文件只负责一个业务领域的数据模型定义。
 
 ### 2. 开闭原则 (OCP)
+
 - 对扩展开放：可以在任何领域添加新的Schema
 - 对修改封闭：修改某个领域不影响其他领域
 
 ### 3. 依赖倒置原则 (DIP)
+
 - 聊天领域可以依赖文件领域（文件消息需要FileInfo）
 - 文件领域不依赖聊天领域
 - WebSocket领域独立，不依赖其他领域
 
 ### 4. 接口隔离原则 (ISP)
+
 每个API端点只导入它需要的Schema，不导入不相关的模型。
 
 ## 未来扩展建议
 
 ### 1. 用户领域Schema
+
 当用户相关功能复杂化时，可以创建独立的 `user.py` Schema文件。
 
 ### 2. 支付领域Schema
+
 如果需要支付功能，可以创建独立的 `payment.py` Schema文件。
 
 ### 3. 通知领域Schema
+
 如果需要复杂的通知功能，可以创建独立的 `notification.py` Schema文件。
 
 ## 测试验证
 
 ### 1. 导入测试
+
 ```bash
 cd api
 source venv/bin/activate
@@ -161,12 +145,14 @@ python -c "from app.schemas import FileUploadResponse, MessageInfo; print('导�
 ```
 
 ### 2. 服务启动测试
+
 ```bash
 source venv/bin/activate
 python -c "from app.api.v1.endpoints.files import router; print('文件端点正常')"
 ```
 
 ### 3. 功能测试
+
 按照 [文件上传功能测试指南](./文件上传功能测试指南.md) 进行完整的功能测试。
 
 ## 总结
@@ -179,4 +165,4 @@ python -c "from app.api.v1.endpoints.files import router; print('文件端点正
 4. ✅ **扩展性强**: 易于添加新领域和新功能
 5. ✅ **向后兼容**: 现有代码无需修改即可正常工作
 
-重构后的架构更加符合DDD原则，为系统的长期维护和扩展奠定了良好的基础。 
+重构后的架构更加符合DDD原则，为系统的长期维护和扩展奠定了良好的基础。
