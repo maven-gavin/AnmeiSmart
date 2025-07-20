@@ -166,7 +166,7 @@ export default function ConversationHistoryList({
     <div className="h-full flex flex-col">
       {/* 标题 */}
       <div className="p-3 border-b border-gray-200">
-        <h3 className="text-sm font-medium text-gray-700">历史会话</h3>
+        <h3 className="text-sm font-medium text-gray-700">消息</h3>
       </div>
 
       {/* 会话列表 */}

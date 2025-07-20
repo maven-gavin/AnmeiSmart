@@ -10,6 +10,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { ErrorDisplay } from '@/components/ui/ErrorDisplay';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
 import { ChatWebSocketStatus } from '@/components/chat/ChatWebSocketStatus';
+import ConversationHistoryList from '@/components/chat/ConversationHistoryList';
 
 function ConsultantChatContent() {
   const router = useRouter();
@@ -97,6 +98,12 @@ function ConsultantChatContent() {
             <CustomerList 
               onCustomerChange={handleCustomerChange}
               selectedCustomerId={selectedCustomerId}
+              selectedConversationId={selectedConversationId}
+            />
+            <ConversationHistoryList
+              onConversationSelect={()=>{
+                setIsSwitchingConversation(true);
+              }}
               selectedConversationId={selectedConversationId}
             />
           </div>

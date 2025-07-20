@@ -153,9 +153,16 @@ export default function LoginForm() {
               />
               记住我
             </label>
-            <a href="#" className="text-orange-500 hover:underline">
-              忘记密码？
-            </a>
+            
+            <div className="flex items-center">
+              <a href="#" className="text-orange-200 hover:underline">
+                忘记密码？
+              </a>
+              &nbsp;&nbsp;
+              <a href="#" className="text-orange-500 hover:underline">
+                注册账号
+              </a>
+            </div>
           </div>
           
           {errorMessage && (

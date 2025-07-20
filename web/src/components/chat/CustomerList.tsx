@@ -380,7 +380,7 @@ export default function CustomerList({
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex flex-col">
       <CustomerListHeader />
 
       {/* 客户列表 */}
