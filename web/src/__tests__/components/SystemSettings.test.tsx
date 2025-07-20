@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import SystemSettingsPage from '@/app/admin/settings/page';
+import SystemSettingsPage from '@/app/settings/page';
 import systemService from '@/service/systemService';
 
 // 模拟systemService

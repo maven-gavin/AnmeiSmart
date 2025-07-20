@@ -9,10 +9,13 @@ import { SecurityPanel } from '@/components/profile/SecurityPanel';
 import { PreferencesPanel } from '@/components/profile/PreferencesPanel';
 import { RoleSettingsPanel } from '@/components/profile/RoleSettingsPanel';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import AppLayout from '@/components/layout/AppLayout';
+import { useAuthContext } from '@/contexts/AuthContext';
 
 type TabType = 'basic' | 'security' | 'preferences' | 'role-settings';
 
 export default function ProfilePage() {
+  const { user } = useAuthContext();
   const [activeTab, setActiveTab] = useState<TabType>('basic');
   
   // 个人中心需要用户登录但不限制特定角色
@@ -44,7 +47,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <RoleLayout>
+    <AppLayout requiredRole={user?.currentRole}>
       <div className="flex h-full bg-gray-50">
         {/* 侧边栏导航 */}
         <div className="w-64 bg-white border-r border-gray-200">
@@ -64,6 +67,6 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
-    </RoleLayout>
+    </AppLayout>
   );
 } 

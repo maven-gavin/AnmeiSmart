@@ -59,12 +59,12 @@ export default function LoginForm() {
           role = user.currentRole;
         }
 
-        const path = role === 'consultant' ? '/consultant' : 
-                    role === 'doctor' ? '/doctor' : 
-                    role === 'admin' ? '/admin' :
-                    role === 'operator' ? '/operator' : 
-                    role === 'customer' ? '/customer' : '/other';
-        router.push(path);
+        // const path = role === 'consultant' ? '/consultant' : 
+        //             role === 'doctor' ? '/doctor' : 
+        //             role === 'admin' ? '/admin' :
+        //             role === 'operator' ? '/operator' : 
+        //             role === 'customer' ? '/customer' : '/other';
+        router.push('/home');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '登录失败，请重试');

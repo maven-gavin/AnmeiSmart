@@ -443,7 +443,7 @@ async def create_test_conversations(db: Session) -> None:
         risk_notes.append({
             "type": "咨询历史",
             "description": "历史咨询记录",
-            "level": "info",
+            "level": "low",
             "consultation_history": [
                 {
                     "date": "2023-05-15",
@@ -491,7 +491,7 @@ async def create_test_conversations(db: Session) -> None:
         risk_notes.append({
             "type": "咨询历史",
             "description": "历史咨询记录",
-            "level": "info",
+            "level": "low",
             "consultation_history": [
                 {
                     "date": "2023-06-10",
