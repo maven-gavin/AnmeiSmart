@@ -11,6 +11,12 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   login: (username: string, password: string) => Promise<void>;
+  register: (registerData: {
+    phone: string;
+    username: string;
+    email: string;
+    password: string;
+  }) => Promise<void>;
   logout: () => Promise<void>;
   switchRole: (role: UserRole) => Promise<void>;
 }
@@ -40,8 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setToken(null);
         
-        // 如果不在登录页面，重定向到登录页
-        if (!pathname.startsWith('/login')) {
+        // 如果不在登录页面或注册页面，重定向到登录页
+        if (!pathname.startsWith('/login') && !pathname.startsWith('/register')) {
           router.push('/login');
         }
       }
@@ -62,6 +68,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(token);
     } catch (err) {
       setError(err instanceof Error ? err.message : '登录失败');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 注册函数，使用useCallback优化
+  const register = useCallback(async (registerData: {
+    phone: string;
+    username: string;
+    email: string;
+    password: string;
+  }) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const { user, token } = await authService.register(registerData);
+      setUser(user);
+      setToken(token);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '注册失败');
       throw err;
     } finally {
       setLoading(false);
@@ -152,7 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 路由保护逻辑
   useEffect(() => {
     if (!loading) {
-      const needsLogin = !user && !pathname.startsWith('/login');
+      const needsLogin = !user && !pathname.startsWith('/login') && !pathname.startsWith('/register');
       if (needsLogin) {
         router.push('/login');
       }
@@ -166,9 +194,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     error,
     login,
+    register,
     logout,
     switchRole,
-  }), [user, token, loading, error, login, logout, switchRole]);
+  }), [user, token, loading, error, login, register, logout, switchRole]);
 
   return (
     <AuthContext.Provider value={contextValue}>

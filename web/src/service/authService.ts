@@ -152,6 +152,52 @@ class AuthService {
   }
 
   /**
+   * 用户注册
+   */
+  async register(registerData: {
+    phone: string;
+    username: string;
+    email: string;
+    password: string;
+  }): Promise<{ user: AuthUser; token: string }> {
+    try {
+      // 调用注册接口
+      const response = await apiClient.post<any>('/auth/register', {
+        email: registerData.email,
+        username: registerData.username,
+        phone: registerData.phone,
+        password: registerData.password,
+        roles: ['customer'] // 默认注册为顾客角色
+      });
+
+      if (!response.data) {
+        throw new AppError(ErrorType.AUTHENTICATION, 500, '注册失败，服务器无响应');
+      }
+
+      // 注册成功后自动登录
+      const loginResult = await this.login({
+        username: registerData.email, // 使用邮箱登录
+        password: registerData.password
+      });
+
+      return loginResult;
+    } catch (error) {
+      console.error('注册失败:', error);
+      
+      if (error instanceof AppError) {
+        throw error;
+      }
+      
+      throw new AppError(
+        ErrorType.AUTHENTICATION,
+        500,
+        '注册失败，请稍后重试',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  }
+
+  /**
    * 获取当前登录用户
    */
   getCurrentUser(): AuthUser | null {

@@ -159,9 +159,14 @@ export default function LoginForm() {
                 忘记密码？
               </a>
               &nbsp;&nbsp;
-              <a href="#" className="text-orange-500 hover:underline">
+              <button
+                type="button"
+                onClick={() => router.push('/register')}
+                className="text-orange-500 hover:underline"
+                disabled={isLoading}
+              >
                 注册账号
-              </a>
+              </button>
             </div>
           </div>
           
