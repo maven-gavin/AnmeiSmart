@@ -409,7 +409,7 @@ export class MessageAdapter {
   private getDefaultNameForType(type: SenderType): string {
     const nameMap: Record<SenderType, string> = {
       [SenderType.USER]: '用户',
-      [SenderType.CUSTOMER]: '顾客',
+      [SenderType.CUSTOMER]: '客户',
       [SenderType.CONSULTANT]: '顾问',
       [SenderType.DOCTOR]: '医生',
       [SenderType.AI]: 'AI助手',

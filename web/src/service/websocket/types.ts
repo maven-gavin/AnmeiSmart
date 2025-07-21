@@ -26,7 +26,7 @@ export enum MessageType {
  */
 export enum SenderType {
   USER = 'user',           // 普通用户
-  CUSTOMER = 'customer',   // 顾客
+  CUSTOMER = 'customer',   // 客户
   CONSULTANT = 'consultant', // 顾问
   DOCTOR = 'doctor',       // 医生
   AI = 'ai',               // AI助手

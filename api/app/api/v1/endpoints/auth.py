@@ -104,7 +104,7 @@ async def register(
             detail="此邮箱已注册",
         )
     
-    # 确保公开注册的用户至少有顾客角色
+    # 确保公开注册的用户至少有客户角色
     if not user_in.roles or len(user_in.roles) == 0:
         user_in.roles = ["customer"]
     

@@ -102,7 +102,7 @@ class CustomerService {
     }
   }
 
-  // 获取当前顾客的治疗记录
+  // 获取当前客户的治疗记录
   async getTreatments(): Promise<Treatment[]> {
     const currentUser = authService.getCurrentUser();
     if (!currentUser || currentUser.currentRole !== 'customer') {
@@ -110,9 +110,6 @@ class CustomerService {
     }
     
     try {
-      // 注意：这里需要后端提供对应的treatment endpoints
-      // 目前使用客户信息作为基础，实际可能需要专门的treatment API
-      const customerInfo = await this.getCustomerById(currentUser.id);
       
       // 如果后端有专门的treatment endpoints，应该调用类似：
       // const response = await apiClient.get(`/customers/${currentUser.id}/treatments`);
@@ -144,7 +141,7 @@ class CustomerService {
     }
   }
   
-  // 获取当前顾客的治疗方案
+  // 获取当前客户的治疗方案
   async getTreatmentPlans(): Promise<TreatmentPlan[]> {
     const currentUser = authService.getCurrentUser();
     if (!currentUser || currentUser.currentRole !== 'customer') {
@@ -182,7 +179,7 @@ class CustomerService {
     }
   }
   
-  // 获取当前顾客的预约
+  // 获取当前客户的预约
   async getAppointments(): Promise<CustomerAppointment[]> {
     const currentUser = authService.getCurrentUser();
     if (!currentUser || currentUser.currentRole !== 'customer') {

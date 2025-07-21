@@ -191,7 +191,7 @@ system_settings ←→ ai_model_configs
 | 字段名          | 数据类型    | 约束                 | 默认值            | 说明                 |
 | --------------- | ----------- | -------------------- | ----------------- | -------------------- |
 | id              | VARCHAR(36) | PRIMARY KEY          | prof_xxx          | 档案ID               |
-| customer_id     | VARCHAR(36) | UNIQUE, FK, NOT NULL | -                 | 顾客用户ID           |
+| customer_id     | VARCHAR(36) | UNIQUE, FK, NOT NULL | -                 | 客户用户ID           |
 | medical_history | TEXT        | NULL                 | -                 | 病史                 |
 | allergies       | TEXT        | NULL                 | -                 | 过敏史（JSON字符串） |
 | preferences     | TEXT        | NULL                 | -                 | 偏好                 |
@@ -214,7 +214,7 @@ system_settings ←→ ai_model_configs
 | ---------------------- | ----------- | ------------ | ----------------- | ---------------- |
 | id                     | VARCHAR(36) | PRIMARY KEY  | conv_xxx          | 会话ID           |
 | title                  | VARCHAR     | NOT NULL     | -                 | 会话标题         |
-| customer_id            | VARCHAR(36) | FK, NOT NULL | -                 | 顾客用户ID       |
+| customer_id            | VARCHAR(36) | FK, NOT NULL | -                 | 客户用户ID       |
 | assigned_consultant_id | VARCHAR(36) | FK           | NULL              | 分配的顾问用户ID |
 | is_active              | BOOLEAN     | NOT NULL     | TRUE              | 会话是否激活     |
 | consultation_type      | ENUM        | NULL         | -                 | 咨询类型         |

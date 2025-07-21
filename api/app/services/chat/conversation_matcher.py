@@ -1,5 +1,5 @@
 """
-会话匹配服务 - 实现顾客与顾问的智能匹配
+会话匹配服务 - 实现客户与顾问的智能匹配
 """
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class ConversationMatcher:
-    """会话匹配器 - 负责将顾客会话分配给合适的顾问"""
+    """会话匹配器 - 负责将客户会话分配给合适的顾问"""
     
     def __init__(self, db: Session):
         self.db = db

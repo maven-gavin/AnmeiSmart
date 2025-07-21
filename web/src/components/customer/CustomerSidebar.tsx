@@ -59,7 +59,7 @@ export default function CustomerSidebar() {
     <div className="h-full w-64 border-r border-gray-200 bg-white">
       <div className="flex h-full flex-col">
         <div className="px-4 pt-5">
-          <h2 className="mb-4 text-lg font-medium text-gray-800">顾客服务</h2>
+          <h2 className="mb-4 text-lg font-medium text-gray-800">客户服务</h2>
         </div>
         
         <nav className="mt-2 flex-1 space-y-1 px-2">

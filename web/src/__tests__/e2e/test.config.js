@@ -41,7 +41,7 @@ module.exports = {
     customer: {
       email: 'customer1@example.com',
       password: '123456@Test',
-      name: '测试顾客',
+      name: '测试客户',
       id: '1',
       role: 'customer'
     },

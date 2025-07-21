@@ -89,7 +89,7 @@ MOCK_USERS = [
             responsibilities="负责内容审核与活动策划"
         )
     },
-    # 顾客示例数据
+    # 客户示例数据
     {
         "id": user_id(),  # 使用函数生成统一格式的ID
         "email": "customer1@example.com",
@@ -241,7 +241,7 @@ async def update_user_extended_info(
         user: 用户对象
         doctor_info: 医生信息
         consultant_info: 顾问信息
-        customer_info: 顾客信息
+        customer_info: 客户信息
         operator_info: 运营人员信息
         administrator_info: 管理员信息
         force_update: 是否强制更新现有数据
@@ -285,7 +285,7 @@ async def update_user_extended_info(
             if value is not None:
                 setattr(consultant, key, value)
         
-    # 更新顾客信息
+    # 更新客户信息
     if "customer" in roles and customer_info:
         # 使用单独的函数处理客户信息
         await update_customer_info(db, user.id, customer_info, force_update)
@@ -341,9 +341,9 @@ async def update_customer_info(
     if not customer:
         customer = Customer(user_id=user_id)
         db.add(customer)
-        logger.info(f"  - 添加顾客扩展信息")
+        logger.info(f"  - 添加客户扩展信息")
     elif force_update:
-        logger.info(f"  - 更新顾客扩展信息")
+        logger.info(f"  - 更新客户扩展信息")
     else:
         return  # 如果存在且不强制更新，则不做任何操作
     
@@ -374,7 +374,7 @@ async def create_test_conversations(db: Session) -> None:
     
     logger.info("创建测试会话和消息数据")
     
-    # 获取测试顾客用户
+    # 获取测试客户用户
     customer1 = db.query(User).filter(User.email == "customer1@example.com").first()
     customer2 = db.query(User).filter(User.email == "customer2@example.com").first()
     
@@ -385,7 +385,7 @@ async def create_test_conversations(db: Session) -> None:
     consultant = db.query(User).filter(User.email == "li@example.com").first()
     
     if not customer1 or not customer2:
-        logger.warning("找不到测试顾客用户，跳过创建会话数据")
+        logger.warning("找不到测试客户用户，跳过创建会话数据")
         return
     
     if not consultant:
@@ -417,7 +417,7 @@ async def create_test_conversations(db: Session) -> None:
     customer2_info = db.query(Customer).filter(Customer.user_id == customer2.id).first()
     
     if not customer1_info or not customer2_info:
-        logger.warning("找不到测试顾客扩展信息，无法创建档案")
+        logger.warning("找不到测试客户扩展信息，无法创建档案")
         return
     
     # 创建或获取客户档案

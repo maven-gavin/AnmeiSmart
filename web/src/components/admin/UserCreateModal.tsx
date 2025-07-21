@@ -24,7 +24,7 @@ export default function UserCreateModal({ isOpen, onClose, onUserCreated }: User
     { id: 'admin', name: '管理员' },
     { id: 'consultant', name: '顾问' },
     { id: 'doctor', name: '医生' },
-    { id: 'customer', name: '顾客' },
+    { id: 'customer', name: '客户' },
     { id: 'operator', name: '运营' }
   ];
 

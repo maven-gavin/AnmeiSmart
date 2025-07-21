@@ -112,7 +112,7 @@ def upgrade() -> None:
                existing_nullable=False)
     op.alter_column('conversations', 'customer_id',
                existing_type=sa.VARCHAR(length=36),
-               comment='顾客用户ID',
+               comment='客户用户ID',
                existing_nullable=False)
     op.alter_column('conversations', 'assigned_consultant_id',
                existing_type=sa.VARCHAR(length=36),
@@ -142,7 +142,7 @@ def upgrade() -> None:
                existing_nullable=False)
     op.alter_column('customer_profiles', 'customer_id',
                existing_type=sa.VARCHAR(length=36),
-               comment='顾客用户ID',
+               comment='客户用户ID',
                existing_nullable=False)
     op.alter_column('customer_profiles', 'medical_history',
                existing_type=sa.TEXT(),
@@ -188,7 +188,7 @@ def upgrade() -> None:
                existing_nullable=True)
     op.create_table_comment(
         'customers',
-        '顾客表，存储顾客扩展信息',
+        '客户表，存储客户扩展信息',
         existing_comment=None,
         schema=None
     )
@@ -584,7 +584,7 @@ def downgrade() -> None:
                existing_nullable=False)
     op.drop_table_comment(
         'customers',
-        existing_comment='顾客表，存储顾客扩展信息',
+        existing_comment='客户表，存储客户扩展信息',
         schema=None
     )
     op.alter_column('customers', 'preferences',
@@ -640,7 +640,7 @@ def downgrade() -> None:
     op.alter_column('customer_profiles', 'customer_id',
                existing_type=sa.VARCHAR(length=36),
                comment=None,
-               existing_comment='顾客用户ID',
+               existing_comment='客户用户ID',
                existing_nullable=False)
     op.alter_column('customer_profiles', 'id',
                existing_type=sa.VARCHAR(length=36),
@@ -675,7 +675,7 @@ def downgrade() -> None:
     op.alter_column('conversations', 'customer_id',
                existing_type=sa.VARCHAR(length=36),
                comment=None,
-               existing_comment='顾客用户ID',
+               existing_comment='客户用户ID',
                existing_nullable=False)
     op.alter_column('conversations', 'title',
                existing_type=sa.VARCHAR(),

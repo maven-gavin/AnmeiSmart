@@ -59,7 +59,7 @@ class AdministratorBase(BaseModel):
 class UserCreate(UserBase):
     """用户创建模型"""
     password: str = Field(..., min_length=8)
-    roles: List[str] = ["customer"]  # 默认为顾客角色
+    roles: List[str] = ["customer"]  # 默认为客户角色
     customer_info: Optional[CustomerBase] = None
     doctor_info: Optional[DoctorBase] = None
     consultant_info: Optional[ConsultantBase] = None

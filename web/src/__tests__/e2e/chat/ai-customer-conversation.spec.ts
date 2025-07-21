@@ -24,13 +24,13 @@ const TEST_QUERY = config.testData.testQuery;
 const EXPECTED_KEYWORDS = config.testData.expectedKeywords;
 
 /**
- * 测试前准备：顾客创建会话
+ * 测试前准备：客户创建会话
  */
 test.beforeAll(async () => {
-  console.log('准备测试环境 - 顾客AI对话测试');
+  console.log('准备测试环境 - 客户AI对话测试');
   
   try {
-    // 1. 顾客登录获取令牌
+    // 1. 客户登录获取令牌
     await loginCustomerAPIAndGetToken();
     customerToken = getCustomerToken();
     
@@ -38,7 +38,7 @@ test.beforeAll(async () => {
     await loginConsultantAPIAndGetToken();
     consultantToken = getConsultantToken();
     
-    // 3. 顾客创建测试会话（符合业务流程：顾客发起咨询）
+    // 3. 客户创建测试会话（符合业务流程：客户发起咨询）
     testConversationId = await createCustomerTestConversation();
     console.log(`测试会话创建成功，ID: ${testConversationId}`);
   } catch (error) {
@@ -47,7 +47,7 @@ test.beforeAll(async () => {
   }
 });
 
-test.describe('聊天功能 - 顾客AI对话', () => {
+test.describe('聊天功能 - 客户AI对话', () => {
   // 定义浏览器上下文和页面
   let customerContext: BrowserContext;
   let consultantContext: BrowserContext;
@@ -55,7 +55,7 @@ test.describe('聊天功能 - 顾客AI对话', () => {
   let consultantPage: Page;
   
   test.beforeEach(async ({ browser }) => {
-    // 创建浏览器上下文 - 顾客和顾问分别有独立的浏览器会话
+    // 创建浏览器上下文 - 客户和顾问分别有独立的浏览器会话
     customerContext = await browser.newContext();
     consultantContext = await browser.newContext();
     
@@ -66,14 +66,14 @@ test.describe('聊天功能 - 顾客AI对话', () => {
     console.log('准备测试环境...');
     
     try {
-      // 1. 顾客登录 - 通过UI正常登录
-      console.log('步骤1: 顾客登录');
+      // 1. 客户登录 - 通过UI正常登录
+      console.log('步骤1: 客户登录');
       await loginAsCustomer(customerPage, config.users.customer.email);
       await customerPage.goto(`/customer/chat?conversationId=${testConversationId}`);
       
       // 等待聊天界面加载
       await waitForChatReady(customerPage);
-      console.log('顾客已登录并进入聊天页面');
+      console.log('客户已登录并进入聊天页面');
       
       // 2. 顾问登录 - 用于监控会话
       console.log('步骤2: 顾问登录');
@@ -98,10 +98,10 @@ test.describe('聊天功能 - 顾客AI对话', () => {
   });
   
   /**
-   * 测试：顾客发送文本消息，AI正常应答
+   * 测试：客户发送文本消息，AI正常应答
    */
-  test('顾客发送文本消息，AI正常应答', async () => {
-    console.log('开始测试: 顾客发送文本消息，AI正常应答');
+  test('客户发送文本消息，AI正常应答', async () => {
+    console.log('开始测试: 客户发送文本消息，AI正常应答');
     
     try {
       // 1. 获取初始消息数量
@@ -110,8 +110,8 @@ test.describe('聊天功能 - 顾客AI对话', () => {
       const initialMessageCount = initialMessages.length;
       console.log(`初始消息数量: ${initialMessageCount}`);
       
-      // 2. 顾客发送测试消息
-      console.log(`步骤2: 顾客发送测试消息: "${TEST_QUERY}"`);
+      // 2. 客户发送测试消息
+      console.log(`步骤2: 客户发送测试消息: "${TEST_QUERY}"`);
       
       // 定位输入框
       const messageInput = customerPage.getByPlaceholder('输入消息...');
@@ -120,19 +120,19 @@ test.describe('聊天功能 - 顾客AI对话', () => {
       // 填写并发送消息
       await messageInput.fill(TEST_QUERY);
       await customerPage.getByRole('button', { name: '发送' }).click();
-      console.log('顾客消息已发送');
+      console.log('客户消息已发送');
       
-      // 3. 验证顾客消息显示
-      console.log('步骤3: 验证顾客消息显示在界面上');
+      // 3. 验证客户消息显示
+      console.log('步骤3: 验证客户消息显示在界面上');
       const customerMessageLocator = customerPage.locator('.flex.justify-end').filter({ hasText: TEST_QUERY }).first();
       await expect(customerMessageLocator).toBeVisible({ timeout: config.timeouts.elementAppear });
-      console.log('顾客消息已显示在顾客界面');
+      console.log('客户消息已显示在客户界面');
       
-      // 4. 顾问应该能看到顾客消息
-      console.log('步骤4: 验证顾问能看到顾客消息');
+      // 4. 顾问应该能看到客户消息
+      console.log('步骤4: 验证顾问能看到客户消息');
       const consultantSeeCustomerMsg = consultantPage.locator('.flex.justify-start').filter({ hasText: TEST_QUERY }).first();
       await expect(consultantSeeCustomerMsg).toBeVisible({ timeout: config.timeouts.elementAppear });
-      console.log('顾问能看到顾客消息');
+      console.log('顾问能看到客户消息');
       
       // 5. 等待AI响应
       console.log(`步骤5: 等待AI响应... (最长等待时间: ${config.timeouts.aiResponse} ms)`);
@@ -174,12 +174,12 @@ test.describe('聊天功能 - 顾客AI对话', () => {
       // 验证消息数量增加
       expect(updatedMessages.length, '消息数量应该增加').toBeGreaterThan(initialMessageCount);
       
-      // 验证顾客消息存在于数据库
+      // 验证客户消息存在于数据库
       const customerMessageInDB = updatedMessages.some(msg => 
         msg.content.includes(TEST_QUERY) && 
         msg.sender.type === 'customer'
       );
-      expect(customerMessageInDB, '顾客消息应该存在于数据库').toBeTruthy();
+      expect(customerMessageInDB, '客户消息应该存在于数据库').toBeTruthy();
       
       // 验证AI回复也存在于数据库
       const aiMessageInDB = updatedMessages.some(msg => 

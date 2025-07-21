@@ -167,7 +167,7 @@ class AuthService {
         username: registerData.username,
         phone: registerData.phone,
         password: registerData.password,
-        roles: ['customer'] // 默认注册为顾客角色
+        roles: ['customer'] // 默认注册为客户角色
       });
 
       if (!response.data) {
@@ -362,7 +362,7 @@ export const roleOptions = [
   },
   {
     id: 'customer' as UserRole,
-    name: '顾客端',
+    name: '客户端',
     path: '/customer',
     icon: 'user',
   },

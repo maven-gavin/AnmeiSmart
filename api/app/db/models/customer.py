@@ -5,9 +5,9 @@ from app.db.models.base_model import BaseModel
 from app.db.uuid_utils import profile_id
 
 class Customer(BaseModel):
-    """顾客特有信息表，存储顾客扩展信息"""
+    """客户特有信息表，存储客户扩展信息"""
     __tablename__ = "customers"
-    __table_args__ = {"comment": "顾客表，存储顾客扩展信息"}
+    __table_args__ = {"comment": "客户表，存储客户扩展信息"}
     
     user_id = Column(String(36), ForeignKey("users.id"), unique=True, nullable=False, comment="用户ID")
     medical_history = Column(Text, nullable=True, comment="病史")
@@ -26,7 +26,7 @@ class CustomerProfile(BaseModel):
     __table_args__ = {"comment": "客户档案表，扩展客户详细信息"}
 
     id = Column(String(36), primary_key=True, default=profile_id, comment="档案ID")
-    customer_id = Column(String(36), ForeignKey("customers.user_id"), unique=True, nullable=False, comment="顾客用户ID")
+    customer_id = Column(String(36), ForeignKey("customers.user_id"), unique=True, nullable=False, comment="客户用户ID")
     medical_history = Column(Text, nullable=True, comment="病史")
     allergies = Column(Text, nullable=True, comment="过敏史（JSON字符串）")
     preferences = Column(Text, nullable=True, comment="偏好")

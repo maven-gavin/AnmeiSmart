@@ -1,7 +1,7 @@
 import { CustomerAppointment, Treatment, TreatmentPlan } from "@/types/customer";
 import { Message } from "@/types/chat";
 
-// 模拟顾客治疗记录
+// 模拟客户治疗记录
 export const mockTreatments: Record<string, Treatment[]> = {
   '101': [
     {
@@ -37,7 +37,7 @@ export const mockTreatments: Record<string, Treatment[]> = {
   ]
 };
 
-// 模拟顾客治疗方案
+// 模拟客户治疗方案
 export const mockTreatmentPlans: Record<string, TreatmentPlan[]> = {
   '101': [
     {
@@ -106,7 +106,7 @@ export const mockTreatmentPlans: Record<string, TreatmentPlan[]> = {
   ]
 };
 
-// 模拟顾客预约
+// 模拟客户预约
 export const mockAppointments: Record<string, CustomerAppointment[]> = {
   '101': [
     {
@@ -141,7 +141,7 @@ export const mockAppointments: Record<string, CustomerAppointment[]> = {
   ]
 };
 
-// 模拟顾客消息通知
+// 模拟客户消息通知
 export const mockCustomerMessages: Record<string, Message[]> = {
   '101': [
     {

@@ -4,17 +4,17 @@ from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 # 客户基础信息
 class CustomerBase(BaseModel):
-    """顾客信息基础模型"""
+    """客户信息基础模型"""
     medical_history: Optional[str] = None
     allergies: Optional[str] = None
     preferences: Optional[str] = None
 
 class CustomerCreate(CustomerBase):
-    """创建顾客信息的请求模型"""
+    """创建客户信息的请求模型"""
     user_id: str
 
 class CustomerUpdate(CustomerBase):
-    """更新顾客信息的请求模型"""
+    """更新客户信息的请求模型"""
     pass
 
 # 客户档案相关模型

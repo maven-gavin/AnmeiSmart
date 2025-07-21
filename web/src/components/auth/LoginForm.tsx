@@ -196,7 +196,7 @@ export default function LoginForm() {
             <p>演示密码：123456@Test</p>
             <p>管理员账号：admin@anmeismart.com</p>
             <p>管理员密码：Admin@123456</p>
-            <p className="mt-2 font-medium text-orange-600">顾客账号：customer1@example.com / 123456@Test</p>
+            <p className="mt-2 font-medium text-orange-600">客户账号：customer1@example.com / 123456@Test</p>
           </div>
         </form>
     </div>

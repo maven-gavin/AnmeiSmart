@@ -7,7 +7,7 @@
 ```
 e2e/                           # 端到端测试目录
 ├── chat/                      # 聊天功能测试
-│   ├── ai-customer-conversation.spec.ts   # 顾客与AI对话测试
+│   ├── ai-customer-conversation.spec.ts   # 客户与AI对话测试
 │   ├── basic-nav.spec.ts                  # 基本页面导航测试
 │   ├── consultant-response.spec.ts        # 顾问应答测试
 │   └── test-utils.ts                      # 测试工具函数
@@ -21,24 +21,24 @@ e2e/                           # 端到端测试目录
 
 ### 角色分离与交互模式
 
-测试采用了严格的角色分离设计，模拟真实业务场景中的顾客-顾问交互模式：
+测试采用了严格的角色分离设计，模拟真实业务场景中的客户-顾问交互模式：
 
-1. **顾客视角**：
-   - 顾客登录系统，创建咨询会话
-   - 顾客发送咨询消息，等待回复
-   - 顾客接收顾问/AI回复，可继续提问
+1. **客户视角**：
+   - 客户登录系统，创建咨询会话
+   - 客户发送咨询消息，等待回复
+   - 客户接收顾问/AI回复，可继续提问
 
 2. **顾问视角**：
    - 顾问登录系统，查看待处理咨询
    - 顾问可接管AI自动回复的会话
-   - 顾问回复顾客咨询问题
+   - 顾问回复客户咨询问题
 
 ### 多浏览器上下文
 
-每个测试使用独立的浏览器上下文，分别模拟顾客和顾问：
+每个测试使用独立的浏览器上下文，分别模拟客户和顾问：
 
 ```typescript
-// 创建浏览器上下文 - 顾客和顾问分别有独立的浏览器会话
+// 创建浏览器上下文 - 客户和顾问分别有独立的浏览器会话
 const customerContext = await browser.newContext();
 const consultantContext = await browser.newContext();
 
@@ -51,10 +51,10 @@ const consultantPage = await consultantContext.newPage();
 
 ### 认证令牌分离
 
-测试使用分离的认证令牌管理，确保顾客和顾问有各自独立的身份：
+测试使用分离的认证令牌管理，确保客户和顾问有各自独立的身份：
 
 ```typescript
-// 顾客令牌
+// 客户令牌
 let customerToken: string | null = null;
 
 // 顾问令牌
@@ -71,15 +71,15 @@ await loginConsultantAPIAndGetToken();
 
 测试按照实际业务流程设计会话创建逻辑：
 
-1. **优先使用顾客身份创建会话**：
+1. **优先使用客户身份创建会话**：
    ```typescript
-   // 由顾客创建测试会话（符合业务逻辑：顾客发起咨询）
+   // 由客户创建测试会话（符合业务逻辑：客户发起咨询）
    testConversationId = await createCustomerTestConversation();
    ```
 
 2. **后备方案 - 顾问身份创建会话**：
    ```typescript
-   // 如果顾客创建失败，尝试使用顾问创建
+   // 如果客户创建失败，尝试使用顾问创建
    return createConsultantTestConversation();
    ```
 

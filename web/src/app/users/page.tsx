@@ -165,7 +165,7 @@ export default function UsersPage() {
       admin: '管理员',
       consultant: '顾问',
       doctor: '医生',
-      customer: '顾客',
+      customer: '客户',
       operator: '运营'
     };
 
@@ -251,7 +251,7 @@ export default function UsersPage() {
                 <SelectItem value="admin">管理员</SelectItem>
                 <SelectItem value="consultant">顾问</SelectItem>
                 <SelectItem value="doctor">医生</SelectItem>
-                <SelectItem value="customer">顾客</SelectItem>
+                <SelectItem value="customer">客户</SelectItem>
                 <SelectItem value="operator">运营</SelectItem>
               </SelectContent>
             </Select>

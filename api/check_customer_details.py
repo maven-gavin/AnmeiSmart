@@ -6,9 +6,9 @@ from app.db.base import SessionLocal
 def main():
     db = SessionLocal()
     try:
-        # 查找所有顾客角色的用户
+        # 查找所有客户角色的用户
         customer_users = db.query(User).filter(User.roles.any(name="customer")).all()
-        print(f'找到 {len(customer_users)} 个有顾客角色的用户')
+        print(f'找到 {len(customer_users)} 个有客户角色的用户')
         
         for user in customer_users:
             print(f'用户: {user.username}, ID: {user.id}')

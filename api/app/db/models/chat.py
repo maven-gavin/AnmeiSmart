@@ -13,7 +13,7 @@ class Conversation(BaseModel):
 
     id = Column(String(36), primary_key=True, default=conversation_id, comment="会话ID")
     title = Column(String, nullable=False, comment="会话标题")
-    customer_id = Column(String(36), ForeignKey("users.id"), nullable=False, comment="顾客用户ID")
+    customer_id = Column(String(36), ForeignKey("users.id"), nullable=False, comment="客户用户ID")
     assigned_consultant_id = Column(String(36), ForeignKey("users.id"), nullable=True, comment="分配的顾问用户ID")
     is_active = Column(Boolean, default=True, comment="会话是否激活")
     
