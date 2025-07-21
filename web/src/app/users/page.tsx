@@ -56,20 +56,11 @@ export default function UsersPage() {
     setLoading(true);
     try {
       const response = await apiClient.get('/users');
-      if (response.ok) {
+      if (response.status === 200) {
         // 使用response.data如果存在，否则尝试解析JSON
         if (response.data) {
           setAllUsers(response.data);
           setUsers(response.data);
-        } else if (!response.bodyUsed) { // 检查body是否已被使用
-          try {
-            const data = await response.json();
-            setAllUsers(data);
-            setUsers(data);
-          } catch (jsonError) {
-            console.error('解析用户数据失败', jsonError);
-            throw new Error('解析用户数据失败');
-          }
         } else {
           throw new Error('无法读取响应数据');
         }

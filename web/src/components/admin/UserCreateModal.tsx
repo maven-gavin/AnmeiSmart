@@ -85,8 +85,10 @@ export default function UserCreateModal({ isOpen, onClose, onUserCreated }: User
         phone: phone || undefined,
         roles
       });
+
+      console.log(response);
       
-      if (!response.ok) {
+      if (response.status !== 200) {
         // 使用response.data如果存在，否则尝试解析JSON
         if (response.data) {
           throw new Error(response.data.detail || '创建用户失败');

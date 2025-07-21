@@ -105,19 +105,13 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
     
     try {
       const response = await apiClient.put(`/users/${user.id}`, updateData);
-      
-      if (!response.ok) {
+
+      console.log(response);
+
+      if (response.status !== 200) {
         // 使用response.data如果存在，否则尝试解析JSON
         if (response.data) {
           throw new Error(response.data.detail || '更新用户失败');
-        } else if (!response.bodyUsed) {
-          try {
-            const data = await response.json();
-            throw new Error(data.detail || '更新用户失败');
-          } catch (jsonError) {
-            console.error('解析错误响应失败', jsonError);
-            throw new Error('更新用户失败');
-          }
         } else {
           throw new Error('更新用户失败');
         }
