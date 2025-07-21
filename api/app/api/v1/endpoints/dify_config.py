@@ -8,16 +8,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user, get_current_admin
-from app.db.models.system import DifyConfig
 from app.schemas.system import (
     DifyConfigCreate, DifyConfigUpdate, DifyConfigInfo, 
-    DifyConfigResponse, DifyConfigListResponse, DifyTestConnectionRequest
+    DifyConfigResponse, DifyConfigListResponse
 )
 from app.services.dify_config_service import (
     create_dify_config, get_dify_configs, get_dify_config,
     update_dify_config, delete_dify_config, test_dify_connection,
     reload_ai_gateway_with_new_config
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -30,10 +32,9 @@ def get_dify_config_list(
     """获取Dify配置列表"""
     try:
         configs = get_dify_configs(db)
-        config_infos = [DifyConfigInfo.from_model(config) for config in configs]
         return DifyConfigListResponse(
             success=True,
-            data=config_infos,
+            data=configs,
             message="获取Dify配置列表成功"
         )
     except Exception as e:
@@ -58,10 +59,9 @@ def get_dify_config_detail(
                 detail="Dify配置不存在"
             )
         
-        config_info = DifyConfigInfo.from_model(config)
         return DifyConfigResponse(
             success=True,
-            data=config_info,
+            data=config,
             message="获取Dify配置详情成功"
         )
     except HTTPException:
@@ -81,17 +81,6 @@ def create_dify_config_endpoint(
 ):
     """创建Dify配置"""
     try:
-        # 检查配置名称是否已存在
-        existing_config = db.query(DifyConfig).filter(
-            DifyConfig.config_name == config_data.configName
-        ).first()
-        
-        if existing_config:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="配置名称已存在"
-            )
-        
         # 创建配置
         new_config = create_dify_config(db, config_data)
         
@@ -102,14 +91,16 @@ def create_dify_config_endpoint(
             # 配置已创建，但重载失败，记录警告
             print(f"Warning: AI Gateway重载失败: {reload_error}")
         
-        config_info = DifyConfigInfo.from_model(new_config)
         return DifyConfigResponse(
             success=True,
-            data=config_info,
+            data=new_config,
             message="创建Dify配置成功"
         )
-    except HTTPException:
-        raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -134,19 +125,6 @@ def update_dify_config_endpoint(
                 detail="Dify配置不存在"
             )
         
-        # 检查配置名称是否与其他配置冲突
-        if config_data.configName:
-            conflicting_config = db.query(DifyConfig).filter(
-                DifyConfig.config_name == config_data.configName,
-                DifyConfig.id != config_id
-            ).first()
-            
-            if conflicting_config:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="配置名称已存在"
-                )
-        
         # 更新配置
         updated_config = update_dify_config(db, config_id, config_data)
         
@@ -156,14 +134,16 @@ def update_dify_config_endpoint(
         except Exception as reload_error:
             print(f"Warning: AI Gateway重载失败: {reload_error}")
         
-        config_info = DifyConfigInfo.from_model(updated_config)
         return DifyConfigResponse(
             success=True,
-            data=config_info,
+            data=updated_config,
             message="更新Dify配置成功"
         )
-    except HTTPException:
-        raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -200,8 +180,11 @@ def delete_dify_config_endpoint(
             "success": True,
             "message": "删除Dify配置成功"
         }
-    except HTTPException:
-        raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -211,17 +194,13 @@ def delete_dify_config_endpoint(
 
 @router.post("/test-connection")
 def test_dify_connection_endpoint(
-    test_data: DifyTestConnectionRequest,
+    config: DifyConfigInfo,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_admin)
 ):
     """测试Dify连接"""
     try:
-        result = test_dify_connection(
-            base_url=test_data.baseUrl,
-            api_key=test_data.apiKey,
-            app_type=test_data.appType
-        )
+        result = test_dify_connection(config, db)
         
         return {
             "success": result["success"],

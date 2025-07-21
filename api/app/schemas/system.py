@@ -101,48 +101,28 @@ class AIModelConfigListResponse(BaseModel):
 
 class DifyConfigCreate(BaseModel):
     """创建Dify配置的Schema"""
-    configName: str = Field(..., description="配置名称", min_length=1, max_length=255)
-    baseUrl: str = Field(..., description="Dify API基础URL")
-    description: Optional[str] = Field(None, description="配置描述")
-    
-    # Chat应用配置
-    chatAppId: Optional[str] = Field(None, description="聊天应用ID")
-    chatApiKey: Optional[str] = Field(None, description="聊天应用API密钥")
-    
-    # Beauty Agent配置
-    beautyAppId: Optional[str] = Field(None, description="医美方案专家应用ID")
-    beautyApiKey: Optional[str] = Field(None, description="医美方案专家API密钥")
-    
-    # Summary Workflow配置
-    summaryAppId: Optional[str] = Field(None, description="咨询总结工作流应用ID")
-    summaryApiKey: Optional[str] = Field(None, description="咨询总结工作流API密钥")
-    
+    environment: str = Field(..., description="环境名称（dev/test/prod）", min_length=1, max_length=100)
+    appId: str = Field(..., description="应用ID", min_length=1, max_length=255)
+    appName: str = Field(..., description="应用名称", min_length=1, max_length=255)
+    apiKey: str = Field(..., description="API密钥", min_length=1)
+    baseUrl: str = Field("http://localhost/v1", description="Dify API基础URL")
     timeoutSeconds: int = Field(30, description="请求超时时间（秒）", ge=1, le=300)
     maxRetries: int = Field(3, description="最大重试次数", ge=1, le=10)
-    enabled: bool = Field(True, description="是否启用")
+    enabled: bool = Field(True, description="是否启用配置")
+    description: Optional[str] = Field(None, description="配置描述")
 
 
 class DifyConfigUpdate(BaseModel):
     """更新Dify配置的Schema"""
-    configName: Optional[str] = Field(None, description="配置名称", min_length=1, max_length=255)
+    environment: Optional[str] = Field(None, description="环境名称（dev/test/prod）", min_length=1, max_length=100)
+    appId: Optional[str] = Field(None, description="应用ID", min_length=1, max_length=255)
+    appName: Optional[str] = Field(None, description="应用名称", min_length=1, max_length=255)
+    apiKey: Optional[str] = Field(None, description="API密钥", min_length=1)
     baseUrl: Optional[str] = Field(None, description="Dify API基础URL")
-    description: Optional[str] = Field(None, description="配置描述")
-    
-    # Chat应用配置
-    chatAppId: Optional[str] = Field(None, description="聊天应用ID")
-    chatApiKey: Optional[str] = Field(None, description="聊天应用API密钥")
-    
-    # Beauty Agent配置
-    beautyAppId: Optional[str] = Field(None, description="医美方案专家应用ID")
-    beautyApiKey: Optional[str] = Field(None, description="医美方案专家API密钥")
-    
-    # Summary Workflow配置
-    summaryAppId: Optional[str] = Field(None, description="咨询总结工作流应用ID")
-    summaryApiKey: Optional[str] = Field(None, description="咨询总结工作流API密钥")
-    
     timeoutSeconds: Optional[int] = Field(None, description="请求超时时间（秒）", ge=1, le=300)
     maxRetries: Optional[int] = Field(None, description="最大重试次数", ge=1, le=10)
-    enabled: Optional[bool] = Field(None, description="是否启用")
+    enabled: Optional[bool] = Field(None, description="是否启用配置")
+    description: Optional[str] = Field(None, description="配置描述")
 
 
 class DifyConfigInfo(BaseModel):
@@ -150,23 +130,14 @@ class DifyConfigInfo(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
     id: str = Field(..., description="配置ID")
-    configName: str = Field(..., description="配置名称")
+    environment: str = Field(..., description="环境名称")
+    appId: str = Field(..., description="应用ID")
+    appName: str = Field(..., description="应用名称")
     baseUrl: str = Field(..., description="Dify API基础URL")
-    description: Optional[str] = Field(None, description="配置描述")
-    
-    # 应用配置（不返回API密钥，只显示是否已配置）
-    chatAppId: Optional[str] = Field(None, description="聊天应用ID")
-    chatApiKeyConfigured: bool = Field(False, description="聊天API密钥是否已配置")
-    
-    beautyAppId: Optional[str] = Field(None, description="医美方案专家应用ID")
-    beautyApiKeyConfigured: bool = Field(False, description="医美方案专家API密钥是否已配置")
-    
-    summaryAppId: Optional[str] = Field(None, description="咨询总结工作流应用ID")
-    summaryApiKeyConfigured: bool = Field(False, description="咨询总结工作流API密钥是否已配置")
-    
     timeoutSeconds: int = Field(30, description="请求超时时间（秒）")
     maxRetries: int = Field(3, description="最大重试次数")
-    enabled: bool = Field(True, description="是否启用")
+    enabled: bool = Field(True, description="是否启用配置")
+    description: Optional[str] = Field(None, description="配置描述")
     createdAt: datetime = Field(..., description="创建时间")
     updatedAt: datetime = Field(..., description="更新时间")
 
@@ -175,18 +146,14 @@ class DifyConfigInfo(BaseModel):
         """从ORM模型创建Schema实例"""
         return DifyConfigInfo(
             id=model.id,
-            configName=model.config_name,
+            environment=model.environment,
+            appId=model.app_id,
+            appName=model.app_name,
             baseUrl=model.base_url,
-            description=model.description,
-            chatAppId=model.chat_app_id,
-            chatApiKeyConfigured=bool(model.chat_api_key),
-            beautyAppId=model.beauty_app_id,
-            beautyApiKeyConfigured=bool(model.beauty_api_key),
-            summaryAppId=model.summary_app_id,
-            summaryApiKeyConfigured=bool(model.summary_api_key),
             timeoutSeconds=model.timeout_seconds,
             maxRetries=model.max_retries,
             enabled=model.enabled,
+            description=model.description,
             createdAt=model.created_at,
             updatedAt=model.updated_at
         )

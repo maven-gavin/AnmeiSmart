@@ -442,28 +442,27 @@ TODO：
 
 #### 6.3 Dify配置表 (dify_configs)
 
-| 字段名          | 数据类型      | 约束        | 默认值                | 说明                              |
-| --------------- | ------------- | ----------- | --------------------- | --------------------------------- |
-| id              | VARCHAR(36)   | PRIMARY KEY | mdl_xxx               | Dify配置ID                        |
-| config_name     | VARCHAR(255)  | NOT NULL    | -                     | 配置名称                          |
-| base_url        | VARCHAR(1024) | NOT NULL    | 'http://localhost/v1' | Dify API基础URL                   |
-| chat_app_id     | VARCHAR(255)  | NULL        | -                     | 聊天应用ID                        |
-| chat_api_key    | TEXT          | NULL        | -                     | 聊天应用API密钥（加密存储）       |
-| beauty_app_id   | VARCHAR(255)  | NULL        | -                     | 医美方案专家应用ID                |
-| beauty_api_key  | TEXT          | NULL        | -                     | 医美方案专家API密钥（加密存储）   |
-| summary_app_id  | VARCHAR(255)  | NULL        | -                     | 咨询总结工作流应用ID              |
-| summary_api_key | TEXT          | NULL        | -                     | 咨询总结工作流API密钥（加密存储） |
-| enabled         | BOOLEAN       | NOT NULL    | TRUE                  | 是否启用                          |
-| description     | TEXT          | NULL        | -                     | 配置描述                          |
-| timeout_seconds | INTEGER       | NOT NULL    | 30                    | 请求超时时间（秒）                |
-| max_retries     | INTEGER       | NOT NULL    | 3                     | 最大重试次数                      |
-| created_at      | TIMESTAMP     | NOT NULL    | CURRENT_TIMESTAMP     | 创建时间                          |
-| updated_at      | TIMESTAMP     | NOT NULL    | CURRENT_TIMESTAMP     | 更新时间                          |
+| 字段名          | 数据类型      | 约束        | 默认值                | 说明                      |
+| --------------- | ------------- | ----------- | --------------------- | ------------------------- |
+| id              | VARCHAR(36)   | PRIMARY KEY | dify_xxx              | Dify配置ID                |
+| environment     | VARCHAR(100)  | NOT NULL    | -                     | 环境名称（dev/test/prod） |
+| app_id          | VARCHAR(255)  | NOT NULL    | -                     | 应用ID                    |
+| app_name        | VARCHAR(255)  | NOT NULL    | -                     | 应用名称                  |
+| api_key         | TEXT          | NOT NULL    | -                     | API密钥（加密存储）       |
+| base_url        | VARCHAR(1024) | NOT NULL    | 'http://localhost/v1' | Dify API基础URL           |
+| timeout_seconds | INTEGER       | NOT NULL    | 30                    | 请求超时时间（秒）        |
+| max_retries     | INTEGER       | NOT NULL    | 3                     | 最大重试次数              |
+| enabled         | BOOLEAN       | NOT NULL    | TRUE                  | 是否启用配置              |
+| description     | TEXT          | NULL        | -                     | 配置描述                  |
+| created_at      | TIMESTAMP     | NOT NULL    | CURRENT_TIMESTAMP     | 创建时间                  |
+| updated_at      | TIMESTAMP     | NOT NULL    | CURRENT_TIMESTAMP     | 更新时间                  |
 
 **索引：**
 
 - PRIMARY KEY (id)
+- INDEX (environment)
 - INDEX (enabled)
+- UNIQUE INDEX (environment, app_id)
 
 ### 7. 个人中心模块
 

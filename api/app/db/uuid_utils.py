@@ -76,6 +76,12 @@ def model_id() -> str:
     return prefixed_uuid("mdl")
 
 
+# Dify配置ID前缀生成函数
+def generate_dify_id() -> str:
+    """生成Dify配置ID"""
+    return prefixed_uuid("dify")
+
+
 # 创建SQLAlchemy的UUID类型，在不同数据库中使用
 class UUID(TypeDecorator):
     """Platform-independent UUID type.

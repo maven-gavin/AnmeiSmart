@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional
 
 from app.db.models.base_model import BaseModel
-from app.db.uuid_utils import system_id, model_id
+from app.db.uuid_utils import system_id, model_id, generate_dify_id
 
 
 class SystemSettings(BaseModel):
@@ -73,81 +73,51 @@ class AIModelConfig(BaseModel):
 
 
 class DifyConfig(BaseModel):
-    """Dify配置数据库模型，支持动态配置Dify应用"""
+    """Dify配置数据库模型，每个应用作为独立的配置记录"""
     __tablename__ = "dify_configs"
     __table_args__ = (
+        Index('idx_dify_config_environment', 'environment'),
         Index('idx_dify_config_enabled', 'enabled'),
-        {"comment": "Dify配置表，存储Dify应用配置"}
+        Index('idx_dify_config_env_app', 'environment', 'app_id', unique=True),
+        {"comment": "Dify配置表，存储独立的Dify应用配置"}
     )
 
-    id = Column(String(36), primary_key=True, default=model_id, comment="Dify配置ID")
-    config_name = Column(String(255), nullable=False, comment="配置名称")
+    id = Column(String(36), primary_key=True, default=generate_dify_id, comment="Dify配置ID")
+    environment = Column(String(100), nullable=False, comment="环境名称（dev/test/prod）")
+    app_id = Column(String(255), nullable=False, comment="应用ID")
+    app_name = Column(String(255), nullable=False, comment="应用名称")
+    _encrypted_api_key = Column("api_key", Text, nullable=False, comment="API密钥（加密存储）")
     base_url = Column(String(1024), nullable=False, default="http://localhost/v1", comment="Dify API基础URL")
-    
-    # Chat应用配置
-    chat_app_id = Column(String(255), nullable=True, comment="聊天应用ID")
-    _encrypted_chat_api_key = Column("chat_api_key", Text, nullable=True, comment="聊天应用API密钥（加密存储）")
-    
-    # Beauty Agent配置
-    beauty_app_id = Column(String(255), nullable=True, comment="医美方案专家应用ID")
-    _encrypted_beauty_api_key = Column("beauty_api_key", Text, nullable=True, comment="医美方案专家API密钥（加密存储）")
-    
-    # Summary Workflow配置
-    summary_app_id = Column(String(255), nullable=True, comment="咨询总结工作流应用ID")
-    _encrypted_summary_api_key = Column("summary_api_key", Text, nullable=True, comment="咨询总结工作流API密钥（加密存储）")
-    
-    enabled = Column(Boolean, default=True, nullable=False, comment="是否启用")
+    timeout_seconds = Column(Integer, default=30, nullable=False, comment="请求超时时间（秒）")
+    max_retries = Column(Integer, default=3, nullable=False, comment="最大重试次数")
+    enabled = Column(Boolean, default=True, nullable=False, comment="是否启用配置")
     description = Column(Text, nullable=True, comment="配置描述")
-    timeout_seconds = Column(Integer, default=30, comment="请求超时时间（秒）")
-    max_retries = Column(Integer, default=3, comment="最大重试次数")
 
     @hybrid_property
-    def chat_api_key(self) -> Optional[str]:
-        """获取解密后的聊天API密钥"""
-        if not self._encrypted_chat_api_key:
+    def api_key(self) -> Optional[str]:
+        """获取解密后的API密钥"""
+        if not self._encrypted_api_key:
             return None
+        
+        # 延迟导入避免循环依赖
         from app.core.encryption import safe_decrypt_api_key
-        return safe_decrypt_api_key(self._encrypted_chat_api_key)
+        return safe_decrypt_api_key(self._encrypted_api_key)
 
-    @chat_api_key.setter
-    def chat_api_key(self, value: Optional[str]) -> None:
-        """设置聊天API密钥（自动加密）"""
+    @api_key.setter
+    def api_key(self, value: Optional[str]) -> None:
+        """设置API密钥（自动加密）"""
         if not value:
-            self._encrypted_chat_api_key = None
+            self._encrypted_api_key = None
             return
+        
+        # 延迟导入避免循环依赖
         from app.core.encryption import encrypt_api_key
-        self._encrypted_chat_api_key = encrypt_api_key(value)
+        self._encrypted_api_key = encrypt_api_key(value)
 
-    @hybrid_property
-    def beauty_api_key(self) -> Optional[str]:
-        """获取解密后的医美方案专家API密钥"""
-        if not self._encrypted_beauty_api_key:
-            return None
-        from app.core.encryption import safe_decrypt_api_key
-        return safe_decrypt_api_key(self._encrypted_beauty_api_key)
+    def set_api_key_raw(self, encrypted_value: Optional[str]) -> None:
+        """直接设置已加密的API密钥（用于数据库迁移等场景）"""
+        self._encrypted_api_key = encrypted_value
 
-    @beauty_api_key.setter
-    def beauty_api_key(self, value: Optional[str]) -> None:
-        """设置医美方案专家API密钥（自动加密）"""
-        if not value:
-            self._encrypted_beauty_api_key = None
-            return
-        from app.core.encryption import encrypt_api_key
-        self._encrypted_beauty_api_key = encrypt_api_key(value)
-
-    @hybrid_property
-    def summary_api_key(self) -> Optional[str]:
-        """获取解密后的咨询总结工作流API密钥"""
-        if not self._encrypted_summary_api_key:
-            return None
-        from app.core.encryption import safe_decrypt_api_key
-        return safe_decrypt_api_key(self._encrypted_summary_api_key)
-
-    @summary_api_key.setter
-    def summary_api_key(self, value: Optional[str]) -> None:
-        """设置咨询总结工作流API密钥（自动加密）"""
-        if not value:
-            self._encrypted_summary_api_key = None
-            return
-        from app.core.encryption import encrypt_api_key
-        self._encrypted_summary_api_key = encrypt_api_key(value) 
+    def get_api_key_encrypted(self) -> Optional[str]:
+        """获取加密的API密钥（用于内部处理）"""
+        return self._encrypted_api_key 

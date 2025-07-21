@@ -10,106 +10,116 @@ from sqlalchemy.orm import Session
 import requests
 
 from app.db.models.system import DifyConfig
-from app.schemas.system import DifyConfigCreate, DifyConfigUpdate
+from app.schemas.system import DifyConfigCreate, DifyConfigUpdate, DifyConfigInfo
 from app.services.ai.ai_gateway_service import reload_ai_gateway_service
 
 logger = logging.getLogger(__name__)
 
 
-def get_dify_configs(db: Session) -> List[DifyConfig]:
+def get_dify_configs(db: Session) -> List[DifyConfigInfo]:
     """获取所有Dify配置"""
-    return db.query(DifyConfig).order_by(DifyConfig.created_at.desc()).all()
+    configs = db.query(DifyConfig).order_by(DifyConfig.created_at.desc()).all()
+    return [DifyConfigInfo.from_model(config) for config in configs]
 
 
-def get_dify_config(db: Session, config_id: str) -> Optional[DifyConfig]:
+def get_dify_config(db: Session, config_id: str) -> Optional[DifyConfigInfo]:
     """根据ID获取Dify配置"""
-    return db.query(DifyConfig).filter(DifyConfig.id == config_id).first()
+    config = db.query(DifyConfig).filter(DifyConfig.id == config_id).first()
+    return DifyConfigInfo.from_model(config) if config else None
 
 
-def get_active_dify_config(db: Session) -> Optional[DifyConfig]:
-    """获取当前启用的Dify配置"""
-    return db.query(DifyConfig).filter(DifyConfig.enabled == True).first()
+def get_dify_configs_by_environment(db: Session, environment: str) -> List[DifyConfigInfo]:
+    """根据环境获取Dify配置列表"""
+    configs = db.query(DifyConfig).filter(
+        DifyConfig.environment == environment
+    ).order_by(DifyConfig.created_at.desc()).all()
+    return [DifyConfigInfo.from_model(config) for config in configs]
 
 
-def create_dify_config(db: Session, config_data: DifyConfigCreate) -> DifyConfig:
+def get_active_dify_configs(db: Session) -> List[DifyConfigInfo]:
+    """获取当前启用的Dify配置列表"""
+    configs = db.query(DifyConfig).filter(DifyConfig.enabled == True).all()
+    return [DifyConfigInfo.from_model(config) for config in configs]
+
+
+def create_dify_config(db: Session, config_data: DifyConfigCreate) -> DifyConfigInfo:
     """创建Dify配置"""
+    # 检查同一环境下是否已存在相同应用ID的配置
+    existing_config = db.query(DifyConfig).filter(
+        DifyConfig.environment == config_data.environment,
+        DifyConfig.app_id == config_data.appId
+    ).first()
+    
+    if existing_config:
+        raise ValueError(f"环境 '{config_data.environment}' 中已存在应用ID '{config_data.appId}' 的配置")
+    
     # 创建新配置实例
     new_config = DifyConfig(
-        config_name=config_data.configName,
+        environment=config_data.environment,
+        app_id=config_data.appId,
+        app_name=config_data.appName,
         base_url=config_data.baseUrl,
-        description=config_data.description,
-        chat_app_id=config_data.chatAppId,
-        beauty_app_id=config_data.beautyAppId,
-        summary_app_id=config_data.summaryAppId,
         timeout_seconds=config_data.timeoutSeconds,
         max_retries=config_data.maxRetries,
-        enabled=config_data.enabled
+        enabled=config_data.enabled,
+        description=config_data.description
     )
     
     # 设置API密钥（会自动加密）
-    if config_data.chatApiKey:
-        new_config.chat_api_key = config_data.chatApiKey
-    if config_data.beautyApiKey:
-        new_config.beauty_api_key = config_data.beautyApiKey
-    if config_data.summaryApiKey:
-        new_config.summary_api_key = config_data.summaryApiKey
-    
-    # 如果这是第一个启用的配置，禁用其他配置
-    if config_data.enabled:
-        db.query(DifyConfig).filter(DifyConfig.enabled == True).update({"enabled": False})
+    new_config.api_key = config_data.apiKey
     
     db.add(new_config)
     db.commit()
     db.refresh(new_config)
     
-    return new_config
+    return DifyConfigInfo.from_model(new_config)
 
 
-def update_dify_config(db: Session, config_id: str, config_data: DifyConfigUpdate) -> DifyConfig:
+def update_dify_config(db: Session, config_id: str, config_data: DifyConfigUpdate) -> DifyConfigInfo:
     """更新Dify配置"""
     config = db.query(DifyConfig).filter(DifyConfig.id == config_id).first()
     if not config:
         raise ValueError("配置不存在")
     
+    # 检查环境和应用ID的唯一性
+    if config_data.environment and config_data.appId:
+        existing_config = db.query(DifyConfig).filter(
+            DifyConfig.environment == config_data.environment,
+            DifyConfig.app_id == config_data.appId,
+            DifyConfig.id != config_id
+        ).first()
+        
+        if existing_config:
+            raise ValueError(f"环境 '{config_data.environment}' 中已存在应用ID '{config_data.appId}' 的配置")
+    
     # 更新字段
     update_data = config_data.model_dump(exclude_unset=True)
     
-    if "configName" in update_data:
-        config.config_name = update_data["configName"]
+    if "environment" in update_data:
+        config.environment = update_data["environment"]
+    if "appId" in update_data:
+        config.app_id = update_data["appId"]
+    if "appName" in update_data:
+        config.app_name = update_data["appName"]
     if "baseUrl" in update_data:
         config.base_url = update_data["baseUrl"]
-    if "description" in update_data:
-        config.description = update_data["description"]
-    if "chatAppId" in update_data:
-        config.chat_app_id = update_data["chatAppId"]
-    if "beautyAppId" in update_data:
-        config.beauty_app_id = update_data["beautyAppId"]
-    if "summaryAppId" in update_data:
-        config.summary_app_id = update_data["summaryAppId"]
     if "timeoutSeconds" in update_data:
         config.timeout_seconds = update_data["timeoutSeconds"]
     if "maxRetries" in update_data:
         config.max_retries = update_data["maxRetries"]
+    if "enabled" in update_data:
+        config.enabled = update_data["enabled"]
+    if "description" in update_data:
+        config.description = update_data["description"]
     
     # 更新API密钥
-    if "chatApiKey" in update_data and update_data["chatApiKey"]:
-        config.chat_api_key = update_data["chatApiKey"]
-    if "beautyApiKey" in update_data and update_data["beautyApiKey"]:
-        config.beauty_api_key = update_data["beautyApiKey"]
-    if "summaryApiKey" in update_data and update_data["summaryApiKey"]:
-        config.summary_api_key = update_data["summaryApiKey"]
-    
-    # 处理启用状态
-    if "enabled" in update_data:
-        if update_data["enabled"]:
-            # 启用当前配置，禁用其他配置
-            db.query(DifyConfig).filter(DifyConfig.id != config_id).update({"enabled": False})
-        config.enabled = update_data["enabled"]
+    if "apiKey" in update_data and update_data["apiKey"]:
+        config.api_key = update_data["apiKey"]
     
     db.commit()
     db.refresh(config)
     
-    return config
+    return DifyConfigInfo.from_model(config)
 
 
 def delete_dify_config(db: Session, config_id: str) -> bool:
@@ -118,17 +128,36 @@ def delete_dify_config(db: Session, config_id: str) -> bool:
     if not config:
         return False
     
+    # 检查是否为启用状态（前端已经做了检查，这里再次确认）
+    if config.enabled:
+        raise ValueError("启用配置不可删除，请先禁用配置")
+    
     db.delete(config)
     db.commit()
     
     return True
 
 
-def test_dify_connection(base_url: str, api_key: str, app_type: str) -> Dict[str, Any]:
-    """测试Dify连接"""
-    # 根据应用类型设置不同的超时时间
-    timeout_seconds = 60 if app_type == "workflow" else 20  # workflow需要更长时间
-    
+def test_dify_connection(config: DifyConfigInfo, db: Session) -> Dict[str, Any]:
+    """测试Dify连接（通过配置ID查库解密api_key）"""
+    # 1. 通过 config.id 查询数据库，获取 DifyConfig ORM 实例
+    db_config = db.query(DifyConfig).filter(DifyConfig.id == config.id).first()
+    if not db_config:
+        return {
+            "success": False,
+            "message": f"未找到ID为{config.id}的Dify配置",
+            "details": {}
+        }
+    # 2. 解密 api_key
+    api_key = db_config.api_key  # 通过 hybrid_property 自动解密
+    if not api_key:
+        return {
+            "success": False,
+            "message": "未配置API密钥，无法测试连接",
+            "details": {}
+        }
+    base_url = config.baseUrl
+    timeout_seconds = config.timeoutSeconds
     try:
         # 验证基础URL格式
         if not base_url.startswith(('http://', 'https://')):
@@ -138,9 +167,9 @@ def test_dify_connection(base_url: str, api_key: str, app_type: str) -> Dict[str
                 "details": {"error_type": "invalid_url", "url": base_url}
             }
         
-        # 构建测试URL和参数（针对不同应用类型使用不同配置）
-        if app_type == "chat":
-            test_url = f"{base_url}/chat-messages"
+        # 构建测试URL - 使用通用的聊天接口进行测试
+        if(config.appId == "DIFY_CHAT_API_KEY"):
+            logger.debug(f"测试Dify连接={config.appId}")
             test_data = {
                 "inputs": {},
                 "query": "Hello, this is a connection test.",
@@ -148,9 +177,11 @@ def test_dify_connection(base_url: str, api_key: str, app_type: str) -> Dict[str
                 "conversation_id": "",
                 "user": "test_user"
             }
-        elif app_type == "agent":
-            # Agent应用不支持blocking模式，使用streaming模式
             test_url = f"{base_url}/chat-messages"
+
+        # 构建测试URL - 使用医美专家接口进行测试
+        elif(config.appId == "DIFY_BEAUTY_API_KEY"):
+            logger.debug(f"测试Dify连接={config.appId}")
             test_data = {
                 "inputs": {},
                 "query": "Hello, this is a connection test.",
@@ -158,61 +189,47 @@ def test_dify_connection(base_url: str, api_key: str, app_type: str) -> Dict[str
                 "conversation_id": "",
                 "user": "test_user"
             }
-        elif app_type == "workflow":
-            test_url = f"{base_url}/workflows/run"
+            test_url = f"{base_url}/chat-messages"
+
+        # 构建测试URL - 使用咨询总结工作流接口进行测试
+        elif(config.appId == "DIFY_SUMMARY_API_KEY"):
+            logger.debug(f"测试Dify连接={config.appId}")
             test_data = {
                 "inputs": {
-                    # 简化测试输入，只提供最基本的必需字段
-                    "conversation_text": "测试对话内容",
-                    "user_id": "test_user_123"
+                    "conversation_text": "Hello, this is a connection test.",
+                    "user_id": "test_user",
                 },
-                "response_mode": "blocking",
+                "response_mode": "streaming",
                 "user": "test_user"
             }
+            test_url = f"{base_url}/workflows/run"
         else:
             return {
                 "success": False,
-                "message": "不支持的应用类型"
+                "message": "未指定appId，无法测试连接",
+                "details": {}
             }
-        
+
         # 发送测试请求
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
-        
-        logger.info(f"Testing Dify connection: {test_url} (timeout: {timeout_seconds}s)")
-        
+        import requests
         response = requests.post(
             test_url,
             json=test_data,
             headers=headers,
-            timeout=timeout_seconds,
-            stream=(app_type == "agent")  # Agent类型使用流式响应
+            timeout=timeout_seconds
         )
-        
         if response.status_code == 200:
-            # 对于streaming响应，简单验证是否有数据返回
-            if app_type == "agent":
-                # 读取第一行来验证streaming响应
-                try:
-                    first_line = next(response.iter_lines(decode_unicode=True))
-                    if first_line and 'event' in first_line:
-                        success_msg = "连接测试成功 (Streaming模式)"
-                    else:
-                        success_msg = "连接测试成功"
-                except:
-                    success_msg = "连接测试成功"
-            else:
-                success_msg = "连接测试成功"
-                
             return {
                 "success": True,
-                "message": success_msg,
+                "message": "连接测试成功",
                 "details": {
                     "status_code": response.status_code,
-                    "app_type": app_type,
-                    "response_mode": test_data.get("response_mode", "unknown"),
+                    "app_name": config.appName,
+                    "environment": config.environment,
                     "response_time": f"{response.elapsed.total_seconds():.2f}s"
                 }
             }
@@ -222,24 +239,17 @@ def test_dify_connection(base_url: str, api_key: str, app_type: str) -> Dict[str
                 "message": f"连接测试失败: HTTP {response.status_code}",
                 "details": {
                     "status_code": response.status_code,
-                    "response_text": response.text[:200]  # 限制响应长度
+                    "response_text": response.text[:200]
                 }
             }
-            
     except requests.exceptions.Timeout:
-        timeout_msg = "连接超时"
-        if app_type == "workflow":
-            timeout_msg += f"，工作流应用处理时间较长（{timeout_seconds}秒内未完成），请稍后重试"
-        else:
-            timeout_msg += "，请检查基础URL是否正确（如：http://localhost/v1）"
-            
+        timeout_msg = f"连接超时（{timeout_seconds}秒内未完成），请检查基础URL是否正确"
         return {
             "success": False,
             "message": timeout_msg,
             "details": {
-                "error_type": "timeout", 
+                "error_type": "timeout",
                 "url": base_url,
-                "app_type": app_type,
                 "timeout_seconds": timeout_seconds
             }
         }
@@ -249,7 +259,6 @@ def test_dify_connection(base_url: str, api_key: str, app_type: str) -> Dict[str
             error_msg += "，URL格式错误：请使用 http://localhost/v1 而不是 http://localhost:v1"
         elif "localhost" in base_url and "/v1" not in base_url:
             error_msg += "，URL可能缺少 /v1 路径"
-        
         return {
             "success": False,
             "message": error_msg,
@@ -279,41 +288,40 @@ def get_current_dify_settings() -> Dict[str, Any]:
     
     try:
         db = next(get_db())
-        active_config = get_active_dify_config(db)
+        active_configs = db.query(DifyConfig).filter(DifyConfig.enabled == True).all()
         
-        if not active_config:
+        if not active_configs:
             return {
                 "enabled": False,
-                "base_url": "",
-                "apps": {}
+                "configs": {}
             }
         
-        return {
+        # 按环境分组配置
+        settings = {
             "enabled": True,
-            "base_url": active_config.base_url,
-            "timeout_seconds": active_config.timeout_seconds,
-            "max_retries": active_config.max_retries,
-            "apps": {
-                "chat": {
-                    "app_id": active_config.chat_app_id,
-                    "api_key": active_config.chat_api_key
-                } if active_config.chat_api_key else None,
-                "beauty": {
-                    "app_id": active_config.beauty_app_id,
-                    "api_key": active_config.beauty_api_key
-                } if active_config.beauty_api_key else None,
-                "summary": {
-                    "app_id": active_config.summary_app_id,
-                    "api_key": active_config.summary_api_key
-                } if active_config.summary_api_key else None
-            }
+            "configs": {}
         }
+        
+        for config in active_configs:
+            env_key = config.environment
+            if env_key not in settings["configs"]:
+                settings["configs"][env_key] = {}
+            
+            settings["configs"][env_key][config.app_id] = {
+                "app_name": config.app_name,
+                "base_url": config.base_url,
+                "api_key": config.api_key,
+                "timeout_seconds": config.timeout_seconds,
+                "max_retries": config.max_retries
+            }
+        
+        return settings
+        
     except Exception as e:
         logger.error(f"获取Dify设置失败: {e}")
         return {
             "enabled": False,
-            "base_url": "",
-            "apps": {}
+            "configs": {}
         }
     finally:
         try:

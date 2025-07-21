@@ -15,7 +15,7 @@ from . import profile  # 添加profile模块导入
 from .user import User, Role, Doctor, Consultant, Operator, Administrator
 from .chat import Conversation, Message
 from .customer import Customer, CustomerProfile
-from .system import SystemSettings, AIModelConfig
+from .system import SystemSettings, AIModelConfig, DifyConfig
 from .upload import UploadSession, UploadChunk  # 添加upload模型导出
 from .consultant import PersonalizedPlan, ProjectType, SimulationImage, ProjectTemplate, CustomerPreference, PlanVersion  # 添加consultant模型导出 
 from .plan_generation import PlanGenerationSession, PlanDraft, InfoCompleteness  # 添加plan_generation模型导出
