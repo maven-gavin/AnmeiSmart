@@ -110,8 +110,8 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
 
       if (response.status !== 200) {
         // 使用response.data如果存在，否则尝试解析JSON
-        if (response.data) {
-          throw new Error(response.data.detail || '更新用户失败');
+        if (response.data && typeof response.data === 'object' && 'detail' in response.data) {
+          throw new Error((response.data as any).detail || '更新用户失败');
         } else {
           throw new Error('更新用户失败');
         }
@@ -149,11 +149,11 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
           )}
           
           <div>
-            <label htmlFor="username" className="mb-2 block text-sm font-medium text-gray-700">
+            <label htmlFor="edit-username" className="mb-2 block text-sm font-medium text-gray-700">
               用户名 *
             </label>
             <input
-              id="username"
+              id="edit-username"
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -163,11 +163,11 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
           </div>
           
           <div>
-            <label htmlFor="email" className="mb-2 block text-sm font-medium text-gray-700">
+            <label htmlFor="edit-email" className="mb-2 block text-sm font-medium text-gray-700">
               邮箱 *
             </label>
             <input
-              id="email"
+              id="edit-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -177,11 +177,11 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
           </div>
           
           <div>
-            <label htmlFor="password" className="mb-2 block text-sm font-medium text-gray-700">
+            <label htmlFor="edit-password" className="mb-2 block text-sm font-medium text-gray-700">
               密码
             </label>
             <input
-              id="password"
+              id="edit-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -193,11 +193,11 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
           </div>
           
           <div>
-            <label htmlFor="phone" className="mb-2 block text-sm font-medium text-gray-700">
+            <label htmlFor="edit-phone" className="mb-2 block text-sm font-medium text-gray-700">
               手机号
             </label>
             <input
-              id="phone"
+              id="edit-phone"
               type="text"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
