@@ -120,7 +120,7 @@ export default function DifyConfigPanel({
     <div className="rounded-lg border border-gray-200 bg-white p-6 shadow">
       {/* 标题和添加按钮 */}
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-800">Dify配置管理</h2>
+        <h2 className="text-xl font-semibold text-gray-800">机器人配置管理</h2>
         <Button
           onClick={openCreateDialog}
           className="bg-orange-500 hover:bg-orange-600"
@@ -136,8 +136,8 @@ export default function DifyConfigPanel({
             <tr>
               <th className="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">序号</th>
               <th className="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">环境名称</th>
-              <th className="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">应用ID</th>
-              <th className="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">应用名称</th>
+              <th className="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">机器人ID</th>
+              <th className="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">机器人名称</th>
               <th className="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">API密钥</th>
               <th className="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">基础URL</th>
               <th className="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">超时时间（秒）</th>
@@ -150,7 +150,7 @@ export default function DifyConfigPanel({
             {configs.length === 0 ? (
               <tr>
                 <td colSpan={10} className="border border-gray-200 px-4 py-8 text-center text-gray-500">
-                  暂无Dify配置，点击上方"添加配置"按钮开始配置
+                  暂无机器人配置，点击上方"添加配置"按钮开始配置
                 </td>
               </tr>
             ) : (
@@ -231,7 +231,7 @@ export default function DifyConfigPanel({
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">
-                {editingConfig ? '编辑Dify配置' : '新增Dify配置'}
+                {editingConfig ? '编辑机器人配置' : '新增机器人配置'}
               </h3>
               <button
                 onClick={() => setShowCreateDialog(false)}
@@ -254,7 +254,7 @@ export default function DifyConfigPanel({
                   />
                 </div>
                 <div>
-                  <Label className="block text-sm font-medium text-gray-700">应用ID *</Label>
+                  <Label className="block text-sm font-medium text-gray-700">机器人ID *</Label>
                   <Input
                     type="text"
                     value={newConfig.appId}
@@ -267,7 +267,7 @@ export default function DifyConfigPanel({
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <Label className="block text-sm font-medium text-gray-700">应用名称 *</Label>
+                  <Label className="block text-sm font-medium text-gray-700">机器人名称 *</Label>
                   <Input
                     type="text"
                     value={newConfig.appName}
