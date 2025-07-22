@@ -109,6 +109,10 @@ async def register(
         user_in.roles = ["customer"]
     
     userResponse = await user_service.create(db, obj_in=user_in)
+
+    #TODO: 1、一旦用户注册成功就创建默认的会话，并指定通用机器人（机器人ID） 
+    #TODO: 2、机器人调用MCP来查询用户信息，生成定制的欢迎语，发送给客户
+    #TODO: 3、顾问端收到有新客户的消息通知，顾客认领客户为客户提供专业咨询服务
     
     return userResponse
 
