@@ -7,8 +7,9 @@ MCP服务API端点
 import logging
 import json
 from typing import Dict, Any
-from fastapi import APIRouter, HTTPException, status, Body
+from fastapi import APIRouter, HTTPException, status, Body, Response
 from pydantic import BaseModel
+from fastapi.responses import JSONResponse
 
 from app.mcp.server import mcp_server
 # 确保工具被注册
@@ -98,28 +99,36 @@ async def call_mcp_tool(request: MCPToolCallRequest):
 
 @router.post("/jsonrpc")
 async def handle_jsonrpc_request(request: Dict[str, Any]):
-    """
-    处理JSON-RPC 2.0请求（兼容MCP协议）
-    
-    Args:
-        request: JSON-RPC请求字典
-    
-    Returns:
-        JSON-RPC响应字典
-    """
     try:
         logger.info(f"处理JSON-RPC请求: {str(request)[:200]}...")
-        
-        # 将字典转为JSON字符串传递给MCP服务器
+        method = request.get("method")
+        # 1. 处理 initialize
+        if method == "initialize":
+            protocol_version = request.get("params", {}).get("protocolVersion", "2025-03-26")
+            return {
+                "jsonrpc": "2.0",
+                "id": request.get("id"),
+                "result": {
+                    "serverInfo": {
+                        "name": "AnmeiSmart MCP Server",
+                        "version": "1.0.0"
+                    },
+                    "protocolVersion": protocol_version,
+                    "capabilities": {
+                        "sampling": {},
+                        "roots": {"listChanged": True}
+                    }
+                }
+            }
+        # notification（无id）返回202 Accepted，Dify对此有特殊处理
+        if request.get("id", None) is None:
+            return Response(status_code=202)
+        # 3. 其它请求走原有逻辑
         request_body = json.dumps(request)
         response_str = await mcp_server.handle_request(request_body)
-        
-        # 将响应字符串转回字典返回
         return json.loads(response_str)
-        
     except Exception as e:
         logger.error(f"JSON-RPC请求处理失败: {e}", exc_info=True)
-        # 返回标准JSON-RPC错误响应
         return {
             "jsonrpc": "2.0",
             "id": request.get("id") if isinstance(request, dict) else None,

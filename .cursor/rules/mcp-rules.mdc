@@ -1,0 +1,156 @@
+# MCP 架构与开发规范
+
+本规则适用于所有MCP（Model Context Protocol）相关代码，包括MCP服务器、工具、API端点、测试与未来升级。
+
+## 1. 官方协议与库兼容
+- 遵循Anthropic官方MCP协议（Model Context Protocol）标准。
+- 工具注册、调用、Schema生成等优先兼容官方`mcp` Python SDK风格。
+- 代码应便于未来升级到`mcp`官方库（Python 3.10+）。
+
+## 2. 工具注册与实现
+- 所有MCP工具必须通过`@mcp_server.tool()`装饰器注册。
+- 工具函数必须使用类型注解，参数和返回值类型明确。
+- 工具函数应为`async def`异步函数，便于高并发和异步调用。
+- 工具描述、参数说明应写在docstring中，便于自动生成Schema和文档。
+- 工具注册示例：
+
+```python
+@mcp_server.tool()
+async def get_user_profile(user_id: str, include_details: bool = False) -> dict:
+    """
+    获取用户基本信息。
+    Args:
+        user_id: 用户ID
+        include_details: 是否包含详细信息
+    Returns:
+        dict: 用户信息
+    """
+    ...
+```
+
+## 3. MCP服务器与API端点
+- MCP服务器类应继承自`FastMCP`，并集中管理所有工具注册。
+- API端点应放在`api/app/api/v1/endpoints/mcp.py`，并通过FastAPI暴露：
+  - `/api/v1/mcp/status` 服务器状态
+  - `/api/v1/mcp/tools` 工具列表
+  - `/api/v1/mcp/tools/call` 工具调用
+  - `/api/v1/mcp/jsonrpc` JSON-RPC 2.0协议
+- API端点应使用Pydantic模型进行参数和响应校验。
+- 遵循分层职责（DDD）规范，API层不直接操作ORM。
+
+## 4. Schema与类型安全
+- 工具参数和返回值必须有类型注解，便于自动生成JSON Schema。
+- 工具描述、参数说明应写在docstring中。
+- 所有API请求/响应均应有Pydantic模型。
+
+## 5. 测试与验证
+- MCP相关测试应放在`api/tests/mcp/`目录下。
+- 必须包含：
+  - 服务器初始化与工具注册测试
+  - 工具Schema自动生成测试
+  - 工具异步调用测试
+  - JSON-RPC协议兼容性测试
+- 测试用例应覆盖正常流程和异常处理。
+- 示例：
+```python
+@pytest.mark.asyncio
+async def test_tool_execution():
+    result = await mcp_server.call_tool('get_user_profile', {'user_id': 'test'})
+    assert 'content' in result
+```
+
+## 6. 代码组织与清理
+- MCP相关代码应全部放在`api/app/mcp/`目录下，按server/tools分层。
+- 不允许再使用数据库表管理MCP工具配置，全部通过代码注册。
+- 不再需要的旧实现、迁移文件、前端配置界面应彻底删除。
+
+## 7. 升级与兼容性建议
+- 当前兼容Python 3.9，未来可无缝升级到官方`mcp`库（3.10+）。
+- requirements.txt中应注明升级建议和依赖注释。
+- 保持接口和工具注册方式与官方库一致，便于平滑迁移。
+
+## 8. 文档与注释
+- 重要架构、工具、API端点应有详细注释和文档说明。
+- 设计文档应同步更新，反映最新MCP架构和接口。
+
+## 9. Dify兼容性与JSON-RPC协议处理（基于实战经验）
+
+### 9.1 JSON-RPC 2.0协议严格要求
+- **所有JSON-RPC响应必须包含`jsonrpc: "2.0"`字段**。
+- **request请求有id字段的，响应必须包含相同的id值**。
+- **错误响应必须使用标准JSON-RPC错误格式**：
+```python
+{
+    "jsonrpc": "2.0",
+    "id": request_id,
+    "error": {
+        "code": -32603,
+        "message": "Internal error"
+    }
+}
+```
+
+### 9.2 initialize方法特殊处理
+- **initialize请求必须返回包含`protocolVersion`字段的响应**：
+```python
+if method == "initialize":
+    protocol_version = request.get("params", {}).get("protocolVersion", "2025-03-26")
+    return {
+        "jsonrpc": "2.0",
+        "id": request.get("id"),
+        "result": {
+            "serverInfo": {
+                "name": "AnmeiSmart MCP Server",
+                "version": "1.0.0"
+            },
+            "protocolVersion": protocol_version,  # 必需字段
+            "capabilities": {
+                "sampling": {},
+                "roots": {"listChanged": True}
+            }
+        }
+    }
+```
+
+### 9.3 notification（无id）请求处理
+- **notification请求（无id字段）必须返回`202 Accepted`状态码**：
+```python
+if request.get("id", None) is None:
+    return Response(status_code=202)
+```
+- **不要返回204、200或任何带响应体的状态码**，Dify对202有特殊处理，不会尝试解析响应体。
+- **常见notification方法**：`notifications/initialized`、`notifications/cancelled`等。
+
+### 9.4 Dify MCP客户端特殊行为
+- **Dify会严格校验响应的Content-Type**，确保返回正确的MIME类型。
+- **Dify对202状态码有特殊处理**，收到202会直接返回，不解析响应体。
+- **Dify会对空响应体尝试JSON解析**，如果状态码不是202，可能导致"EOF while parsing"错误。
+- **Dify使用Pydantic严格校验JSONRPCMessage格式**，任何字段缺失都会报validation error。
+
+### 9.5 错误处理最佳实践
+- **捕获所有异常并返回标准JSON-RPC错误格式**。
+- **记录详细日志用于调试**，但不向客户端暴露内部错误信息。
+- **对未知method返回"Method not found"错误**：
+```python
+return {
+    "jsonrpc": "2.0",
+    "id": request.get("id"),
+    "error": {
+        "code": -32601,
+        "message": f"Method not found: {method}"
+    }
+}
+```
+
+### 9.6 网络配置注意事项
+- **MCP服务必须监听`0.0.0.0`而不是`127.0.0.1`**，确保Docker容器或远程客户端可访问。
+- **Dify容器访问宿主机服务时，使用`host.docker.internal`或宿主机局域网IP**。
+- **确保防火墙和端口配置正确**。
+
+---
+
+如需新增或修改MCP相关规则，请遵循本文件格式，放置于`.cursor/rules/mcp-rules.mdc`，并保持内容与实际实现同步。
+description:
+globs:
+alwaysApply: false
+---
