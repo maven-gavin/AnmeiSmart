@@ -37,6 +37,8 @@ export default function SystemSettingsPage() {
     testConnection: testDifyConnection
   } = useDifyConfigs();
 
+
+
   // 显示加载状态
   if (isLoading) {
     return (
@@ -98,6 +100,7 @@ export default function SystemSettingsPage() {
         >
           Dify配置
         </button>
+
         </div>
         
         {/* 内容区域 */}
@@ -160,6 +163,8 @@ export default function SystemSettingsPage() {
               )}
             </>
           )}
+
+
         </div>
     </div>
     </AppLayout>

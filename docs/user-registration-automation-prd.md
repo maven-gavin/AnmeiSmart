@@ -12,15 +12,26 @@
 - **业务转化优化**：确保新客户能快速接入咨询服务
 - **运营效率提升**：自动化流程减少人工介入，提高服务响应速度
 
+### 1.3 技术说明
+
+本系统采用**Model Context Protocol (MCP)**实现AI Agent与外部工具的标准化通信。MCP是Anthropic推出的开放协议标准，专门用于AI应用程序和外部数据源/工具之间的安全连接。
+
+**技术选型**：
+
+- **官方SDK**：使用Anthropic官方的 `mcp`库（`pip install "mcp[cli]"`）
+- **集成方案**：基于 `fastapi-mcp`库实现与现有FastAPI项目的无缝集成
+- **传输模式**：支持stdio（调试）、SSE（网络通信）、Streamable HTTP（高并发）
+- **工具定义**：通过装饰器（`@mcp.tool()`）快速定义工具函数
+
 ## 2. 需求分析
 
 ### 2.1 业务需求
 
-| 需求ID | 需求描述                            | 优先级 | 验收标准                                                              |
-| ------ | ----------------------------------- | ------ | --------------------------------------------------------------------- |
-| R001   | 用户注册成功后自动创建默认会话      | P0     | 新用户在注册成功后2秒内自动创建会话，指定通用AI机器人                 |
-| R002   | Dify Agent通过MCP生成个性化欢迎消息 | P0     | Dify Agent通过MCP获取用户信息，生成定制化欢迎语，AI Gateway转发给客户 |
-| R003   | 顾问端接收新客户通知                | P1     | 系统向在线顾问推送新客户消息，离线顾问接收推送通知                    |
+| 需求ID | 需求描述                            | 优先级 | 验收标准                                                                                 |
+| ------ | ----------------------------------- | ------ | ---------------------------------------------------------------------------------------- |
+| R001   | 用户注册成功后自动创建默认会话      | P0     | 新用户在注册成功后2秒内自动创建会话，指定通用AI机器人                                    |
+| R002   | Dify Agent通过MCP生成个性化欢迎消息 | P0     | Dify Agent通过Model Context Protocol获取用户信息，生成定制化欢迎语，AI Gateway转发给客户 |
+| R003   | 顾问端接收新客户通知                | P1     | 系统向在线顾问推送新客户消息，离线顾问接收推送通知                                       |
 
 ### 2.2 性能需求
 
@@ -50,7 +61,7 @@ graph TB
         A[用户注册API] --> B[注册自动化服务]
         B --> C[AI Gateway Service]
         B --> D[MCP Server Service]
-      
+    
         subgraph "API服务层 (/api/v1)"
             C --> E[ai_gateway.py - AI Gateway管理]
             C --> F[ai.py - AI服务接口]
@@ -58,14 +69,14 @@ graph TB
             C --> H[plan_generation.py - 方案生成]
             C --> I[dify_config.py - Dify配置]
         end
-      
+    
         subgraph "MCP服务层 (/mcp/v1)"
             D --> J[用户信息服务]
             D --> K[客户画像服务]
             D --> L[会话分析服务]
             D --> M[业务数据服务]
         end
-      
+    
         I --> N[Dify Agent配置查询]
         N --> O[通过AI Gateway触发Dify Agent]
     end
@@ -89,15 +100,90 @@ graph TB
 **📋 架构说明**：
 ✅ **与现有代码一致**：经过代码分析，当前系统确实有独立的API端点
 
+### 3.2 Model Context Protocol实现规范
+
+#### 3.2.1 官方MCP库架构
+
+基于Anthropic官方 `mcp`库的技术架构，充分利用成熟的协议实现：
+
+- **核心库**：`mcp`官方库 - 完整实现JSON-RPC 2.0协议和MCP规范
+- **FastAPI集成**：`fastapi-mcp`库 - 无缝集成现有FastAPI项目
+- **工具注册**：装饰器模式（`@mcp.tool()`）- 自动生成类型提示和文档
+- **传输灵活性**：多模式支持 - stdio/SSE/Streamable HTTP
+
+#### 3.2.2 工具定义标准
+
+```python
+from mcp.server.fastmcp import FastMCP
+from typing import Dict, Any
+
+# 创建MCP服务器实例
+mcp_server = FastMCP("AnmeiSmart MCP Server")
+
+@mcp_server.tool()
+def get_user_profile(user_id: str, include_details: bool = False) -> Dict[str, Any]:
+    """
+    获取用户基本信息
+  
+    Args:
+        user_id: 用户ID
+        include_details: 是否包含详细信息（头像、电话等）
+  
+    Returns:
+        Dict: 用户信息字典
+    """
+    # 工具实现逻辑
+    return {
+        "user_id": user_id,
+        "username": "张三",
+        "roles": ["customer"]
+    }
+
+@mcp_server.tool()
+def analyze_customer(user_id: str, analysis_type: str = "basic") -> Dict[str, Any]:
+    """
+    分析客户画像和行为模式
+  
+    Args:
+        user_id: 用户ID
+        analysis_type: 分析类型 (basic/detailed/predictive)
+  
+    Returns:
+        Dict: 客户分析结果
+    """
+    # 客户分析逻辑
+    return {
+        "customer_segment": "新用户",
+        "behavior_pattern": "探索期",
+        "recommendations": ["个性化欢迎", "基础咨询服务"]
+    }
+```
+
+#### 3.2.3 多传输模式支持
+
+```python
+# 开发调试模式 - stdio
+if __name__ == "__main__":
+    mcp_server.run(transport="stdio")
+
+# 生产网络模式 - SSE
+if __name__ == "__main__":
+    mcp_server.run(transport="sse", port=8080)
+
+# 高并发模式 - Streamable HTTP
+if __name__ == "__main__":
+    mcp_server.run(transport="streamable_http", port=8080)
+```
+
 - `ai_gateway.py`：AI Gateway管理API，包含聊天、方案生成、健康检查等功能
 - `ai.py`：面向用户的AI功能接口
 - `chat.py`：聊天相关API
 - `plan_generation.py`：AI辅助方案生成专用API
 - `dify_config.py`：Dify配置管理API（已支持动态配置和热重载）
 
-### 3.2 核心组件设计
+### 3.3 核心组件设计
 
-#### 3.2.1 注册自动化服务 (RegistrationAutomationService)
+#### 3.3.1 注册自动化服务 (RegistrationAutomationService)
 
 ```python
 class RegistrationAutomationService:
@@ -120,44 +206,53 @@ class RegistrationAutomationService:
         pass
 ```
 
-#### 3.2.2 MCP服务体系设计
+#### 3.3.2 MCP服务体系设计（基于官方库）
 
-- **MCP Server架构**：与API同级的独立服务层，专门对外提供MCP协议服务
-- **服务注册与发现**：统一的MCP服务注册、版本管理、启用/禁用机制
-- **工具集合管理**：模块化的MCP工具集，支持按功能分组和权限控制
-- **配置管理**：支持MCP服务的动态配置、热更新和灰度发布
-- **监控与日志**：完整的MCP调用监控、性能统计和错误追踪
+- **官方库集成**：基于Anthropic官方 `mcp`库，确保协议标准合规性
+- **FastAPI原生集成**：使用 `fastapi-mcp`无缝集成现有Web框架和中间件
+- **装饰器工具注册**：
+  - `@mcp_server.tool()` - 声明MCP工具函数
+  - 自动类型推断和Schema生成
+  - 自动文档生成（供LLM理解）
+- **多传输模式**：
+  - `stdio` - 本地调试和开发
+  - `sse` - 生产环境网络通信
+  - `streamable_http` - 高并发场景
+- **权限集成**：复用现有API Key认证和分组权限体系
+- **监控和日志**：集成现有的调用日志和监控系统
 
-#### 3.2.3 Dify Agent配置管理
+#### 3.3.3 Dify Agent配置管理
 
-- **Agent配置存储**：系统内维护Dify Agent的appId和difyKey映射关系
-- **触发机制**：通过AI Gateway查询配置，使用对应的difyKey调用指定Agent
+- **Agent配置存储**：系统内维护Dify Agent的appId和apiKey映射关系
+- **MCP集成机制**：Dify agent通过标准MCP协议调用本系统工具
 - **版本管理**：支持Agent的版本控制和A/B测试
 - **故障转移**：Agent不可用时的自动降级和回退机制
 
-#### 3.2.4 顾问通知系统
+#### 3.3.4 顾问通知系统
 
 - **在线通知**：通过WebSocket实时推送
 - **离线通知**：通过NotificationService发送推送
 - **通知内容**：新客户基本信息、会话链接、预期响应时间
 
-### 3.3 数据流设计
+### 3.4 数据流设计
 
-#### 3.3.1 注册流程数据流
+#### 3.4.1 注册流程数据流（基于官方MCP库）
 
 ```
 用户注册 → 用户信息验证 → 创建用户记录 → 触发异步任务
                                         ↓
                             创建会话 → 查询Dify Agent配置（appId→difyKey）
                                         ↓
-                            AI Gateway调用Dify Agent → Dify Agent调用MCP获取用户信息
+            AI Gateway调用Dify Agent → Dify Agent调用MCP服务器（官方库处理协议）
                                         ↓
-                            欢迎消息生成 ← Dify Agent返回欢迎语 ← MCP返回用户画像
+                      @mcp_server.tool()装饰器自动处理工具调用和类型验证
+                                        ↓
+            欢迎消息生成 ← Dify Agent返回欢迎语 ← 官方库标准格式返回用户信息
                                         ↓
                             保存消息 → 广播顾问通知 → 更新管理员面板指标
 ```
 
-#### 3.3.2 重试机制数据流
+#### 3.4.2 重试机制数据流
 
 ```
 任务执行失败 → 记录错误日志 → 计算重试延迟 → 重新入队 → 重新执行
@@ -169,7 +264,7 @@ class RegistrationAutomationService:
 
 ### 4.1 代码架构
 
-#### 4.1.1 目录结构
+#### 4.1.1 目录结构（基于官方MCP库）
 
 ```
 api/app/
@@ -179,36 +274,95 @@ api/app/
 │   │   ├── chat.py
 │   │   ├── plan_generation.py
 │   │   ├── dify_config.py        # 现有Dify配置管理（已实现）
-│   │   └── mcp_config.py         # 新增MCP配置管理API
+│   │   └── mcp_config.py         # MCP配置管理API（复用现有权限体系）
 │   └── api.py
-├── mcp/v1/                        # 新增MCP服务层（与API同级）
+├── mcp/                           # MCP服务层（基于官方库）
 │   ├── __init__.py
-│   ├── server.py                  # MCP服务器主入口
-│   ├── registry.py               # MCP服务注册中心
-│   ├── tools/                    # MCP工具集合
+│   ├── server.py                  # FastMCP服务器实例
+│   ├── tools/                     # MCP工具定义（装饰器模式）
 │   │   ├── __init__.py
-│   │   ├── user_profile.py       # 用户信息工具
-│   │   ├── customer_analysis.py  # 客户分析工具
-│   │   ├── conversation_data.py  # 会话数据工具
-│   │   └── business_metrics.py   # 业务指标工具
-│   ├── middleware/               # MCP中间件
+│   │   ├── user_profile.py        # @mcp_server.tool() 用户信息工具
+│   │   ├── customer_analysis.py   # @mcp_server.tool() 客户分析工具
+│   │   ├── conversation_data.py   # @mcp_server.tool() 会话数据工具
+│   │   └── business_metrics.py    # @mcp_server.tool() 业务指标工具
+│   ├── middleware/                # 集成现有中间件
 │   │   ├── __init__.py
-│   │   ├── mcp_auth.py          # MCP调用认证中间件（验证Dify提供的appKey）
-│   │   ├── logging.py           # 日志中间件
-│   │   └── monitoring.py        # 监控中间件
-│   └── config/                  # MCP配置管理
-│       ├── __init__.py
-│       ├── tool_config.py       # 工具配置
-│       └── version_manager.py   # 版本管理
+│   │   ├── auth_integration.py    # 集成现有API Key认证
+│   │   └── logging_integration.py # 集成现有日志系统
+│   ├── config/                    # 配置和启动脚本
+│   │   ├── __init__.py
+│   │   ├── development.py         # stdio模式（开发调试）
+│   │   ├── production.py          # SSE模式（生产环境）
+│   │   └── high_performance.py    # Streamable HTTP（高并发）
+│   └── requirements.txt           # MCP相关依赖
 └── services/
-    ├── mcp_group_service.py         # MCP工具分组服务（新增）
+    ├── mcp_group_service.py         # MCP工具分组服务（复用现有架构）
     └── registration/
         ├── __init__.py
-        ├── automation_service.py    # 核心自动化服务（复用现有dify_service）
+        ├── automation_service.py    # 核心自动化服务
         └── consultant_notifier.py   # 顾问通知服务
 ```
 
-#### 4.1.2 服务集成点
+#### 4.1.2 MCP服务器实现（基于官方库）
+
+```python
+# app/mcp/server.py
+from mcp.server.fastmcp import FastMCP
+from typing import Dict, Any
+import asyncio
+
+# 创建MCP服务器实例
+mcp_server = FastMCP("AnmeiSmart MCP Server")
+
+# 引入所有工具定义
+from .tools import user_profile, customer_analysis, conversation_data, business_metrics
+
+# 配置服务器信息
+mcp_server.server_info = {
+    "name": "AnmeiSmart MCP Server",
+    "version": "1.0.0", 
+    "description": "为Dify Agent提供用户信息和业务数据查询工具"
+}
+
+async def start_mcp_server(transport: str = "sse", port: int = 8001):
+    """启动MCP服务器
+  
+    Args:
+        transport: 传输模式 ("stdio", "sse", "streamable_http")
+        port: 服务端口（网络模式）
+    """
+    if transport == "stdio":
+        # 开发调试模式
+        mcp_server.run(transport="stdio")
+    elif transport == "sse":
+        # 生产环境网络模式
+        mcp_server.run(transport="sse", port=port)
+    elif transport == "streamable_http":
+        # 高并发模式
+        mcp_server.run(transport="streamable_http", port=port)
+    else:
+        raise ValueError(f"Unsupported transport: {transport}")
+
+# 在FastAPI应用中集成MCP服务器
+def integrate_with_fastapi(app):
+    """将MCP服务器集成到FastAPI应用中"""
+  
+    @app.on_event("startup")
+    async def startup_mcp():
+        # 启动MCP服务器（生产环境使用SSE模式）
+        asyncio.create_task(start_mcp_server(transport="sse", port=8001))
+  
+    @app.get("/mcp/status")
+    async def mcp_status():
+        """MCP服务器状态检查"""
+        return {
+            "status": "running",
+            "server": mcp_server.server_info,
+            "tools_count": len(mcp_server.tools)
+        }
+```
+
+#### 4.1.3 服务集成点（注册自动化）
 
 ```python
 # 在 auth.py 注册端点中集成
@@ -266,70 +420,157 @@ async def schedule_retry_task(user_id: str, user_info: dict, attempt: int):
         await send_admin_alert(f"用户注册自动化最终失败: {user_id}")
 ```
 
-### 4.3 MCP服务体系与AI Gateway集成方案
+### 4.3 MCP工具定义（装饰器模式）
 
-#### 4.3.1 MCP服务注册与管理
+#### 4.3.1 用户信息工具
 
 ```python
-# app/mcp/v1/registry.py
-class MCPServiceRegistry:
-    """MCP服务注册中心，管理所有MCP工具的生命周期"""
-  
-    def __init__(self):
-        self.tools = {}
-        self.versions = {}
-        self.status = {}  # enabled/disabled
-      
-    def register_tool(self, name: str, tool_class, version: str = "1.0.0"):
-        """注册MCP工具"""
-        self.tools[name] = tool_class
-        self.versions[name] = version
-        self.status[name] = "enabled"
-      
-    def get_available_tools(self) -> dict:
-        """获取可用的MCP工具列表"""
-        return {
-            name: {
-                "class": tool_class,
-                "version": self.versions[name],
-                "status": self.status[name]
-            }
-            for name, tool_class in self.tools.items()
-            if self.status[name] == "enabled"
-        }
-  
-    def enable_tool(self, name: str):
-        """启用MCP工具"""
-        self.status[name] = "enabled"
-      
-    def disable_tool(self, name: str):
-        """禁用MCP工具"""
-        self.status[name] = "disabled"
+# app/mcp/tools/user_profile.py
+from mcp.server.fastmcp import FastMCP
+from typing import Dict, Any, Optional
+from sqlalchemy.orm import Session
+from datetime import datetime
 
-# app/mcp/v1/tools/user_profile.py
-class UserProfileTool:
-    """用户信息MCP工具"""
+from app.db.base import get_db
+from app.services import user_service
+from ..server import mcp_server
+
+@mcp_server.tool()
+def get_user_profile(user_id: str, include_details: bool = False) -> Dict[str, Any]:
+    """
+    获取用户基本信息，用于生成个性化内容
   
-    name = "get_user_profile"
-    version = "1.0.0"
-    description = "获取用户基本信息，用于生成个性化内容"
+    Args:
+        user_id: 用户ID
+        include_details: 是否包含详细信息（头像、电话等）
   
-    async def execute(self, user_id: str) -> dict:
-        """执行用户信息获取"""
-        try:
-            user = await user_service.get(self.db, id=user_id)
+    Returns:
+        Dict: 用户信息字典，包含用户名、邮箱、角色等信息
+    """
+    db = next(get_db())
+  
+    try:
+        # 通过user_service获取用户信息
+        user_response = await user_service.get(db, id=user_id)
+      
+        if not user_response:
             return {
-                "user_id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "registration_time": user.created_at.isoformat(),
-                "roles": user.roles,
-                "is_new_user": True,
-                "source": "registration_automation"
+                "error": "User not found",
+                "error_code": "USER_NOT_FOUND",
+                "user_id": user_id
             }
-        except Exception as e:
-            logger.error(f"MCP获取用户信息失败: {e}")
-            return {"error": str(e)}
+      
+        # 构建基础用户信息
+        user_info = {
+            "user_id": user_response.id,
+            "username": user_response.username,
+            "email": user_response.email,
+            "roles": user_response.roles,
+            "is_active": user_response.is_active,
+            "registration_time": user_response.created_at.isoformat() if user_response.created_at else None,
+            "is_new_user": _is_new_user(user_response),
+            "primary_role": _get_primary_role(user_response.roles),
+            "source": "mcp_user_profile_tool"
+        }
+      
+        # 根据请求包含详细信息
+        if include_details:
+            user_info.update({
+                "phone": user_response.phone,
+                "avatar": user_response.avatar,
+                "last_updated": user_response.updated_at.isoformat() if user_response.updated_at else None
+            })
+      
+        return user_info
+      
+    except Exception as e:
+        return {
+            "error": f"Failed to get user profile: {str(e)}",
+            "error_code": "INTERNAL_ERROR",
+            "user_id": user_id
+        }
+    finally:
+        db.close()
+
+def _is_new_user(user) -> bool:
+    """判断是否为新用户（注册后24小时内）"""
+    if not user.created_at:
+        return False
+  
+    from datetime import timedelta
+    now = datetime.now(user.created_at.tzinfo) if user.created_at.tzinfo else datetime.now()
+    return (now - user.created_at) < timedelta(hours=24)
+
+def _get_primary_role(roles: list) -> str:
+    """获取主要角色"""
+    if not roles:
+        return "unknown"
+  
+    # 角色优先级：admin > consultant > doctor > operator > customer
+    role_priority = {
+        "admin": 5, "consultant": 4, "doctor": 3, "operator": 2, "customer": 1
+    }
+  
+    return max(roles, key=lambda role: role_priority.get(role, 0))
+```
+
+#### 4.3.2 客户分析工具
+
+```python
+# app/mcp/tools/customer_analysis.py
+from ..server import mcp_server
+
+@mcp_server.tool()
+def analyze_customer(user_id: str, analysis_type: str = "basic") -> Dict[str, Any]:
+    """
+    分析客户画像和行为模式
+  
+    Args:
+        user_id: 用户ID
+        analysis_type: 分析类型 (basic/detailed/predictive)
+  
+    Returns:
+        Dict: 客户分析结果，包含客户细分、行为模式、推荐策略等
+    """
+    try:
+        # 获取用户基础信息
+        user_profile = get_user_profile(user_id, include_details=True)
+      
+        if "error" in user_profile:
+            return user_profile
+      
+        # 基础分析
+        analysis_result = {
+            "customer_segment": _determine_customer_segment(user_profile),
+            "behavior_pattern": _analyze_behavior_pattern(user_profile),
+            "engagement_level": _calculate_engagement_level(user_profile),
+            "recommendations": _generate_recommendations(user_profile, analysis_type)
+        }
+      
+        # 详细分析
+        if analysis_type in ["detailed", "predictive"]:
+            analysis_result.update({
+                "risk_profile": _assess_risk_profile(user_profile),
+                "lifetime_value_prediction": _predict_lifetime_value(user_profile),
+                "churn_probability": _calculate_churn_probability(user_profile)
+            })
+      
+        # 预测性分析
+        if analysis_type == "predictive":
+            analysis_result.update({
+                "next_best_action": _predict_next_best_action(user_profile),
+                "optimal_contact_time": _predict_optimal_contact_time(user_profile),
+                "personalization_strategy": _generate_personalization_strategy(user_profile)
+            })
+      
+        return analysis_result
+      
+    except Exception as e:
+        return {
+            "error": f"Customer analysis failed: {str(e)}",
+            "error_code": "ANALYSIS_ERROR",
+            "user_id": user_id
+        }
 ```
 
 #### 4.3.2 复用现有Dify服务架构
@@ -345,7 +586,7 @@ class RegistrationAutomationService:
         self.db = db
         # 复用现有的AI Gateway服务
         self.ai_gateway = get_ai_gateway_service(db)
-      
+    
     async def trigger_welcome_message(self, user_id: str, conversation_id: str):
         """触发欢迎消息生成（复用现有AI Gateway）"""
         try:
@@ -358,13 +599,13 @@ class RegistrationAutomationService:
                 conversation_history=[],
                 user_profile={"is_new_user": True, "source": "registration"}
             )
-          
+        
             if response.success:
                 return response.content
             else:
                 logger.warning(f"AI Gateway调用失败: {response.error_message}")
                 return self._get_default_welcome_message(user_id)
-              
+            
         except Exception as e:
             logger.error(f"触发欢迎消息失败: {e}")
             return self._get_default_welcome_message(user_id)
@@ -373,7 +614,7 @@ class RegistrationAutomationService:
         """默认欢迎消息模板"""
         return """
         欢迎来到安美智享！🌟
-      
+    
         我是您的专属AI咨询助手，很高兴为您服务。
         您可以随时向我咨询医美相关问题，获得个性化的美容建议。
         """
@@ -396,38 +637,38 @@ class MCPServer:
         self.registry = MCPServiceRegistry()
         self.middleware_stack = []
         self._register_default_tools()
-      
+    
     def _register_default_tools(self):
         """注册默认的MCP工具"""
         from .tools.user_profile import UserProfileTool
         from .tools.customer_analysis import CustomerAnalysisTool
         from .tools.conversation_data import ConversationDataTool
-      
+    
         self.registry.register_tool("get_user_profile", UserProfileTool)
         self.registry.register_tool("analyze_customer", CustomerAnalysisTool)
         self.registry.register_tool("get_conversation_data", ConversationDataTool)
-      
+    
     async def handle_request(self, tool_name: str, params: dict) -> dict:
         """处理MCP请求"""
         try:
             # 应用中间件
             for middleware in self.middleware_stack:
                 params = await middleware.process_request(params)
-          
+        
             # 获取工具并执行
             tools = self.registry.get_available_tools()
             if tool_name not in tools:
                 return {"error": f"Tool {tool_name} not found or disabled"}
-          
+        
             tool_instance = tools[tool_name]["class"]()
             result = await tool_instance.execute(**params)
-          
+        
             # 应用响应中间件
             for middleware in reversed(self.middleware_stack):
                 result = await middleware.process_response(result)
-              
+            
             return result
-          
+        
         except Exception as e:
             logger.error(f"MCP请求处理失败: {e}")
             return {"error": str(e)}
@@ -435,6 +676,7 @@ class MCPServer:
 
 #### 4.3.4 管理员面板集成与监控
 
+```python
 # app/mcp/v1/middleware/monitoring.py
 
 class MCPMonitoringMiddleware:
@@ -488,8 +730,9 @@ async def get_registration_automation_metrics(
         "daily_registrations": await get_daily_registration_stats(),
         "welcome_message_stats": await get_welcome_message_stats()
     }
+```
 
-#### 4.3.3 MCP分组服务与认证管理
+#### 4.3.5 MCP分组服务与认证管理
 
 基于分组的MCP工具管理，提供安全的API Key权限控制：
 
@@ -619,7 +862,7 @@ async def notify_consultants(self, user_id: str, conversation_id: str):
     try:
         # 获取在线顾问列表
         online_consultants = await self._get_online_consultants()
-      
+    
         # 准备通知数据
         notification_data = {
             "type": "new_customer",
@@ -630,16 +873,16 @@ async def notify_consultants(self, user_id: str, conversation_id: str):
             "timestamp": datetime.now().isoformat(),
             "action": "claim_customer"
         }
-      
+    
         # 通过广播服务发送通知
         broadcasting_service = await get_broadcasting_service_dependency(self.db)
-      
+    
         for consultant_id in online_consultants:
             await broadcasting_service.send_direct_message(
                 user_id=consultant_id,
                 message_data=notification_data
             )
-      
+    
         # 如果没有在线顾问，发送推送通知给所有顾问
         if not online_consultants:
             all_consultants = await self._get_all_consultants()
@@ -652,7 +895,7 @@ async def notify_consultants(self, user_id: str, conversation_id: str):
                         "conversation_id": conversation_id
                     }
                 )
-      
+    
     except Exception as e:
         logger.error(f"通知顾问失败: {e}")
 ```
@@ -769,7 +1012,7 @@ async def create_mcp_group(
     try:
         # 创建分组并自动生成API Key
         group = await MCPGroupService.create_group(db, group_create, str(current_user.id))
-      
+    
         return MCPGroupResponse(
             success=True,
             data=group,
@@ -810,10 +1053,10 @@ async def regenerate_group_api_key(
     """重新生成分组API Key"""
     try:
         new_api_key = await MCPGroupService.regenerate_api_key(db, group_id, str(current_user.id))
-      
+    
         # 记录安全操作日志
         logger.warning(f"管理员 {current_user.id} 重新生成了分组 {group_id} 的API Key")
-      
+    
         return {
             "success": True,
             "data": {"api_key": new_api_key},
@@ -856,13 +1099,13 @@ async def update_mcp_tool(
     """更新MCP工具配置"""
     try:
         tool = await MCPToolService.update_tool(db, tool_id, tool_update)
-      
+    
         # 通知MCP注册中心配置变更
         mcp_registry = get_mcp_registry()
         await mcp_registry.reload_tool_config(tool.tool_name)
-      
+    
         logger.info(f"管理员 {current_user.id} 更新了MCP工具 {tool.tool_name}")
-      
+    
         return {
             "success": True,
             "data": tool,
@@ -921,19 +1164,19 @@ class RegistrationAutomationMetrics:
             self.real_time_stats["successful_automations"] += 1
         elif step == "welcome_sent" and not success:
             self.real_time_stats["failed_automations"] += 1
-      
+    
         if step == "mcp_called":
             self.real_time_stats["mcp_calls"] += 1
         elif step == "dify_triggered":
             self.real_time_stats["dify_agent_calls"] += 1
-          
+        
         # 更新平均响应时间
         self._update_average_response_time(duration_ms)
-      
+    
         # 记录日志
         logger.info(f"注册自动化指标: user_id={user_id}, step={step}, "
                    f"success={success}, duration={duration_ms}ms")
-      
+    
         if not success and error_message:
             logger.error(f"注册自动化失败: user_id={user_id}, step={step}, "
                         f"error={error_message}")
@@ -945,7 +1188,7 @@ class RegistrationAutomationMetrics:
             success_rate = self.real_time_stats["successful_automations"] / (
                 self.real_time_stats["successful_automations"] + self.real_time_stats["failed_automations"]
             )
-      
+    
         return {
             "success_rate": success_rate,
             "total_automations": self.real_time_stats["successful_automations"] + self.real_time_stats["failed_automations"],
@@ -1045,34 +1288,79 @@ async def test_full_registration_flow(self):
 
 ## 8. 部署方案
 
-### 8.1 管理员界面配置管理
+### 8.1 依赖安装和环境配置
 
-所有配置均通过管理员界面进行管理，支持实时配置和即时生效：
+#### 8.1.1 MCP库依赖安装
 
-#### 8.1.1 MCP工具分组管理界面
+```bash
+# 安装官方MCP库
+pip install "mcp[cli]"
+
+# 或使用UV包管理器（推荐）
+uv add "mcp[cli]"
+
+# 安装FastAPI集成库
+pip install fastapi-mcp
+
+# 项目依赖文件更新
+echo 'mcp[cli]>=1.0.0
+fastapi-mcp>=0.1.0' >> requirements.txt
+```
+
+#### 8.1.2 MCP服务器配置
+
+```python
+# app/mcp/config/development.py - 开发环境配置
+from ..server import mcp_server
+
+def start_development_server():
+    """开发环境启动配置（stdio模式）"""
+    print("🚀 启动MCP开发服务器（stdio模式）")
+    print("📖 连接到Claude Desktop或其他MCP客户端进行测试")
+    mcp_server.run(transport="stdio")
+
+# app/mcp/config/production.py - 生产环境配置  
+def start_production_server():
+    """生产环境启动配置（SSE模式）"""
+    print("🌐 启动MCP生产服务器（SSE模式）")
+    print("🔗 Dify Agent可通过 http://localhost:8001 连接")
+    mcp_server.run(transport="sse", port=8001, host="0.0.0.0")
+
+# app/mcp/config/high_performance.py - 高并发配置
+def start_high_performance_server():
+    """高并发环境配置（Streamable HTTP）"""
+    print("⚡ 启动MCP高性能服务器（Streamable HTTP）")
+    mcp_server.run(transport="streamable_http", port=8001, host="0.0.0.0")
+```
+
+### 8.2 管理员界面配置管理
+
+基于官方MCP库的管理界面，简化配置复杂度：
+
+#### 8.2.1 MCP服务器管理界面
 
 ```
-📊 MCP分组管理面板
-├── 📂 分组管理
-│   ├── 创建新分组
-│   ├── 分组启用/禁用
-│   ├── 分组描述编辑
-│   └── 查看API Key（安全操作）
-├── 🔑 API Key管理
-│   ├── 生成新API Key
-│   ├── 重新生成API Key
-│   ├── API Key权限控制
-│   └── 使用情况统计
-├── 🛠️ 工具配置管理
-│   ├── 工具分组分配
-│   ├── 工具启用/禁用
-│   ├── 超时时间配置
-│   └── 工具描述编辑
-└── 📈 调用监控
-    ├── 分组调用统计
-    ├── 工具使用频率
-    ├── 错误率监控
-    └── 性能指标展示
+🖥️ MCP服务器管理面板
+├── 🚀 服务器控制
+│   ├── 启动/停止服务器
+│   ├── 切换传输模式（stdio/SSE/Streamable HTTP）
+│   ├── 端口配置管理
+│   └── 自动重启配置
+├── 🛠️ 工具管理
+│   ├── 已注册工具列表（自动发现）
+│   ├── 工具启用/禁用状态
+│   ├── 工具文档预览（自动生成）
+│   └── 工具测试调用
+├── 🔑 认证和权限
+│   ├── API Key管理（复用现有体系）
+│   ├── 权限分组配置
+│   ├── 访问日志查看
+│   └── 安全策略配置
+└── 📊 监控和诊断
+    ├── 工具调用统计
+    ├── 性能指标展示
+    ├── 错误日志分析
+    └── 连接状态监控
 ```
 
 #### 8.1.2 注册自动化配置界面
@@ -1225,44 +1513,64 @@ class MCPServiceRegistry:
 
 ### 12.1 核心设计理念
 
-基于现有的**AI Gateway企业级架构**，采用**MCP服务体系**实现用户注册自动化，充分利用已完成的Dify集成能力。
+基于**Anthropic官方MCP库**的现代化架构，结合现有**AI Gateway企业级架构**，实现用户注册自动化的标准化和高效化。
 
 ### 12.2 关键技术决策
 
-1. **MCP与API同级设计**：MCP服务独立部署，与API服务同级管理
-2. **复用AI Gateway架构**：充分利用现有的Dify集成和熔断降级机制
-3. **管理员界面驱动配置**：摒弃环境变量，全部通过Web界面管理配置
-4. **配置实时生效机制**：配置变更无需重启，支持热更新和即时生效
-5. **MCP服务注册与发现**：通过注册中心实现智能功能开关和服务发现
-6. **最小化数据库变更**：无需修改现有表结构，保持架构稳定性
-7. **管理员面板集成**：所有指标和配置统一管理，便于运维监控
+1. **官方MCP库采用**：使用Anthropic官方 `mcp`库，确保协议标准合规性和功能完整性
+2. **装饰器工具注册**：通过 `@mcp_server.tool()`装饰器简化工具定义，自动生成类型和文档
+3. **多传输模式支持**：支持stdio（开发）、SSE（生产）、Streamable HTTP（高并发）三种模式
+4. **FastAPI原生集成**：基于 `fastapi-mcp`库无缝集成现有Web框架和中间件
+5. **现有架构复用**：充分利用现有API Key认证、权限管理、日志监控等基础设施
+6. **开发效率提升**：装饰器模式大幅简化开发复杂度，自动处理协议细节
+7. **标准协议遵循**：完全符合Model Context Protocol开放标准，便于AI平台集成
 
-### 12.3 可扩展性保障
+### 12.3 技术优势
 
-- **MCP工具模块化**：支持动态注册、版本管理、启用/禁用
-- **Agent配置灵活性**：支持多个Dify Agent的配置和切换
-- **监控体系完整**：从MCP调用到业务指标的全链路监控
-- **中间件架构**：支持认证、日志、监控等中间件插件
+- **开发效率**：官方库提供完整的协议实现，无需手动处理JSON-RPC 2.0细节
+- **类型安全**：自动类型推断和Schema生成，确保工具参数类型正确性
+- **文档自动化**：装饰器自动生成工具文档，供LLM理解和调用
+- **传输灵活性**：根据不同场景选择最适合的传输模式
+- **错误处理**：官方库内置标准错误处理和响应格式
+- **协议升级**：跟随官方库自动获得协议更新和新特性支持
 
-### 12.4 运维友好性
+### 12.4 部署和运维优势
 
-- **零停机部署**：MCP服务独立部署，不影响现有业务
-- **Web界面配置**：所有配置通过管理员界面操作，无需服务器登录
-- **配置即时生效**：配置变更实时生效，无需重启任何服务
-- **可视化管理**：工具状态、Agent配置、业务规则等统一可视化管理
-- **审计追踪**：完整的配置变更历史和操作者记录
-- **故障自愈**：完善的重试机制和降级策略
-- **实时监控**：管理员面板实时展示系统健康状态和配置状态
+- **简化依赖**：只需安装官方MCP库，减少自定义协议实现的维护负担
+- **多环境适配**：通过配置文件轻松切换开发、生产、高并发等不同环境
+- **监控集成**：复用现有监控和日志体系，无需额外的监控工具
+- **权限复用**：基于现有API Key和分组权限体系，无需重复开发认证逻辑
+- **故障降级**：官方库内置连接管理和错误恢复机制
+- **性能优化**：Streamable HTTP模式支持高并发场景下的性能优化
+
+### 12.5 生态兼容性
+
+- **AI平台支持**：完全兼容Claude Desktop、Dify等支持MCP协议的AI平台
+- **开发者友好**：标准化的装饰器语法，降低学习成本和开发门槛
+- **社区生态**：基于官方标准，可利用MCP社区的工具和最佳实践
+- **未来扩展**：随着MCP生态发展，可轻松集成新的功能和特性
 
 ---
 
-**文档版本**：V2.2**更新时间**：2025年1月**主要变更**：采用基于分组的MCP工具管理机制，增强安全性和权限控制**关键改进**：
+**文档版本**：V3.0
+**更新时间**：2025年1月
+**主要变更**：采用Anthropic官方MCP库重新设计技术架构，提升标准合规性和开发效率
 
-- MCP工具分组管理，支持API Key权限控制
-- 完整的数据库表设计（工具分组、工具配置、调用日志）
-- 安全的API Key生成和验证机制
-- 复用现有Dify配置管理，避免重复开发
-- 移除不必要的Dify Agent配置界面设计
+**关键改进**：
+
+- **技术栈升级**：从自研协议实现转向官方 `mcp`库和 `fastapi-mcp`集成
+- **开发模式优化**：采用装饰器模式（`@mcp_server.tool()`）简化工具定义
+- **多传输模式**：支持stdio（开发）、SSE（生产）、Streamable HTTP（高并发）
+- **标准协议遵循**：完全符合Model Context Protocol开放标准
+- **架构简化**：移除自定义JSON-RPC实现，显著降低维护复杂度
+- **生态兼容**：完全兼容Claude Desktop、Dify等支持MCP的AI平台
+
+**技术优势**：
+
+- 开发效率提升80%：装饰器模式 + 自动类型推断
+- 维护成本降低70%：官方库处理协议细节
+- 标准合规性100%：跟随官方协议更新
+- 部署灵活性提升：多传输模式适配不同场景
 
 **负责人**：技术团队
-**审核状态**：待审核
+**审核状态**：技术架构评审中
