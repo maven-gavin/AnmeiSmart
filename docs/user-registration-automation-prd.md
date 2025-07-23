@@ -435,22 +435,22 @@ class MCPServer:
 
 #### 4.3.4 管理员面板集成与监控
 
-```python
 # app/mcp/v1/middleware/monitoring.py
+
 class MCPMonitoringMiddleware:
     """MCP监控中间件，记录调用统计"""
-  
-    def __init__(self):
+
+    def__init__(self):
         self.call_stats = {}
         self.error_stats = {}
-      
+
     async def process_request(self, params: dict) -> dict:
         """记录请求开始"""
         tool_name = params.get('_tool_name')
         if tool_name:
             self.call_stats[tool_name] = self.call_stats.get(tool_name, 0) + 1
         return params
-      
+
     async def process_response(self, result: dict) -> dict:
         """记录响应结果"""
         if "error" in result:
@@ -458,7 +458,7 @@ class MCPMonitoringMiddleware:
             if tool_name:
                 self.error_stats[tool_name] = self.error_stats.get(tool_name, 0) + 1
         return result
-  
+
     def get_metrics(self) -> dict:
         """获取监控指标"""
         return {
@@ -471,7 +471,8 @@ class MCPMonitoringMiddleware:
             "success_rate": 1 - sum(self.error_stats.values()) / max(sum(self.call_stats.values()), 1)
         }
 
-# app/api/v1/endpoints/admin_dashboard.py
+# app/api/v1/endpoints/mcp_dashboard.py
+
 @router.get("/registration-automation/metrics")
 async def get_registration_automation_metrics(
     current_user: User = Depends(get_current_admin_user)
@@ -479,7 +480,7 @@ async def get_registration_automation_metrics(
     """获取注册自动化指标（管理员面板）"""
     mcp_server = get_mcp_server()
     monitoring = mcp_server.get_middleware("monitoring")
-  
+
     return {
         "mcp_metrics": monitoring.get_metrics() if monitoring else {},
         "dify_agent_status": await check_dify_agent_status(),
@@ -487,7 +488,6 @@ async def get_registration_automation_metrics(
         "daily_registrations": await get_daily_registration_stats(),
         "welcome_message_stats": await get_welcome_message_stats()
     }
-```
 
 #### 4.3.3 MCP分组服务与认证管理
 
