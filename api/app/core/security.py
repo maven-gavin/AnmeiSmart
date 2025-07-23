@@ -266,3 +266,35 @@ def check_role_permission(required_roles: list[str] = None):
         )
     
     return check_permission 
+
+
+async def get_current_admin(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """
+    获取当前管理员用户
+    
+    检查当前用户是否具有管理员权限
+    
+    Args:
+        current_user: 当前认证用户
+    
+    Returns:
+        User: 管理员用户对象
+    
+    Raises:
+        HTTPException: 如果用户不是管理员
+    """
+    # 获取用户角色列表
+    user_roles = [role.name if hasattr(role, 'name') else role for role in current_user.roles]
+    
+    # 检查是否有管理员角色
+    if "admin" not in user_roles:
+        logger.warning(f"用户 {current_user.id} 尝试访问管理员功能但不是管理员，当前角色: {user_roles}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="需要管理员权限",
+        )
+    
+    logger.debug(f"管理员用户验证通过: {current_user.id}")
+    return current_user

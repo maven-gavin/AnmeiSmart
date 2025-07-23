@@ -37,6 +37,12 @@ async def lifespan(app: FastAPI):
         await initialize_connection_manager(redis_client)
         logger.info("WebSocket分布式连接管理器已初始化")
         
+        # 初始化MCP服务器并注册工具
+        from app.mcp.tools import mcp_server
+        logger.info(f"MCP服务器已初始化: {mcp_server.name}, 已注册工具: {len(mcp_server.tools)}")
+        for tool_name in mcp_server.tools.keys():
+            logger.debug(f"  - {tool_name}")
+        
     except Exception as e:
         logger.error(f"应用启动初始化失败: {e}")
         raise

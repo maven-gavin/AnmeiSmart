@@ -9,7 +9,6 @@ from app.core.distributed_connection_manager import DistributedConnectionManager
 from app.core.redis_client import get_redis_client
 from app.services.broadcasting_service import BroadcastingService
 from app.services.notification_service import NotificationService, get_notification_service
-from app.api.deps import get_db
 
 logger = logging.getLogger(__name__)
 

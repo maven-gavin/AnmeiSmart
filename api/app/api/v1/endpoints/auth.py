@@ -1,6 +1,6 @@
 from datetime import timedelta
 from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Request, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
@@ -15,6 +15,7 @@ from app.services.profile_service import ProfileService
 from app.schemas.token import Token, AccessToken, RefreshTokenRequest
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, SwitchRoleRequest
 from app.schemas.profile import LoginHistoryCreate
+from app.services.registration.automation_service import handle_registration_automation
 
 router = APIRouter()
 settings = get_settings()
@@ -91,6 +92,7 @@ async def register(
     *,
     db: Session = Depends(get_db),
     user_in: UserCreate = Body(...),
+    background_tasks: BackgroundTasks,
 ) -> Any:
     """
     用户注册
@@ -110,9 +112,20 @@ async def register(
     
     userResponse = await user_service.create(db, obj_in=user_in)
 
-    #TODO: 1、一旦用户注册成功就创建默认的会话，并指定通用机器人（机器人ID） 
-    #TODO: 2、机器人调用MCP来查询用户信息，生成定制的欢迎语，发送给客户
-    #TODO: 3、顾问端收到有新客户的消息通知，顾客认领客户为客户提供专业咨询服务
+    # 用户注册自动化流程：
+    # 1、创建默认的会话，启用AI功能
+    # 2、通过AI Gateway触发Dify Agent，调用MCP查询用户信息，生成定制的欢迎语
+    # 3、顾问端收到新客户通知，可以认领客户提供专业咨询服务
+    user_info = {
+        "username": userResponse.username,
+        "email": userResponse.email,
+        "roles": userResponse.roles,
+        "phone": userResponse.phone,
+        "avatar": userResponse.avatar
+    }
+    
+    # 异步处理注册自动化流程，避免阻塞注册接口
+    background_tasks.add_task(handle_registration_automation, str(userResponse.id), user_info)
     
     return userResponse
 
