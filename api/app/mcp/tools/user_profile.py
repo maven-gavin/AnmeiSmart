@@ -5,7 +5,7 @@
 用于生成个性化的欢迎消息和内容。
 """
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 

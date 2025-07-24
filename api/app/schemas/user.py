@@ -92,6 +92,7 @@ class UserResponse(UserBase):
     """API响应中的用户模型"""
     id: str
     created_at: datetime
+    updated_at: datetime
     roles: List[str] = []
     active_role: Optional[str] = None
     extended_info: Optional[ExtendedUserInfo] = None
@@ -129,6 +130,7 @@ class UserResponse(UserBase):
             avatar=user.avatar,
             is_active=user.is_active,
             created_at=user.created_at,
+            updated_at=user.updated_at,
             roles=[role.name for role in user.roles] if getattr(user, 'roles', None) else [],
             active_role=active_role,
             extended_info=extended_info

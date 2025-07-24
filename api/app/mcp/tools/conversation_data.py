@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.db.base import get_db
 from app.db.models.chat import Conversation, Message
 from ..server import mcp_server
+from app.services.chat import chat_service
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +36,7 @@ async def get_conversation_data(user_id: str, limit: int = 10, include_messages:
         logger.info(f"获取会话数据: user_id={user_id}, limit={limit}, include_messages={include_messages}")
         
         # 查询用户的会话
-        conversations = db.query(Conversation).filter(
-            Conversation.user_id == user_id
-        ).order_by(Conversation.updated_at.desc()).limit(limit).all()
+        conversations = chat_service.ChatService.search_conversations(user_id, "customer", "", 0, limit)
         
         if not conversations:
             logger.info(f"用户无会话记录: {user_id}")
@@ -60,7 +59,7 @@ async def get_conversation_data(user_id: str, limit: int = 10, include_messages:
                 "title": conv.title or "未命名会话",
                 "created_at": conv.created_at.isoformat(),
                 "updated_at": conv.updated_at.isoformat(),
-                "ai_enabled": conv.ai_enabled,
+                "ai_enabled": conv.is_ai_controlled,
                 "status": conv.status or "active"
             }
             
