@@ -15,7 +15,7 @@ from app.services.profile_service import ProfileService
 from app.schemas.token import Token, AccessToken, RefreshTokenRequest
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, SwitchRoleRequest
 from app.schemas.profile import LoginHistoryCreate
-from app.services.registration.automation_service import handle_registration_automation
+from app.services.registration_automation_service import handle_registration_automation
 
 router = APIRouter()
 settings = get_settings()

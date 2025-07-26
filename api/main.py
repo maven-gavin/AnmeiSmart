@@ -37,10 +37,11 @@ async def lifespan(app: FastAPI):
         await initialize_connection_manager(redis_client)
         logger.info("WebSocket分布式连接管理器已初始化")
         
-        # 初始化MCP服务器并注册工具
-        from app.mcp.tools import mcp_server
-        logger.info(f"MCP服务器已初始化: {mcp_server.name}, 已注册工具: {len(mcp_server.tools)}")
-        for tool_name in mcp_server.tools.keys():
+        # 初始化统一MCP服务器并注册工具
+        from app.mcp.unified_server import get_mcp_server
+        mcp_server = get_mcp_server()
+        logger.info(f"统一MCP服务器已初始化，已注册工具: {len(mcp_server.tool_registry.get_all_tools())}")
+        for tool_name in mcp_server.tool_registry.get_all_tools():
             logger.debug(f"  - {tool_name}")
         
     except Exception as e:
@@ -84,6 +85,11 @@ app.add_middleware(
 
 # 包含API路由
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# 包含统一MCP Server路由
+from app.mcp.unified_server import create_mcp_app
+mcp_app = create_mcp_app()
+app.mount("/mcp", mcp_app)
 
 @app.get("/")
 async def root() -> Dict[str, str]:

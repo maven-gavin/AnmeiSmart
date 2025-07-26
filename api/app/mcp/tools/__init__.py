@@ -1,23 +1,23 @@
 """
-MCP工具集合
+MCP工具模块
 
-使用装饰器模式定义的MCP工具，兼容官方库API设计。
-所有工具自动注册到全局mcp_server实例。
+按功能领域组织的MCP工具实现，支持：
+- 模块化组织，易于维护
+- 自动工具发现和注册
+- 清晰的功能分类
 """
 
-# 导入全局服务器实例
-from ..server import mcp_server
-
-# 导入所有工具模块，自动触发装饰器注册
-from . import user_profile
-from . import customer_analysis  
-from . import conversation_data
-from . import business_metrics
+# 导入所有工具模块，触发装饰器注册
+from . import user
+from . import customer  
+from . import consultation
+from . import treatment
+from . import projects
 
 __all__ = [
-    "mcp_server",
-    "user_profile", 
-    "customer_analysis",
-    "conversation_data", 
-    "business_metrics"
+    "user",
+    "customer", 
+    "consultation",
+    "treatment",
+    "projects"
 ] 

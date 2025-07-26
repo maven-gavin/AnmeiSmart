@@ -1,16 +1,15 @@
 """
 AnmeiSmart MCP (Model Context Protocol) Implementation
 
-兼容官方MCP库API设计的实现，支持：
-- 装饰器模式工具定义
-- 多传输模式支持
-- 自动类型推断和文档生成
+统一MCP服务器实现，支持：
+- API Key认证和分组权限控制
+- 动态工具路由
+- 模块化架构设计
 - FastAPI集成
 
-注意：当前使用Python 3.9兼容实现，
-升级到Python 3.10+后可无缝切换到官方库。
+设计符合企业级应用的安全和权限管理需求。
 """
 
-from .server import FastMCP, mcp_server
+from .unified_server import UnifiedMCPServer, get_mcp_server, create_mcp_app
 
-__all__ = ["FastMCP", "mcp_server"] 
+__all__ = ["UnifiedMCPServer", "get_mcp_server", "create_mcp_app"] 
