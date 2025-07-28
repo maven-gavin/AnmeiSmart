@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
-import { Eye, EyeOff, Plus, Settings, Trash2, RotateCcw, Edit, RefreshCw } from 'lucide-react'
+import { Copy, Plus, Settings, Trash2, RotateCcw, Edit, RefreshCw, Check } from 'lucide-react'
 import { 
   Dialog, 
   DialogContent, 
@@ -56,9 +56,9 @@ export function MCPConfigPanel() {
     clearError
   } = useMCPConfigs()
 
-  const [showApiKeys, setShowApiKeys] = useState<Record<string, boolean>>({})
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState<MCPGroup | null>(null)
+  const [copySuccess, setCopySuccess] = useState<string | null>(null)
 
   // 工具编辑状态
   const [isToolEditDialogOpen, setIsToolEditDialogOpen] = useState(false)
@@ -93,6 +93,21 @@ export function MCPConfigPanel() {
         </div>
       </div>
     )
+  }
+
+  // 复制API密钥到剪贴板
+  const handleCopyApiKey = async (groupId: string) => {
+    try {
+      const apiKey = await getGroupApiKey(groupId)
+      if (apiKey) {
+        await navigator.clipboard.writeText(apiKey)
+        setCopySuccess(groupId)
+        setTimeout(() => setCopySuccess(null), 2000) // 2秒后清除成功提示
+      }
+    } catch (error) {
+      console.error('复制API密钥失败:', error)
+      alert('复制失败，请重试')
+    }
   }
 
   // 创建/更新分组
@@ -202,14 +217,6 @@ export function MCPConfigPanel() {
     } catch (error) {
       console.error('更新工具状态失败:', error)
     }
-  }
-
-  // 显示/隐藏API密钥
-  const toggleApiKeyVisibility = (groupId: string) => {
-    setShowApiKeys(prev => ({
-      ...prev,
-      [groupId]: !prev[groupId]
-    }))
   }
 
   return (
@@ -364,18 +371,20 @@ export function MCPConfigPanel() {
                           <TableCell>
                             <div className="flex items-center space-x-2">
                               <code className="text-xs bg-gray-50 border px-2 py-1 rounded font-mono">
-                                {showApiKeys[group.id] 
-                                  ? group.api_key_preview 
-                                  : 'mcp_key_' + '•'.repeat(20)
-                                }
+                                {group.api_key_preview}
                               </code>
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => toggleApiKeyVisibility(group.id)}
+                                onClick={() => handleCopyApiKey(group.id)}
                                 className="h-8 w-8 p-0"
+                                title={copySuccess === group.id ? "已复制" : "复制API密钥"}
                               >
-                                {showApiKeys[group.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                {copySuccess === group.id ? (
+                                  <Check className="w-4 h-4 text-green-600" />
+                                ) : (
+                                  <Copy className="w-4 h-4" />
+                                )}
                               </Button>
                             </div>
                           </TableCell>
@@ -693,5 +702,4 @@ export function MCPConfigPanel() {
   )
 }
 
-// 默认导出
 export default MCPConfigPanel 
