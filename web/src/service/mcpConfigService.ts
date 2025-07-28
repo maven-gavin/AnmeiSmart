@@ -6,7 +6,7 @@ export interface MCPGroup {
   id: string
   name: string
   description?: string
-  api_key: string
+  api_key_preview: string  // 修改：后端返回的是脱敏后的预览
   user_tier_access: string[]
   allowed_roles: string[]
   enabled: boolean
@@ -34,11 +34,11 @@ export interface MCPGroupUpdate {
 
 export interface MCPTool {
   id: string
+  tool_name: string  // 修改：与后端Schema保持一致
   group_id: string
   group_name?: string
-  name: string
+  version: string
   description?: string
-  function_name: string
   enabled: boolean
   timeout_seconds: number
   config_data: Record<string, any>
@@ -48,11 +48,9 @@ export interface MCPTool {
 
 export interface MCPToolUpdate {
   group_id?: string
-  name?: string
-  description?: string
-  function_name?: string
   enabled?: boolean
   timeout_seconds?: number
+  description?: string
   config_data?: Record<string, any>
 }
 
@@ -86,7 +84,7 @@ class MCPConfigService {
    */
   async getGroups(): Promise<ApiResponse<MCPGroup[]>> {
     try {
-      const response = await apiClient.get('/mcp/admin/admin/groups')
+      const response = await apiClient.get('/mcp/admin/groups')
       return (response.data as any) || { success: false, message: '获取分组列表失败' }
     } catch (error: any) {
       console.error('获取MCP分组列表失败:', error)
@@ -102,7 +100,7 @@ class MCPConfigService {
    */
   async createGroup(groupData: MCPGroupCreate): Promise<ApiResponse<MCPGroup>> {
     try {
-      const response = await apiClient.post('/mcp/admin/admin/groups', groupData)
+      const response = await apiClient.post('/mcp/admin/groups', groupData)
       return (response.data as any) || { success: false, message: '创建分组失败' }
     } catch (error: any) {
       console.error('创建MCP分组失败:', error)
@@ -235,7 +233,7 @@ class MCPConfigService {
    */
   async getMCPServerStatus(): Promise<ApiResponse<MCPServerStatus>> {
     try {
-      const response = await apiClient.get('/mcp/admin/status')
+      const response = await apiClient.get('/mcp/admin/server/status')
       return (response.data as any) || { success: false, message: '获取服务器状态失败' }
     } catch (error: any) {
       console.error('获取MCP服务器状态失败:', error)

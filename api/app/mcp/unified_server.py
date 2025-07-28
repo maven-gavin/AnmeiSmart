@@ -202,6 +202,25 @@ class UnifiedMCPServer:
                 "statistics": self.logging_middleware.get_stats()
             }
 
+        @self.app.get("/mcp/admin/tools/all")
+        async def get_all_tools_for_admin():
+            """获取所有注册工具信息（管理员内部接口，无需认证）"""
+            all_tools = []
+            for tool_name in self.tool_registry.get_all_tools():
+                metadata = self.tool_registry.get_tool_metadata(tool_name)
+                all_tools.append({
+                    "name": tool_name,
+                    "description": metadata.description,
+                    "category": metadata.category,
+                    "module": metadata.module
+                })
+            
+            return {
+                "tools": all_tools,
+                "total_tools": len(all_tools),
+                "categories": self.tool_registry.get_all_categories()
+            }
+
         @self.app.get("/health")
         async def health_check():
             """健康检查端点"""

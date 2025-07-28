@@ -69,18 +69,17 @@ class MCPTool(BaseModel):
     __tablename__ = "mcp_tools"
     __table_args__ = (
         Index('idx_mcp_tools_group_enabled', 'group_id', 'enabled'),
-        Index('idx_mcp_tools_name', 'name'),
-        Index('idx_mcp_tools_function_name', 'function_name'),
+        Index('idx_mcp_tools_tool_name', 'tool_name'),
         Index('idx_mcp_tools_created_at', 'created_at'),
-        UniqueConstraint('group_id', 'name', name='uq_mcp_tools_group_name'),
+        UniqueConstraint('group_id', 'tool_name', name='uq_mcp_tools_group_tool_name'),
         {"comment": "MCP工具表，存储工具配置和元数据"}
     )
 
     id = Column(String(36), primary_key=True, index=True, comment="工具ID")
     group_id = Column(String(36), ForeignKey("mcp_tool_groups.id", ondelete="CASCADE"), nullable=False, index=True, comment="所属分组ID")
-    name = Column(String(100), nullable=False, index=True, comment="工具名称")
+    tool_name = Column(String(100), nullable=False, index=True, comment="工具名称")
     description = Column(Text, nullable=True, comment="工具描述")
-    function_name = Column(String(100), nullable=False, comment="函数名称")
+    version = Column(String(20), nullable=False, default="1.0.0", comment="工具版本")
     enabled = Column(Boolean, nullable=False, default=True, index=True, comment="是否启用")
     timeout_seconds = Column(Integer, nullable=False, default=30, comment="超时时间（秒）")
     config_data = Column(JSON, nullable=True, comment="工具配置数据", default={})
@@ -91,7 +90,7 @@ class MCPTool(BaseModel):
     group = relationship("MCPToolGroup", back_populates="tools")
 
     def __repr__(self):
-        return f"<MCPTool(id={self.id}, name={self.name}, group_id={self.group_id})>"
+        return f"<MCPTool(id={self.id}, tool_name={self.tool_name}, group_id={self.group_id})>"
 
 
 class MCPCallLog(BaseModel):

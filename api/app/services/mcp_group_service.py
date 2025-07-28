@@ -20,13 +20,25 @@ logger = logging.getLogger(__name__)
 
 
 def transaction_handler(func):
-    """事务处理装饰器"""
+    """事务处理装饰器 - 自动处理数据库事务"""
     @wraps(func)
     async def wrapper(*args, **kwargs):
-        # 获取数据库session (假设是第一个参数)
-        db = args[1] if len(args) > 1 else kwargs.get('db')
-        if not db:
-            raise ValueError("数据库session未找到")
+        # 获取数据库session - 检查所有参数
+        db = None
+        
+        # 首先检查kwargs中的db参数
+        if 'db' in kwargs:
+            db = kwargs['db']
+        else:
+            # 检查位置参数，通常db是第二个参数（第一个是self或cls）
+            for arg in args:
+                if hasattr(arg, 'commit') and hasattr(arg, 'rollback'):
+                    db = arg
+                    break
+        
+        if not db or not hasattr(db, 'commit'):
+            logger.error(f"数据库session未找到或无效: {type(db)}")
+            raise ValueError("数据库session未找到或无效")
         
         try:
             result = await func(*args, **kwargs)
@@ -327,77 +339,6 @@ class MCPGroupService:
             raise
 
     @staticmethod
-    async def validate_api_key(db: Session, api_key: str) -> Optional[Dict[str, Any]]:
-        """验证API Key并返回分组信息"""
-        try:
-            # 尝试匹配明文和加密的API密钥
-            group = db.query(MCPToolGroup).filter(
-                and_(
-                    MCPToolGroup.enabled == True,
-                    MCPToolGroup.api_key == api_key  # 先尝试明文匹配
-                )
-            ).first()
-
-            if not group:
-                # 尝试加密匹配
-                groups = db.query(MCPToolGroup).filter(MCPToolGroup.enabled == True).all()
-                for g in groups:
-                    try:
-                        decrypted_key = MCPGroupService._decrypt_api_key(g.api_key)
-                        if decrypted_key == api_key:
-                            group = g
-                            break
-                    except:
-                        continue
-
-            if not group:
-                return None
-
-            return {
-                "id": group.id,
-                "name": group.name,
-                "user_tier_access": group.user_tier_access or ["internal"],
-                "allowed_roles": group.allowed_roles or [],
-                "enabled": group.enabled
-            }
-
-        except Exception as e:
-            logger.error(f"验证API Key失败: error={e}")
-            return None
-
-    @staticmethod
-    async def get_group_tools(db: Session, group_id: str) -> List[str]:
-        """获取分组内的工具列表"""
-        try:
-            tools = db.query(MCPTool).filter(
-                and_(MCPTool.group_id == group_id, MCPTool.enabled == True)
-            ).all()
-
-            return [tool.name for tool in tools]
-
-        except Exception as e:
-            logger.error(f"获取分组工具列表失败: group_id={group_id}, error={e}")
-            return []
-
-    @staticmethod
-    async def is_tool_in_group(db: Session, tool_name: str, group_id: str) -> bool:
-        """检查工具是否属于指定分组且已启用"""
-        try:
-            tool = db.query(MCPTool).filter(
-                and_(
-                    MCPTool.name == tool_name,
-                    MCPTool.group_id == group_id,
-                    MCPTool.enabled == True
-                )
-            ).first()
-
-            return tool is not None
-
-        except Exception as e:
-            logger.error(f"检查工具分组归属失败: tool={tool_name}, group={group_id}, error={e}")
-            return False
-
-    @staticmethod
     @transaction_handler
     async def log_mcp_call(
         db: Session,
@@ -436,4 +377,191 @@ class MCPGroupService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="记录调用日志失败"
-            ) 
+            )
+
+    # =============== MCP工具管理方法 ===============
+
+    @staticmethod
+    async def get_tools(db: Session, group_id: Optional[str] = None) -> List[MCPToolInfo]:
+        """获取MCP工具列表 - 返回Schema"""
+        try:
+            query = db.query(MCPTool).join(MCPToolGroup)
+            
+            if group_id:
+                query = query.filter(MCPTool.group_id == group_id)
+            
+            tools = query.all()
+            
+            result = []
+            for tool in tools:
+                # 获取分组名称
+                group = db.query(MCPToolGroup).filter(MCPToolGroup.id == tool.group_id).first()
+                tool_info = MCPToolInfo.from_model(tool)
+                tool_info.group_name = group.name if group else "未知分组"
+                result.append(tool_info)
+            
+            logger.info(f"获取MCP工具列表成功: 共{len(result)}个工具")
+            return result
+
+        except Exception as e:
+            logger.error(f"获取MCP工具列表失败: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="获取工具列表失败"
+            )
+
+    @staticmethod
+    @transaction_handler  
+    async def update_tool(db: Session, tool_id: str, tool_update: "MCPToolUpdate") -> MCPToolInfo:
+        """更新MCP工具配置 - 返回Schema"""
+        from app.schemas.mcp import MCPToolUpdate
+        
+        try:
+            tool = db.query(MCPTool).filter(MCPTool.id == tool_id).first()
+            if not tool:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="工具不存在"
+                )
+
+            # 更新字段
+            update_data = tool_update.dict(exclude_unset=True)
+            for field, value in update_data.items():
+                if hasattr(tool, field):
+                    setattr(tool, field, value)
+            
+            tool.updated_at = datetime.utcnow()
+            db.flush()
+
+            result = MCPToolInfo.from_model(tool)
+            logger.info(f"更新MCP工具成功: {tool.tool_name}")
+            return result
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"更新MCP工具失败: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="更新工具失败"
+            )
+
+    @staticmethod
+    async def get_group_tools(db: Session, group_id: str) -> List[str]:
+        """获取分组内的工具名称列表"""
+        try:
+            tools = db.query(MCPTool).filter(
+                MCPTool.group_id == group_id,
+                MCPTool.enabled == True
+            ).all()
+            
+            return [tool.tool_name for tool in tools]
+
+        except Exception as e:
+            logger.error(f"获取分组工具列表失败: {e}")
+            return []
+
+    @staticmethod
+    async def is_tool_in_group(db: Session, tool_name: str, group_id: str) -> bool:
+        """检查工具是否在指定分组内且启用"""
+        try:
+            tool = db.query(MCPTool).filter(
+                MCPTool.tool_name == tool_name,
+                MCPTool.group_id == group_id,
+                MCPTool.enabled == True
+            ).first()
+            
+            return tool is not None
+
+        except Exception as e:
+            logger.error(f"检查工具分组权限失败: {e}")
+            return False
+
+    @staticmethod
+    @transaction_handler
+    async def sync_tools_from_mcp_server(db: Session, mcp_tools_info: List[dict]) -> int:
+        """从MCP服务器同步工具信息 - 返回更新数量"""
+        try:
+            updated_count = 0
+            
+            for tool_info in mcp_tools_info:
+                # 查找现有工具
+                existing_tool = db.query(MCPTool).filter(
+                    MCPTool.tool_name == tool_info.get("name")
+                ).first()
+                
+                if existing_tool:
+                    # 更新现有工具
+                    existing_tool.description = tool_info.get("description", "")
+                    existing_tool.updated_at = datetime.utcnow()
+                    updated_count += 1
+                else:
+                    # 创建新工具（需要分配到默认分组）
+                    default_group = db.query(MCPToolGroup).filter(
+                        MCPToolGroup.name == "默认分组"
+                    ).first()
+                    
+                    if not default_group:
+                        # 创建默认分组
+                        default_group = MCPToolGroup(
+                            id=str(uuid.uuid4()),
+                            name="默认分组",
+                            description="系统自动创建的默认工具分组",
+                            api_key=MCPGroupService._encrypt_api_key(MCPGroupService._generate_api_key()),
+                            enabled=True,
+                            created_by="system",
+                            created_at=datetime.utcnow(),
+                            updated_at=datetime.utcnow()
+                        )
+                        db.add(default_group)
+                        db.flush()
+                    
+                    new_tool = MCPTool(
+                        id=str(uuid.uuid4()),
+                        tool_name=tool_info.get("name"),
+                        group_id=default_group.id,
+                        version="1.0.0",
+                        description=tool_info.get("description", ""),
+                        enabled=True,
+                        timeout_seconds=30,
+                        config_data={},
+                        created_at=datetime.utcnow(),
+                        updated_at=datetime.utcnow()
+                    )
+                    db.add(new_tool)
+                    updated_count += 1
+            
+            db.flush()
+            logger.info(f"从MCP服务器同步工具成功: 更新{updated_count}个工具")
+            return updated_count
+
+        except Exception as e:
+            logger.error(f"同步MCP工具失败: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="同步工具失败"
+            )
+
+    @staticmethod
+    async def validate_api_key(db: Session, api_key: str) -> Optional[Dict[str, Any]]:
+        """验证API Key并返回分组信息"""
+        try:
+            # 查找分组（需要解密比较）
+            groups = db.query(MCPToolGroup).filter(MCPToolGroup.enabled == True).all()
+            
+            for group in groups:
+                decrypted_key = MCPGroupService._decrypt_api_key(group.api_key)
+                if decrypted_key == api_key:
+                    return {
+                        "id": group.id,
+                        "name": group.name,
+                        "description": group.description,
+                        "user_tier_access": group.user_tier_access,
+                        "allowed_roles": group.allowed_roles
+                    }
+            
+            return None
+
+        except Exception as e:
+            logger.error(f"验证API Key失败: {e}")
+            return None 

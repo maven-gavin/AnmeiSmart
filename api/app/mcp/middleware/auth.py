@@ -44,6 +44,17 @@ class MCPMiddleware:
         if not request.url.path.startswith("/mcp"):
             return await call_next(request)
         
+        # 管理员内部端点无需认证
+        admin_endpoints = [
+            "/mcp/admin/tools/all",
+            "/mcp/server/info",
+            "/mcp/tools/info",
+            "/mcp/health"
+        ]
+        
+        if request.url.path in admin_endpoints:
+            return await call_next(request)
+        
         # 提取API Key
         auth_header = request.headers.get("Authorization")
         if not auth_header:

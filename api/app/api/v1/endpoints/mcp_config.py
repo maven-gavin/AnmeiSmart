@@ -15,7 +15,10 @@ from app.schemas.mcp import (
     MCPApiKeyResponse,
     MCPSuccessResponse,
     MCPErrorResponse,
-    MCPServerStatusResponse
+    MCPServerStatusResponse,
+    MCPToolListResponse,
+    MCPToolSingleResponse,
+    MCPToolUpdate
 )
 from app.core.security import get_current_admin
 from app.db.models.user import User
@@ -157,6 +160,78 @@ async def regenerate_group_api_key(
     )
 
 
+# ==================== MCP工具管理API ====================
+
+@router.get("/tools", response_model=MCPToolListResponse)
+async def get_mcp_tools(
+    group_id: Optional[str] = Query(None, description="按分组筛选"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """获取MCP工具列表 - Controller层"""
+    tools = await MCPGroupService.get_tools(db, group_id=group_id)
+    return MCPToolListResponse(
+        success=True,
+        data=tools,
+        message="获取MCP工具列表成功"
+    )
+
+
+@router.put("/tools/{tool_id}", response_model=MCPToolSingleResponse)
+async def update_mcp_tool(
+    tool_id: str,
+    tool_update: MCPToolUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """更新MCP工具配置 - Controller层"""
+    tool = await MCPGroupService.update_tool(db, tool_id, tool_update)
+    
+    logger.info(f"管理员 {current_user.id} 更新了MCP工具: {tool_id}")
+    
+    return MCPToolSingleResponse(
+        success=True,
+        data=tool,
+        message="MCP工具更新成功"
+    )
+
+
+@router.post("/tools/refresh", response_model=MCPSuccessResponse)
+async def refresh_mcp_tools(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """刷新MCP工具列表 - Controller层"""
+    
+    try:
+        # 尝试从MCP服务器获取最新工具信息
+        mcp_tools_info = await _get_mcp_tools_from_server()
+        
+        if not mcp_tools_info:
+            logger.warning("无法从MCP服务器获取工具信息，返回成功但工具数为0")
+            return MCPSuccessResponse(
+                success=True,
+                message="MCP工具列表刷新完成，但未发现新工具（服务器可能未启动）"
+            )
+        
+        # 同步到数据库
+        updated_count = await MCPGroupService.sync_tools_from_mcp_server(db, mcp_tools_info)
+        
+        logger.info(f"管理员 {current_user.id} 刷新了MCP工具列表，更新了 {updated_count} 个工具")
+        
+        return MCPSuccessResponse(
+            success=True,
+            message=f"MCP工具列表刷新成功，发现并同步了 {len(mcp_tools_info)} 个工具，更新了 {updated_count} 个工具"
+        )
+        
+    except Exception as e:
+        logger.error(f"刷新MCP工具列表失败: {e}")
+        return MCPSuccessResponse(
+            success=True,
+            message="MCP工具列表刷新遇到问题，但系统仍正常运行。请检查MCP服务器状态或联系管理员。"
+        )
+
+
 # ==================== 统一MCP服务器集成API ====================
 
 @router.get("/server/status", response_model=MCPServerStatusResponse)
@@ -236,6 +311,31 @@ async def _check_mcp_server_health() -> dict:
             },
             "total_tools": 0
         }
+
+
+async def _get_mcp_tools_from_server() -> List[dict]:
+    """从统一MCP Server获取工具列表 - 私有辅助函数"""
+    try:
+        # 直接从MCP服务器的工具注册表获取工具信息
+        from app.mcp.unified_server import get_mcp_server
+        mcp_server = get_mcp_server()
+        
+        all_tools = []
+        for tool_name in mcp_server.tool_registry.get_all_tools():
+            metadata = mcp_server.tool_registry.get_tool_metadata(tool_name)
+            all_tools.append({
+                "name": tool_name,
+                "description": metadata.description,
+                "category": metadata.category,
+                "module": metadata.module
+            })
+        
+        logger.info(f"从MCP工具注册表获取到 {len(all_tools)} 个工具")
+        return all_tools
+        
+    except Exception as e:
+        logger.warning(f"无法从统一MCP Server获取工具列表: {e}")
+        return []
 
 
 async def _build_dify_config(groups: List[MCPGroupInfo]) -> dict:

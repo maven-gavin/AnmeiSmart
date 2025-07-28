@@ -82,29 +82,27 @@ class MCPGroupInfo(MCPGroupBase):
 
 class MCPToolBase(BaseModel):
     """MCP工具基础模型"""
-    name: str = Field(..., description="工具名称", max_length=100, min_length=1)
+    tool_name: str = Field(..., description="工具名称", max_length=100, min_length=1)
     description: Optional[str] = Field(None, description="工具描述", max_length=255)
-    function_name: str = Field(..., description="函数名称", max_length=100, min_length=1)
     enabled: bool = Field(True, description="是否启用")
     timeout_seconds: int = Field(30, description="超时时间（秒）", ge=1, le=300)
     config_data: Dict[str, Any] = Field(default_factory=dict, description="工具配置数据")
 
-    @validator('name', 'function_name')
-    def validate_names(cls, v):
+    @validator('tool_name')
+    def validate_tool_name(cls, v):
         if not v.strip():
-            raise ValueError('名称不能为空')
+            raise ValueError('工具名称不能为空')
         return v.strip()
 
 class MCPToolCreate(MCPToolBase):
     """创建MCP工具的请求模型"""
     group_id: str = Field(..., description="所属分组ID")
+    version: str = Field("1.0.0", description="工具版本", max_length=20)
 
 class MCPToolUpdate(BaseModel):
     """更新MCP工具的请求模型"""
     group_id: Optional[str] = Field(None, description="所属分组ID")
-    name: Optional[str] = Field(None, description="工具名称", max_length=100)
     description: Optional[str] = Field(None, description="工具描述", max_length=255)
-    function_name: Optional[str] = Field(None, description="函数名称", max_length=100)
     enabled: Optional[bool] = Field(None, description="是否启用")
     timeout_seconds: Optional[int] = Field(None, description="超时时间（秒）", ge=1, le=300)
     config_data: Optional[Dict[str, Any]] = Field(None, description="工具配置数据")
@@ -114,6 +112,7 @@ class MCPToolInfo(MCPToolBase):
     id: str = Field(..., description="工具ID")
     group_id: str = Field(..., description="所属分组ID")
     group_name: Optional[str] = Field(None, description="分组名称")
+    version: str = Field(..., description="工具版本")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
 
@@ -127,12 +126,12 @@ class MCPToolInfo(MCPToolBase):
             id=tool_model.id,
             group_id=tool_model.group_id,
             group_name=tool_model.group.name if hasattr(tool_model, 'group') and tool_model.group else None,
-            name=tool_model.name,
+            tool_name=tool_model.tool_name,
             description=tool_model.description,
-            function_name=tool_model.function_name,
             enabled=tool_model.enabled,
             timeout_seconds=tool_model.timeout_seconds,
             config_data=tool_model.config_data or {},
+            version=tool_model.version or "1.0.0",
             created_at=tool_model.created_at,
             updated_at=tool_model.updated_at
         )

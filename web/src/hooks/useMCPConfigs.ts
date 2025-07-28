@@ -186,13 +186,20 @@ export function useMCPConfigs() {
       const response = await mcpConfigService.refreshTools()
       if (response.success) {
         await loadTools() // 重新加载工具列表
+        // 如果有消息，可以在这里显示给用户
+        console.log('工具刷新结果:', response.message)
         return true
       } else {
         setError(response.error || '刷新工具列表失败')
         return false
       }
     } catch (error: any) {
-      setError('刷新工具列表失败')
+      // 提供更友好的错误消息
+      const friendlyMessage = error.message?.includes('网络连接失败') 
+        ? 'MCP服务器连接失败，请检查服务器是否正常运行' 
+        : '刷新工具列表时遇到问题，请稍后重试'
+      
+      setError(friendlyMessage)
       console.error('刷新MCP工具列表失败:', error)
       return false
     } finally {
