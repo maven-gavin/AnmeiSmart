@@ -13,6 +13,7 @@ alwaysApply: false
 
 ## 组件结构
 - 优先采用shadcn/ui组件库
+- icon 图标优先使用 lucide-react 组件库
 - 优先使用函数组件而非类组件
 - 保持组件小巧且专注
 - 将可复用逻辑提取到自定义 hook 中

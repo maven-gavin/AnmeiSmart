@@ -28,6 +28,13 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useMCPConfigs } from '@/hooks/useMCPConfigs'
 import { MCPGroup, MCPTool } from '@/service/mcpConfigService'
 
@@ -53,10 +60,27 @@ export function MCPConfigPanel() {
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState<MCPGroup | null>(null)
 
+  // 工具编辑状态
+  const [isToolEditDialogOpen, setIsToolEditDialogOpen] = useState(false)
+  const [isToolConfigDialogOpen, setIsToolConfigDialogOpen] = useState(false)
+  const [editingTool, setEditingTool] = useState<MCPTool | null>(null)
+
   // 表单状态
   const [groupForm, setGroupForm] = useState({
     name: '',
     description: ''
+  })
+
+  // 工具编辑表单状态
+  const [toolEditForm, setToolEditForm] = useState({
+    description: '',
+    group_id: '',
+    timeout_seconds: 30
+  })
+
+  // 工具配置表单状态
+  const [toolConfigForm, setToolConfigForm] = useState({
+    config_data: '{}'
   })
 
   // 显示Loading状态
@@ -84,6 +108,65 @@ export function MCPConfigPanel() {
       setIsGroupDialogOpen(false)
       setEditingGroup(null)
       setGroupForm({ name: '', description: '' })
+    }
+  }
+
+  // 编辑工具基本信息
+  const handleEditTool = (tool: MCPTool) => {
+    setEditingTool(tool)
+    setToolEditForm({
+      description: tool.description || '',
+      group_id: tool.group_id,
+      timeout_seconds: tool.timeout_seconds
+    })
+    setIsToolEditDialogOpen(true)
+  }
+
+  // 保存工具编辑
+  const handleSaveToolEdit = async () => {
+    if (!editingTool) return
+
+    const success = await updateTool(editingTool.id, {
+      description: toolEditForm.description,
+      group_id: toolEditForm.group_id,
+      timeout_seconds: toolEditForm.timeout_seconds
+    })
+
+    if (success) {
+      setIsToolEditDialogOpen(false)
+      setEditingTool(null)
+      setToolEditForm({ description: '', group_id: '', timeout_seconds: 30 })
+    }
+  }
+
+  // 配置工具高级参数
+  const handleConfigTool = (tool: MCPTool) => {
+    setEditingTool(tool)
+    setToolConfigForm({
+      config_data: JSON.stringify(tool.config_data, null, 2)
+    })
+    setIsToolConfigDialogOpen(true)
+  }
+
+  // 保存工具配置
+  const handleSaveToolConfig = async () => {
+    if (!editingTool) return
+
+    try {
+      // 验证JSON格式
+      const configData = JSON.parse(toolConfigForm.config_data)
+      
+      const success = await updateTool(editingTool.id, {
+        config_data: configData
+      })
+
+      if (success) {
+        setIsToolConfigDialogOpen(false)
+        setEditingTool(null)
+        setToolConfigForm({ config_data: '{}' })
+      }
+    } catch (error) {
+      alert('配置数据格式错误，请检查JSON格式是否正确')
     }
   }
 
@@ -426,16 +509,20 @@ export function MCPConfigPanel() {
                               <Button 
                                 variant="ghost" 
                                 size="sm"
+                                onClick={() => handleEditTool(tool)}
                                 disabled={isSubmitting}
                                 className="h-8 w-8 p-0"
+                                title="编辑工具基本信息"
                               >
                                 <Edit className="w-4 h-4" />
                               </Button>
                               <Button 
                                 variant="ghost" 
                                 size="sm"
+                                onClick={() => handleConfigTool(tool)}
                                 disabled={isSubmitting}
                                 className="h-8 w-8 p-0"
+                                title="高级配置参数"
                               >
                                 <Settings className="w-4 h-4" />
                               </Button>
@@ -451,6 +538,157 @@ export function MCPConfigPanel() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* 工具编辑对话框 */}
+      <Dialog open={isToolEditDialogOpen} onOpenChange={setIsToolEditDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-medium text-gray-800">
+              编辑工具信息
+            </DialogTitle>
+            <DialogDescription className="text-gray-600">
+              修改工具的基本配置信息，包括描述、分组归属和超时设置
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">工具名称</Label>
+              <Input
+                value={editingTool?.tool_name || ''}
+                disabled
+                className="bg-gray-50"
+              />
+              <p className="text-xs text-gray-500">工具名称由系统管理，不可修改</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tool_description" className="text-sm font-medium text-gray-700">
+                工具描述
+              </Label>
+              <Textarea
+                id="tool_description"
+                value={toolEditForm.description}
+                onChange={(e) => setToolEditForm(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="描述此工具的功能和用途..."
+                rows={3}
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tool_group" className="text-sm font-medium text-gray-700">
+                所属分组 <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={toolEditForm.group_id}
+                onValueChange={(value) => setToolEditForm(prev => ({ ...prev, group_id: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择工具分组" />
+                </SelectTrigger>
+                <SelectContent>
+                  {groups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tool_timeout" className="text-sm font-medium text-gray-700">
+                超时时间（秒）
+              </Label>
+              <Input
+                id="tool_timeout"
+                type="number"
+                min="1"
+                max="300"
+                value={toolEditForm.timeout_seconds}
+                onChange={(e) => setToolEditForm(prev => ({ 
+                  ...prev, 
+                  timeout_seconds: parseInt(e.target.value) || 30 
+                }))}
+                className="w-full"
+              />
+              <p className="text-xs text-gray-500">工具执行的最大超时时间，建议设置为10-60秒</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsToolEditDialogOpen(false)}
+              disabled={isSubmitting}
+            >
+              取消
+            </Button>
+            <Button 
+              onClick={handleSaveToolEdit} 
+              disabled={isSubmitting || !toolEditForm.group_id}
+              className="bg-orange-500 hover:bg-orange-600"
+            >
+              {isSubmitting ? '保存中...' : '保存更改'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 工具高级配置对话框 */}
+      <Dialog open={isToolConfigDialogOpen} onOpenChange={setIsToolConfigDialogOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-medium text-gray-800">
+              高级配置参数
+            </DialogTitle>
+            <DialogDescription className="text-gray-600">
+              配置工具的高级参数，请使用有效的JSON格式
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4 flex-1">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">工具名称</Label>
+              <Input
+                value={editingTool?.tool_name || ''}
+                disabled
+                className="bg-gray-50"
+              />
+            </div>
+            <div className="space-y-2 flex-1">
+              <Label htmlFor="tool_config_data" className="text-sm font-medium text-gray-700">
+                配置参数 (JSON格式)
+              </Label>
+              <Textarea
+                id="tool_config_data"
+                value={toolConfigForm.config_data}
+                onChange={(e) => setToolConfigForm(prev => ({ ...prev, config_data: e.target.value }))}
+                placeholder='{"key": "value", "timeout": 30}'
+                rows={12}
+                className="w-full font-mono text-sm"
+                style={{ minHeight: '300px' }}
+              />
+              <div className="text-xs text-gray-500 space-y-1">
+                <p>• 请使用有效的JSON格式配置参数</p>
+                <p>• 配置示例：{`{"max_retries": 3, "cache_enabled": true, "api_endpoint": "https://api.example.com"}`}</p>
+                <p>• 空配置请使用：{`{}`}</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsToolConfigDialogOpen(false)}
+              disabled={isSubmitting}
+            >
+              取消
+            </Button>
+            <Button 
+              onClick={handleSaveToolConfig} 
+              disabled={isSubmitting}
+              className="bg-orange-500 hover:bg-orange-600"
+            >
+              {isSubmitting ? '保存中...' : '保存配置'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
