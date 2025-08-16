@@ -54,6 +54,7 @@ api_router.include_router(mcp_config.router, prefix="/mcp/admin", tags=["mcp-adm
 # 个人中心路由
 api_router.include_router(profile.router, prefix="/profile", tags=["profile"])
 
+
 # 后续可添加其他路由
 # api_router.include_router(plans.router, prefix="/plans", tags=["plans"])
 # api_router.include_router(appointments.router, prefix="/appointments", tags=["appointments"])

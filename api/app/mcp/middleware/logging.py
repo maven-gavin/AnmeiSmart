@@ -39,9 +39,27 @@ class MCPLoggingMiddleware:
                 self.error_count += 1
             
             # 记录到数据库
+            # 脱敏请求数据中的潜在敏感字段
+            def _mask(obj: Dict[str, Any]) -> Dict[str, Any]:
+                if not isinstance(obj, dict):
+                    return obj
+                masked = {}
+                for k, v in obj.items():
+                    if k.lower() in {"apikey", "api_key", "authorization", "token", "sessiontoken"}:
+                        masked[k] = "***"
+                    else:
+                        masked[k] = v
+                return masked
+
             await MCPGroupService.log_mcp_call(
-                db, tool_name, group_id, request_data, response_data,
-                success, duration_ms, error_message
+                db,
+                tool_name,
+                group_id,
+                _mask(request_data),
+                _mask(response_data) if isinstance(response_data, dict) else response_data,
+                success,
+                duration_ms,
+                error_message,
             )
             
             # 记录到应用日志

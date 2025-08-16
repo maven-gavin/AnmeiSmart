@@ -3,8 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Toaster } from 'react-hot-toast';
-import { StagewiseToolbar } from '@stagewise/toolbar-next';
-import ReactPlugin from '@stagewise-plugins/react';
+// Removed Stagewise old toolbar integration
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -50,11 +49,7 @@ export default function RootLayout({
               },
             }}
           />
-          <StagewiseToolbar 
-            config={{
-              plugins: [ReactPlugin],
-            }}
-          />
+          {/* Stagewise Toolbar removed */}
         </AuthProvider>
       </body>
     </html>

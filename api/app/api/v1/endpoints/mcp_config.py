@@ -281,8 +281,8 @@ async def generate_dify_mcp_config(
         "data": {
             "mcp_config": dify_config,
             "total_groups": len(dify_config),
-            "server_url": "http://127.0.0.1:8000/mcp",
-            "protocol": "sse",
+            "server_url": "http://127.0.0.1:8000/api/v1/mcp/jsonrpc",
+            "protocol": "sse+jsonrpc",
             "generated_at": "2025-01-27"
         },
         "message": "Dify MCP配置生成成功"
@@ -350,11 +350,10 @@ async def _build_dify_config(groups: List[MCPGroupInfo]) -> dict:
             # 在实际实现中，应该有专门的方法来获取用于配置的API密钥
             
             dify_config[config_key] = {
-                "transport": "sse",
-                "url": "http://127.0.0.1:8000/mcp",
-                "headers": {
-                    "Authorization": f"Bearer {group.api_key_preview}"  # 这里需要真实密钥
-                },
+                "transport": "sse+jsonrpc",
+                "url": "http://127.0.0.1:8000/api/v1/mcp/jsonrpc",
+                "headers": {},
+                "note": "无需在此处配置密钥，Dify 会在 initialize 时弹窗授权，换取 sessionToken",
                 "group_info": {
                     "name": group.name,
                     "description": group.description,

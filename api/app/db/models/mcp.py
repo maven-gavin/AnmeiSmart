@@ -25,6 +25,7 @@ class MCPToolGroup(BaseModel):
     name = Column(String(100), nullable=False, index=True, comment="分组名称")
     description = Column(Text, nullable=True, comment="分组描述")
     _api_key = Column('api_key', String(512), nullable=False, index=True, comment="加密的API密钥")
+    hashed_api_key = Column(String(64), nullable=True, index=True, comment="API密钥SHA-256哈希（查询用）")
     user_tier_access = Column(JSON, nullable=False, default=["internal"], comment="允许访问的用户层级")
     allowed_roles = Column(JSON, nullable=False, default=[], comment="允许访问的角色列表")
     enabled = Column(Boolean, nullable=False, default=True, index=True, comment="是否启用")

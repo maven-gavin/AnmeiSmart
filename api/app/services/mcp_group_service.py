@@ -94,6 +94,12 @@ class MCPGroupService:
             return encrypted_api_key
 
     @staticmethod
+    def _hash_api_key(api_key: str) -> str:
+        """计算API密钥哈希（SHA-256）"""
+        import hashlib
+        return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+
+    @staticmethod
     async def get_all_groups(db: Session) -> List[MCPGroupInfo]:
         """获取所有MCP分组列表 - 返回Schema"""
         try:
@@ -178,6 +184,7 @@ class MCPGroupService:
                 "name": group_create.name,
                 "description": group_create.description,
                 "api_key": MCPGroupService._encrypt_api_key(api_key),
+                "hashed_api_key": MCPGroupService._hash_api_key(api_key),
                 "user_tier_access": group_create.user_tier_access,
                 "allowed_roles": group_create.allowed_roles,
                 "enabled": group_create.enabled,
@@ -329,6 +336,8 @@ class MCPGroupService:
 
             # 更新数据库
             group.api_key = MCPGroupService._encrypt_api_key(new_api_key)
+            if hasattr(group, 'hashed_api_key'):
+                group.hashed_api_key = MCPGroupService._hash_api_key(new_api_key)
             group.updated_at = datetime.utcnow()
             db.flush()
 
@@ -544,11 +553,28 @@ class MCPGroupService:
 
     @staticmethod
     async def validate_api_key(db: Session, api_key: str) -> Optional[Dict[str, Any]]:
-        """验证API Key并返回分组信息"""
+        """验证API Key并返回分组信息（安全版：哈希匹配，兼容解密对比）"""
         try:
-            # 查找分组（需要解密比较）
+            import hashlib
+            api_key_hash = hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+
+            # 优先使用哈希匹配（需要DB新增 hashed_api_key 字段后生效）
+            if hasattr(MCPToolGroup, 'hashed_api_key'):
+                group = db.query(MCPToolGroup).filter(
+                    MCPToolGroup.enabled == True,
+                    MCPToolGroup.hashed_api_key == api_key_hash
+                ).first()
+                if group:
+                    return {
+                        "id": group.id,
+                        "name": group.name,
+                        "description": group.description,
+                        "user_tier_access": group.user_tier_access,
+                        "allowed_roles": group.allowed_roles
+                    }
+
+            # 兼容路径：解密遍历（待迁移数据期间保留）
             groups = db.query(MCPToolGroup).filter(MCPToolGroup.enabled == True).all()
-            
             for group in groups:
                 decrypted_key = MCPGroupService._decrypt_api_key(group.api_key)
                 if decrypted_key == api_key:
@@ -559,9 +585,8 @@ class MCPGroupService:
                         "user_tier_access": group.user_tier_access,
                         "allowed_roles": group.allowed_roles
                     }
-            
             return None
 
         except Exception as e:
             logger.error(f"验证API Key失败: {e}")
-            return None 
+            return None

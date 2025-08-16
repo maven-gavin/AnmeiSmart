@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  anmeismart-api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: anmeismart-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:difyai123456@172.19.0.2:5432/anmeismart
+      - REDIS_URL=redis://:difyai123456@172.19.0.3:6379/1
+    networks:
+      - dify_default
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+networks:
+  dify_default:
+    external: true
+    name: docker_default
+
+# 可以选择使用外部的Dify数据库和Redis，或者创建独立的
+# 这里使用外部Dify服务以简化配置

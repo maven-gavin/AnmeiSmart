@@ -151,6 +151,34 @@ class MCPToolRegistry:
     def get_tools_info(self) -> List[Dict[str, Any]]:
         """获取所有工具的详细信息"""
         return [metadata.to_dict() for metadata in self.tools.values()]
+
+    def build_input_schema(self, name: str) -> Dict[str, Any]:
+        """根据工具签名构建 JSON Schema（供 tools/list 返回）"""
+        metadata = self.tools.get(name)
+        if not metadata:
+            return {"type": "object", "properties": {}, "required": []}
+
+        properties: Dict[str, Any] = {}
+        required: List[str] = []
+
+        for param_name, param in metadata.signature.parameters.items():
+            if param_name == 'self':
+                continue
+
+            type_name = metadata._get_type_name(param.annotation)
+            schema_prop: Dict[str, Any] = {"type": type_name}
+            if param.default != inspect.Parameter.empty:
+                schema_prop["default"] = param.default
+            else:
+                required.append(param_name)
+
+            properties[param_name] = schema_prop
+
+        return {
+            "type": "object",
+            "properties": properties,
+            "required": required
+        }
     
     def auto_discover_tools(self, package_name: str) -> int:
         """自动发现并注册指定包下的所有工具"""
