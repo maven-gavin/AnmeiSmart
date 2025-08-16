@@ -138,6 +138,23 @@ export function useMCPConfigs() {
     }
   }, [loadGroups])
 
+  const getGroupServerUrl = useCallback(async (groupId: string): Promise<{ server_url: string; server_code: string } | null> => {
+    setError(null)
+    try {
+      const response = await mcpConfigService.getGroupServerUrl(groupId)
+      if (response.success && response.data) {
+        return response.data
+      } else {
+        setError(response.error || '获取MCP Server URL失败')
+        return null
+      }
+    } catch (error: any) {
+      setError('获取MCP Server URL失败')
+      console.error('获取MCP Server URL失败:', error)
+      return null
+    }
+  }, [])
+
   // ========== 工具管理 ==========
 
   const loadTools = useCallback(async (groupId?: string) => {
@@ -248,6 +265,7 @@ export function useMCPConfigs() {
     deleteGroup,
     getGroupApiKey,
     regenerateApiKey,
+    getGroupServerUrl,
     
     // 工具操作
     loadTools,

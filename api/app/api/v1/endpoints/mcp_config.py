@@ -13,6 +13,7 @@ from app.schemas.mcp import (
     MCPGroupListResponse,
     MCPGroupSingleResponse,
     MCPApiKeyResponse,
+    MCPServerUrlResponse,
     MCPSuccessResponse,
     MCPErrorResponse,
     MCPServerStatusResponse,
@@ -157,6 +158,31 @@ async def regenerate_group_api_key(
         success=True,
         data={"api_key": new_api_key},
         message="API密钥重新生成成功"
+    )
+
+
+@router.get("/groups/{group_id}/server-url", response_model=MCPServerUrlResponse)
+async def get_group_server_url(
+    group_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """获取分组的完整MCP Server URL（管理员专用）- Controller层"""
+    # 确保分组有server_code，如果没有则生成
+    server_code = await MCPGroupService.ensure_server_code(db, group_id)
+    
+    # 获取完整的MCP Server URL
+    server_url = await MCPGroupService.get_group_server_url(db, group_id)
+    
+    logger.info(f"管理员 {current_user.id} 获取了分组 {group_id} 的MCP Server URL")
+    
+    return MCPServerUrlResponse(
+        success=True,
+        data={
+            "server_url": server_url,
+            "server_code": server_code
+        },
+        message="MCP Server URL获取成功"
     )
 
 

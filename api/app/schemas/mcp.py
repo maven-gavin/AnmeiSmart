@@ -48,6 +48,7 @@ class MCPGroupInfo(MCPGroupBase):
     """MCP分组完整信息模型"""
     id: str = Field(..., description="分组ID")
     api_key_preview: str = Field(..., description="API密钥预览（脱敏）")
+    server_code: Optional[str] = Field(None, description="MCP服务器代码（用于URL路径）")
     tools_count: int = Field(0, description="工具数量")
     created_by: str = Field(..., description="创建者ID")
     created_at: datetime = Field(..., description="创建时间")
@@ -69,6 +70,7 @@ class MCPGroupInfo(MCPGroupBase):
             name=group_model.name,
             description=group_model.description,
             api_key_preview=api_key_preview,
+            server_code=group_model.server_code,
             user_tier_access=group_model.user_tier_access or ["internal"],
             allowed_roles=group_model.allowed_roles or [],
             enabled=group_model.enabled,
@@ -199,6 +201,10 @@ class MCPToolSingleResponse(MCPBaseResponse):
 class MCPApiKeyResponse(MCPBaseResponse):
     """API密钥响应模型"""
     data: Dict[str, str] = Field(..., description="API密钥数据")
+
+class MCPServerUrlResponse(MCPBaseResponse):
+    """MCP服务器URL响应模型"""
+    data: Dict[str, str] = Field(..., description="MCP服务器URL数据")
 
 class MCPSuccessResponse(MCPBaseResponse):
     """成功响应模型"""

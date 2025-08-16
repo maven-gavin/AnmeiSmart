@@ -15,6 +15,7 @@ from app.schemas.mcp import (
     MCPToolInfo, MCPCallLogInfo
 )
 from app.core.encryption import get_encryption
+from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,11 @@ class MCPGroupService:
         return f"mcp_key_{secrets.token_urlsafe(32)}"
 
     @staticmethod
+    def _generate_server_code() -> str:
+        """生成唯一的服务器代码"""
+        return secrets.token_urlsafe(12)  # 生成16字符的URL安全字符串
+
+    @staticmethod
     def _encrypt_api_key(api_key: str) -> str:
         """加密API密钥"""
         try:
@@ -98,6 +104,17 @@ class MCPGroupService:
         """计算API密钥哈希（SHA-256）"""
         import hashlib
         return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def build_mcp_server_url(server_code: str) -> str:
+        """构建完整的MCP Server URL"""
+        base_url = get_settings().MCP_SERVER_BASE_URL
+        
+        # 确保base_url不以斜杠结尾
+        base_url = base_url.rstrip('/')
+        
+        # 构建MCP服务器URL
+        return f"{base_url}/mcp/server/{server_code}/mcp"
 
     @staticmethod
     async def get_all_groups(db: Session) -> List[MCPGroupInfo]:
@@ -178,6 +195,19 @@ class MCPGroupService:
                     break
                 api_key = MCPGroupService._generate_api_key()
 
+            # 生成唯一的server_code
+            server_code = MCPGroupService._generate_server_code()
+            
+            # 确保server_code唯一性
+            while True:
+                existing_server_code = db.query(MCPToolGroup).filter(
+                    MCPToolGroup.server_code == server_code
+                ).first()
+                
+                if not existing_server_code:
+                    break
+                server_code = MCPGroupService._generate_server_code()
+
             # 创建分组
             group_data = {
                 "id": str(uuid.uuid4()),
@@ -185,6 +215,7 @@ class MCPGroupService:
                 "description": group_create.description,
                 "api_key": MCPGroupService._encrypt_api_key(api_key),
                 "hashed_api_key": MCPGroupService._hash_api_key(api_key),
+                "server_code": server_code,
                 "user_tier_access": group_create.user_tier_access,
                 "allowed_roles": group_create.allowed_roles,
                 "enabled": group_create.enabled,
@@ -306,6 +337,35 @@ class MCPGroupService:
             )
 
     @staticmethod
+    async def get_group_server_url(db: Session, group_id: str) -> str:
+        """获取分组的完整MCP Server URL（管理员专用）"""
+        try:
+            group = db.query(MCPToolGroup).filter(MCPToolGroup.id == group_id).first()
+            if not group:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="分组不存在"
+                )
+
+            if not group.server_code:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="分组尚未生成服务器代码"
+                )
+
+            # 构建并返回完整的MCP Server URL
+            return MCPGroupService.build_mcp_server_url(group.server_code)
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"获取分组MCP Server URL失败: group_id={group_id}, error={e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="获取MCP Server URL失败"
+            )
+
+    @staticmethod
     @transaction_handler
     async def regenerate_api_key(db: Session, group_id: str, admin_user_id: str) -> str:
         """重新生成分组API Key（安全操作）- 返回新的明文密钥"""
@@ -346,6 +406,52 @@ class MCPGroupService:
 
         except HTTPException:
             raise
+
+    @staticmethod
+    @transaction_handler
+    async def ensure_server_code(db: Session, group_id: str) -> str:
+        """确保分组有server_code，如果没有则生成一个"""
+        try:
+            group = db.query(MCPToolGroup).filter(MCPToolGroup.id == group_id).first()
+            if not group:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="分组不存在"
+                )
+
+            # 如果已经有server_code，直接返回
+            if group.server_code:
+                return group.server_code
+
+            # 生成唯一的server_code
+            server_code = MCPGroupService._generate_server_code()
+            
+            # 确保server_code唯一性
+            while True:
+                existing_server_code = db.query(MCPToolGroup).filter(
+                    MCPToolGroup.server_code == server_code
+                ).first()
+                
+                if not existing_server_code:
+                    break
+                server_code = MCPGroupService._generate_server_code()
+
+            # 更新分组
+            group.server_code = server_code
+            group.updated_at = datetime.utcnow()
+            db.flush()
+
+            logger.info(f"为分组生成server_code: group_id={group_id}, server_code={server_code}")
+            return server_code
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"生成server_code失败: group_id={group_id}, error={e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="生成服务器代码失败"
+            )
 
     @staticmethod
     @transaction_handler

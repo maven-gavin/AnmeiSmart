@@ -51,6 +51,7 @@ export function MCPConfigPanel() {
     deleteGroup,
     getGroupApiKey,
     regenerateApiKey,
+    getGroupServerUrl,
     updateTool,
     refreshTools,
     clearError
@@ -59,6 +60,7 @@ export function MCPConfigPanel() {
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState<MCPGroup | null>(null)
   const [copySuccess, setCopySuccess] = useState<string | null>(null)
+  const [urlCopySuccess, setUrlCopySuccess] = useState<string | null>(null)
 
   // 工具编辑状态
   const [isToolEditDialogOpen, setIsToolEditDialogOpen] = useState(false)
@@ -106,6 +108,21 @@ export function MCPConfigPanel() {
       }
     } catch (error) {
       console.error('复制API密钥失败:', error)
+      alert('复制失败，请重试')
+    }
+  }
+
+  // 复制MCP Server URL到剪贴板
+  const handleCopyServerUrl = async (groupId: string) => {
+    try {
+      const urlData = await getGroupServerUrl(groupId)
+      if (urlData) {
+        await navigator.clipboard.writeText(urlData.server_url)
+        setUrlCopySuccess(groupId)
+        setTimeout(() => setUrlCopySuccess(null), 2000) // 2秒后清除成功提示
+      }
+    } catch (error) {
+      console.error('复制MCP Server URL失败:', error)
       alert('复制失败，请重试')
     }
   }
@@ -248,7 +265,7 @@ export function MCPConfigPanel() {
       {/* 说明提示 */}
       <Alert className="mb-6">
         <AlertDescription>
-          MCP（Model Context Protocol）是一个开放标准协议，为AI平台提供标准化的工具调用接口。通过分组管理可以精确控制不同用户的工具访问权限。
+          MCP（Model Context Protocol）是一个开放标准协议，为AI平台提供标准化的工具调用接口。通过分组管理可以精确控制不同用户的工具访问权限。每个启用的分组会自动生成一个唯一的Server URL用于外部系统调用。
         </AlertDescription>
       </Alert>
 
@@ -266,7 +283,7 @@ export function MCPConfigPanel() {
                 <div>
                   <CardTitle className="text-lg font-medium text-gray-800">工具分组管理</CardTitle>
                   <CardDescription className="text-gray-600">
-                    管理MCP工具分组，每个分组拥有独立的API密钥用于权限控制
+                    管理MCP工具分组，每个分组拥有独立的API密钥和Server URL用于权限控制和外部系统接入
                   </CardDescription>
                 </div>
                 <Dialog open={isGroupDialogOpen} onOpenChange={setIsGroupDialogOpen}>
@@ -356,6 +373,7 @@ export function MCPConfigPanel() {
                         <TableHead>分组名称</TableHead>
                         <TableHead>分组描述</TableHead>
                         <TableHead>API密钥</TableHead>
+                        <TableHead>MCP Server URL</TableHead>
                         <TableHead className="w-24">工具数量</TableHead>
                         <TableHead className="w-20">状态</TableHead>
                         <TableHead className="w-28">创建时间</TableHead>
@@ -386,6 +404,32 @@ export function MCPConfigPanel() {
                                   <Copy className="w-4 h-4" />
                                 )}
                               </Button>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              {group.enabled ? (
+                                <>
+                                  <code className="text-xs bg-blue-50 border px-2 py-1 rounded font-mono max-w-48 truncate">
+                                    /mcp/server/{group.server_code || '••••••••••••'}/mcp
+                                  </code>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleCopyServerUrl(group.id)}
+                                    className="h-8 w-8 p-0"
+                                    title={urlCopySuccess === group.id ? "已复制完整URL" : "复制完整MCP Server URL"}
+                                  >
+                                    {urlCopySuccess === group.id ? (
+                                      <Check className="w-4 h-4 text-green-600" />
+                                    ) : (
+                                      <Copy className="w-4 h-4" />
+                                    )}
+                                  </Button>
+                                </>
+                              ) : (
+                                <span className="text-sm text-gray-400">分组已禁用</span>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>

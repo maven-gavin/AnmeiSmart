@@ -7,6 +7,7 @@ export interface MCPGroup {
   name: string
   description?: string
   api_key_preview: string  // 修改：后端返回的是脱敏后的预览
+  server_code?: string  // MCP服务器代码
   user_tier_access: string[]
   allowed_roles: string[]
   enabled: boolean
@@ -171,6 +172,23 @@ class MCPConfigService {
       return {
         success: false,
         error: error.response?.data?.detail || error.message || '重新生成API密钥失败'
+      }
+    }
+  }
+
+  /**
+   * 获取分组的完整MCP Server URL
+   */
+  async getGroupServerUrl(groupId: string): Promise<ApiResponse<{ server_url: string; server_code: string }>> {
+    try {
+      const url = `/mcp/admin/groups/${groupId}/server-url`
+      const response = await apiClient.get(url)
+      return (response.data as any) || { success: false, message: '获取MCP Server URL失败' }
+    } catch (error: any) {
+      console.error('获取MCP Server URL失败:', error)
+      return {
+        success: false,
+        error: error.response?.data?.detail || error.message || '获取MCP Server URL失败'
       }
     }
   }

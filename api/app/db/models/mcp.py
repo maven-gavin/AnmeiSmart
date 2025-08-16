@@ -18,6 +18,7 @@ class MCPToolGroup(BaseModel):
         Index('idx_mcp_groups_created_at', 'created_at'),
         UniqueConstraint('name', name='uq_mcp_groups_name'),
         UniqueConstraint('api_key', name='uq_mcp_groups_api_key'),
+        UniqueConstraint('server_code', name='uq_mcp_groups_server_code'),
         {"comment": "MCP工具分组表，管理API密钥和权限控制"}
     )
 
@@ -26,6 +27,7 @@ class MCPToolGroup(BaseModel):
     description = Column(Text, nullable=True, comment="分组描述")
     _api_key = Column('api_key', String(512), nullable=False, index=True, comment="加密的API密钥")
     hashed_api_key = Column(String(64), nullable=True, index=True, comment="API密钥SHA-256哈希（查询用）")
+    server_code = Column(String(32), nullable=True, unique=True, index=True, comment="MCP服务器代码（用于URL路径）")
     user_tier_access = Column(JSON, nullable=False, default=["internal"], comment="允许访问的用户层级")
     allowed_roles = Column(JSON, nullable=False, default=[], comment="允许访问的角色列表")
     enabled = Column(Boolean, nullable=False, default=True, index=True, comment="是否启用")
