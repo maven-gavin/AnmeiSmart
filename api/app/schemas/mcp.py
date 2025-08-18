@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, field_serializer    
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -12,15 +12,15 @@ class MCPGroupBase(BaseModel):
     allowed_roles: List[str] = Field(default=[], description="允许访问的角色列表")
     enabled: bool = Field(True, description="是否启用")
 
-    @validator('name')
+    @field_validator('name')
     def validate_name(cls, v):
         if not v.strip():
             raise ValueError('分组名称不能为空')
         return v.strip()
 
-    @validator('user_tier_access')
+    @field_validator('user_tier_access')
     def validate_user_tier_access(cls, v):
-        valid_tiers = ["internal", "external", "public"]
+        valid_tiers = ["internal", "external", "public", "premium"]
         for tier in v:
             if tier not in valid_tiers:
                 raise ValueError(f'无效的用户层级: {tier}')
@@ -38,7 +38,7 @@ class MCPGroupUpdate(BaseModel):
     allowed_roles: Optional[List[str]] = Field(None, description="允许访问的角色列表")
     enabled: Optional[bool] = Field(None, description="是否启用")
 
-    @validator('name')
+    @field_validator('name')
     def validate_name(cls, v):
         if v is not None and not v.strip():
             raise ValueError('分组名称不能为空')
@@ -90,7 +90,7 @@ class MCPToolBase(BaseModel):
     timeout_seconds: int = Field(30, description="超时时间（秒）", ge=1, le=300)
     config_data: Dict[str, Any] = Field(default_factory=dict, description="工具配置数据")
 
-    @validator('tool_name')
+    @field_validator('tool_name')
     def validate_tool_name(cls, v):
         if not v.strip():
             raise ValueError('工具名称不能为空')

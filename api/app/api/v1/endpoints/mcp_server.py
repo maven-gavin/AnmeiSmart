@@ -81,6 +81,34 @@ async def require_bearer_token(request: Request) -> str:
 
 
 # ===== MCP Server Endpoints =====
+
+@router.get("/server/info")
+async def get_server_info():
+    """获取MCP服务器基本信息"""
+    logger.info("收到MCP服务器信息请求")
+    
+    try:
+        server_info = session_manager.get_server_info()
+        capabilities = session_manager.get_server_capabilities()
+        
+        response_data = {
+            "server": server_info,
+            "capabilities": capabilities,
+            "status": "running",
+            "protocol_version": types.SERVER_LATEST_PROTOCOL_VERSION
+        }
+        
+        logger.info(f"返回MCP服务器信息: {response_data}")
+        return JSONResponse(content=response_data)
+        
+    except Exception as e:
+        logger.error(f"获取MCP服务器信息失败: {e}")
+        return JSONResponse(
+            content={"error": f"Failed to get server info: {str(e)}"},
+            status_code=500
+        )
+
+
 @router.options("/server/{server_code}/mcp")
 async def mcp_options(request: Request, server_code: str):
     """MCP端点OPTIONS处理"""

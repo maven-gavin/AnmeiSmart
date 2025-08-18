@@ -130,8 +130,7 @@ class MCPGroupService:
 
             result = []
             for group, tools_count in groups_with_count:
-                # 解密API密钥用于脱敏显示
-                group.api_key = MCPGroupService._decrypt_api_key(group.api_key)
+                # 使用模型的hybrid_property自动处理解密
                 group_info = MCPGroupInfo.from_model(group)
                 group_info.tools_count = tools_count
                 result.append(group_info)

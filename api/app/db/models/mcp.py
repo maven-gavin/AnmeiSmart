@@ -42,12 +42,21 @@ class MCPToolGroup(BaseModel):
     def api_key(self):
         """API密钥的透明解密访问"""
         try:
-            if self._api_key:
-                encryption_manager = get_encryption()
-                return encryption_manager.decrypt(self._api_key)
-            return self._api_key
+            if not self._api_key:
+                return self._api_key
+                
+            # 检查是否为明文密钥（向后兼容）
+            if self._api_key.startswith('mcp_key_'):
+                # 已经是明文密钥，直接返回
+                return self._api_key
+                
+            # 尝试解密
+            encryption_manager = get_encryption()
+            return encryption_manager.decrypt(self._api_key)
+            
         except Exception as e:
             logger.warning(f"API密钥解密失败，返回原值: {e}")
+            # 如果解密失败，可能是未加密的旧数据，直接返回
             return self._api_key
 
     @api_key.setter
