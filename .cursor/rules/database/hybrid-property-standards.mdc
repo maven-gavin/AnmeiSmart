@@ -1,0 +1,122 @@
+---
+description: SQLAlchemy hybrid_property类型注解和实现标准
+globs: **/*.py
+alwaysApply: false
+---
+
+# SQLAlchemy Hybrid Property 标准
+
+## 概述
+
+本规范定义了项目中SQLAlchemy `hybrid_property`的标准实现模式，确保类型安全和代码一致性。
+
+## 基本规则
+
+### 1. 类型注解要求
+
+所有`hybrid_property`的getter和setter都必须包含完整的类型注解：
+
+```python
+from typing import Optional
+from sqlalchemy.ext.hybrid import hybrid_property
+
+class MyModel(BaseModel):
+    @hybrid_property
+    def my_property(self) -> Optional[str]:  # 必须有返回类型注解
+        """属性的getter方法"""
+        return self._internal_field
+    
+    @my_property.setter
+    def my_property(self, value: Optional[str]) -> None:  # 必须有参数和返回类型注解
+        """属性的setter方法"""
+        self._internal_field = value
+```
+
+### 2. 加密字段模式
+
+对于需要加密存储的敏感字段（如API密钥），使用以下标准模式：
+
+```python
+from typing import Optional
+from sqlalchemy import Column, Text
+from sqlalchemy.ext.hybrid import hybrid_property
+
+class ModelWithEncryption(BaseModel):
+    # 内部存储字段，使用下划线前缀
+    _encrypted_field = Column("field_name", Text, nullable=True, comment="加密存储的字段")
+    
+    @hybrid_property
+    def field_name(self) -> Optional[str]:
+        """获取解密后的字段值"""
+        if not self._encrypted_field:
+            return None
+        
+        # 延迟导入避免循环依赖
+        from app.core.encryption import safe_decrypt_api_key
+        return safe_decrypt_api_key(self._encrypted_field)
+    
+    @field_name.setter
+    def field_name(self, value: Optional[str]) -> None:
+        """设置字段值（自动加密）"""
+        if not value:
+            self._encrypted_field = None
+            return
+        
+        # 延迟导入避免循环依赖
+        from app.core.encryption import encrypt_api_key
+        self._encrypted_field = encrypt_api_key(value)
+```
+
+### 3. 条件判断处理
+
+在`hybrid_property`中进行条件判断时，避免直接使用Column对象：
+
+```python
+# ❌ 错误：直接使用Column对象进行条件判断
+@hybrid_property
+def my_property(self) -> Optional[str]:
+    if not self._my_field:  # 这会导致类型检查错误
+        return None
+    return self._my_field
+
+# ✅ 正确：在实例方法中，Column已经是具体值
+@hybrid_property
+def my_property(self) -> Optional[str]:
+    if not self._my_field:  # 在实例访问时这是安全的
+        return None
+    return self._my_field
+```
+
+### 4. 普通Property方法
+
+对于不需要SQL表达式功能的计算属性，使用普通`@property`：
+
+```python
+@property
+def computed_property(self) -> str:
+    """计算属性"""
+    # 使用getattr避免类型检查问题
+    field_value = getattr(self, 'some_field', None)
+    if not field_value:
+        return "default"
+    return str(field_value)
+```
+
+## 最佳实践
+
+1. **导入顺序**：在文件顶部导入`typing`模块
+2. **延迟导入**：加密相关功能使用延迟导入避免循环依赖
+3. **错误处理**：加密/解密操作要有适当的异常处理
+4. **文档字符串**：为每个hybrid_property提供清晰的文档说明
+5. **一致性**：项目中所有类似功能使用相同的实现模式
+
+## 参考实现
+
+参考`api/app/db/models/system.py`中的`AIModelConfig`和`DifyConfig`类的实现。
+
+## 类型检查
+
+确保所有hybrid_property都能通过以下工具的检查：
+- basedpyright/pyright
+- mypy
+- 项目的类型检查配置

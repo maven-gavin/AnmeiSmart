@@ -4,6 +4,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.ext.hybrid import hybrid_property
 from app.db.models.base_model import BaseModel
 from app.core.encryption import get_encryption
+from typing import Optional, TYPE_CHECKING, cast
 import logging
 
 logger = logging.getLogger(__name__)
@@ -39,38 +40,49 @@ class MCPToolGroup(BaseModel):
     tools = relationship("MCPTool", back_populates="group", cascade="all, delete-orphan")
 
     @hybrid_property
-    def api_key(self):
+    def api_key(self) -> Optional[str]:
         """API密钥的透明解密访问"""
+        # 在实例访问时，_api_key已经是实际的字符串值
+        api_key_value = cast(Optional[str], self._api_key)
+        if not api_key_value:
+            return None
+        
         try:
-            if not self._api_key:
-                return self._api_key
-                
             # 检查是否为明文密钥（向后兼容）
-            if self._api_key.startswith('mcp_key_'):
+            if api_key_value.startswith('mcp_key_'):
                 # 已经是明文密钥，直接返回
-                return self._api_key
+                return api_key_value
                 
             # 尝试解密
             encryption_manager = get_encryption()
-            return encryption_manager.decrypt(self._api_key)
+            return encryption_manager.decrypt(api_key_value)
             
         except Exception as e:
             logger.warning(f"API密钥解密失败，返回原值: {e}")
             # 如果解密失败，可能是未加密的旧数据，直接返回
-            return self._api_key
+            return api_key_value
 
     @api_key.setter
-    def api_key(self, value):
+    def api_key(self, value: Optional[str]) -> None:
         """API密钥的透明加密存储"""
+        if not value:
+            self._api_key = None
+            return
+        
         try:
-            if value:
-                encryption_manager = get_encryption()
-                self._api_key = encryption_manager.encrypt(value)
-            else:
-                self._api_key = value
+            encryption_manager = get_encryption()
+            self._api_key = encryption_manager.encrypt(value)
         except Exception as e:
             logger.error(f"API密钥加密失败，存储原值: {e}")
             self._api_key = value
+
+    def set_api_key_raw(self, encrypted_value: Optional[str]) -> None:
+        """直接设置已加密的API密钥（用于数据库迁移等场景）"""
+        self._api_key = encrypted_value
+
+    def get_api_key_encrypted(self) -> Optional[str]:
+        """获取加密的API密钥（用于内部处理）"""
+        return cast(Optional[str], self._api_key)
 
     def __repr__(self):
         return f"<MCPToolGroup(id={self.id}, name={self.name}, enabled={self.enabled})>"
@@ -135,25 +147,29 @@ class MCPCallLog(BaseModel):
         return f"<MCPCallLog(id={self.id}, tool={self.tool_name}, success={self.success})>"
 
     @property
-    def response_time_category(self):
+    def response_time_category(self) -> str:
         """响应时间分类"""
-        if not self.duration_ms:
+        # 在实例访问时，duration_ms是具体的值，不是Column对象
+        duration = getattr(self, 'duration_ms', None)
+        if not duration:
             return "unknown"
-        elif self.duration_ms < 100:
+        elif duration < 100:
             return "fast"
-        elif self.duration_ms < 500:
+        elif duration < 500:
             return "normal"
-        elif self.duration_ms < 1000:
+        elif duration < 1000:
             return "slow"
         else:
             return "very_slow"
 
     @property
-    def is_recent(self):
+    def is_recent(self) -> bool:
         """是否为最近的调用（24小时内）"""
         from datetime import datetime, timedelta
-        if not self.created_at:
+        # 在实例访问时，created_at是具体的值，不是Column对象
+        created_time = getattr(self, 'created_at', None)
+        if not created_time:
             return False
         
-        now = datetime.now(self.created_at.tzinfo) if self.created_at.tzinfo else datetime.now()
-        return (now - self.created_at) < timedelta(hours=24) 
+        now = datetime.now(created_time.tzinfo) if created_time.tzinfo else datetime.now()
+        return (now - created_time) < timedelta(hours=24) 

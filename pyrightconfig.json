@@ -24,5 +24,7 @@
     "typeCheckingMode": "basic",
     "useLibraryCodeForTypes": true,
     "reportMissingImports": "warning",
-    "reportMissingTypeStubs": false
+    "reportMissingTypeStubs": false,
+    "reportOverlappingOverloads": false,
+    "reportRedeclaration": false
 }
