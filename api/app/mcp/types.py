@@ -6,8 +6,8 @@ from typing import (
     Generic,
     Literal,
     Optional,
-    TypeAlias,
     TypeVar,
+    Union,
 )
 
 from pydantic import BaseModel, ConfigDict, Field, FileUrl, RootModel
@@ -34,16 +34,16 @@ for reference.
 LATEST_PROTOCOL_VERSION = "2025-03-26"
 # Server support 2024-11-05 to allow claude to use.
 SERVER_LATEST_PROTOCOL_VERSION = "2024-11-05"
-ProgressToken = str | int
+ProgressToken = Union[str, int]
 Cursor = str
 Role = Literal["user", "assistant"]
-RequestId = Annotated[int | str, Field(union_mode="left_to_right")]
-AnyFunction: TypeAlias = Callable[..., Any]
+RequestId = Annotated[Union[int, str], Field(union_mode="left_to_right")]
+AnyFunction = Callable[..., Any]
 
 
 class RequestParams(BaseModel):
     class Meta(BaseModel):
-        progressToken: ProgressToken | None = None
+        progressToken: Optional[ProgressToken] = None
         """
         If specified, the caller requests out-of-band progress notifications for
         this request (as represented by notifications/progress). The value of this
@@ -1209,9 +1209,35 @@ class OAuthTokens(BaseModel):
 
 
 class OAuthMetadata(BaseModel):
+    # RFC 8414 必需字段
+    issuer: str
     authorization_endpoint: str
     token_endpoint: str
-    registration_endpoint: Optional[str] = None
+    jwks_uri: Optional[str] = None
     response_types_supported: list[str]
+    subject_types_supported: list[str]
+    id_token_signing_alg_values_supported: Optional[list[str]] = None
+    
+    # RFC 8414 可选字段
+    registration_endpoint: Optional[str] = None
     grant_types_supported: Optional[list[str]] = None
     code_challenge_methods_supported: Optional[list[str]] = None
+    scopes_supported: Optional[list[str]] = None
+    token_endpoint_auth_methods_supported: Optional[list[str]] = None
+    claims_supported: Optional[list[str]] = None
+
+
+class OAuthResourceMetadata(BaseModel):
+    """OAuth 2.0 资源服务器元数据 (RFC 8705)"""
+    # 资源标识符
+    resource: str
+    
+    # 支持此资源的授权服务器列表
+    authorization_servers: list[str]
+    
+    # 可选字段
+    scopes_supported: Optional[list[str]] = None
+    bearer_methods_supported: Optional[list[str]] = None
+    resource_documentation: Optional[str] = None
+    resource_policy_uri: Optional[str] = None
+    resource_tos_uri: Optional[str] = None

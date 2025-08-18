@@ -1,6 +1,7 @@
 # 先导入 bcrypt 补丁修复 passlib 问题
 from app.core.bcrypt_patch import *
 
+# 导入必要的库
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,14 +37,7 @@ async def lifespan(app: FastAPI):
         # 初始化WebSocket连接管理器
         await initialize_connection_manager(redis_client)
         logger.info("WebSocket分布式连接管理器已初始化")
-        
-        # 初始化统一MCP服务器并注册工具
-        from app.mcp.unified_server import get_mcp_server
-        mcp_server = get_mcp_server()
-        logger.info(f"统一MCP服务器已初始化，已注册工具: {len(mcp_server.tool_registry.get_all_tools())}")
-        for tool_name in mcp_server.tool_registry.get_all_tools():
-            logger.debug(f"  - {tool_name}")
-        
+    
     except Exception as e:
         logger.error(f"应用启动初始化失败: {e}")
         raise
@@ -86,10 +80,26 @@ app.add_middleware(
 # 包含API路由
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-# 包含统一MCP Server路由
-from app.mcp.unified_server import create_mcp_app
-mcp_app = create_mcp_app()
-app.mount("/mcp", mcp_app)
+# OAuth发现端点需要在根路径可访问（MCP Inspector要求）
+from app.api.v1.endpoints.mcp_oauth import (
+    oauth_metadata, oauth_metadata_options
+)
+
+# 添加根路径的OAuth授权服务器发现端点
+app.add_api_route(
+    "/.well-known/oauth-authorization-server",
+    oauth_metadata,
+    methods=["GET"],
+    tags=["mcp-server"]
+)
+
+# 添加OPTIONS方法支持
+app.add_api_route(
+    "/.well-known/oauth-authorization-server",
+    oauth_metadata_options,
+    methods=["OPTIONS"],
+    tags=["mcp-server"]
+)
 
 @app.get("/")
 async def root() -> Dict[str, str]:

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import users, auth, roles, chat, ai, system, customer, websocket, files, consultation_summary, consultant, ai_gateway, plan_generation, dify_config, profile
-from app.api.v1.endpoints import mcp_config
+from app.api.v1.endpoints import mcp_config, mcp_server, mcp_oauth
 
 api_router = APIRouter()
 
@@ -50,6 +50,12 @@ api_router.include_router(dify_config.router, prefix="/dify", tags=["dify-config
 
 # MCP配置管理路由（管理员界面）
 api_router.include_router(mcp_config.router, prefix="/mcp/admin", tags=["mcp-admin"])
+
+# MCP服务器路由（对外提供MCP协议服务）
+api_router.include_router(mcp_server.router, prefix="/mcp", tags=["mcp-server"])
+
+# OAuth发现端点已在main.py中添加到根路径
+api_router.include_router(mcp_oauth.router, prefix="/oauth", tags=["oauth-server"])
 
 # 个人中心路由
 api_router.include_router(profile.router, prefix="/profile", tags=["profile"])

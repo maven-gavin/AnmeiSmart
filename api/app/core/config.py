@@ -16,6 +16,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",  # Next.js on localhost IP
         "http://127.0.0.1:8000",  # FastAPI on localhost IP
         "http://169.254.89.234:3000",  # Remote access IP (shown in terminal)
+        "http://192.168.0.192:8000",  # MCP Inspector access IP
+        "*",  # 允许所有来源（开发环境）
     ]
     
     # 数据库配置
@@ -57,12 +59,7 @@ class Settings(BaseSettings):
     DIFY_API_BASE_URL: str = "http://localhost/v1"
 
     # MCP 配置
-    MCP_PROTOCOL_VERSION: str = "2024-11-05"
-    MCP_SERVER_NAME: str = "AnmeiSmart MCP Server"
-    MCP_SERVER_IDENTIFIER: str = "anmeismart-mcp-server"
-    MCP_AUTH_BASE_URL: str = "http://192.168.0.192:8000/mcp/oauth/authorize"
     MCP_OAUTH_REDIRECT_URI: str = "http://localhost/console/api/workspaces/current/tool-provider/mcp/oauth/callback"
-    MCP_SESSION_TTL_SECONDS: int = 3600
     MCP_SERVER_BASE_URL: str = "http://192.168.0.192:8000"
 
     # MCP 速率限制（会话级）

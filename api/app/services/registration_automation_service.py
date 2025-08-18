@@ -9,7 +9,8 @@ from app.services.chat.chat_service import ChatService
 from app.services.broadcasting_service import BroadcastingService
 from app.services.broadcasting_factory import get_broadcasting_service_dependency
 from app.services.ai.ai_gateway_service import AIGatewayService
-from app.mcp.unified_server import get_mcp_server
+# MCP功能已重构，暂时注释相关功能
+# from app.mcp.services import MCPToolExecutionService
 from app.db.models.user import User
 from app.db.models.chat import Conversation, Message
 from app.schemas.chat import ConversationCreate, MessageCreate
@@ -23,7 +24,8 @@ class RegistrationAutomationService:
     def __init__(self, db: Session):
         self.db = db
         self.chat_service = ChatService()
-        self.mcp_server = get_mcp_server()
+        # MCP服务已重构，暂时使用简化实现
+        # self.mcp_execution = MCPToolExecutionService(db)
 
     async def handle_user_registration(self, user_id: str, user_info: dict) -> bool:
         """
@@ -91,35 +93,37 @@ class RegistrationAutomationService:
     async def _analyze_user_through_mcp(self, user_id: str) -> Dict[str, Any]:
         """通过MCP工具分析用户"""
         try:
-            # 模拟通过MCP工具调用获取用户信息
-            user_profile = await self.mcp_server.execute_tool(
-                "get_user_profile", 
-                {"user_id": user_id, "include_details": True}
-            )
+            # MCP服务已重构，暂时使用基础分析
+            # TODO: 集成新的MCP工具执行服务
             
-            customer_analysis = await self.mcp_server.execute_tool(
-                "analyze_customer",
-                {"user_id": user_id, "analysis_type": "basic"}
-            )
-            
-            service_info = await self.mcp_server.execute_tool(
-                "get_service_info",
-                {"service_type": "all"}
-            )
+            # 查询用户基础信息
+            user = self.db.query(User).filter(User.id == user_id).first()
             
             analysis_result = {
-                "user_profile": user_profile.get("data", {}),
-                "customer_analysis": customer_analysis.get("data", {}),
-                "service_info": service_info.get("data", {}),
-                "is_new_user": True,
+                "user_profile": {
+                    "user_id": user_id,
+                    "username": user.username if user else "新用户",
+                    "roles": user.roles if user else ["customer"],
+                    "is_new_user": True
+                },
+                "customer_analysis": {
+                    "customer_segment": "新注册用户",
+                    "behavior_pattern": "探索期",
+                    "engagement_level": "新用户"
+                },
+                "service_info": {
+                    "services": "全套医美咨询服务",
+                    "recommendation": "建议先进行初步咨询"
+                },
+                "analysis_source": "simplified",
                 "registration_time": datetime.now().isoformat()
             }
             
-            logger.info(f"MCP用户分析完成: user_id={user_id}")
+            logger.info(f"简化用户分析完成: user_id={user_id}")
             return analysis_result
             
         except Exception as e:
-            logger.error(f"MCP用户分析失败: user_id={user_id}, error={e}")
+            logger.error(f"用户分析失败: user_id={user_id}, error={e}")
             # 返回基础分析结果
             return {
                 "user_profile": {"user_id": user_id, "is_new_user": True},
