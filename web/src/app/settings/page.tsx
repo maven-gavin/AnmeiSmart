@@ -7,7 +7,7 @@ import GeneralSettingsPanel from '@/components/settings/GeneralSettingsPanel';
 import AIModelConfigPanel from '@/components/settings/AIModelConfigPanel';
 import SecuritySettingsPanel from '@/components/settings/SecuritySettingsPanel';
 import DifyConfigPanel from '@/components/settings/DifyConfigPanel';
-import MCPConfigPanel from '@/components/settings/MCPConfigPanel';
+
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { useDifyConfigs } from '@/hooks/useDifyConfigs';
 
@@ -101,16 +101,7 @@ export default function SystemSettingsPage() {
         >
           Dify配置
         </button>
-        <button
-            className={`mr-4 py-2 px-4 font-medium ${
-              activeTab === 'mcp' 
-                ? 'border-b-2 border-orange-500 text-orange-500' 
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          onClick={() => setActiveTab('mcp')}
-        >
-          MCP配置
-        </button>
+
 
         </div>
         
@@ -175,10 +166,7 @@ export default function SystemSettingsPage() {
             </>
           )}
 
-          {/* MCP配置面板 */}
-          {activeTab === 'mcp' && (
-            <MCPConfigPanel />
-          )}
+
 
 
         </div>
