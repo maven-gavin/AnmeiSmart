@@ -26,9 +26,9 @@ async def lifespan(app: FastAPI):
     """应用启动时执行的初始化操作"""
     try:
         # 创建初始角色
-        create_initial_roles()
+        create_initial_roles()  # type: ignore
         # 创建初始系统设置
-        create_initial_system_settings()
+        create_initial_system_settings()  # type: ignore
         
         # 初始化Redis连接
         redis_client = await get_redis_client()

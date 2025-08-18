@@ -2,12 +2,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.orm.session import Session
 from sqlalchemy.pool import NullPool
-from typing import Generator, Any
+from typing import Generator, Any, Callable, TypeVar
 import importlib.util
 import sys
 import logging
 import os
 from functools import wraps
+
+F = TypeVar('F', bound=Callable[..., Any])
 
 from app.core.config import get_settings
 
@@ -39,7 +41,7 @@ def get_db() -> Generator:
         db.close()
 
 # 使用同步会话执行数据库操作的帮助函数
-def with_db(func):
+def with_db(func: F) -> F:
     """装饰器，提供数据库会话给被装饰的函数"""
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -49,7 +51,7 @@ def with_db(func):
             return result
         finally:
             db.close()
-    return wrapper
+    return wrapper  # type: ignore
 
 # 初始化数据库
 def init_db():
