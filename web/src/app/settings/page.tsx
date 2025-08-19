@@ -6,10 +6,10 @@ import AppLayout from '@/components/layout/AppLayout';
 import GeneralSettingsPanel from '@/components/settings/GeneralSettingsPanel';
 import AIModelConfigPanel from '@/components/settings/AIModelConfigPanel';
 import SecuritySettingsPanel from '@/components/settings/SecuritySettingsPanel';
-import DifyConfigPanel from '@/components/settings/DifyConfigPanel';
+
 
 import { useSystemSettings } from '@/hooks/useSystemSettings';
-import { useDifyConfigs } from '@/hooks/useDifyConfigs';
+
 
 export default function SystemSettingsPage() {
   const [activeTab, setActiveTab] = useState('general');
@@ -28,15 +28,7 @@ export default function SystemSettingsPage() {
     updateDefaultModel
   } = useSystemSettings();
 
-  const {
-    configs: difyConfigs,
-    isLoading: isDifyLoading,
-    isTestingConnection,
-    createConfig: createDifyConfig,
-    updateConfig: updateDifyConfig,
-    deleteConfig: deleteDifyConfig,
-    testConnection: testDifyConnection
-  } = useDifyConfigs();
+
 
 
 
@@ -91,16 +83,7 @@ export default function SystemSettingsPage() {
         >
           安全与访问控制
         </button>
-        <button
-            className={`mr-4 py-2 px-4 font-medium ${
-              activeTab === 'dify' 
-                ? 'border-b-2 border-orange-500 text-orange-500' 
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          onClick={() => setActiveTab('dify')}
-        >
-          Dify配置
-        </button>
+
 
 
         </div>
@@ -143,28 +126,7 @@ export default function SystemSettingsPage() {
             />
           )}
 
-          {/* Dify配置面板 */}
-          {activeTab === 'dify' && (
-            <>
-              {isDifyLoading ? (
-                <div className="flex h-64 items-center justify-center">
-                  <div className="text-center">
-                    <div className="mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-orange-500"></div>
-                    <p className="text-gray-600">加载Dify配置...</p>
-                  </div>
-                </div>
-              ) : (
-                <DifyConfigPanel
-                  configs={difyConfigs}
-                  onCreateConfig={createDifyConfig}
-                  onUpdateConfig={updateDifyConfig}
-                  onDeleteConfig={deleteDifyConfig}
-                  onTestConnection={testDifyConnection}
-                  isTestingConnection={isTestingConnection}
-                />
-              )}
-            </>
-          )}
+
 
 
 

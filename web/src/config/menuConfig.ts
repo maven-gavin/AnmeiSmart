@@ -109,6 +109,13 @@ export const menuConfig: MenuConfig = {
       roles: ['admin']
     },
     {
+      id: 'agents',
+      label: '智能体配置',
+      path: '/agents',
+      icon: 'agent-icon',
+      roles: ['admin']
+    },
+    {
       id: 'mcp',
       label: 'MCP配置',
       path: '/mcp',
