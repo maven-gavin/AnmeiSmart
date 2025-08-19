@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useAuthContext } from '@/contexts/AuthContext';
 import AppLayout from '@/components/layout/AppLayout';
 import GeneralSettingsPanel from '@/components/settings/GeneralSettingsPanel';
-import AIModelConfigPanel from '@/components/settings/AIModelConfigPanel';
 import SecuritySettingsPanel from '@/components/settings/SecuritySettingsPanel';
 
 
@@ -21,11 +20,7 @@ export default function SystemSettingsPage() {
     isLoading,
     isSubmitting,
     updateGeneralSettings,
-    updateSecuritySettings,
-    addAIModel,
-    removeAIModel,
-    toggleAIModelStatus,
-    updateDefaultModel
+    updateSecuritySettings
   } = useSystemSettings();
 
 
@@ -65,16 +60,6 @@ export default function SystemSettingsPage() {
         </button>
         <button
             className={`mr-4 py-2 px-4 font-medium ${
-              activeTab === 'ai' 
-                ? 'border-b-2 border-orange-500 text-orange-500' 
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          onClick={() => setActiveTab('ai')}
-        >
-          AI模型配置
-        </button>
-        <button
-            className={`mr-4 py-2 px-4 font-medium ${
               activeTab === 'security' 
                 ? 'border-b-2 border-orange-500 text-orange-500' 
                 : 'text-gray-500 hover:text-gray-700'
@@ -83,9 +68,6 @@ export default function SystemSettingsPage() {
         >
           安全与访问控制
         </button>
-
-
-
         </div>
         
         {/* 内容区域 */}
@@ -103,18 +85,6 @@ export default function SystemSettingsPage() {
             />
           )}
 
-          {/* AI模型配置面板 */}
-          {activeTab === 'ai' && (
-            <AIModelConfigPanel
-              models={settings.aiModels}
-              defaultModelId={settings.defaultModelId}
-              onAddModel={addAIModel}
-              onRemoveModel={removeAIModel}
-              onToggleModel={toggleAIModelStatus}
-              onUpdateDefaultModel={updateDefaultModel}
-            />
-          )}
-
           {/* 安全设置面板 */}
           {activeTab === 'security' && (
             <SecuritySettingsPanel
@@ -125,12 +95,6 @@ export default function SystemSettingsPage() {
               isSubmitting={isSubmitting}
             />
           )}
-
-
-
-
-
-
         </div>
     </div>
     </AppLayout>
