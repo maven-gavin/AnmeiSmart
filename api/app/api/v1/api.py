@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import users, auth, roles, chat, ai, system, customer, websocket, files, consultation_summary, consultant, ai_gateway, plan_generation, dify_config, profile
+from app.api.v1.endpoints import users, auth, roles, chat, ai, system, customer, websocket, files, consultation_summary, consultant, ai_gateway, plan_generation, agent_config, profile
 from app.api.v1.endpoints import mcp_config, mcp_server, mcp_oauth
 
 api_router = APIRouter()
@@ -45,8 +45,8 @@ api_router.include_router(ai_gateway.router, prefix="/ai-gateway", tags=["ai-gat
 # AI辅助方案生成路由
 api_router.include_router(plan_generation.router, prefix="/plan-generation", tags=["plan-generation"])
 
-# Dify配置管理路由
-api_router.include_router(dify_config.router, prefix="/dify", tags=["dify-config"])
+# Agent配置管理路由
+api_router.include_router(agent_config.router, prefix="/agent", tags=["agent-config"])
 
 # MCP配置管理路由（管理员界面）
 api_router.include_router(mcp_config.router, prefix="/mcp/admin", tags=["mcp-admin"])

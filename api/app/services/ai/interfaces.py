@@ -25,7 +25,7 @@ class AIScenario(Enum):
 
 class AIProvider(Enum):
     """AI服务提供商枚举"""
-    DIFY = "dify"
+    AGENT = "agent"
     OPENAI = "openai"
     CLAUDE = "claude"
     QWEN = "qwen"

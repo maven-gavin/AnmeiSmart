@@ -1,6 +1,6 @@
 """
-Dify配置管理服务
-提供Dify配置的CRUD操作和动态重载功能
+Agent配置管理服务
+提供Agent配置的CRUD操作和动态重载功能
 """
 
 import logging
@@ -9,52 +9,52 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 import requests
 
-from app.db.models.system import DifyConfig
-from app.schemas.system import DifyConfigCreate, DifyConfigUpdate, DifyConfigInfo
+from app.db.models.system import AgentConfig
+from app.schemas.system import AgentConfigCreate, AgentConfigUpdate, AgentConfigInfo
 from app.services.ai.ai_gateway_service import reload_ai_gateway_service
 
 logger = logging.getLogger(__name__)
 
 
-def get_dify_configs(db: Session) -> List[DifyConfigInfo]:
-    """获取所有Dify配置"""
-    configs = db.query(DifyConfig).order_by(DifyConfig.created_at.desc()).all()
-    return [DifyConfigInfo.from_model(config) for config in configs]
+def get_agent_configs(db: Session) -> List[AgentConfigInfo]:
+    """获取所有Agent配置"""
+    configs = db.query(AgentConfig).order_by(AgentConfig.created_at.desc()).all()
+    return [AgentConfigInfo.from_model(config) for config in configs]
 
 
-def get_dify_config(db: Session, config_id: str) -> Optional[DifyConfigInfo]:
-    """根据ID获取Dify配置"""
-    config = db.query(DifyConfig).filter(DifyConfig.id == config_id).first()
-    return DifyConfigInfo.from_model(config) if config else None
+def get_agent_config(db: Session, config_id: str) -> Optional[AgentConfigInfo]:
+    """根据ID获取Agent配置"""
+    config = db.query(AgentConfig).filter(AgentConfig.id == config_id).first()
+    return AgentConfigInfo.from_model(config) if config else None
 
 
-def get_dify_configs_by_environment(db: Session, environment: str) -> List[DifyConfigInfo]:
-    """根据环境获取Dify配置列表"""
-    configs = db.query(DifyConfig).filter(
-        DifyConfig.environment == environment
-    ).order_by(DifyConfig.created_at.desc()).all()
-    return [DifyConfigInfo.from_model(config) for config in configs]
+def get_agent_configs_by_environment(db: Session, environment: str) -> List[AgentConfigInfo]:
+    """根据环境获取Agent配置列表"""
+    configs = db.query(AgentConfig).filter(
+        AgentConfig.environment == environment
+    ).order_by(AgentConfig.created_at.desc()).all()
+    return [AgentConfigInfo.from_model(config) for config in configs]
 
 
-def get_active_dify_configs(db: Session) -> List[DifyConfigInfo]:
-    """获取当前启用的Dify配置列表"""
-    configs = db.query(DifyConfig).filter(DifyConfig.enabled == True).all()
-    return [DifyConfigInfo.from_model(config) for config in configs]
+def get_active_agent_configs(db: Session) -> List[AgentConfigInfo]:
+    """获取当前启用的Agent配置列表"""
+    configs = db.query(AgentConfig).filter(AgentConfig.enabled == True).all()
+    return [AgentConfigInfo.from_model(config) for config in configs]
 
 
-def create_dify_config(db: Session, config_data: DifyConfigCreate) -> DifyConfigInfo:
-    """创建Dify配置"""
+def create_agent_config(db: Session, config_data: AgentConfigCreate) -> AgentConfigInfo:
+    """创建Agent配置"""
     # 检查同一环境下是否已存在相同应用ID的配置
-    existing_config = db.query(DifyConfig).filter(
-        DifyConfig.environment == config_data.environment,
-        DifyConfig.app_id == config_data.appId
+    existing_config = db.query(AgentConfig).filter(
+        AgentConfig.environment == config_data.environment,
+        AgentConfig.app_id == config_data.appId
     ).first()
     
     if existing_config:
         raise ValueError(f"环境 '{config_data.environment}' 中已存在应用ID '{config_data.appId}' 的配置")
     
     # 创建新配置实例
-    new_config = DifyConfig(
+    new_config = AgentConfig(
         environment=config_data.environment,
         app_id=config_data.appId,
         app_name=config_data.appName,
@@ -72,21 +72,21 @@ def create_dify_config(db: Session, config_data: DifyConfigCreate) -> DifyConfig
     db.commit()
     db.refresh(new_config)
     
-    return DifyConfigInfo.from_model(new_config)
+    return AgentConfigInfo.from_model(new_config)
 
 
-def update_dify_config(db: Session, config_id: str, config_data: DifyConfigUpdate) -> DifyConfigInfo:
-    """更新Dify配置"""
-    config = db.query(DifyConfig).filter(DifyConfig.id == config_id).first()
+def update_agent_config(db: Session, config_id: str, config_data: AgentConfigUpdate) -> AgentConfigInfo:
+    """更新Agent配置"""
+    config = db.query(AgentConfig).filter(AgentConfig.id == config_id).first()
     if not config:
         raise ValueError("配置不存在")
     
     # 检查环境和应用ID的唯一性
     if config_data.environment and config_data.appId:
-        existing_config = db.query(DifyConfig).filter(
-            DifyConfig.environment == config_data.environment,
-            DifyConfig.app_id == config_data.appId,
-            DifyConfig.id != config_id
+        existing_config = db.query(AgentConfig).filter(
+            AgentConfig.environment == config_data.environment,
+            AgentConfig.app_id == config_data.appId,
+            AgentConfig.id != config_id
         ).first()
         
         if existing_config:
@@ -119,12 +119,12 @@ def update_dify_config(db: Session, config_id: str, config_data: DifyConfigUpdat
     db.commit()
     db.refresh(config)
     
-    return DifyConfigInfo.from_model(config)
+    return AgentConfigInfo.from_model(config)
 
 
-def delete_dify_config(db: Session, config_id: str) -> bool:
-    """删除Dify配置"""
-    config = db.query(DifyConfig).filter(DifyConfig.id == config_id).first()
+def delete_agent_config(db: Session, config_id: str) -> bool:
+    """删除Agent配置"""
+    config = db.query(AgentConfig).filter(AgentConfig.id == config_id).first()
     if not config:
         return False
     
@@ -138,14 +138,14 @@ def delete_dify_config(db: Session, config_id: str) -> bool:
     return True
 
 
-def test_dify_connection(config: DifyConfigInfo, db: Session) -> Dict[str, Any]:
-    """测试Dify连接（通过配置ID查库解密api_key）"""
-    # 1. 通过 config.id 查询数据库，获取 DifyConfig ORM 实例
-    db_config = db.query(DifyConfig).filter(DifyConfig.id == config.id).first()
+def test_agent_connection(config: AgentConfigInfo, db: Session) -> Dict[str, Any]:
+    """测试Agent连接（通过配置ID查库解密api_key）"""
+    # 1. 通过 config.id 查询数据库，获取 AgentConfig ORM 实例
+    db_config = db.query(AgentConfig).filter(AgentConfig.id == config.id).first()
     if not db_config:
         return {
             "success": False,
-            "message": f"未找到ID为{config.id}的Dify配置",
+            "message": f"未找到ID为{config.id}的Agent配置",
             "details": {}
         }
     # 2. 解密 api_key
@@ -168,8 +168,8 @@ def test_dify_connection(config: DifyConfigInfo, db: Session) -> Dict[str, Any]:
             }
         
         # 构建测试URL - 使用通用的聊天接口进行测试
-        if(config.appId == "DIFY_CHAT_API_KEY"):
-            logger.debug(f"测试Dify连接={config.appId}")
+        if(config.appId == "AGENT_CHAT_API_KEY"):
+            logger.debug(f"测试Agent连接={config.appId}")
             test_data = {
                 "inputs": {},
                 "query": "Hello, this is a connection test.",
@@ -180,8 +180,8 @@ def test_dify_connection(config: DifyConfigInfo, db: Session) -> Dict[str, Any]:
             test_url = f"{base_url}/chat-messages"
 
         # 构建测试URL - 使用医美专家接口进行测试
-        elif(config.appId == "DIFY_BEAUTY_API_KEY"):
-            logger.debug(f"测试Dify连接={config.appId}")
+        elif(config.appId == "AGENT_BEAUTY_API_KEY"):
+            logger.debug(f"测试Agent连接={config.appId}")
             test_data = {
                 "inputs": {},
                 "query": "Hello, this is a connection test.",
@@ -192,8 +192,8 @@ def test_dify_connection(config: DifyConfigInfo, db: Session) -> Dict[str, Any]:
             test_url = f"{base_url}/chat-messages"
 
         # 构建测试URL - 使用咨询总结工作流接口进行测试
-        elif(config.appId == "DIFY_SUMMARY_API_KEY"):
-            logger.debug(f"测试Dify连接={config.appId}")
+        elif(config.appId == "AGENT_SUMMARY_API_KEY"):
+            logger.debug(f"测试Agent连接={config.appId}")
             test_data = {
                 "inputs": {
                     "conversation_text": "Hello, this is a connection test.",
@@ -254,7 +254,7 @@ def test_dify_connection(config: DifyConfigInfo, db: Session) -> Dict[str, Any]:
             }
         }
     except requests.exceptions.ConnectionError as e:
-        error_msg = "无法连接到Dify服务"
+        error_msg = "无法连接到Agent服务"
         if "localhost:v1" in base_url:
             error_msg += "，URL格式错误：请使用 http://localhost/v1 而不是 http://localhost:v1"
         elif "localhost" in base_url and "/v1" not in base_url:
@@ -273,7 +273,7 @@ def test_dify_connection(config: DifyConfigInfo, db: Session) -> Dict[str, Any]:
 
 
 def reload_ai_gateway_with_new_config():
-    """重载AI Gateway配置以应用新的Dify配置"""
+    """重载AI Gateway配置以应用新的Agent配置"""
     try:
         reload_ai_gateway_service()
         logger.info("AI Gateway配置重载成功")
@@ -282,13 +282,13 @@ def reload_ai_gateway_with_new_config():
         raise
 
 
-def get_current_dify_settings() -> Dict[str, Any]:
-    """获取当前Dify设置（用于AI Gateway）"""
+def get_current_agent_settings() -> Dict[str, Any]:
+    """获取当前Agent设置（用于AI Gateway）"""
     from app.db.base import get_db
     
     try:
         db = next(get_db())
-        active_configs = db.query(DifyConfig).filter(DifyConfig.enabled == True).all()
+        active_configs = db.query(AgentConfig).filter(AgentConfig.enabled == True).all()
         
         if not active_configs:
             return {
@@ -318,7 +318,7 @@ def get_current_dify_settings() -> Dict[str, Any]:
         return settings
         
     except Exception as e:
-        logger.error(f"获取Dify设置失败: {e}")
+        logger.error(f"获取Agent设置失败: {e}")
         return {
             "enabled": False,
             "configs": {}

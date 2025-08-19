@@ -7,8 +7,8 @@ interface AIModelConfig {
   maxTokens: number;
   temperature: number;
   enabled: boolean;
-  provider?: string;  // 添加提供商字段：openai, dify等
-  appId?: string;     // Dify应用ID
+  provider?: string;  // 添加提供商字段：openai, agent等
+  appId?: string;     // Agent应用ID
 }
 
 interface SystemSettings {

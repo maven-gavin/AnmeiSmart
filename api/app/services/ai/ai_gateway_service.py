@@ -18,7 +18,7 @@ from .gateway import (
     AIGateway, AIRouter, AICache, CircuitBreakerConfig, 
     ProviderConfig, CacheConfig, RoutingStrategy
 )
-from .adapters.dify_adapter import DifyAdapter, DifyConnectionConfig, DifyAppConfig
+from .adapters.agent_adapter import AgentAdapter, AgentConnectionConfig, AgentAppConfig
 from .adapters.openai_adapter import OpenAIAdapter, OpenAIConfig
 from app.core.config import get_settings
 
@@ -81,17 +81,17 @@ class AIGatewayService:
         if not self.gateway:
             return
         
-        # 注册Dify服务
+        # 注册Agent服务
         try:
-            dify_config = self._create_dify_config()
-            if dify_config:
-                dify_adapter = DifyAdapter(dify_config)
-                self.gateway.register_service(AIProvider.DIFY, dify_adapter)
+            agent_config = self._create_agent_config()
+            if agent_config:
+                agent_adapter = AgentAdapter(agent_config)
+                self.gateway.register_service(AIProvider.AGENT, agent_adapter)
                 
-                # 注册Dify提供商配置
+                # 注册Agent提供商配置
                 provider_config = ProviderConfig(
-                    provider=AIProvider.DIFY,
-                    service_class=DifyAdapter,
+                    provider=AIProvider.AGENT,
+                    service_class=AgentAdapter,
                     weight=3,
                     scenarios=[
                         AIScenario.BEAUTY_PLAN,
@@ -102,9 +102,9 @@ class AIGatewayService:
                     enabled=True
                 )
                 self.gateway.router.register_provider(provider_config)
-                logger.info("Registered Dify provider")
+                logger.info("Registered Agent provider")
         except Exception as e:
-            logger.warning(f"Failed to register Dify provider: {e}")
+            logger.warning(f"Failed to register Agent provider: {e}")
         
         # 注册OpenAI服务作为备选
         try:
@@ -132,61 +132,67 @@ class AIGatewayService:
         except Exception as e:
             logger.warning(f"Failed to register OpenAI provider: {e}")
     
-    def _create_dify_config(self) -> Optional[DifyConnectionConfig]:
-        """创建Dify配置"""
+    def _create_agent_config(self) -> Optional[AgentConnectionConfig]:
+        """创建Agent配置"""
         try:
             # 首先尝试从数据库加载配置
-            dify_settings = self._get_dify_settings_from_db()
+            agent_settings = self._get_agent_settings_from_db()
             
-            if dify_settings and dify_settings.get("enabled"):
-                base_url = dify_settings["base_url"]
+            if agent_settings and agent_settings.get("enabled"):
+                base_url = agent_settings["base_url"]
                 apps = {}
                 
-                # 配置不同的Dify应用
-                if dify_settings["apps"].get("chat"):
-                    chat_config = dify_settings["apps"]["chat"]
-                    apps["general_chat"] = DifyAppConfig(
-                        app_id=chat_config.get("app_id", "dify-chat-app"),
+                # 配置不同的Agent应用
+                if agent_settings["apps"].get("chat"):
+                    chat_config = agent_settings["apps"]["chat"]
+                    apps["general_chat"] = AgentAppConfig(
+                        app_id=chat_config.get("app_id", "agent-chat-app"),
                         app_name="通用聊天助手",
                         app_mode="chat",
                         api_key=chat_config["api_key"],
-                        scenarios=[AIScenario.GENERAL_CHAT, AIScenario.CUSTOMER_SERVICE]
+                        base_url=base_url,
+                        timeout_seconds=agent_settings.get("timeout_seconds", 30),
+                        max_retries=agent_settings.get("max_retries", 3)
                     )
                 
-                if dify_settings["apps"].get("beauty"):
-                    beauty_config = dify_settings["apps"]["beauty"]
-                    apps["beauty_agent"] = DifyAppConfig(
-                        app_id=beauty_config.get("app_id", "dify-beauty-agent"), 
+                if agent_settings["apps"].get("beauty"):
+                    beauty_config = agent_settings["apps"]["beauty"]
+                    apps["beauty_agent"] = AgentAppConfig(
+                        app_id=beauty_config.get("app_id", "agent-beauty-agent"), 
                         app_name="医美方案专家",
-                        app_mode="agent",
+                        app_mode="workflow",
                         api_key=beauty_config["api_key"],
-                        scenarios=[AIScenario.BEAUTY_PLAN, AIScenario.MEDICAL_ADVICE]
+                        base_url=base_url,
+                        timeout_seconds=agent_settings.get("timeout_seconds", 30),
+                        max_retries=agent_settings.get("max_retries", 3)
                     )
                 
-                if dify_settings["apps"].get("summary"):
-                    summary_config = dify_settings["apps"]["summary"]
-                    apps["summary_workflow"] = DifyAppConfig(
-                        app_id=summary_config.get("app_id", "dify-summary-workflow"),
+                if agent_settings["apps"].get("summary"):
+                    summary_config = agent_settings["apps"]["summary"]
+                    apps["summary_workflow"] = AgentAppConfig(
+                        app_id=summary_config.get("app_id", "agent-summary-workflow"),
                         app_name="咨询总结工作流",
                         app_mode="workflow", 
                         api_key=summary_config["api_key"],
-                        scenarios=[AIScenario.CONSULTATION_SUMMARY]
+                        base_url=base_url,
+                        timeout_seconds=agent_settings.get("timeout_seconds", 30),
+                        max_retries=agent_settings.get("max_retries", 3)
                     )
                 
                 if apps:
-                    logger.info(f"从数据库加载Dify配置，包含{len(apps)}个应用")
-                    return DifyConnectionConfig(
+                    logger.info(f"从数据库加载Agent配置，包含{len(apps)}个应用")
+                    return AgentConnectionConfig(
                         base_url=base_url,
-                        apps=apps,
-                        timeout=dify_settings.get("timeout_seconds", 30),
-                        max_retries=dify_settings.get("max_retries", 3)
+                        timeout_seconds=agent_settings.get("timeout_seconds", 30),
+                        max_retries=agent_settings.get("max_retries", 3),
+                        apps=apps
                     )
             
             # 如果数据库中没有配置，不再从环境变量加载
-            logger.warning("No Dify configuration found in database. Please configure via admin panel at /admin/settings")
+            logger.warning("No Agent configuration found in database. Please configure via admin panel at /admin/settings")
             return None
         except Exception as e:
-            logger.error(f"Failed to create Dify config: {e}")
+            logger.error(f"Failed to create Agent config: {e}")
             return None
     
     def _create_openai_config(self) -> Optional[OpenAIConfig]:
@@ -406,13 +412,13 @@ class AIGatewayService:
         logger.info("Reloading AI Gateway configuration")
         self._initialize_gateway()
     
-    def _get_dify_settings_from_db(self) -> Optional[Dict[str, Any]]:
-        """从数据库获取Dify设置"""
+    def _get_agent_settings_from_db(self) -> Optional[Dict[str, Any]]:
+        """从数据库获取Agent设置"""
         try:
-            from app.services.dify_config_service import get_current_dify_settings
-            return get_current_dify_settings()
+            from app.services.agent_config_service import get_current_agent_settings
+            return get_current_agent_settings()
         except Exception as e:
-            logger.error(f"从数据库获取Dify设置失败: {e}")
+            logger.error(f"从数据库获取Agent设置失败: {e}")
             return None
 
 

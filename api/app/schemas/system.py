@@ -99,41 +99,41 @@ class AIModelConfigListResponse(BaseModel):
     message: str = Field(..., description="响应消息")
 
 
-class DifyConfigCreate(BaseModel):
-    """创建Dify配置的Schema"""
+class AgentConfigCreate(BaseModel):
+    """创建Agent配置的Schema"""
     environment: str = Field(..., description="环境名称（dev/test/prod）", min_length=1, max_length=100)
     appId: str = Field(..., description="应用ID", min_length=1, max_length=255)
     appName: str = Field(..., description="应用名称", min_length=1, max_length=255)
     apiKey: str = Field(..., description="API密钥", min_length=1)
-    baseUrl: str = Field("http://localhost/v1", description="Dify API基础URL")
+    baseUrl: str = Field("http://localhost/v1", description="Agent API基础URL")
     timeoutSeconds: int = Field(30, description="请求超时时间（秒）", ge=1, le=300)
     maxRetries: int = Field(3, description="最大重试次数", ge=1, le=10)
     enabled: bool = Field(True, description="是否启用配置")
     description: Optional[str] = Field(None, description="配置描述")
 
 
-class DifyConfigUpdate(BaseModel):
-    """更新Dify配置的Schema"""
+class AgentConfigUpdate(BaseModel):
+    """更新Agent配置的Schema"""
     environment: Optional[str] = Field(None, description="环境名称（dev/test/prod）", min_length=1, max_length=100)
     appId: Optional[str] = Field(None, description="应用ID", min_length=1, max_length=255)
     appName: Optional[str] = Field(None, description="应用名称", min_length=1, max_length=255)
     apiKey: Optional[str] = Field(None, description="API密钥", min_length=1)
-    baseUrl: Optional[str] = Field(None, description="Dify API基础URL")
+    baseUrl: Optional[str] = Field(None, description="Agent API基础URL")
     timeoutSeconds: Optional[int] = Field(None, description="请求超时时间（秒）", ge=1, le=300)
     maxRetries: Optional[int] = Field(None, description="最大重试次数", ge=1, le=10)
     enabled: Optional[bool] = Field(None, description="是否启用配置")
     description: Optional[str] = Field(None, description="配置描述")
 
 
-class DifyConfigInfo(BaseModel):
-    """Dify配置信息Schema"""
+class AgentConfigInfo(BaseModel):
+    """Agent配置信息Schema"""
     model_config = ConfigDict(from_attributes=True)
     
     id: str = Field(..., description="配置ID")
     environment: str = Field(..., description="环境名称")
     appId: str = Field(..., description="应用ID")
     appName: str = Field(..., description="应用名称")
-    baseUrl: str = Field(..., description="Dify API基础URL")
+    baseUrl: str = Field(..., description="Agent API基础URL")
     timeoutSeconds: int = Field(30, description="请求超时时间（秒）")
     maxRetries: int = Field(3, description="最大重试次数")
     enabled: bool = Field(True, description="是否启用配置")
@@ -142,9 +142,9 @@ class DifyConfigInfo(BaseModel):
     updatedAt: datetime = Field(..., description="更新时间")
 
     @staticmethod
-    def from_model(model) -> "DifyConfigInfo":
+    def from_model(model) -> "AgentConfigInfo":
         """从ORM模型创建Schema实例"""
-        return DifyConfigInfo(
+        return AgentConfigInfo(
             id=model.id,
             environment=model.environment,
             appId=model.app_id,
@@ -159,22 +159,22 @@ class DifyConfigInfo(BaseModel):
         )
 
 
-class DifyConfigResponse(BaseModel):
-    """Dify配置响应Schema"""
+class AgentConfigResponse(BaseModel):
+    """Agent配置响应Schema"""
     success: bool = Field(..., description="操作是否成功")
-    data: Optional[DifyConfigInfo] = Field(None, description="Dify配置数据")
+    data: Optional[AgentConfigInfo] = Field(None, description="Agent配置数据")
     message: str = Field(..., description="响应消息")
 
 
-class DifyConfigListResponse(BaseModel):
-    """Dify配置列表响应Schema"""
+class AgentConfigListResponse(BaseModel):
+    """Agent配置列表响应Schema"""
     success: bool = Field(..., description="操作是否成功")
-    data: List[DifyConfigInfo] = Field(default_factory=list, description="Dify配置列表")
+    data: List[AgentConfigInfo] = Field(default_factory=list, description="Agent配置列表")
     message: str = Field(..., description="响应消息")
 
 
-class DifyTestConnectionRequest(BaseModel):
-    """测试Dify连接的请求Schema"""
-    baseUrl: str = Field(..., description="Dify API基础URL")
+class AgentTestConnectionRequest(BaseModel):
+    """测试Agent连接的请求Schema"""
+    baseUrl: str = Field(..., description="Agent API基础URL")
     apiKey: str = Field(..., description="API密钥")
     appType: str = Field(..., description="应用类型", pattern="^(chat|agent|workflow)$") 

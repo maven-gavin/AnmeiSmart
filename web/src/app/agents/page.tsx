@@ -1,48 +1,34 @@
 'use client';
 
-import { useAuthContext } from '@/contexts/AuthContext';
-import AppLayout from '@/components/layout/AppLayout';
-import DifyConfigPanel from '@/components/settings/DifyConfigPanel';
-import { useDifyConfigs } from '@/hooks/useDifyConfigs';
+import React from 'react';
+import AgentConfigPanel from '@/components/settings/AgentConfigPanel';
+import { useAgentConfigs } from '@/hooks/useAgentConfigs';
 
-export default function AgentsConfigPage() {
-  const { user } = useAuthContext();
-  
+export default function AgentsPage() {
   const {
-    configs: difyConfigs,
-    isLoading: isDifyLoading,
-    isTestingConnection,
-    createConfig: createDifyConfig,
-    updateConfig: updateDifyConfig,
-    deleteConfig: deleteDifyConfig,
-    testConnection: testDifyConnection
-  } = useDifyConfigs();
+    configs: agentConfigs,
+    isLoading: isAgentLoading,
+    createConfig: createAgentConfig,
+    updateConfig: updateAgentConfig,
+    deleteConfig: deleteAgentConfig,
+    testConnection: testAgentConnection
+  } = useAgentConfigs();
 
   return (
-    <AppLayout requiredRole={user?.currentRole}>
-      <div className="container mx-auto px-4 py-6">
-        <h1 className="mb-6 text-2xl font-bold text-gray-800">智能体配置管理</h1>
-        
-        <div className="space-y-6">
-          {isDifyLoading ? (
-            <div className="flex h-64 items-center justify-center">
-              <div className="text-center">
-                <div className="mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-orange-500"></div>
-                <p className="text-gray-600">加载智能体配置...</p>
-              </div>
-            </div>
-          ) : (
-            <DifyConfigPanel
-              configs={difyConfigs}
-              onCreateConfig={createDifyConfig}
-              onUpdateConfig={updateDifyConfig}
-              onDeleteConfig={deleteDifyConfig}
-              onTestConnection={testDifyConnection}
-              isTestingConnection={isTestingConnection}
-            />
-          )}
+    <div className="container mx-auto p-6">
+      {isAgentLoading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg">加载中...</div>
         </div>
-      </div>
-    </AppLayout>
+      ) : (
+        <AgentConfigPanel
+          configs={agentConfigs}
+          onCreateConfig={createAgentConfig}
+          onUpdateConfig={updateAgentConfig}
+          onDeleteConfig={deleteAgentConfig}
+          onTestConnection={testAgentConnection}
+        />
+      )}
+    </div>
   );
 }

@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional
 
 from app.db.models.base_model import BaseModel
-from app.db.uuid_utils import system_id, model_id, generate_dify_id
+from app.db.uuid_utils import system_id, model_id, generate_agent_id
 
 
 class SystemSettings(BaseModel):
@@ -72,22 +72,22 @@ class AIModelConfig(BaseModel):
         return self._encrypted_api_key 
 
 
-class DifyConfig(BaseModel):
-    """Dify配置数据库模型，每个应用作为独立的配置记录"""
-    __tablename__ = "dify_configs"
+class AgentConfig(BaseModel):
+    """Agent配置数据库模型，每个应用作为独立的配置记录"""
+    __tablename__ = "agent_configs"
     __table_args__ = (
-        Index('idx_dify_config_environment', 'environment'),
-        Index('idx_dify_config_enabled', 'enabled'),
-        Index('idx_dify_config_env_app', 'environment', 'app_id', unique=True),
-        {"comment": "Dify配置表，存储独立的Dify应用配置"}
+        Index('idx_agent_config_environment', 'environment'),
+        Index('idx_agent_config_enabled', 'enabled'),
+        Index('idx_agent_config_env_app', 'environment', 'app_id', unique=True),
+        {"comment": "Agent配置表，存储独立的Agent应用配置"}
     )
 
-    id = Column(String(36), primary_key=True, default=generate_dify_id, comment="Dify配置ID")
+    id = Column(String(36), primary_key=True, default=generate_agent_id, comment="Agent配置ID")
     environment = Column(String(100), nullable=False, comment="环境名称（dev/test/prod）")
     app_id = Column(String(255), nullable=False, comment="应用ID")
     app_name = Column(String(255), nullable=False, comment="应用名称")
     _encrypted_api_key = Column("api_key", Text, nullable=False, comment="API密钥（加密存储）")
-    base_url = Column(String(1024), nullable=False, default="http://localhost/v1", comment="Dify API基础URL")
+    base_url = Column(String(1024), nullable=False, default="http://localhost/v1", comment="Agent API基础URL")
     timeout_seconds = Column(Integer, default=30, nullable=False, comment="请求超时时间（秒）")
     max_retries = Column(Integer, default=3, nullable=False, comment="最大重试次数")
     enabled = Column(Boolean, default=True, nullable=False, comment="是否启用配置")

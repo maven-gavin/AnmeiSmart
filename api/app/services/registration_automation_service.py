@@ -19,7 +19,7 @@ import secrets
 logger = logging.getLogger(__name__)
 
 class RegistrationAutomationService:
-    """用户注册自动化服务 - 集成MCP和Dify"""
+    """用户注册自动化服务 - 集成MCP和Agent"""
 
     def __init__(self, db: Session):
         self.db = db
@@ -136,10 +136,10 @@ class RegistrationAutomationService:
                                       user_analysis: Dict[str, Any]) -> Optional[str]:
         """生成个性化欢迎消息"""
         try:
-            # 构建给Dify Agent的上下文信息
+            # 构建给Agent的上下文信息
             context_prompt = self._build_welcome_context(user_analysis)
             
-            # 通过AI Gateway调用Dify Agent
+            # 通过AI Gateway调用Agent
             ai_gateway = AIGatewayService(self.db)
             
             response = await ai_gateway.customer_service_chat(
@@ -155,10 +155,10 @@ class RegistrationAutomationService:
             )
             
             if response.success and response.content:
-                logger.info(f"Dify欢迎消息生成成功: user_id={user_id}")
+                logger.info(f"Agent欢迎消息生成成功: user_id={user_id}")
                 return response.content
             else:
-                logger.warning(f"Dify欢迎消息生成失败，使用默认消息: user_id={user_id}")
+                logger.warning(f"Agent欢迎消息生成失败，使用默认消息: user_id={user_id}")
                 return self._get_default_welcome_message(user_id)
                 
         except Exception as e:

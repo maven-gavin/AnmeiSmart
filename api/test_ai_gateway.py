@@ -18,7 +18,7 @@ sys.path.insert(0, str(project_root))
 # 设置环境变量
 os.environ["DATABASE_URL"] = "postgresql://postgres:difyai123456@localhost:5432/anmeismart"
 os.environ["OPENAI_API_KEY"] = "sk-test-key"  # 测试密钥
-# AI Gateway已集成Dify配置，无需单独设置DIFY环境变量
+# AI Gateway已集成Agent配置，无需单独设置AGENT环境变量
 
 from app.db.base import get_db_context
 from app.services.ai.ai_gateway_service import get_ai_gateway_service

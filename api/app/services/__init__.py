@@ -7,7 +7,7 @@ from . import file_service
 from . import notification_service
 from . import broadcasting_service
 from . import broadcasting_factory
-from . import dify_config_service
+from . import agent_config_service
 
 # 定义公共API（可选）
 __all__ = [
@@ -19,5 +19,5 @@ __all__ = [
     'notification_service',
     'broadcasting_service',
     'broadcasting_factory',
-    'dify_config_service'
+    'agent_config_service'
 ]

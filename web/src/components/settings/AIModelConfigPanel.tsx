@@ -49,10 +49,10 @@ export default function AIModelConfigPanel({
     }
     
     // 特定提供商验证
-    if (newModel.provider === 'dify' && !newModel.appId) {
-      alert('使用Dify时必须填写应用ID');
-      return;
-    }
+    if (newModel.provider === 'agent' && !newModel.appId) {
+  alert('使用Agent时必须填写应用ID');
+  return;
+}
     
     await onAddModel(newModel);
     
@@ -125,7 +125,7 @@ export default function AIModelConfigPanel({
                     <span className="text-sm font-medium text-gray-500">API密钥:</span>
                     <p className="text-sm">••••••••••••••••••••</p>
                   </div>
-                  {model.provider === 'dify' && model.appId && (
+                  {model.provider === 'agent' && model.appId && (
                     <div>
                       <span className="text-sm font-medium text-gray-500">应用ID:</span>
                       <p className="text-sm">{model.appId}</p>
@@ -160,7 +160,7 @@ export default function AIModelConfigPanel({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="openai">OpenAI</SelectItem>
-                <SelectItem value="dify">Dify</SelectItem>
+                <SelectItem value="agent">Agent</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -174,7 +174,7 @@ export default function AIModelConfigPanel({
                 type="text"
                 value={newModel.modelName}
                 onChange={(e) => setNewModel({...newModel, modelName: e.target.value})}
-                placeholder={newModel.provider === 'openai' ? "例如: GPT-4, GPT-3.5-turbo" : "例如: Dify-Claude"}
+                placeholder={newModel.provider === 'openai' ? "例如: GPT-4, GPT-3.5-turbo" : "例如: Agent-Claude"}
               />
             </div>
             
@@ -202,7 +202,7 @@ export default function AIModelConfigPanel({
               />
             </div>
             
-            {newModel.provider === 'dify' && (
+            {newModel.provider === 'agent' && (
               <div>
                 <Label className="mb-1 block text-sm font-medium text-gray-700">
                   应用ID *

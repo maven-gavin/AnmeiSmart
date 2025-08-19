@@ -21,7 +21,7 @@
 # 管理员MCP配置接口
 api_router.include_router(mcp_config.router, prefix="/mcp/admin", tags=["mcp-admin"])
 
-# 实际MCP服务器端点（供Dify等外部系统调用）
+# 实际MCP服务器端点（供Agent等外部系统调用）
 # http://localhost:8000/mcp (本地访问)
 # http://host.docker.internal:8000/mcp (Docker容器访问)
 ```
@@ -29,7 +29,7 @@ api_router.include_router(mcp_config.router, prefix="/mcp/admin", tags=["mcp-adm
 ### 2.2 主要端点
 - **分组管理**: `/api/v1/mcp/admin/groups`
 - **工具管理**: `/api/v1/mcp/admin/tools`
-- **Dify配置**: `/api/v1/mcp/admin/dify-config`
+- **Agent配置**: `/api/v1/mcp/admin/agent-config`
 - **服务器状态**: `/api/v1/mcp/admin/server/status`
 - **实际MCP服务**: `/mcp` (无前缀)
 
@@ -70,7 +70,7 @@ class MCPToolMetadata:
     version: str        # 工具版本
 ```
 
-## 5. Dify集成规范
+## 5. Agent集成规范
 
 ### 5.1 配置格式
 ```json
@@ -84,7 +84,7 @@ class MCPToolMetadata:
 ```
 
 ### 5.2 自动配置生成
-- 通过 `/api/v1/mcp/admin/dify-config` 获取完整配置
+- 通过 `/api/v1/mcp/admin/agent-config` 获取完整配置
 - 只包含已启用的分组
 - 自动包含权限信息
 

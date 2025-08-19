@@ -283,20 +283,20 @@ class MCPConfigService {
     }
   }
 
-  // ========== Dify配置生成 ==========
+  // ========== Agent配置生成 ==========
 
   /**
-   * 生成Dify MCP配置
+   * 生成Agent MCP配置
    */
-  async generateDifyConfig(): Promise<ApiResponse<Record<string, any>>> {
+  async generateAgentConfig(): Promise<ApiResponse<Record<string, any>>> {
     try {
-      const response = await apiClient.get('/mcp/admin/dify-config')
-      return (response.data as any) || { success: false, message: '生成Dify配置失败' }
+      const response = await apiClient.get('/mcp/admin/agent-config')
+      return (response.data as any) || { success: false, message: '生成Agent配置失败' }
     } catch (error: any) {
-      console.error('生成Dify配置失败:', error)
+      console.error('生成Agent配置失败:', error)
       return {
         success: false,
-        error: error.response?.data?.detail || error.message || '生成Dify配置失败'
+        error: error.response?.data?.detail || error.message || '生成Agent配置失败'
       }
     }
   }
