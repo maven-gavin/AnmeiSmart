@@ -48,23 +48,13 @@ export default function RolesPage() {
   const fetchRoles = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/users/roles/all');
-      if (response.ok) {
-        // 使用response.data如果存在，否则尝试解析JSON
+      const response = await apiClient.get<Role[]>('/roles');
+      if (response.status >= 200 && response.status < 300) {
         if (response.data) {
           setAllRoles(response.data);
           setRoles(response.data);
-        } else if (!response.bodyUsed) { // 检查body是否已被使用
-          try {
-            const data = await response.json();
-            setAllRoles(data);
-            setRoles(data);
-          } catch (jsonError) {
-            console.error('解析角色数据失败', jsonError);
-            throw new Error('解析角色数据失败');
-          }
         } else {
-          throw new Error('无法读取响应数据');
+          throw new Error('响应数据为空');
         }
       } else {
         throw new Error('获取角色列表失败');
@@ -129,19 +119,17 @@ export default function RolesPage() {
     setFormError(null);
     
     try {
-      const response = await apiClient.post('/roles', {
+      const response = await apiClient.post<Role>('/roles', {
         name: roleName.trim(),
         description: roleDescription.trim() || undefined
       });
       
-      if (!response.ok) {
-        // 使用response.data如果存在，否则尝试解析JSON
-        if (response.data) {
-          throw new Error(response.data.detail || '创建角色失败');
-        } else {
-          const data = await response.json();
-          throw new Error(data.detail || '创建角色失败');
-        }
+      if (response.status < 200 || response.status >= 300) {
+        // 处理错误响应
+        const errorMessage = response.data && typeof response.data === 'object' && 'detail' in response.data 
+          ? (response.data as any).detail 
+          : '创建角色失败';
+        throw new Error(errorMessage);
       }
       
       // 重置表单并刷新列表
