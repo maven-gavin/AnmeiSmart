@@ -37,8 +37,6 @@ api_router.include_router(customer.router, prefix="/customers", tags=["customers
 # 顾问方案推荐路由
 api_router.include_router(consultant.router, prefix="/consultant", tags=["consultant"])
 
-# 原Dify管理路由已删除，功能已迁移到AI Gateway
-
 # AI Gateway路由
 api_router.include_router(ai_gateway.router, prefix="/ai-gateway", tags=["ai-gateway"])
 
