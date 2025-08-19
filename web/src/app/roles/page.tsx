@@ -350,14 +350,6 @@ export default function RolesPage() {
       {/* 分页组件 */}
       {roles.length > 0 && (
         <div className="mt-6 flex justify-between items-center">
-          <Button
-            onClick={() => router.push('/admin')}
-            variant="outline"
-            className="text-sm"
-          >
-            返回上一级
-          </Button>
-          
           <div className="flex space-x-2">
             <Button
               onClick={() => paginate(currentPage - 1)}
