@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, Float, Text, Integer, Index
+from sqlalchemy import Column, String, Boolean, Float, Text, Integer, Index, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.hybrid import hybrid_property
 from datetime import datetime
@@ -92,6 +92,10 @@ class AgentConfig(BaseModel):
     max_retries = Column(Integer, default=3, nullable=False, comment="最大重试次数")
     enabled = Column(Boolean, default=True, nullable=False, comment="是否启用配置")
     description = Column(Text, nullable=True, comment="配置描述")
+    
+    # 智能体类型和能力
+    agent_type = Column(String(100), nullable=True, comment="智能体类型")
+    capabilities = Column(JSON, nullable=True, comment="智能体能力配置")
 
     @hybrid_property
     def api_key(self) -> Optional[str]:

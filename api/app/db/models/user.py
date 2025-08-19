@@ -60,6 +60,12 @@ class User(BaseModel):
     
     # 上传会话关联
     upload_sessions = relationship("UploadSession", back_populates="user", cascade="all, delete-orphan")
+    
+    # 数字人关联（新增）
+    digital_humans = relationship("DigitalHuman", back_populates="user", cascade="all, delete-orphan")
+    owned_conversations = relationship("Conversation", back_populates="owner")
+    created_tasks = relationship("PendingTask", foreign_keys="PendingTask.created_by")
+    assigned_tasks = relationship("PendingTask", foreign_keys="PendingTask.assigned_to")
 
 class Doctor(BaseModel):
     """医生特有信息表，存储医生扩展信息"""

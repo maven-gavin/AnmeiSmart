@@ -17,7 +17,7 @@ export interface Customer {
   priority?: 'low' | 'medium' | 'high';
 }
 
-export type SenderType = 'user' | 'consultant' | 'doctor' | 'ai' | 'system' | 'customer' | 'operator' | 'admin';
+export type SenderType = 'user' | 'consultant' | 'doctor' | 'ai' | 'system' | 'customer' | 'operator' | 'admin' | 'digital_human';
 
 // 消息发送状态
 export type MessageStatus = 'pending' | 'sent' | 'failed';
@@ -134,6 +134,12 @@ export interface Message {
   reactions?: { [emoji: string]: string[] }; // 反应数据 {"👍": ["user_id1", "user_id2"]}
   extra_metadata?: { [key: string]: any }; // 额外元数据
   
+  // 数字人半接管确认机制
+  requires_confirmation?: boolean; // 是否需要确认（半接管模式）
+  is_confirmed?: boolean; // 是否已确认
+  confirmed_by?: string; // 确认人ID
+  confirmed_at?: string; // 确认时间
+  
   // 消息发送状态相关
   status?: MessageStatus;
   localId?: string; // 本地临时ID，用于发送前的消息标识
@@ -183,14 +189,18 @@ export interface CreateStructuredMessageData {
 
 export interface Conversation {
   id: string;
-  title?: string;
-  user: User;
+  title: string;
+  type: 'single' | 'group';
+  owner_id: string;
+  owner?: User;
   lastMessage?: Message;
   unreadCount: number;
+  messageCount: number;
+  lastMessageAt?: string;
   updatedAt: string;
-  status?: 'active' | 'inactive' | 'archived';
-  consultationType?: string;
-  summary?: string;
+  createdAt: string;
+  isActive: boolean;
+  isArchived: boolean;
 }
 
 export interface CustomerProfile {

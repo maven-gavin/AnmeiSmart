@@ -52,29 +52,32 @@ class MessageService:
             logger.info(f"开始检查会话访问权限: conversation_id={conversation_id}, user_id={user_id}")
             
             # 查询会话是否存在且用户有访问权限
+            # 使用新的owner_id字段
             conversation = self.db.query(Conversation).filter(
                 and_(
                     Conversation.id == conversation_id,
-                    Conversation.customer_id == user_id
+                    Conversation.owner_id == user_id
                 )
             ).first()
             
-            logger.info(f"查询作为客户的会话: found={conversation is not None}")
+            logger.info(f"查询作为会话所有者的会话: found={conversation is not None}")
             if conversation:
-                logger.info(f"会话 {conversation_id} 的客户ID: {conversation.customer_id}, 匹配用户ID: {user_id}")
+                logger.info(f"会话 {conversation_id} 的所有者ID: {conversation.owner_id}, 匹配用户ID: {user_id}")
                 return True
             
-            # 检查用户是否是分配的顾问
-            conversation = self.db.query(Conversation).filter(
+            # 检查用户是否是会话参与者
+            from app.db.models.chat import ConversationParticipant
+            participant = self.db.query(ConversationParticipant).filter(
                 and_(
-                    Conversation.id == conversation_id,
-                    Conversation.assigned_consultant_id == user_id
+                    ConversationParticipant.conversation_id == conversation_id,
+                    ConversationParticipant.user_id == user_id,
+                    ConversationParticipant.is_active == True
                 )
             ).first()
             
-            logger.info(f"查询作为顾问的会话: found={conversation is not None}")
-            if conversation:
-                logger.info(f"会话 {conversation_id} 的顾问ID: {conversation.assigned_consultant_id}, 匹配用户ID: {user_id}")
+            logger.info(f"查询作为参与者的会话: found={participant is not None}")
+            if participant:
+                logger.info(f"用户 {user_id} 是会话 {conversation_id} 的参与者")
                 return True
             
             # 检查用户是否是管理员或其他特殊角色
@@ -163,14 +166,16 @@ class MessageService:
     def create_message(
         self,
         conversation_id: str,
-        sender_id: str,
-        sender_type: str,
         content: Dict[str, Any],
         message_type: str,
+        sender_id: Optional[str] = None,
+        sender_digital_human_id: Optional[str] = None,
+        sender_type: str = "user",
         is_important: bool = False,
         reply_to_message_id: Optional[str] = None,
         reactions: Optional[Dict[str, List[str]]] = None,
-        extra_metadata: Optional[Dict[str, Any]] = None
+        extra_metadata: Optional[Dict[str, Any]] = None,
+        requires_confirmation: bool = False
     ) -> Message:
         """
         创建新消息
@@ -198,13 +203,16 @@ class MessageService:
         message = Message(
             conversation_id=conversation_id,
             sender_id=sender_id,
+            sender_digital_human_id=sender_digital_human_id,
             sender_type=sender_type,
             content=content,
             type=message_type,
             is_important=is_important,
             reply_to_message_id=reply_to_message_id,
             reactions=reactions,
-            extra_metadata=extra_metadata
+            extra_metadata=extra_metadata,
+            requires_confirmation=requires_confirmation,
+            is_confirmed=not requires_confirmation  # 如果需要确认则默认未确认
         )
         
         self.db.add(message)
@@ -219,12 +227,14 @@ class MessageService:
     def create_text_message(
         self,
         conversation_id: str,
-        sender_id: str,
-        sender_type: str,
         text: str,
+        sender_id: Optional[str] = None,
+        sender_digital_human_id: Optional[str] = None,
+        sender_type: str = "user",
         is_important: bool = False,
         reply_to_message_id: Optional[str] = None,
-        extra_metadata: Optional[Dict[str, Any]] = None
+        extra_metadata: Optional[Dict[str, Any]] = None,
+        requires_confirmation: bool = False
     ) -> Message:
         """
         创建文本消息的便利方法
@@ -245,13 +255,15 @@ class MessageService:
         
         return self.create_message(
             conversation_id=conversation_id,
-            sender_id=sender_id,
-            sender_type=sender_type,
             content=content,
             message_type="text",
+            sender_id=sender_id,
+            sender_digital_human_id=sender_digital_human_id,
+            sender_type=sender_type,
             is_important=is_important,
             reply_to_message_id=reply_to_message_id,
-            extra_metadata=extra_metadata
+            extra_metadata=extra_metadata,
+            requires_confirmation=requires_confirmation
         )
 
     def create_media_message(

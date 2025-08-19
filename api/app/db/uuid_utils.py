@@ -82,6 +82,24 @@ def generate_agent_id() -> str:
     return prefixed_uuid("age")
 
 
+# 数字人ID前缀生成函数
+def digital_human_id() -> str:
+    """生成数字人ID"""
+    return prefixed_uuid("dh")
+
+
+# 咨询记录ID前缀生成函数
+def consultation_id() -> str:
+    """生成咨询记录ID"""
+    return prefixed_uuid("cons")
+
+
+# 任务ID前缀生成函数
+def task_id() -> str:
+    """生成任务ID"""
+    return prefixed_uuid("task")
+
+
 # 创建SQLAlchemy的UUID类型，在不同数据库中使用
 class UUID(TypeDecorator):
     """Platform-independent UUID type.

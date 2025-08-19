@@ -109,6 +109,13 @@ export const menuConfig: MenuConfig = {
       roles: ['admin']
     },
     {
+      id: 'digital-humans-admin',
+      label: '数字人管理',
+      path: '/admin/digital-humans',
+      icon: 'digital-human-icon',
+      roles: ['admin']
+    },
+    {
       id: 'agents',
       label: '智能体配置',
       path: '/agents',
@@ -137,13 +144,43 @@ export const menuConfig: MenuConfig = {
       roles: ['admin']
     },
     
+    // 任务管理 - 不同角色看到不同任务
+    {
+      id: 'tasks-admin',
+      label: '任务管理',
+      path: '/tasks',
+      icon: 'task-icon',
+      roles: ['admin']
+    },
+    {
+      id: 'tasks-consultant',
+      label: '任务管理',
+      path: '/tasks',
+      icon: 'task-icon',
+      roles: ['consultant']
+    },
+    {
+      id: 'tasks-doctor',
+      label: '任务管理',
+      path: '/tasks',
+      icon: 'task-icon',
+      roles: ['doctor']
+    },
+    {
+      id: 'tasks-operator',
+      label: '任务管理',
+      path: '/tasks',
+      icon: 'task-icon',
+      roles: ['operator']
+    },
+    
     // 所有角色共享
     {
       id: 'profile',
       label: '个人中心',
       path: '/profile',
       icon: 'profile-icon',
-      roles: ['doctor', 'consultant', 'customer', 'admin']
+      roles: ['doctor', 'consultant', 'customer', 'admin', 'operator']
     }
   ]
 }; 

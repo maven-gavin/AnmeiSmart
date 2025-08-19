@@ -209,28 +209,47 @@ class MessageInfo(MessageBase):
             return None
         
         # 获取sender信息
-        sender_id = getattr(message, 'sender_id', None) or "system"
+        sender_id = getattr(message, 'sender_id', None)
+        sender_digital_human_id = getattr(message, 'sender_digital_human_id', None)
         sender_type = getattr(message, 'sender_type', 'system')
         
         # 构建sender对象
-        sender_obj = getattr(message, 'sender', None)
         sender_name = "系统"
         sender_avatar = None
+        actual_sender_id = "system"
         
         if sender_type == "system":
             sender_name = "系统"
             sender_avatar = "/avatars/system.png"
+            actual_sender_id = "system"
+        elif sender_type == "digital_human":
+            # 数字人发送者
+            digital_human_obj = getattr(message, 'sender_digital_human', None)
+            if digital_human_obj:
+                sender_name = getattr(digital_human_obj, "name", "数字人助手")
+                sender_avatar = getattr(digital_human_obj, "avatar", "/avatars/ai.png")
+                actual_sender_id = sender_digital_human_id or "digital_human"
+            else:
+                sender_name = "数字人助手"
+                sender_avatar = "/avatars/ai.png"
+                actual_sender_id = sender_digital_human_id or "digital_human"
         elif sender_type == "ai":
             sender_name = "AI助手"
             sender_avatar = "/avatars/ai.png"
-        elif sender_obj:
-            sender_name = getattr(sender_obj, "username", "未知用户")
-            sender_avatar = getattr(sender_obj, "avatar", None)
+            actual_sender_id = sender_id or "ai"
         else:
-            sender_name = "未知用户"
+            # 用户发送者
+            sender_obj = getattr(message, 'sender', None)
+            if sender_obj:
+                sender_name = getattr(sender_obj, "username", "未知用户")
+                sender_avatar = getattr(sender_obj, "avatar", None)
+                actual_sender_id = sender_id or "unknown"
+            else:
+                sender_name = "未知用户"
+                actual_sender_id = sender_id or "unknown"
         
         sender = MessageSender(
-            id=sender_id,
+            id=actual_sender_id,
             name=sender_name,
             avatar=sender_avatar,
             type=sender_type
@@ -362,13 +381,13 @@ def create_service_recommendation_content(
 class ConversationBase(BaseModel):
     """会话基础模型"""
     title: str
-    customer_id: str
-    is_ai_controlled: bool = True
+    type: str = "single"  # 会话类型：single, group
+    owner_id: str  # 会话所有者
 
 
 class ConversationCreate(ConversationBase):
     """创建会话的请求模型"""
-    consultation_type: Optional[str] = None
+    pass
 
 
 class ConversationInfo(ConversationBase):
@@ -399,8 +418,11 @@ class ConversationInfo(ConversationBase):
     created_at: datetime
     updated_at: datetime
     is_active: bool = True
-    customer: Optional[dict] = Field(None, description="客户信息")
-    is_ai_controlled: bool = True
+    is_archived: bool = False
+    message_count: int = 0
+    unread_count: int = 0
+    last_message_at: Optional[datetime] = None
+    owner: Optional[dict] = Field(None, description="会话所有者信息")
 
     @staticmethod
     def from_model(conversation, last_message=None, unread_count=0):
@@ -408,15 +430,15 @@ class ConversationInfo(ConversationBase):
         if not conversation:
             return None
         
-        # 获取客户信息
-        customer_obj = getattr(conversation, 'customer', None)
-        customer_info = None
-        if customer_obj:
-            customer_info = {
-                "id": getattr(customer_obj, 'id', ''),
-                "username": getattr(customer_obj, 'username', '未知用户'),
-                "email": getattr(customer_obj, 'email', ''),
-                "avatar": getattr(customer_obj, 'avatar', None)
+        # 获取会话所有者信息
+        owner_obj = getattr(conversation, 'owner', None)
+        owner_info = None
+        if owner_obj:
+            owner_info = {
+                "id": getattr(owner_obj, 'id', ''),
+                "username": getattr(owner_obj, 'username', '未知用户'),
+                "email": getattr(owner_obj, 'email', ''),
+                "avatar": getattr(owner_obj, 'avatar', None)
             }
         
         # 转换最后一条消息
@@ -427,12 +449,16 @@ class ConversationInfo(ConversationBase):
         return ConversationInfo(
             id=getattr(conversation, 'id', ''),
             title=getattr(conversation, 'title', ''),
-            customer_id=getattr(conversation, 'customer_id', ''),
+            type=getattr(conversation, 'type', 'single'),
+            owner_id=getattr(conversation, 'owner_id', ''),
             created_at=getattr(conversation, 'created_at', datetime.now()),
             updated_at=getattr(conversation, 'updated_at', datetime.now()),
             is_active=getattr(conversation, 'is_active', True),
-            is_ai_controlled=getattr(conversation, 'is_ai_controlled', True),
-            customer=customer_info,
+            is_archived=getattr(conversation, 'is_archived', False),
+            message_count=getattr(conversation, 'message_count', 0),
+            unread_count=getattr(conversation, 'unread_count', 0),
+            last_message_at=getattr(conversation, 'last_message_at', None),
+            owner=owner_info,
             last_message=last_message_info
         )
 

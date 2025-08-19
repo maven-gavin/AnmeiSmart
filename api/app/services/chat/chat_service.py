@@ -3,6 +3,7 @@
 """
 from typing import List, Optional, Dict, Any, Union
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_, or_
 from datetime import datetime
 import logging
 
@@ -70,61 +71,106 @@ class ChatService:
     async def create_conversation(
         self,
         title: str,
-        customer_id: str,
-        creator_id: str,
+        owner_id: str,
+        conversation_type: str = "single",
         auto_assign_consultant: bool = True
     ) -> ConversationInfo:
-        """创建新会话"""
-        logger.info(f"创建会话: title={title}, customer_id={customer_id}")
+        """创建新会话 - 使用新的数据库模型结构"""
+        logger.info(f"创建会话: title={title}, owner_id={owner_id}, type={conversation_type}")
         
-        # 创建会话
+        # 创建会话 - 使用新的字段结构
         new_conversation = Conversation(
             id=conversation_id(),
             title=title,
-            customer_id=customer_id,
+            type=conversation_type,
+            owner_id=owner_id,
             is_active=True,
-            is_ai_controlled=True,
+            is_archived=False,
+            message_count=0,
+            unread_count=0,
             created_at=datetime.now(),
             updated_at=datetime.now()
         )
         
-        # 自动分配顾问
-        if auto_assign_consultant:
-            # 获取客户信息
-            customer = self.db.query(User).filter(User.id == customer_id).first()
-            customer_tags = getattr(customer, 'tags', []) if customer else []
-            
-            # 使用匹配器找到最佳顾问
-            best_consultant_id = self.conversation_matcher.find_best_consultant(
-                customer_id=customer_id,
-                conversation_content=title,
-                customer_tags=customer_tags
-            )
-            
-            if best_consultant_id:
-                new_conversation.assigned_consultant_id = best_consultant_id
-                logger.info(f"自动分配顾问: {best_consultant_id}")
-        
         self.db.add(new_conversation)
+        self.db.flush()  # 获取ID
+        
+        # 创建会话参与者 - 所有者
+        from app.db.models.chat import ConversationParticipant
+        from app.db.uuid_utils import message_id
+        
+        owner_participant = ConversationParticipant(
+            id=message_id(),
+            conversation_id=new_conversation.id,
+            user_id=owner_id,
+            role="owner",
+            takeover_status="no_takeover",  # 默认不接管
+            is_active=True
+        )
+        self.db.add(owner_participant)
+        
+        # 如果需要自动分配顾问
+        if auto_assign_consultant:
+            # 获取用户信息
+            owner = self.db.query(User).filter(User.id == owner_id).first()
+            if owner:
+                # 使用匹配器找到最佳顾问
+                best_consultant_id = self.conversation_matcher.find_best_consultant(
+                    customer_id=owner_id,
+                    conversation_content=title,
+                    customer_tags=[]  # 可以从用户档案获取标签
+                )
+                
+                if best_consultant_id:
+                    # 添加顾问作为参与者
+                    consultant_participant = ConversationParticipant(
+                        id=message_id(),
+                        conversation_id=new_conversation.id,
+                        user_id=best_consultant_id,
+                        role="member",
+                        takeover_status="no_takeover",  # 默认不接管
+                        is_active=True
+                    )
+                    self.db.add(consultant_participant)
+                    logger.info(f"自动分配顾问参与者: {best_consultant_id}")
+        
         self.db.commit()
         self.db.refresh(new_conversation)
         
         # 创建欢迎消息 - 使用新的结构化格式
         welcome_text = "欢迎来到安美智享！我是您的AI助手，有什么可以帮助您的吗？"
         
-        if new_conversation.assigned_consultant_id:
-            consultant = self.db.query(User).filter(
-                User.id == new_conversation.assigned_consultant_id
-            ).first()
-            consultant_name = consultant.username if consultant else "顾问"
-            welcome_text = f"会话已创建，已为您分配专属顾问{consultant_name}，稍后将为您服务！"
-        
-        self.message_service.create_text_message(
-            conversation_id=new_conversation.id,
-            text=welcome_text,
-            sender_id=creator_id,
-            sender_type="system"
+        # 检查是否有数字人可以发送欢迎消息
+        from app.db.models.digital_human import DigitalHuman
+        user_digital_human = (
+            self.db.query(DigitalHuman)
+            .filter(and_(
+                DigitalHuman.user_id == owner_id,
+                DigitalHuman.status == "active",
+                DigitalHuman.is_system_created == True
+            ))
+            .first()
         )
+        
+        if user_digital_human and user_digital_human.greeting_message:
+            welcome_text = user_digital_human.greeting_message
+            # 由数字人发送欢迎消息
+            self.message_service.create_message(
+                conversation_id=new_conversation.id,
+                content={"text": welcome_text},
+                message_type="text",
+                sender_digital_human_id=user_digital_human.id,
+                sender_type="digital_human"
+            )
+        else:
+            # 系统发送欢迎消息
+            self.message_service.create_message(
+                conversation_id=new_conversation.id,
+                content={"text": welcome_text},
+                message_type="text",
+                sender_id=None,
+                sender_type="system"
+            )
         
         logger.info(f"会话创建成功: id={new_conversation.id}")
         return ConversationInfo.from_model(new_conversation)
@@ -133,29 +179,59 @@ class ChatService:
         self,
         user_id: str,
         user_role: str,
-        customer_id: Optional[str] = None,
+        target_user_id: Optional[str] = None,
         skip: int = 0,
         limit: int = 100
     ) -> List[ConversationInfo]:
-        """获取用户的会话列表"""
-        logger.info(f"获取会话列表: user_id={user_id}, role={user_role}, customer_id={customer_id}")
+        """获取用户的会话列表 - 使用新的权限模型"""
+        logger.info(f"获取会话列表: user_id={user_id}, role={user_role}, target_user_id={target_user_id}")
         
+        from app.db.models.chat import ConversationParticipant
+        
+        # 基础查询
         query = self.db.query(Conversation).options(
-            joinedload(Conversation.customer)
+            joinedload(Conversation.owner)
         )
         
-        # 根据角色和customer_id过滤会话
-        if customer_id:
-            # 如果指定了customer_id，获取该客户的会话
-            query = query.filter(Conversation.customer_id == customer_id)
-        elif user_role == "customer":
-            # 如果是客户且没有指定customer_id，只能看自己的会话
-            query = query.filter(Conversation.customer_id == user_id)
-        elif user_role in ["consultant", "doctor", "admin", "operator"]:
-            # 顾问等角色可以看到所有会话（如果没有指定customer_id）
-            pass
+        # 根据角色和权限过滤会话
+        if target_user_id:
+            # 如果指定了目标用户ID，获取该用户的会话
+            if user_role in ["admin", "operator"]:
+                # 管理员可以查看任何用户的会话
+                query = query.filter(Conversation.owner_id == target_user_id)
+            else:
+                # 非管理员只能查看自己的会话
+                if target_user_id != user_id:
+                    raise ValueError("无权限查看其他用户的会话")
+                query = query.filter(Conversation.owner_id == user_id)
         else:
-            raise ValueError(f"未知用户角色: {user_role}")
+            # 没有指定目标用户，根据角色决定查看范围
+            if user_role == "customer":
+                # 客户只能看自己拥有的会话
+                query = query.filter(Conversation.owner_id == user_id)
+            elif user_role in ["consultant", "doctor"]:
+                # 顾问和医生可以看到自己参与的会话
+                participant_conversation_ids = (
+                    self.db.query(ConversationParticipant.conversation_id)
+                    .filter(and_(
+                        ConversationParticipant.user_id == user_id,
+                        ConversationParticipant.is_active == True
+                    ))
+                    .all()
+                )
+                participant_ids = [p.conversation_id for p in participant_conversation_ids]
+                
+                query = query.filter(
+                    or_(
+                        Conversation.owner_id == user_id,
+                        Conversation.id.in_(participant_ids)
+                    )
+                )
+            elif user_role in ["admin", "operator"]:
+                # 管理员可以看到所有会话
+                pass
+            else:
+                raise ValueError(f"未知用户角色: {user_role}")
         
         conversations = query.order_by(
             Conversation.updated_at.desc()
@@ -284,7 +360,7 @@ class ChatService:
         reply_to_message_id: Optional[str] = None
     ) -> MessageInfo:
         """便利方法：发送文本消息"""
-        message = await self.message_service.create_text_message(
+        message = self.message_service.create_text_message(
             conversation_id=conversation_id,
             text=text,
             sender_id=sender_id,

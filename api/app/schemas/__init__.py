@@ -101,6 +101,17 @@ from .plan_generation import (
     PlanVersionCompareResponse,
 )
 
+# 数字人领域
+from .digital_human import (
+    DigitalHumanResponse,
+    CreateDigitalHumanRequest,
+    UpdateDigitalHumanRequest,
+    DigitalHumanAgentConfigInfo,
+    AddAgentConfigRequest,
+    AdminDigitalHumanResponse,
+    UpdateDigitalHumanStatusRequest
+)
+
 # 为了向后兼容，提供一些常用的导入别名
 __all__ = [
     # 聊天领域
@@ -183,4 +194,13 @@ __all__ = [
     "PlanGenerationResponse",
     "InfoAnalysisResponse",
     "PlanVersionCompareResponse",
+    
+    # 数字人领域
+    "DigitalHumanResponse",
+    "CreateDigitalHumanRequest", 
+    "UpdateDigitalHumanRequest",
+    "DigitalHumanAgentConfigInfo",
+    "AddAgentConfigRequest",
+    "AdminDigitalHumanResponse",
+    "UpdateDigitalHumanStatusRequest",
 ] 

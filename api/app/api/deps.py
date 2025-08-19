@@ -35,6 +35,9 @@ def get_current_admin(
         )
     return current_user
 
+# 别名，用于更明确的语义
+require_admin_role = get_current_admin
+
 # 获取当前用户的角色列表
 def get_user_roles(user: User) -> List[str]:
     roles = [role.name for role in user.roles]
