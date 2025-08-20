@@ -85,8 +85,7 @@ async def create_conversation(
         
         conversation = await chat_service.create_conversation(
             title=conversation_in.title,
-            customer_id=conversation_in.customer_id,
-            creator_id=current_user.id
+            owner_id=conversation_in.customer_id
         )
         
         return conversation
@@ -120,7 +119,7 @@ async def get_conversations(
         conversations = chat_service.get_conversations(
             user_id=current_user.id,
             user_role=user_role,
-            customer_id=customer_id,
+            target_user_id=customer_id,
             skip=skip,
             limit=limit
         )

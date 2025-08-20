@@ -56,16 +56,18 @@ async def get_customers(
         
         # 格式化客户数据
         customer_list = []
+        # 导入聊天相关模型
+        from app.db.models.chat import Message, Conversation
+        
         for customer in customers:
             # 获取客户的最后一条消息
-            from app.db.models.chat import Message, Conversation
             last_message = db.query(Message).join(Conversation).filter(
-                Conversation.customer_id == customer.id
+                Conversation.owner_id == customer.id
             ).order_by(Message.timestamp.desc()).first()
             
             # 计算未读消息数（发给顾问的消息）
             unread_count = db.query(Message).join(Conversation).filter(
-                Conversation.customer_id == customer.id,
+                Conversation.owner_id == customer.id,
                 Message.sender_type == 'customer',
                 Message.is_read == False
             ).count()
