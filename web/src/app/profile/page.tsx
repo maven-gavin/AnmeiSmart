@@ -9,12 +9,12 @@ import { SecurityPanel } from '@/components/profile/SecurityPanel';
 import { PreferencesPanel } from '@/components/profile/PreferencesPanel';
 import { RoleSettingsPanel } from '@/components/profile/RoleSettingsPanel';
 import DigitalHumanManagementPanel from '@/components/profile/DigitalHumanManagementPanel';
-import { ContactBookManagementPanel } from '@/components/contacts/ContactBookManagementPanel';
+
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import AppLayout from '@/components/layout/AppLayout';
 import { useAuthContext } from '@/contexts/AuthContext';
 
-type TabType = 'basic' | 'security' | 'preferences' | 'role-settings' | 'digital-humans' | 'contacts';
+type TabType = 'basic' | 'security' | 'preferences' | 'role-settings' | 'digital-humans';
 
 export default function ProfilePage() {
   const { user } = useAuthContext();
@@ -67,7 +67,6 @@ export default function ProfilePage() {
             {activeTab === 'preferences' && <PreferencesPanel />}
             {activeTab === 'digital-humans' && <DigitalHumanManagementPanel />}
             {activeTab === 'role-settings' && <RoleSettingsPanel />}
-            {activeTab === 'contacts' && <ContactBookManagementPanel />}
           </div>
         </div>
       </div>

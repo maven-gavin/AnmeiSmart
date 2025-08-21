@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { cn } from '@/service/utils';
 import type { ContactTag, ContactGroup } from '@/types/contacts';
 
@@ -12,6 +13,31 @@ interface ContactSidebarProps {
   loading: boolean;
 }
 
+// Hook for getting friend request count
+function useFriendRequestCount() {
+  const [count, setCount] = useState(0);
+  
+  useEffect(() => {
+    const loadRequestCount = async () => {
+      try {
+        const { getFriendRequests } = await import('@/service/contacts/api');
+        const result = await getFriendRequests('received', 'pending');
+        setCount(result.total);
+      } catch (error) {
+        console.error('获取好友请求数量失败:', error);
+      }
+    };
+    
+    loadRequestCount();
+    
+    // 每30秒刷新一次
+    const interval = setInterval(loadRequestCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
+  
+  return count;
+}
+
 export function ContactSidebar({
   selectedView,
   onViewChange,
@@ -20,11 +46,13 @@ export function ContactSidebar({
   friendsCount,
   loading
 }: ContactSidebarProps) {
+  const pendingRequestCount = useFriendRequestCount();
+  
   const quickViews = [
     { id: 'all', label: '全部好友', count: friendsCount },
     { id: 'starred', label: '星标好友', count: 0 },
     { id: 'recent', label: '最近联系', count: 0 },
-    { id: 'pending', label: '待处理请求', count: 0 }
+    { id: 'pending', label: '待处理请求', count: pendingRequestCount }
   ];
 
   return (
@@ -147,6 +175,19 @@ export function ContactSidebar({
         
         {/* 设置选项 */}
         <div className="space-y-1">
+          <button
+            onClick={() => onViewChange('tag_management')}
+            className={cn(
+              "w-full flex items-center px-3 py-2 text-sm rounded-md transition-colors",
+              selectedView === 'tag_management'
+                ? "bg-blue-50 text-blue-700"
+                : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+            )}
+          >
+            <span className="mr-2">🏷️</span>
+            标签管理
+          </button>
+          
           <button
             onClick={() => onViewChange('privacy')}
             className={cn(

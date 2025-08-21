@@ -7,13 +7,16 @@ import { ContactToolbar } from './ContactToolbar';
 import { ContactList } from './ContactList';
 import { AddFriendModal } from './AddFriendModal';
 import { EditFriendModal } from './EditFriendModal';
+import { FriendRequestList } from './FriendRequestList';
+import { TagManagementPanel } from './TagManagement/TagManagementPanel';
 import type { 
   Friendship, 
   ContactTag, 
   ContactGroup, 
   FriendListFilters 
 } from '@/types/contacts';
-import { getFriends, getContactTags, getContactGroups } from '@/service/contacts/api';
+import { getFriends, getContactTags, getContactGroups, deleteFriendship, updateFriendship } from '@/service/contacts/api';
+import { useWebSocketByPage } from '@/hooks/useWebSocketByPage';
 import { toast } from 'react-hot-toast';
 
 interface ContactBookManagementPanelProps {
@@ -49,6 +52,40 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
   // 弹窗状态
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
   const [editingFriendship, setEditingFriendship] = useState<Friendship | null>(null);
+  
+  // WebSocket实时功能 - 使用现有框架
+  const { isConnected, sendMessage } = useWebSocketByPage('contacts', {
+    onMessage: (data) => {
+      // 处理通讯录相关的WebSocket消息
+      const { type, payload } = data;
+      
+      switch (type) {
+        case 'friend_request_received':
+          toast.success(`收到来自 ${payload.user?.username} 的好友请求`);
+          if (selectedView === 'pending') {
+            loadFriends();
+          }
+          break;
+          
+        case 'friend_request_accepted':
+          toast.success(`${payload.friend?.username} 接受了您的好友请求`);
+          loadFriends();
+          break;
+          
+        case 'friend_online_status_changed':
+          // 更新好友在线状态
+          setFriends(prev => prev.map(f => 
+            f.friend?.id === payload.friend_id 
+              ? { ...f, friend: { ...f.friend!, isOnline: payload.is_online } }
+              : f
+          ));
+          break;
+          
+        default:
+          console.log('未知的通讯录WebSocket消息:', type);
+      }
+    }
+  });
   
   // 加载数据
   useEffect(() => {
@@ -162,8 +199,9 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
     try {
       switch (action) {
         case 'chat':
-          // 跳转到聊天页面
-          window.location.href = `/chat?friend=${friendId}`;
+          // 使用聊天集成服务发起对话
+          const { navigateToChat } = await import('@/service/contacts/chatIntegration');
+          navigateToChat(friendId);
           break;
         case 'edit':
           const friendship = friends.find(f => f.friend?.id === friendId);
@@ -173,13 +211,23 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
           break;
         case 'remove':
           if (confirm('确定要删除这个好友吗？')) {
-            // TODO: 实现删除逻辑
-            toast.success('好友删除成功');
-            loadFriends();
+            const friendship = friends.find(f => f.friend?.id === friendId);
+            if (friendship) {
+              await deleteFriendship(friendship.id);
+              toast.success('好友删除成功');
+              loadFriends();
+            }
           }
           break;
         case 'toggle_star':
-          // TODO: 实现星标切换逻辑
+          const targetFriendship = friends.find(f => f.friend?.id === friendId);
+          if (targetFriendship) {
+            await updateFriendship(targetFriendship.id, {
+              is_starred: !targetFriendship.is_starred
+            });
+            toast.success(targetFriendship.is_starred ? '已取消星标' : '已设为星标');
+            loadFriends();
+          }
           break;
         default:
           console.warn('未知操作:', action);
@@ -241,14 +289,39 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
           groups={groups}
         />
         
-        <ContactList
-          friends={friends}
-          viewMode={viewMode}
-          loading={loading}
-          pagination={pagination}
-          onPageChange={handlePageChange}
-          onFriendAction={handleFriendAction}
-        />
+        {/* 根据选择的视图显示不同内容 */}
+        {selectedView === 'pending' ? (
+          <div className="flex-1 overflow-auto p-4">
+            <FriendRequestList onRequestHandled={loadFriends} />
+          </div>
+        ) : selectedView === 'tag_management' ? (
+          <div className="flex-1 overflow-auto p-4">
+            <TagManagementPanel />
+          </div>
+        ) : selectedView === 'privacy' ? (
+          <div className="flex-1 overflow-auto p-4">
+            <div className="bg-white rounded-lg p-6">
+              <h2 className="text-lg font-semibold mb-4">隐私设置</h2>
+              <p className="text-gray-500">隐私设置功能开发中...</p>
+            </div>
+          </div>
+        ) : selectedView === 'analytics' ? (
+          <div className="flex-1 overflow-auto p-4">
+            <div className="bg-white rounded-lg p-6">
+              <h2 className="text-lg font-semibold mb-4">使用统计</h2>
+              <p className="text-gray-500">统计功能开发中...</p>
+            </div>
+          </div>
+        ) : (
+          <ContactList
+            friends={friends}
+            viewMode={viewMode}
+            loading={loading}
+            pagination={pagination}
+            onPageChange={handlePageChange}
+            onFriendAction={handleFriendAction}
+          />
+        )}
       </div>
       
       {/* 弹窗组件 */}

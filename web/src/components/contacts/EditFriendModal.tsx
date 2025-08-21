@@ -26,15 +26,27 @@ export function EditFriendModal({ friendship, onClose, onSuccess, tags }: EditFr
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: 实现更新好友信息逻辑
-    console.log('更新好友信息:', { 
-      nickname, 
-      remark, 
-      isStarred, 
-      isMuted, 
-      isPinned 
-    });
-    onSuccess();
+    setLoading(true);
+    
+    try {
+      const { updateFriendship } = await import('@/service/contacts/api');
+      
+      await updateFriendship(friendship.id, {
+        nickname: nickname || undefined,
+        remark: remark || undefined,
+        is_starred: isStarred,
+        is_muted: isMuted,
+        is_pinned: isPinned
+      });
+      
+      onSuccess();
+    } catch (error) {
+      console.error('更新好友信息失败:', error);
+      // 这里可以使用toast显示错误信息
+      alert('更新失败，请重试');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
