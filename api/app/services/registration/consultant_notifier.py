@@ -125,7 +125,7 @@ class ConsultantNotifier:
                 {
                     "action": "claim_customer",
                     "label": "认领客户",
-                    "url": f"/chat/consultant?conversation_id={conversation_id}"
+                    "url": f"/chat?conversationId={conversation_id}"
                 },
                 {
                     "action": "view_profile", 
@@ -210,7 +210,7 @@ class ConsultantNotifier:
 
 请及时登录系统查看客户详情并提供服务。
 
-系统链接：/chat/consultant?conversation_id={conversation_id}
+系统链接：/chat?conversationId={conversation_id}
 
 祝好！
 安美智享系统

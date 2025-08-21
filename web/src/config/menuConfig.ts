@@ -10,6 +10,13 @@ export const menuConfig: MenuConfig = {
       icon: 'home-icon',
       roles: ['doctor','consultant', 'customer', 'admin', 'operator']
     },
+    {
+      id: 'chat-consultant',
+      label: '智能沟通',
+      path: '/chat',
+      icon: 'chat-icon',
+      roles: ['doctor','consultant', 'customer', 'admin', 'operator']
+    },    
     // 医生端菜单
     {
       id: 'plans-doctor',
@@ -42,13 +49,6 @@ export const menuConfig: MenuConfig = {
     
     // 顾问端菜单
     {
-      id: 'chat-consultant',
-      label: '智能客服',
-      path: '/chat/consultant',
-      icon: 'chat-icon',
-      roles: ['consultant']
-    },
-    {
       id: 'simulation',
       label: '术前模拟',
       path: '/simulation',
@@ -64,13 +64,6 @@ export const menuConfig: MenuConfig = {
     },
     
     // 客户端菜单
-    {
-      id: 'chat-customer',
-      label: '在线咨询',
-      path: '/chat/customer',
-      icon: 'chat-icon',
-      roles: ['customer']
-    },
     {
       id: 'treatments-customer',
       label: '治疗记录',
