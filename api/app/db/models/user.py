@@ -66,6 +66,14 @@ class User(BaseModel):
     owned_conversations = relationship("Conversation", back_populates="owner")
     created_tasks = relationship("PendingTask", foreign_keys="PendingTask.created_by")
     assigned_tasks = relationship("PendingTask", foreign_keys="PendingTask.assigned_to")
+    
+    # 通讯录关联（新增）
+    friendships = relationship("Friendship", foreign_keys="Friendship.user_id", 
+                              back_populates="user", cascade="all, delete-orphan")
+    contact_tags = relationship("ContactTag", back_populates="user", cascade="all, delete-orphan")
+    contact_groups = relationship("ContactGroup", back_populates="user", cascade="all, delete-orphan")
+    contact_privacy_setting = relationship("ContactPrivacySetting", back_populates="user", 
+                                          uselist=False, cascade="all, delete-orphan")
 
 class Doctor(BaseModel):
     """医生特有信息表，存储医生扩展信息"""

@@ -13,6 +13,7 @@ from . import profile  # 添加profile模块导入
 from . import mcp  # 添加mcp模块导入
 from . import digital_human  # 添加digital_human模块导入
 from . import message_attachment  # 添加message_attachment模块导入
+from . import contacts  # 添加contacts模块导入
 
 
 # 可以在这里添加导出特定模型类的快捷方式
@@ -27,4 +28,5 @@ from .profile import UserPreferences, UserDefaultRole, LoginHistory  # 添加pro
 from .mcp import MCPToolGroup, MCPTool, MCPCallLog  # 添加mcp模型导出
 from .digital_human import DigitalHuman, DigitalHumanAgentConfig, ConsultationRecord, PendingTask  # 添加digital_human模型导出
 from .message_attachment import MessageAttachment  # 添加message_attachment模型导出
+from .contacts import Friendship, ContactTag, FriendshipTag, ContactGroup, ContactGroupMember, ContactPrivacySetting, InteractionRecord  # 添加contacts模型导出
  

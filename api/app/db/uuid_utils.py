@@ -100,6 +100,37 @@ def task_id() -> str:
     return prefixed_uuid("task")
 
 
+# 通讯录相关ID前缀生成函数
+def friendship_id() -> str:
+    """生成好友关系ID"""
+    return prefixed_uuid("frd")
+
+
+def tag_id() -> str:
+    """生成标签ID"""
+    return prefixed_uuid("tag")
+
+
+def group_id() -> str:
+    """生成分组ID"""
+    return prefixed_uuid("grp")
+
+
+def relation_id() -> str:
+    """生成关联关系ID"""
+    return prefixed_uuid("rel")
+
+
+def record_id() -> str:
+    """生成记录ID"""
+    return prefixed_uuid("rec")
+
+
+def setting_id() -> str:
+    """生成设置ID"""
+    return prefixed_uuid("set")
+
+
 # 创建SQLAlchemy的UUID类型，在不同数据库中使用
 class UUID(TypeDecorator):
     """Platform-independent UUID type.
