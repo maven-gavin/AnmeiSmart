@@ -77,8 +77,8 @@ class ContactConversationService:
             
             # 方案1：user_id是所有者，friend_id是第一个参与者
             conversation1 = self.db.query(Conversation).filter(
-                Conversation.type == "single",
-                Conversation.is_consultation_session == False,
+                Conversation.chat_mode == "single",
+                Conversation.tag == "chat",
                 Conversation.is_active == True,
                 Conversation.owner_id == user_id,
                 Conversation.first_participant_id == friend_id
@@ -90,8 +90,8 @@ class ContactConversationService:
             
             # 方案2：friend_id是所有者，user_id是第一个参与者
             conversation2 = self.db.query(Conversation).filter(
-                Conversation.type == "single",
-                Conversation.is_consultation_session == False,
+                Conversation.chat_mode == "single",
+                Conversation.tag == "chat",
                 Conversation.is_active == True,
                 Conversation.owner_id == friend_id,
                 Conversation.first_participant_id == user_id
@@ -121,8 +121,8 @@ class ContactConversationService:
             common_conversations = self.db.query(Conversation).join(
                 ConversationParticipant, Conversation.id == ConversationParticipant.conversation_id
             ).filter(
-                Conversation.type == "single",
-                Conversation.is_consultation_session == False,
+                Conversation.chat_mode == "single",
+                Conversation.tag == "chat",
                 Conversation.is_active == True,
                 ConversationParticipant.user_id.in_([user_id, friend_id]),
                 ConversationParticipant.is_active == True
@@ -170,10 +170,10 @@ class ContactConversationService:
             new_conversation = Conversation(
                 id=conversation_id(),
                 title=title,
-                type="single",
+                chat_mode="single",
+                tag="chat",  # 好友聊天标签为chat
                 owner_id=user_id,  # 发起者为所有者
                 first_participant_id=friend_id,  # 好友为第一个参与者
-                is_consultation_session=False,  # 好友聊天不是咨询会话
                 is_pinned=False,
                 is_active=True,
                 is_archived=False,

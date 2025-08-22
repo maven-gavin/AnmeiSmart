@@ -39,10 +39,10 @@ class ConsultationService:
             consultation_conversation = Conversation(
                 id=conversation_id(),
                 title=title,
-                type="single",
+                chat_mode="single",
+                tag="consultation",  # 咨询会话标签为consultation
                 owner_id=customer_id,  # 客户为所有者
                 first_participant_id=None,  # 第一个参与者ID为空，等待顾问接待
-                is_consultation_session=True,  # 标识为咨询类会话
                 is_pinned=False,
                 is_active=True,
                 is_archived=False,
@@ -89,7 +89,7 @@ class ConsultationService:
             # 验证是否为咨询会话
             conversation = self.db.query(Conversation).filter(
                 Conversation.id == conversation_id,
-                Conversation.is_consultation_session == True,
+                Conversation.tag == "consultation",
                 Conversation.owner_id == customer_id
             ).first()
             
@@ -156,7 +156,7 @@ class ConsultationService:
             # 验证咨询会话
             conversation = self.db.query(Conversation).filter(
                 Conversation.id == conversation_id,
-                Conversation.is_consultation_session == True,
+                Conversation.tag == "consultation",
                 Conversation.is_active == True
             ).first()
             
@@ -286,9 +286,9 @@ class ConsultationService:
                 # 包含所有类型
                 pass
             elif include_consultation:
-                conditions.append(Conversation.is_consultation_session == True)
+                conditions.append(Conversation.tag == "consultation")
             elif include_friend_chat:
-                conditions.append(Conversation.is_consultation_session == False)
+                conditions.append(Conversation.tag == "chat")
             else:
                 # 两种都不包含，返回空
                 return []

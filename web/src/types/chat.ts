@@ -190,9 +190,12 @@ export interface CreateStructuredMessageData {
 export interface Conversation {
   id: string;
   title: string;
-  type: 'single' | 'group';
+  chat_mode: 'single' | 'group';  // 重构：type改为chat_mode
+  tag: 'chat' | 'consultation';   // 重构：新增tag字段区分会话类型
   owner_id: string;
   owner?: User;
+  first_participant_id?: string;  // 新增：第一个参与者ID
+  first_participant?: User;       // 新增：第一个参与者信息
   lastMessage?: Message;
   unreadCount: number;
   messageCount: number;
@@ -201,6 +204,8 @@ export interface Conversation {
   createdAt: string;
   isActive: boolean;
   isArchived: boolean;
+  is_pinned?: boolean;            // 新增：是否置顶
+  pinned_at?: string;             // 新增：置顶时间
 }
 
 export interface CustomerProfile {

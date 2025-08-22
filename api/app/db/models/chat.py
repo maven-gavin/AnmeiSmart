@@ -11,9 +11,9 @@ class Conversation(BaseModel):
     __tablename__ = "conversations"
     __table_args__ = (
         Index('idx_conversation_owner', 'owner_id'),
-        Index('idx_conversation_type', 'type'),
+        Index('idx_conversation_chat_mode', 'chat_mode'),
         Index('idx_conversation_status', 'is_active'),
-        Index('idx_conversation_consultation', 'is_consultation_session'),
+        Index('idx_conversation_tag', 'tag'),
         Index('idx_conversation_pinned', 'is_pinned', 'pinned_at'),
         Index('idx_conversation_first_participant', 'first_participant_id'),
         {"comment": "会话表，存储用户会话信息"}
@@ -22,14 +22,14 @@ class Conversation(BaseModel):
     id = Column(String(36), primary_key=True, default=conversation_id, comment="会话ID")
     title = Column(String, nullable=False, comment="会话标题")
     
-    # 会话类型
-    type = Column(String(50), nullable=False, default="single", comment="会话类型：单聊、群聊")
+    # 会话模式
+    chat_mode = Column(String(50), nullable=False, default="single", comment="会话模式：单聊、群聊")
     
     # 会话所有者（拥有该会话的所有权限）
     owner_id = Column(String(36), ForeignKey("users.id"), nullable=False, comment="会话所有者用户ID")
     
-    # 新增：咨询类会话标识
-    is_consultation_session = Column(Boolean, default=False, comment="是否为咨询类会话")
+    # 会话标签（区分会话类型）
+    tag = Column(String(50), nullable=False, default="chat", comment="会话标签：chat(普通聊天)、consultation(咨询会话)")
     
     # 新增：置顶功能
     is_pinned = Column(Boolean, default=False, comment="是否置顶")

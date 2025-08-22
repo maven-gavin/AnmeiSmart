@@ -381,8 +381,9 @@ def create_service_recommendation_content(
 class ConversationBase(BaseModel):
     """会话基础模型"""
     title: str
-    type: str = "single"  # 会话类型：single, group
+    chat_mode: str = "single"  # 会话模式：single, group
     owner_id: str  # 会话所有者
+    tag: str = "chat"  # 会话标签：chat, consultation
 
 
 class ConversationCreate(ConversationBase):
@@ -403,7 +404,8 @@ class ConversationInfo(ConversationBase):
                 "created_at": "2025-05-21T14:37:57.708339",
                 "updated_at": "2025-05-21T14:37:57.708339",
                 "is_active": True,
-                "is_consultation_session": True,
+                "chat_mode": "single",
+                "tag": "consultation",
                 "is_pinned": False,
                 "customer": {
                     "id": "usr_123456",
@@ -423,7 +425,6 @@ class ConversationInfo(ConversationBase):
     is_archived: bool = False
     
     # 新增字段
-    is_consultation_session: bool = False
     is_pinned: bool = False
     pinned_at: Optional[datetime] = None
     first_participant_id: Optional[str] = None
@@ -473,13 +474,13 @@ class ConversationInfo(ConversationBase):
         return ConversationInfo(
             id=getattr(conversation, 'id', ''),
             title=getattr(conversation, 'title', ''),
-            type=getattr(conversation, 'type', 'single'),
+            chat_mode=getattr(conversation, 'chat_mode', 'single'),
+            tag=getattr(conversation, 'tag', 'chat'),
             owner_id=getattr(conversation, 'owner_id', ''),
             created_at=getattr(conversation, 'created_at', datetime.now()),
             updated_at=getattr(conversation, 'updated_at', datetime.now()),
             is_active=getattr(conversation, 'is_active', True),
             is_archived=getattr(conversation, 'is_archived', False),
-            is_consultation_session=getattr(conversation, 'is_consultation_session', False),
             is_pinned=getattr(conversation, 'is_pinned', False),
             pinned_at=getattr(conversation, 'pinned_at', None),
             first_participant_id=getattr(conversation, 'first_participant_id', None),
