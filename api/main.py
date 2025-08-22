@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
 # 创建FastAPI应用并应用lifespan
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="医美服务系统后端API",
+    description="安美智享客服系统后端API",
     version=settings.VERSION,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url=f"{settings.API_V1_STR}/docs",

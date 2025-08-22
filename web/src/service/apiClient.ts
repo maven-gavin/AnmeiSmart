@@ -178,7 +178,7 @@ class ApiClient {
           ...config,
           headers,
           signal: controller.signal,
-          credentials: 'include',
+          // 移除 credentials: 'include'，因为使用 JWT Token 认证
         };
 
         // 发起请求
