@@ -63,7 +63,7 @@ class User(BaseModel):
     
     # 数字人关联（新增）
     digital_humans = relationship("DigitalHuman", back_populates="user", cascade="all, delete-orphan")
-    owned_conversations = relationship("Conversation", back_populates="owner")
+    owned_conversations = relationship("Conversation", foreign_keys="Conversation.owner_id", back_populates="owner")
     created_tasks = relationship("PendingTask", foreign_keys="PendingTask.created_by")
     assigned_tasks = relationship("PendingTask", foreign_keys="PendingTask.assigned_to")
     

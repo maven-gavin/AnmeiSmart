@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import users, auth, roles, chat, ai, system, customer, websocket, files, consultation_summary, consultant, ai_gateway, plan_generation, agent_config, profile, contacts
+from app.api.v1.endpoints import users, auth, roles, chat, ai, system, customer, websocket, files, consultation_summary, consultant, ai_gateway, plan_generation, agent_config, profile, contacts, consultation
 from app.api.v1.endpoints import mcp_config, mcp_server, mcp_oauth, digital_humans, admin_digital_humans, tasks
 
 api_router = APIRouter()
@@ -69,6 +69,9 @@ api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 
 # 通讯录管理路由
 api_router.include_router(contacts.router, prefix="/contacts", tags=["contacts"])
+
+# 咨询管理路由
+api_router.include_router(consultation.router, prefix="/consultation", tags=["consultation"])
 
 # 后续可添加其他路由
 # api_router.include_router(plans.router, prefix="/plans", tags=["plans"])

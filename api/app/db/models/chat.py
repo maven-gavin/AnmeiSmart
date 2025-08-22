@@ -13,6 +13,9 @@ class Conversation(BaseModel):
         Index('idx_conversation_owner', 'owner_id'),
         Index('idx_conversation_type', 'type'),
         Index('idx_conversation_status', 'is_active'),
+        Index('idx_conversation_consultation', 'is_consultation_session'),
+        Index('idx_conversation_pinned', 'is_pinned', 'pinned_at'),
+        Index('idx_conversation_first_participant', 'first_participant_id'),
         {"comment": "会话表，存储用户会话信息"}
     )
 
@@ -25,6 +28,16 @@ class Conversation(BaseModel):
     # 会话所有者（拥有该会话的所有权限）
     owner_id = Column(String(36), ForeignKey("users.id"), nullable=False, comment="会话所有者用户ID")
     
+    # 新增：咨询类会话标识
+    is_consultation_session = Column(Boolean, default=False, comment="是否为咨询类会话")
+    
+    # 新增：置顶功能
+    is_pinned = Column(Boolean, default=False, comment="是否置顶")
+    pinned_at = Column(DateTime(timezone=True), nullable=True, comment="置顶时间")
+    
+    # 新增：第一个参与者ID（优化好友单聊查询）
+    first_participant_id = Column(String(36), ForeignKey("users.id"), nullable=True, comment="第一个参与者用户ID")
+    
     # 会话状态
     is_active = Column(Boolean, default=True, comment="会话是否激活")
     is_archived = Column(Boolean, default=False, comment="是否已归档")
@@ -35,7 +48,8 @@ class Conversation(BaseModel):
     last_message_at = Column(DateTime(timezone=True), nullable=True, comment="最后消息时间")
     
     # 关联关系
-    owner = relationship("User", back_populates="owned_conversations")
+    owner = relationship("User", foreign_keys=[owner_id], back_populates="owned_conversations")
+    first_participant = relationship("User", foreign_keys=[first_participant_id])
     messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
     participants = relationship("ConversationParticipant", back_populates="conversation", cascade="all, delete-orphan")
 

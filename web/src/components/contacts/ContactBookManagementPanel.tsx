@@ -199,9 +199,17 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
     try {
       switch (action) {
         case 'chat':
-          // 使用聊天集成服务发起对话
-          const { navigateToChat } = await import('@/service/contacts/chatIntegration');
-          navigateToChat(friendId);
+          // 获取或创建与好友的会话，然后跳转
+          try {
+            const { startConversationWithFriend } = await import('@/service/contacts/chatIntegration');
+            const conversation = await startConversationWithFriend(friendId);
+            
+            // 跳转到聊天页面，指定会话ID
+            window.location.href = `/chat?conversation=${conversation.id}`;
+          } catch (error) {
+            console.error('发起对话失败:', error);
+            toast.error('发起对话失败，请重试');
+          }
           break;
         case 'edit':
           const friendship = friends.find(f => f.friend?.id === friendId);

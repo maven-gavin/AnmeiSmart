@@ -403,6 +403,8 @@ class ConversationInfo(ConversationBase):
                 "created_at": "2025-05-21T14:37:57.708339",
                 "updated_at": "2025-05-21T14:37:57.708339",
                 "is_active": True,
+                "is_consultation_session": True,
+                "is_pinned": False,
                 "customer": {
                     "id": "usr_123456",
                     "username": "王先生",
@@ -419,10 +421,21 @@ class ConversationInfo(ConversationBase):
     updated_at: datetime
     is_active: bool = True
     is_archived: bool = False
+    
+    # 新增字段
+    is_consultation_session: bool = False
+    is_pinned: bool = False
+    pinned_at: Optional[datetime] = None
+    first_participant_id: Optional[str] = None
+    
+    # 统计信息
     message_count: int = 0
     unread_count: int = 0
     last_message_at: Optional[datetime] = None
+    
+    # 关联信息
     owner: Optional[dict] = Field(None, description="会话所有者信息")
+    first_participant: Optional[dict] = Field(None, description="第一个参与者信息")
 
     @staticmethod
     def from_model(conversation, last_message=None, unread_count=0):
@@ -441,6 +454,17 @@ class ConversationInfo(ConversationBase):
                 "avatar": getattr(owner_obj, 'avatar', None)
             }
         
+        # 获取第一个参与者信息
+        first_participant_obj = getattr(conversation, 'first_participant', None)
+        first_participant_info = None
+        if first_participant_obj:
+            first_participant_info = {
+                "id": getattr(first_participant_obj, 'id', ''),
+                "username": getattr(first_participant_obj, 'username', '未知用户'),
+                "email": getattr(first_participant_obj, 'email', ''),
+                "avatar": getattr(first_participant_obj, 'avatar', None)
+            }
+        
         # 转换最后一条消息
         last_message_info = None
         if last_message:
@@ -455,10 +479,15 @@ class ConversationInfo(ConversationBase):
             updated_at=getattr(conversation, 'updated_at', datetime.now()),
             is_active=getattr(conversation, 'is_active', True),
             is_archived=getattr(conversation, 'is_archived', False),
+            is_consultation_session=getattr(conversation, 'is_consultation_session', False),
+            is_pinned=getattr(conversation, 'is_pinned', False),
+            pinned_at=getattr(conversation, 'pinned_at', None),
+            first_participant_id=getattr(conversation, 'first_participant_id', None),
             message_count=getattr(conversation, 'message_count', 0),
             unread_count=getattr(conversation, 'unread_count', 0),
             last_message_at=getattr(conversation, 'last_message_at', None),
             owner=owner_info,
+            first_participant=first_participant_info,
             last_message=last_message_info
         )
 

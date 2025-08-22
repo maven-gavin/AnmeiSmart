@@ -1,8 +1,7 @@
 /**
  * 通讯录与聊天系统的集成服务
  */
-import { createConversation } from '@/service/chatService';
-import { ChatApiService } from '@/service/chat/api';
+import { apiClient } from '@/service/apiClient';
 import type { Conversation } from '@/types/chat';
 
 /**
@@ -10,18 +9,9 @@ import type { Conversation } from '@/types/chat';
  */
 export async function startConversationWithFriend(friendId: string): Promise<Conversation> {
   try {
-    // 检查是否已有与该好友的对话
-    const existingConversation = await findExistingConversationWithFriend(friendId);
-    
-    if (existingConversation) {
-      // 如果已有对话，直接返回
-      return existingConversation;
-    }
-    
-    // 创建新的对话
-    const conversation = await createConversation(friendId);
-    
-    return conversation;
+    // 使用新的API获取或创建与好友的会话
+    const response = await apiClient.post(`/contacts/friends/${friendId}/conversation`);
+    return response.data;
   } catch (error) {
     console.error('发起对话失败:', error);
     throw new Error('发起对话失败，请重试');
@@ -29,18 +19,15 @@ export async function startConversationWithFriend(friendId: string): Promise<Con
 }
 
 /**
- * 查找与好友的现有对话
+ * 获取所有好友会话
  */
-async function findExistingConversationWithFriend(friendId: string): Promise<Conversation | null> {
+export async function getFriendConversations(): Promise<Conversation[]> {
   try {
-    // TODO: 实现查找与特定好友的对话逻辑
-    // 这需要后端支持根据参与者查询对话的API
-    
-    // 暂时返回null，总是创建新对话
-    return null;
+    const response = await apiClient.get('/contacts/conversations/friends');
+    return response.data;
   } catch (error) {
-    console.error('查找现有对话失败:', error);
-    return null;
+    console.error('获取好友会话失败:', error);
+    return [];
   }
 }
 
@@ -49,7 +36,7 @@ async function findExistingConversationWithFriend(friendId: string): Promise<Con
  */
 export function navigateToChat(friendId: string, conversationId?: string) {
   const url = conversationId 
-    ? `/chat?conversation=${conversationId}`
+    ? `/chat?conversationId=${conversationId}`
     : `/chat?friend=${friendId}`;
   
   // 使用window.location进行页面跳转
@@ -61,7 +48,7 @@ export function navigateToChat(friendId: string, conversationId?: string) {
  */
 export function openChatInNewTab(friendId: string, conversationId?: string) {
   const url = conversationId 
-    ? `/chat?conversation=${conversationId}`
+    ? `/chat?conversationId=${conversationId}`
     : `/chat?friend=${friendId}`;
   
   window.open(url, '_blank');

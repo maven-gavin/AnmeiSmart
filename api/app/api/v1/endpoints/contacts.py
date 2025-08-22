@@ -48,6 +48,7 @@ from app.schemas.contacts import (
     ContactAnalyticsResponse
 )
 from app.services.contacts.contact_service import ContactService
+from app.services.contacts.conversation_service import ContactConversationService
 
 router = APIRouter()
 
@@ -643,3 +644,43 @@ async def get_contact_analytics(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail="获取统计数据失败")
+
+
+# ============================================================================
+# 会话集成相关API
+# ============================================================================
+
+@router.post("/friends/{friend_id}/conversation")
+async def get_or_create_friend_conversation(
+    friend_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """获取或创建与好友的单聊会话"""
+    conversation_service = ContactConversationService(db)
+    
+    try:
+        result = await conversation_service.get_or_create_friend_conversation(
+            user_id=current_user.id,
+            friend_id=friend_id
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="创建会话失败")
+
+
+@router.get("/conversations/friends")
+async def get_friend_conversations(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """获取用户的所有好友会话"""
+    conversation_service = ContactConversationService(db)
+    
+    try:
+        result = await conversation_service.get_friend_conversations(current_user.id)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="获取好友会话失败")
