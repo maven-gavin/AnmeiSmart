@@ -73,7 +73,7 @@ function SmartCommunicationContent() {
       // 调用咨询API创建新的咨询会话
       const { apiClient } = await import('@/service/apiClient');
       const response = await apiClient.post('/consultation/sessions');
-      const consultation = response.data;
+      const consultation = response.data as { id: string };
       
       console.log('  - 创建咨询会话成功:', consultation);
       const url = `/chat?conversationId=${consultation.id}`;
@@ -221,7 +221,7 @@ function SmartCommunicationContent() {
           />
         </div>
         
-        {/* 右侧：聊天窗口 */}
+        {/* 中间：聊天窗口 */}
         <div className="flex-1 overflow-hidden relative">
           {loadingFriendConversation ? (
             <div className="flex h-full items-center justify-center bg-gray-50">
@@ -255,17 +255,17 @@ function SmartCommunicationContent() {
               </div>
             </div>
           )}
-
-          {/* 右侧：客户资料 */}
-          {isConsultant && selectedCustomerId && (
-              <div className="w-80 flex-shrink-0 border-l border-gray-200 bg-white">
-                <CustomerProfile 
-                  customerId={selectedCustomerId} 
-                  conversationId={selectedConversationId || undefined} 
-                />
-              </div>
-            )}
         </div>
+
+        {/* 右侧：客户资料 */}
+        {isConsultant && selectedCustomerId && (
+          <div className="w-80 flex-shrink-0 border-l border-gray-200 bg-white">
+            <CustomerProfile 
+              customerId={selectedCustomerId} 
+              conversationId={selectedConversationId || undefined} 
+            />
+          </div>
+        )}
       </div>
     </div>
   );
