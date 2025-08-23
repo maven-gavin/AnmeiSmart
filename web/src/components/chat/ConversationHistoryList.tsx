@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/service/utils';
-import { getConversations, updateConversationTitle } from '@/service/chatService';
+import { getConversations} from '@/service/chatService';
 import { Conversation } from '@/types/chat';
 import { useAuthContext } from '@/contexts/AuthContext';
 
@@ -18,10 +18,7 @@ export default function ConversationHistoryList({
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
-  const [editingTitle, setEditingTitle] = useState('');
   const { user } = useAuthContext();
-  const editInputRef = useRef<HTMLInputElement>(null);
 
   // 加载会话列表
   const loadConversations = async () => {
@@ -62,56 +59,6 @@ export default function ConversationHistoryList({
     }
   };
 
-  // 开始编辑标题
-  const startEditTitle = (conversation: Conversation, e: React.MouseEvent) => {
-    e.stopPropagation(); // 阻止选择会话
-    setEditingTitleId(conversation.id);
-    setEditingTitle(conversation.title || '');
-    setTimeout(() => {
-      editInputRef.current?.focus();
-      editInputRef.current?.select();
-    }, 0);
-  };
-
-  // 保存标题
-  const saveTitle = async (conversationId: string) => {
-    if (!editingTitle.trim()) {
-      cancelEditTitle();
-      return;
-    }
-
-    try {
-      await updateConversationTitle(conversationId, editingTitle.trim());
-      
-      // 更新本地状态
-      setConversations(prev => prev.map(conv => 
-        conv.id === conversationId 
-          ? { ...conv, title: editingTitle.trim() }
-          : conv
-      ));
-      
-      setEditingTitleId(null);
-      setEditingTitle('');
-    } catch (error) {
-      console.error('更新会话标题失败:', error);
-      // 可以添加错误提示
-    }
-  };
-
-  // 取消编辑
-  const cancelEditTitle = () => {
-    setEditingTitleId(null);
-    setEditingTitle('');
-  };
-
-  // 处理键盘事件
-  const handleKeyDown = (e: React.KeyboardEvent, conversationId: string) => {
-    if (e.key === 'Enter') {
-      saveTitle(conversationId);
-    } else if (e.key === 'Escape') {
-      cancelEditTitle();
-    }
-  };
 
   // 截取内容作为默认标题
   const getDisplayTitle = (conversation: Conversation): string => {
@@ -223,27 +170,9 @@ export default function ConversationHistoryList({
             <div className="flex-1 min-w-0">
               {/* 标题行 */}
               <div className="flex items-center justify-between mb-1">
-                {editingTitleId === conversation.id ? (
-                  <input
-                    ref={editInputRef}
-                    type="text"
-                    value={editingTitle}
-                    onChange={(e) => setEditingTitle(e.target.value)}
-                    onBlur={() => saveTitle(conversation.id)}
-                    onKeyDown={(e) => handleKeyDown(e, conversation.id)}
-                    className="flex-1 text-sm font-medium bg-white border border-orange-300 rounded px-2 py-1 focus:outline-none focus:border-orange-500"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                ) : (
-                  <h4 
-                    className="text-sm font-medium text-gray-800 truncate cursor-pointer hover:text-orange-600"
-                    onClick={(e) => startEditTitle(conversation, e)}
-                    title="点击编辑标题"
-                  >
-                    {getDisplayTitle(conversation)}
-                  </h4>
-                )}
-                
+                <h4 className="text-sm font-medium text-gray-800 truncate cursor-pointer hover:text-orange-600">
+                  {getDisplayTitle(conversation)}
+                </h4>
                 <span className="text-xs text-gray-500 flex-shrink-0 ml-2">
                   {new Date(conversation.updatedAt).toLocaleDateString()}
                 </span>
