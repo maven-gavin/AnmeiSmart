@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { RecordingControls } from '@/components/chat/RecordingControls';
 import { MediaPreview } from '@/components/chat/MediaPreview';
 import FAQSection from '@/components/chat/FAQSection';
@@ -18,6 +19,7 @@ import { apiClient } from '@/service/apiClient';
 import { useAuthContext } from '@/contexts/AuthContext';
 import PlanGenerationButton from './PlanGenerationButton';
 import { useSearchParams } from 'next/navigation';
+import { Send, Smile, Image, Paperclip, Mic, Search } from 'lucide-react';
 
 interface MessageInputProps {
   conversationId?: string | null;
@@ -346,7 +348,7 @@ export default function MessageInput({
   }, [conversationId, onUpdateMessages]);
 
   // 处理键盘事件
-  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (!isSending && (message.trim() || imagePreview || filePreview || audioPreview)) {
@@ -447,9 +449,6 @@ export default function MessageInput({
       {/* FAQ面板 - 在输入区域上方显示 */}
       {faqSection.panel}
       
-      {/* 文件选择器 */}
-
-      
       {/* 隐藏的文件输入 */}
       <input
         type="file"
@@ -469,155 +468,118 @@ export default function MessageInput({
       />
       
       {/* 输入区域 */}
-      <div className="border-t border-gray-200 bg-white p-4">
-        <div className="flex space-x-4">
-          {/* FAQ按钮 */}
-          {faqSection.button}
-          
-          <button 
-            className={`flex-shrink-0 ${showSearch ? 'text-orange-500' : 'text-gray-500 hover:text-gray-700'}`}
-            onClick={toggleSearch}
-            title="搜索聊天记录"
-          >
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-          </button>
-          
-          {/* 顾问接管按钮 - 使用专门的组件 */}
-          <ConsultantTakeover conversationId={conversationId} />
-          
-          {/* AI方案生成按钮 - 仅对顾问显示 */}
-          {showPlanGeneration && (
-            <PlanGenerationButton
-              conversationId={conversationId}
-              customerId={customerId}
-              consultantId={user?.id || ''}
-              onPlanGenerated={(plan) => {
-                console.log('方案生成完成:', plan);
-                // 可以在这里处理方案生成完成后的逻辑
-                // 比如刷新消息列表或显示成功提示
-                if (onUpdateMessages) {
-                  onUpdateMessages();
-                }
-              }}
-            />
-          )}
-                    
-          <button className="flex-shrink-0 text-gray-500 hover:text-gray-700" title="表情">
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          </button>
-          
-          <button 
-            className="flex-shrink-0 text-gray-500 hover:text-gray-700"
-            title="图片"
-            onClick={triggerFileSelect}
-          >
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 002 2z"
-              />
-            </svg>
-          </button>
-          
-          <button 
-            className="flex-shrink-0 text-gray-500 hover:text-gray-700"
-            title="文件"
-            onClick={triggerFileUpload}
-          >
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-              />
-            </svg>
-          </button>
-          
-          <button 
-            className={`flex-shrink-0 ${isRecording ? 'text-red-500' : 'text-gray-500 hover:text-gray-700'}`}
-            title="语音"
-            onClick={isRecording ? handleStopRecording : handleStartRecording}
-          >
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-              />
-            </svg>
-          </button>
-          
-          <div className="flex flex-1 items-center space-x-2">
-            <input
-              type="text"
-              value={message}
-              onChange={e => setMessage(e.target.value)}
-              placeholder="输入消息..."
-              className="flex-1 rounded-lg border border-gray-200 px-4 py-2 focus:border-orange-500 focus:outline-none"
-              disabled={isSending || isRecording}
-              onKeyPress={handleKeyPress}
-            />
-            <Button
-              onClick={handleSendMessage}
-              disabled={isSending || (!message.trim() && !imagePreview && !audioPreview && !filePreview)}
-              className={`bg-orange-500 hover:bg-orange-600 text-white border-0 shadow-sm transition-colors ${
-                isSending ? 'opacity-70 cursor-not-allowed' : ''
+      <div className="border-t border-gray-200 bg-white">
+        {/* 功能按钮区域 */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100">
+          <div className="flex items-center space-x-3">
+            {/* FAQ按钮 */}
+            {faqSection.button}
+            
+            {/* 搜索按钮 */}
+            <button 
+              className={`p-1.5 rounded-md transition-colors ${
+                showSearch 
+                  ? 'text-orange-500 bg-orange-50' 
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
+              onClick={toggleSearch}
+              title="搜索聊天记录"
             >
-              {isSending ? (
-                <span className="flex items-center">
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <Search className="h-4 w-4" />
+            </button>
+            
+            {/* 顾问接管按钮 */}
+            <ConsultantTakeover conversationId={conversationId} className="p-1.5 rounded-md transition-colors" />
+
+            <button 
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                title="表情"
+            >
+              <Smile className="h-5 w-5" />
+            </button>
+            
+            <button 
+              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+              title="图片"
+              onClick={triggerFileSelect}
+            >
+              <Image className="h-5 w-5" />
+            </button>
+            
+            <button 
+              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+              title="文件"
+              onClick={triggerFileUpload}
+            >
+              <Paperclip className="h-5 w-5" />
+            </button>
+            
+            <button 
+              className={`p-2 rounded-md transition-colors ${
+                isRecording 
+                  ? 'text-red-500 bg-red-50' 
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+              }`}
+              title="语音"
+              onClick={isRecording ? handleStopRecording : handleStartRecording}
+            >
+              <Mic className="h-5 w-5" />
+            </button>
+            
+            {/* AI方案生成按钮 - 仅对顾问显示 */}
+            {showPlanGeneration && (
+              <PlanGenerationButton
+                conversationId={conversationId}
+                customerId={customerId}
+                consultantId={user?.id || ''}
+                onPlanGenerated={(plan) => {
+                  console.log('方案生成完成:', plan);
+                  if (onUpdateMessages) {
+                    onUpdateMessages();
+                  }
+                }}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* 输入框区域 */}
+        <div className="p-4">
+          {/* 输入框 */}
+          <div className="flex-1 relative">
+              <Textarea
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="输入消息... (Shift + Enter 换行)"
+                className="min-h-[40px] max-h-[120px] pr-12 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20"
+                autoResize
+                maxRows={5}
+                minRows={1}
+                disabled={isSending || isRecording}
+              />
+              
+              {/* 发送按钮 */}
+              <Button
+                onClick={handleSendMessage}
+                disabled={isSending || (!message.trim() && !imagePreview && !audioPreview && !filePreview)}
+                size="sm"
+                className={`absolute right-2 bottom-2 h-8 w-8 p-0 bg-orange-500 hover:bg-orange-600 text-white border-0 shadow-sm transition-all ${
+                  isSending || (!message.trim() && !imagePreview && !audioPreview && !filePreview)
+                    ? 'opacity-50 cursor-not-allowed' 
+                    : 'hover:scale-105'
+                }`}
+              >
+                {isSending ? (
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  发送中
-                </span>
-              ) : '发送'}
-            </Button>
-          </div>
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
         </div>
       </div>
     </>
