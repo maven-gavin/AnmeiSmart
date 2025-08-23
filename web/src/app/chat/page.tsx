@@ -26,6 +26,7 @@ function SmartCommunicationContent() {
   // 获取当前用户角色
   const currentRole = user?.currentRole;
   const isConsultant = currentRole === 'consultant';
+  const isCustomer = currentRole === 'customer';
   
   // URL作为唯一状态源
   const selectedCustomerId = searchParams?.get('customerId');
@@ -195,15 +196,17 @@ function SmartCommunicationContent() {
             <ChatWebSocketStatus />
             
             {/* TODO: 功能待修改为开始新的咨询，仅客户角色显示该按钮 */}
-            <button
-                  onClick={() => router.push('/chat')}
-                  className="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
-                >
-              <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              开始新的咨询
-            </button>
+            {isCustomer ? (
+              <button
+                onClick={() => router.push('/chat')}
+                className="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
+              >
+                <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                开始新的咨询
+              </button>
+            ) : null}
           </div>
         </div>
       </div>

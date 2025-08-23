@@ -274,6 +274,14 @@ export default function ConversationHistoryList({
                 </span>
               </div>
             )}
+            {/* 咨询标签 */}
+            {conversation.tag === 'consultation' && (
+              <div className="flex-shrink-0 ml-2">
+                <span className="inline-flex items-center justify-center h-5 w-5 text-xs font-medium text-white bg-red-500 rounded-full">
+                  {conversation.tag}
+                </span>
+              </div>
+            )}
           </div>
         ))}
       </div>
