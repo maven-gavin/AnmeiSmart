@@ -101,7 +101,7 @@ class MessageService:
             ).first()
             
             if conversation:
-                logger.info(f"会话详情: id={conversation.id}, customer_id={conversation.customer_id}, assigned_consultant_id={conversation.assigned_consultant_id}")
+                logger.info(f"会话详情: id={conversation.id}, owner_id={conversation.owner_id}, assigned_consultant_id={conversation.assigned_consultant_id}")
             else:
                 logger.warning(f"会话不存在: {conversation_id}")
             

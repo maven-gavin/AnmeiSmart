@@ -88,7 +88,7 @@ class ConversationMatcher:
         try:
             # 查找该客户最近的会话中的顾问消息
             recent_consultant_message = self.db.query(Message).join(Conversation).filter(
-                Conversation.customer_id == customer_id,
+                Conversation.owner_id == customer_id,
                 Message.sender_type == 'consultant'
             ).order_by(Message.timestamp.desc()).first()
             

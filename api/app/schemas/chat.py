@@ -19,7 +19,7 @@ class MessageSender(BaseModel):
     id: str
     name: str
     avatar: Optional[str] = None
-    type: Literal["customer", "consultant", "doctor", "ai", "system"]
+    type: Literal["customer", "consultant", "doctor", "ai", "system", "digital_human"]
 
 
 # ===== 消息内容结构定义 =====
@@ -104,7 +104,7 @@ class MessageCreate(MessageBase):
     """创建消息的请求模型"""
     conversation_id: str
     sender_id: str
-    sender_type: Literal["customer", "consultant", "doctor", "ai", "system"]
+    sender_type: Literal["customer", "consultant", "doctor", "ai", "system", "digital_human"]
     reply_to_message_id: Optional[str] = None
     extra_metadata: Optional[Dict[str, Any]] = None
 
@@ -716,7 +716,7 @@ class ConsultationSummaryResponse(BaseModel):
             consultation_summary=consultation_summary,
             summary=conversation.summary,
             has_summary=has_summary,
-            customer_name=conversation.customer.username,
+            customer_name=conversation.owner.username if conversation.owner else "未知用户",
             consultant_name=consultant_name,
             created_at=conversation.created_at,
             updated_at=conversation.updated_at
@@ -767,7 +767,7 @@ class ConsultationSummaryInfo(BaseModel):
             consultation_type=consultation_type_display,
             summary_text=summary_text,
             has_summary=has_summary,
-            customer_name=conversation.customer.username,
+            customer_name=conversation.owner.username if conversation.owner else "未知用户",
             date=conversation.created_at.strftime("%Y-%m-%d"),
             duration_minutes=duration_minutes,
             satisfaction_rating=satisfaction_rating

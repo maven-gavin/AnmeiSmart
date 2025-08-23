@@ -30,7 +30,8 @@ export enum SenderType {
   CONSULTANT = 'consultant', // 顾问
   DOCTOR = 'doctor',       // 医生
   AI = 'ai',               // AI助手
-  SYSTEM = 'system'        // 系统
+  SYSTEM = 'system',       // 系统
+  DIGITAL_HUMAN = 'digital_human' // 数字人
 }
 
 /**

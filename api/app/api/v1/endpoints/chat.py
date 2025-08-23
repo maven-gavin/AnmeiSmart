@@ -101,7 +101,6 @@ async def create_conversation(
 async def get_conversations(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
-    customer_id: Optional[str] = Query(None, description="客户ID，用于筛选特定客户的会话"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -109,17 +108,11 @@ async def get_conversations(
     try:
         chat_service = create_chat_service(db)
         user_role = get_user_role(current_user)
-        
-        # 权限检查
-        if customer_id and current_user.id != customer_id:
-            if user_role not in ['consultant', 'doctor', 'admin', 'operator']:
-                raise HTTPException(status_code=403, detail="无权访问此客户的会话")
-        
+                
         # 调用service层获取会话列表，直接返回结果
         conversations = chat_service.get_conversations(
-            user_id=current_user.id,
+            user_id=str(current_user.id),
             user_role=user_role,
-            target_user_id=customer_id,
             skip=skip,
             limit=limit
         )

@@ -1,14 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/service/utils';
 import { getConversations, updateConversationTitle } from '@/service/chatService';
 import { Conversation } from '@/types/chat';
 import { useAuthContext } from '@/contexts/AuthContext';
 
 interface ConversationHistoryListProps {
-  onConversationSelect?: (conversationId: string) => void;
+  onConversationSelect?: (conversationId: string, customerId: string, tag: string) => void;
   selectedConversationId?: string | null;
 }
 
@@ -21,7 +20,6 @@ export default function ConversationHistoryList({
   const [error, setError] = useState<string | null>(null);
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
-  const router = useRouter();
   const { user } = useAuthContext();
   const editInputRef = useRef<HTMLInputElement>(null);
 
@@ -32,13 +30,8 @@ export default function ConversationHistoryList({
       setError(null);
       
       const data = await getConversations();
-      // 按创建时间倒序排列，最新的在最上面
-      const sortedConversations = data.sort((a, b) => 
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      );
-      setConversations(sortedConversations);
-    } catch (err) {
-      console.error('获取会话列表失败:', err);
+      setConversations(data);
+    } catch {
       setError('获取会话列表失败');
     } finally {
       setLoading(false);
@@ -54,10 +47,18 @@ export default function ConversationHistoryList({
   // 处理会话选择
   const handleConversationSelect = (conversationId: string) => {
     if (onConversationSelect) {
-      onConversationSelect(conversationId);
-    } else {
-      // 默认行为：更新URL
-      router.push(`/customer/chat?conversationId=${conversationId}`);
+      // 从conversations中获取对应的会话信息
+      const conversation = conversations.find(conv => conv.id === conversationId);
+      console.log('🔍 [handleConversationSelect] 会话选择处理开始');
+      console.log('  - conversation:', conversation);
+      if (conversation) {
+        // 从会话中提取customerId和tag
+        const customerId = conversation.owner_id; // 会话所有者作为customerId
+        const tag = conversation.tag; // 会话标签
+        console.log('customerId:', customerId);
+        console.log('tag:', tag);
+        onConversationSelect(conversationId, customerId, tag);
+      }
     }
   };
 
@@ -121,7 +122,16 @@ export default function ConversationHistoryList({
     // 如果没有标题，使用最后一条消息的内容
     if (conversation.lastMessage?.content) {
       const content = conversation.lastMessage.content;
-      return content.length > 20 ? content.substring(0, 20) + '...' : content;
+      // 处理不同类型的消息内容
+      let textContent = '';
+      if (typeof content === 'string') {
+        textContent = content;
+      } else if (content && typeof content === 'object' && 'text' in content) {
+        textContent = content.text || '';
+      } else {
+        textContent = JSON.stringify(content);
+      }
+      return textContent.length > 20 ? textContent.substring(0, 20) + '...' : textContent;
     }
     
     return `会话 ${new Date(conversation.updatedAt).toLocaleDateString()}`;
@@ -185,13 +195,13 @@ export default function ConversationHistoryList({
             {/* 用户头像 */}
             <div className="flex-shrink-0 mr-3">
               <img
-                src={conversation.user.avatar}
-                alt={conversation.user.name}
+                src={conversation.owner?.avatar || '/avatars/default.png'}
+                alt={conversation.owner?.name || '用户'}
                 className="h-8 w-8 rounded-full bg-gray-100"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.onerror = null;
-                  const nameInitial = conversation.user.name.charAt(0);
+                  const nameInitial = (conversation.owner?.name || 'U').charAt(0);
                   target.style.display = 'flex';
                   target.style.alignItems = 'center';
                   target.style.justifyContent = 'center';
@@ -242,7 +252,16 @@ export default function ConversationHistoryList({
               {/* 最后一条消息 */}
               {conversation.lastMessage && (
                 <p className="text-xs text-gray-500 truncate">
-                  {conversation.lastMessage.content}
+                  {(() => {
+                    const content = conversation.lastMessage.content;
+                    if (typeof content === 'string') {
+                      return content;
+                    } else if (content && typeof content === 'object' && 'text' in content) {
+                      return content.text || '';
+                    } else {
+                      return JSON.stringify(content);
+                    }
+                  })()}
                 </p>
               )}
             </div>

@@ -203,7 +203,7 @@ class FileService:
             conversation = db.query(Conversation).filter(
                 and_(
                     Conversation.id == conversation_id,
-                    Conversation.customer_id == user_id
+                    Conversation.owner_id == user_id
                 )
             ).first()
             

@@ -160,7 +160,7 @@ class ConsultationSummaryService:
         
         conversations = self.db.query(Conversation).filter(
             and_(
-                Conversation.customer_id == customer_id,
+                Conversation.owner_id == customer_id,
                 Conversation.consultation_summary.isnot(None)
             )
         ).order_by(Conversation.updated_at.desc()).limit(limit).all()
@@ -199,7 +199,7 @@ class ConsultationSummaryService:
         
         user_role_names = [role.name for role in user.roles] if user.roles else []
         is_consultant = 'consultant' in user_role_names or getattr(user, 'active_role', None) == 'consultant'
-        if is_consultant or conversation.customer_id == user_id:
+        if is_consultant or conversation.owner_id == user_id:
             return conversation
         
         return None
@@ -285,7 +285,7 @@ class ConsultationSummaryService:
             duration_minutes=duration_minutes,
             type=consultation_type,
             consultant_id=conversation.assigned_consultant_id or user_id,
-            customer_id=conversation.customer_id
+            customer_id=conversation.owner_id
         )
     
     def _determine_consultation_type(self, conversation) -> ConsultationType:
@@ -296,7 +296,7 @@ class ConsultationSummaryService:
         # 检查该客户是否有历史会话
         previous_conversations = self.db.query(Conversation).filter(
             and_(
-                Conversation.customer_id == conversation.customer_id,
+                Conversation.owner_id == conversation.owner_id,
                 Conversation.id != conversation.id,
                 Conversation.created_at < conversation.created_at
             )

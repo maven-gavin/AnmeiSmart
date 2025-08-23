@@ -34,34 +34,39 @@ function SmartCommunicationContent() {
   
   // UI状态管理
   const [isSwitchingConversation, setIsSwitchingConversation] = useState(false);
-  const [showHistory, setShowHistory] = useState(true);
   const [loadingFriendConversation, setLoadingFriendConversation] = useState(false);
   const prevConversationIdRef = useRef<string | null>(selectedConversationId);
   
-  // 处理好友会话创建
-  useEffect(() => {
-    if (selectedFriendId && !selectedConversationId) {
-      createFriendConversation(selectedFriendId);
-    }
-  }, [selectedFriendId, selectedConversationId]);
-  
+
   const createFriendConversation = async (friendId: string) => {
+    console.log('👥 [createFriendConversation] 创建好友会话开始');
+    console.log('  - friendId:', friendId);
+    console.log('  - 设置 loadingFriendConversation = true');
+    
     setLoadingFriendConversation(true);
     try {
       const { startConversationWithFriend } = await import('@/service/contacts/chatIntegration');
       const conversation = await startConversationWithFriend(friendId);
       
+      console.log('  - 创建会话成功:', conversation);
+      const url = `/chat?conversationId=${conversation.id}`;
+      console.log('  - 跳转到:', url);
+      
       // 更新URL，移除friend参数，添加conversation参数
-      router.replace(`/chat?conversationId=${conversation.id}`, { scroll: false });
+      router.replace(url, { scroll: false });
     } catch (error) {
-      console.error('创建好友会话失败:', error);
+      console.error('❌ [createFriendConversation] 创建好友会话失败:', error);
       // 可以显示错误提示
     } finally {
+      console.log('  - 设置 loadingFriendConversation = false');
       setLoadingFriendConversation(false);
     }
   };
   
   const handleStartNewConsultation = async () => {
+    console.log('🏥 [handleStartNewConsultation] 开始新咨询会话');
+    console.log('  - 设置 loadingFriendConversation = true');
+    
     setLoadingFriendConversation(true);
     try {
       // 调用咨询API创建新的咨询会话
@@ -69,52 +74,90 @@ function SmartCommunicationContent() {
       const response = await apiClient.post('/consultation/sessions');
       const consultation = response.data;
       
+      console.log('  - 创建咨询会话成功:', consultation);
+      const url = `/chat?conversationId=${consultation.id}`;
+      console.log('  - 跳转到:', url);
+      
       // 跳转到新创建的咨询会话
-      router.push(`/chat?conversationId=${consultation.id}`, { scroll: false });
+      router.push(url, { scroll: false });
     } catch (error) {
-      console.error('创建咨询会话失败:', error);
+      console.error('❌ [handleStartNewConsultation] 创建咨询会话失败:', error);
       // 可以显示错误提示
       alert('创建咨询会话失败，请重试');
     } finally {
+      console.log('  - 设置 loadingFriendConversation = false');
       setLoadingFriendConversation(false);
     }
   };
 
+  // 处理好友会话创建
+  useEffect(() => {
+    console.log('👥 [useEffect] 好友会话创建检查');
+    console.log('  - selectedFriendId:', selectedFriendId);
+    console.log('  - selectedConversationId:', selectedConversationId);
+    console.log('  - 条件 (selectedFriendId && !selectedConversationId):', selectedFriendId && !selectedConversationId);
+    
+    if (selectedFriendId && !selectedConversationId) {
+      console.log('✅ [useEffect] 触发好友会话创建');
+      createFriendConversation(selectedFriendId);
+    } else {
+      console.log('❌ [useEffect] 不创建好友会话');
+    }
+  }, [selectedFriendId, selectedConversationId]);
+  
   // 处理会话ID变化时的切换动画
   useEffect(() => {
+    console.log('🔍 [useEffect] 会话切换动画检查开始');
+    console.log('  - selectedConversationId:', selectedConversationId);
+    console.log('  - prevConversationIdRef.current:', prevConversationIdRef.current);
+    console.log('  - 条件1 (selectedConversationId !== prevConversationIdRef.current):', selectedConversationId !== prevConversationIdRef.current);
+    console.log('  - 条件2 (prevConversationIdRef.current !== null):', prevConversationIdRef.current !== null);
+    console.log('  - 组合条件:', selectedConversationId !== prevConversationIdRef.current && prevConversationIdRef.current !== null);
+    
     if (selectedConversationId !== prevConversationIdRef.current && prevConversationIdRef.current !== null) {
+      console.log('✅ [useEffect] 触发会话切换动画');
+      console.log('  - 设置 isSwitchingConversation = true');
       setIsSwitchingConversation(true);
       
       const timer = setTimeout(() => {
+        console.log('⏰ [useEffect] 定时器回调执行');
+        console.log('  - 设置 isSwitchingConversation = false');
+        console.log('  - 更新 prevConversationIdRef.current =', selectedConversationId);
         setIsSwitchingConversation(false);
         prevConversationIdRef.current = selectedConversationId;
       }, 300);
       
-      return () => clearTimeout(timer);
+      console.log('  - 设置定时器，ID:', timer);
+      return () => {
+        console.log('🧹 [useEffect] 清理定时器，ID:', timer);
+        clearTimeout(timer);
+      };
     } else {
+      console.log('❌ [useEffect] 不触发切换动画，直接更新引用');
+      console.log('  - 更新 prevConversationIdRef.current =', selectedConversationId);
       prevConversationIdRef.current = selectedConversationId;
     }
   }, [selectedConversationId]);
 
-  // 客户变化处理（仅顾问角色使用）
-  const handleCustomerChange = useCallback((customerId: string, conversationId?: string) => {
-    const url = conversationId 
-      ? `/chat?customerId=${customerId}&conversationId=${conversationId}`
-      : `/chat?customerId=${customerId}`;
-    
-    router.push(url, { scroll: false });
-  }, [router]);
-
   // 会话选择处理
-  const handleConversationSelect = useCallback((conversationId: string) => {
-    setIsSwitchingConversation(true);
-    
-    if (isConsultant && selectedCustomerId) {
-      router.push(`/chat?customerId=${selectedCustomerId}&conversationId=${conversationId}`, { scroll: false });
+  const handleConversationSelect = useCallback((conversationId: string, customerId: string, tag: string) => {
+    console.log('🎯 [handleConversationSelect] 会话选择处理开始');
+    console.log('  - conversationId:', conversationId);
+    console.log('  - customerId:', customerId);
+    console.log('  - tag:', tag);
+    console.log('  - isConsultant:', isConsultant);
+    console.log('  - 设置 isSwitchingConversation = true');
+        
+    if (isConsultant && tag === 'consultation') {
+      const url = `/chat?customerId=${customerId}&conversationId=${conversationId}`;
+      console.log('  - 顾问咨询会话，跳转到:', url);
+      router.push(url, { scroll: false });
     } else {
-      router.push(`/chat?conversationId=${conversationId}`, { scroll: false });
+      const url = `/chat?conversationId=${conversationId}`;
+      console.log('  - 普通会话，跳转到:', url);
+      router.push(url, { scroll: false });
     }
-  }, [router, isConsultant, selectedCustomerId]);
+  }, [router, isConsultant]);
 
   // 权限检查未通过时显示错误
   if (!isAuthorized && error) {
@@ -168,14 +211,12 @@ function SmartCommunicationContent() {
       {/* 主要内容区域 */}
       <div className="flex-1 overflow-hidden flex">
         {/* 左侧：历史会话列表 */}
-        {showHistory && (
-          <div className="w-80 flex-shrink-0 border-r border-gray-200 bg-white">
-            <ConversationHistoryList 
-              onConversationSelect={handleConversationSelect}
-              selectedConversationId={selectedConversationId}
-            />
-          </div>
-        )}
+        <div className="w-80 flex-shrink-0 border-r border-gray-200 bg-white">
+          <ConversationHistoryList 
+            onConversationSelect={handleConversationSelect}
+            selectedConversationId={selectedConversationId}
+          />
+        </div>
         
         {/* 右侧：聊天窗口 */}
         <div className="flex-1 overflow-hidden relative">
@@ -198,35 +239,7 @@ function SmartCommunicationContent() {
                 <svg className="mx-auto h-16 w-16 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
-                <h3 className="text-lg font-medium text-gray-700 mb-2">开始新的对话</h3>
-                <p className="text-gray-500 mb-4">选择历史会话或开始新的咨询</p>
-                
-                {/* 根据用户角色显示不同的操作按钮 */}
-                <div className="space-y-2">
-                  {currentRole === 'customer' && (
-                    <button
-                      onClick={handleStartNewConsultation}
-                      className="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
-                    >
-                      <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      开始新的咨询
-                    </button>
-                  )}
-                  
-                  {(currentRole === 'consultant' || currentRole === 'doctor') && (
-                    <p className="text-sm text-gray-500">
-                      等待客户发起咨询或选择历史会话
-                    </p>
-                  )}
-                  
-                  {currentRole === 'admin' && (
-                    <p className="text-sm text-gray-500">
-                      选择会话查看对话内容或管理咨询
-                    </p>
-                  )}
-                </div>
+                <h3 className="text-lg font-medium text-gray-700 mb-2">每次沟通，都让人开心</h3>
               </div>
             </div>
           )}

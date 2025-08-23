@@ -63,7 +63,7 @@ class ChatService:
             return False
         
         # 检查访问权限
-        if user_role == "customer" and conversation.customer_id != user_id:
+        if user_role == "customer" and str(conversation.owner_id) != user_id:
             return False
         
         return True
@@ -179,66 +179,67 @@ class ChatService:
         self,
         user_id: str,
         user_role: str,
-        target_user_id: Optional[str] = None,
         skip: int = 0,
         limit: int = 100
     ) -> List[ConversationInfo]:
-        """获取用户的会话列表 - 使用新的权限模型"""
-        logger.info(f"获取会话列表: user_id={user_id}, role={user_role}, target_user_id={target_user_id}")
+        """获取用户参与的会话列表"""
+        logger.info(f"获取会话列表: user_id={user_id}, role={user_role}")
         
         from app.db.models.chat import ConversationParticipant
+        from sqlalchemy.orm import joinedload, subqueryload
         
-        # 基础查询
+        # 构建查询：获取用户参与的所有会话
+        # 1. 用户作为会话所有者
+        # 2. 用户作为会话参与者
         query = self.db.query(Conversation).options(
-            joinedload(Conversation.owner)
+            joinedload(Conversation.owner),
+            joinedload(Conversation.first_participant),
+            subqueryload(Conversation.participants).joinedload(ConversationParticipant.user)
+        ).filter(
+            # 用户是会话所有者
+            Conversation.owner_id == user_id
+        ).union(
+            # 或者用户是会话参与者
+            self.db.query(Conversation).options(
+                joinedload(Conversation.owner),
+                joinedload(Conversation.first_participant),
+                subqueryload(Conversation.participants).joinedload(ConversationParticipant.user)
+            ).join(
+                ConversationParticipant,
+                Conversation.id == ConversationParticipant.conversation_id
+            ).filter(
+                ConversationParticipant.user_id == user_id,
+                ConversationParticipant.is_active == True
+            )
         )
         
-        # 根据角色和权限过滤会话
-        if target_user_id:
-            # 如果指定了目标用户ID，获取该用户的会话
-            if user_role in ["admin", "operator"]:
-                # 管理员可以查看任何用户的会话
-                query = query.filter(Conversation.owner_id == target_user_id)
-            else:
-                # 非管理员只能查看自己的会话
-                if target_user_id != user_id:
-                    raise ValueError("无权限查看其他用户的会话")
-                query = query.filter(Conversation.owner_id == user_id)
-        else:
-            # 没有指定目标用户，根据角色决定查看范围
-            if user_role == "customer":
-                # 客户只能看自己拥有的会话
-                query = query.filter(Conversation.owner_id == user_id)
-            elif user_role in ["consultant", "doctor"]:
-                # 顾问和医生可以看到自己参与的会话
-                participant_conversation_ids = (
-                    self.db.query(ConversationParticipant.conversation_id)
-                    .filter(and_(
-                        ConversationParticipant.user_id == user_id,
-                        ConversationParticipant.is_active == True
-                    ))
-                    .all()
-                )
-                participant_ids = [p.conversation_id for p in participant_conversation_ids]
-                
-                query = query.filter(
-                    or_(
-                        Conversation.owner_id == user_id,
-                        Conversation.id.in_(participant_ids)
-                    )
-                )
-            elif user_role in ["admin", "operator"]:
-                # 管理员可以看到所有会话
-                pass
-            else:
-                raise ValueError(f"未知用户角色: {user_role}")
-        
+        # 按更新时间倒序排列，置顶会话优先
         conversations = query.order_by(
+            Conversation.is_pinned.desc(),
+            Conversation.pinned_at.desc(),
             Conversation.updated_at.desc()
         ).offset(skip).limit(limit).all()
         
         logger.info(f"查询到 {len(conversations)} 个会话")
-        return [ConversationInfo.from_model(conv) for conv in conversations]
+        
+        # 转换为 schema 并返回
+        result = []
+        for conv in conversations:
+            # 计算该用户在此会话中的未读消息数
+            unread_count = self._get_user_unread_count(str(conv.id), user_id)
+            
+            # 获取最后一条消息
+            last_message = self._get_last_message(str(conv.id))
+            
+            # 使用 from_model 方法转换
+            conv_info = ConversationInfo.from_model(
+                conversation=conv,
+                last_message=last_message,
+                unread_count=unread_count
+            )
+            result.append(conv_info)
+        
+        return result
     
     def get_conversation_by_id(
         self,
@@ -253,7 +254,7 @@ class ChatService:
         
         # 获取会话数据并转换为schema
         conversation = self.db.query(Conversation).options(
-            joinedload(Conversation.customer)
+            joinedload(Conversation.owner)
         ).filter(Conversation.id == conversation_id).first()
         
         if not conversation:
@@ -283,6 +284,9 @@ class ChatService:
             Conversation.id == conversation_id
         ).first()
         
+        if not conversation:
+            raise ValueError(f"会话不存在: {conversation_id}")
+        
         # 如果是客户的第一条消息且会话未分配顾问，自动分配
         if (auto_assign_on_first_message and 
             sender_type == 'customer' and 
@@ -296,7 +300,7 @@ class ChatService:
             
             if existing_user_messages == 0:  # 这是第一条用户消息
                 # 获取客户信息
-                customer = self.db.query(User).filter(User.id == conversation.customer_id).first()
+                customer = self.db.query(User).filter(User.id == conversation.owner_id).first()
                 customer_tags = getattr(customer, 'tags', []) if customer else []
                 
                 # 提取文本内容用于顾问匹配
@@ -307,9 +311,13 @@ class ChatService:
                     # 如果是其他结构化内容，转换为字符串
                     text_for_matching = str(content)
                 
+                # 确保 text_for_matching 是字符串类型
+                if not isinstance(text_for_matching, str):
+                    text_for_matching = str(text_for_matching)
+                
                 # 使用匹配器找到最佳顾问
                 best_consultant_id = self.conversation_matcher.find_best_consultant(
-                    customer_id=conversation.customer_id,
+                    customer_id=str(conversation.owner_id),
                     conversation_content=text_for_matching,
                     customer_tags=customer_tags
                 )
@@ -322,10 +330,19 @@ class ChatService:
                     if success:
                         logger.info(f"首条消息触发顾问分配: {conversation_id} -> {best_consultant_id}")
         
+        # 确保 content 是字典格式
+        if isinstance(content, str):
+            # 如果是字符串，转换为文本消息格式
+            from app.services.chat.message_service import create_text_message_content
+            message_content = create_text_message_content(content)
+        else:
+            # 如果已经是字典，直接使用
+            message_content = content
+        
         # 创建消息
         message = await self.message_service.create_message(
             conversation_id=conversation_id,
-            content=content,
+            content=message_content,
             message_type=message_type,
             sender_id=sender_id,
             sender_type=sender_type,
@@ -530,7 +547,7 @@ class ChatService:
         return {
             "id": conversation.id,
             "title": conversation.title,
-            "customer_id": conversation.customer_id,
+            "customer_id": conversation.owner_id,
             "created_at": conversation.created_at,
             "updated_at": conversation.updated_at,
             "is_active": conversation.is_active,
@@ -549,11 +566,11 @@ class ChatService:
     ) -> List[ConversationInfo]:
         """搜索会话"""
         base_query = self.db.query(Conversation).options(
-            joinedload(Conversation.customer)
+            joinedload(Conversation.owner)
         )
         # 根据角色过滤
         if user_role == "customer":
-            base_query = base_query.filter(Conversation.customer_id == user_id)
+            base_query = base_query.filter(Conversation.owner_id == user_id)
         # 搜索条件
         if query:
             base_query = base_query.filter(
@@ -687,4 +704,37 @@ class ChatService:
             raise ValueError(f"消息不存在: {message_id}")
         
         logger.info(f"消息重点状态已更新: conversation_id={conversation_id}, message_id={message_id}, is_important={is_important}")
-        return True 
+        return True
+    
+    def _get_user_unread_count(self, conversation_id: str, user_id: str) -> int:
+        """获取用户在指定会话中的未读消息数"""
+        from app.db.models.chat import ConversationParticipant
+        
+        # 获取用户在此会话中的最后阅读时间
+        participant = self.db.query(ConversationParticipant).filter(
+            ConversationParticipant.conversation_id == conversation_id,
+            ConversationParticipant.user_id == user_id
+        ).first()
+        
+        if not participant or not participant.last_read_at:
+            # 如果没有阅读记录，返回所有消息数
+            return self.db.query(Message).filter(
+                Message.conversation_id == conversation_id
+            ).count()
+        
+        # 计算最后阅读时间之后的消息数
+        unread_count = self.db.query(Message).filter(
+            Message.conversation_id == conversation_id,
+            Message.timestamp > participant.last_read_at,
+            Message.sender_id != user_id  # 排除自己发送的消息
+        ).count()
+        
+        return unread_count
+    
+    def _get_last_message(self, conversation_id: str) -> Optional[Message]:
+        """获取会话的最后一条消息"""
+        return self.db.query(Message).filter(
+            Message.conversation_id == conversation_id
+        ).order_by(
+            Message.timestamp.desc()
+        ).first() 

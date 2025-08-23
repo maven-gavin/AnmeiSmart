@@ -54,25 +54,37 @@ export interface ChatStateData {
 }
 
 /**
- * API响应格式
+ * API响应格式 - 与后端ConversationInfo schema保持一致
  */
 export interface ConversationApiResponse {
   id: string;
   title: string;
-  customer_id: string;
-  customer?: {
+  chat_mode: 'single' | 'group';
+  tag: 'chat' | 'consultation';
+  owner_id: string;
+  owner?: {
     id: string;
     username?: string;
+    email?: string;
     avatar?: string;
-    tags?: string | string[];
+  };
+  first_participant_id?: string;
+  first_participant?: {
+    id: string;
+    username?: string;
+    email?: string;
+    avatar?: string;
   };
   last_message?: MessageApiResponse;
-  unread_count?: number;
+  unread_count: number;
+  message_count: number;
+  last_message_at?: string;
   updated_at: string;
-  status: string;
-  consultation_type?: string;
-  summary?: string;
-  is_ai_controlled?: boolean;
+  created_at: string;
+  is_active: boolean;
+  is_archived: boolean;
+  is_pinned?: boolean;
+  pinned_at?: string;
 }
 
 export interface MessageApiResponse {
@@ -101,11 +113,13 @@ export interface MessageApiResponse {
 }
 
 /**
- * 创建会话请求参数
+ * 创建会话请求参数 - 与后端ConversationCreate schema保持一致
  */
 export interface CreateConversationRequest {
-  customer_id: string;
+  customer_id: string; // 保持向后兼容，后端会映射到owner_id
   title: string;
+  chat_mode?: 'single' | 'group';
+  tag?: 'chat' | 'consultation';
 }
 
 /**

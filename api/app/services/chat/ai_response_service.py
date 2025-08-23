@@ -117,7 +117,7 @@ class AIResponseService:
         """从会话中获取用户档案信息"""
         try:
             conversation = self.db.query(Conversation).filter(Conversation.id == conversation_id).first()
-            if conversation and conversation.customer_id:
+            if conversation and conversation.owner_id:
                 # 这里可以从Customer表获取用户档案信息
                 # 暂时返回基本信息
                 return {"user_type": "customer", "conversation_id": conversation_id}
@@ -130,8 +130,8 @@ class AIResponseService:
         """从会话中获取用户ID"""
         try:
             conversation = self.db.query(Conversation).filter(Conversation.id == conversation_id).first()
-            if conversation and conversation.customer_id:
-                return conversation.customer_id
+            if conversation and conversation.owner_id:
+                return conversation.owner_id
             return f"anonymous_{conversation_id}"
         except Exception as e:
             logger.error(f"获取用户ID失败: {e}")

@@ -15,7 +15,7 @@ import { useWebSocketByPage } from '@/hooks/useWebSocketByPage'
 import { useSearch } from '@/hooks/useSearch'
 
 interface ChatWindowProps {
-  conversationId?: string;
+  conversationId?: string|null|undefined;
 }
 
 export default function ChatWindow({ conversationId }: ChatWindowProps) {
@@ -381,9 +381,6 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
                 <h3 className="text-lg font-medium text-gray-700 mb-2">开始对话</h3>
-                <p className="text-sm text-gray-500 text-center max-w-md">
-                  这是一个新的对话。发送您的第一条消息开始交流吧！
-                </p>
               </div>
             )}
           </>

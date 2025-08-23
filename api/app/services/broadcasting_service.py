@@ -261,8 +261,8 @@ class BroadcastingService:
             participants = []
             
             # 添加客户ID
-            if conversation.customer_id:
-                participants.append(conversation.customer_id)
+            if conversation.owner_id:
+                participants.append(conversation.owner_id)
             
             # 添加分配的顾问ID
             if conversation.assigned_consultant_id:
