@@ -53,11 +53,7 @@ function SmartCommunicationContent() {
     messages,
     loadingMessages,
     loadMessages,
-    importantMessages,
-    showImportantOnly,
-    toggleShowImportantOnly,
-    toggleMessageImportant,
-    getDisplayMessages
+    toggleMessageImportant
   } = useMessageState(selectedConversationId);
   
   // UI状态管理
@@ -197,7 +193,7 @@ function SmartCommunicationContent() {
 
 
   // 使用页面级WebSocket架构
-  const { lastMessage } = useWebSocketByPage()
+  useWebSocketByPage()
   
   // 加载状态
   if (loading) {
@@ -271,19 +267,16 @@ function SmartCommunicationContent() {
               key={selectedConversationId}
               conversation={selectedConversation}
               messages={messages}
-              importantMessages={importantMessages}
-              showImportantOnly={showImportantOnly}
               loadingMessages={loadingMessages}
               isConsultant={isConsultant}
               hasCustomerProfile={!!selectedCustomerId}
               onAction={handleConversationAction}
-              onToggleShowImportantOnly={toggleShowImportantOnly}
-              onToggleMessageImportant={toggleMessageImportant}
               onLoadMessages={loadMessages}
               onCustomerProfileToggle={handleCustomerProfileToggle}
               onSearchToggle={handleSearchToggle}
               onImportantToggle={handleImportantToggle}
               onSettingsToggle={handleSettingsToggle}
+              toggleMessageImportant={toggleMessageImportant}
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-gray-50">

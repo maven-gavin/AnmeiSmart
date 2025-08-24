@@ -15,37 +15,31 @@ import { getDisplayTitle, groupMessagesByDate } from '@/utils/conversationUtils'
 interface ChatWindowProps {
   conversation: Conversation;
   messages: Message[];
-  importantMessages: Message[];
-  showImportantOnly: boolean;
   loadingMessages: boolean;
   isConsultant?: boolean;
   hasCustomerProfile?: boolean;
   onAction: (action: string, conversationId: string) => void;
-  onToggleShowImportantOnly: () => void;
-  onToggleMessageImportant: (messageId: string, currentStatus?: boolean) => Promise<void>;
   onLoadMessages: (forceRefresh?: boolean) => Promise<void>;
   onCustomerProfileToggle?: () => void;
   onSearchToggle?: () => void;
   onImportantToggle?: () => void;
   onSettingsToggle?: () => void;
+  toggleMessageImportant?: (messageId: string, currentStatus: boolean) => Promise<void>;
 }
 
 export default function ChatWindow({ 
   conversation, 
   messages, 
-  importantMessages,
-  showImportantOnly,
   loadingMessages,
   isConsultant = false,
   hasCustomerProfile = false,
-  onAction, 
-  onToggleShowImportantOnly,
-  onToggleMessageImportant,
+  onAction,
   onLoadMessages,
   onCustomerProfileToggle,
   onSearchToggle,
   onImportantToggle,
-  onSettingsToggle
+  onSettingsToggle,
+  toggleMessageImportant
 }: ChatWindowProps) {
   const { user } = useAuthContext();
 
@@ -75,7 +69,7 @@ export default function ChatWindow({
   // 新消息自动滚动
   useEffect(() => {
     scrollToBottom()
-  }, [showImportantOnly ? importantMessages : messages, scrollToBottom])
+  }, [messages, scrollToBottom])
 
   // 处理发送消息
   const handleSendMessage = useCallback(async (message: Message) => {
@@ -111,13 +105,13 @@ export default function ChatWindow({
   const handleToggleImportant = useCallback(async (messageId: string) => {
     try {
       const message = messages.find(msg => msg.id === messageId);
-      if (message) {
-        await onToggleMessageImportant(messageId, message.is_important || false);
+      if (message && toggleMessageImportant) {
+        await toggleMessageImportant(messageId, message.is_important || false);
       }
     } catch (error) {
       //DODO： Toast 告知用户标记重点消息失败
     }
-  }, [messages, onToggleMessageImportant]);
+  }, [messages, toggleMessageImportant]);
 
   const handleReaction = useCallback(async (messageId: string, emoji: string) => {
     //DODO： Toast 告知用户添加响应
@@ -154,9 +148,8 @@ export default function ChatWindow({
 
   // 按日期分组消息
   const messageGroups = useMemo(() => {
-    const displayMessages = showImportantOnly ? importantMessages : messages;
-    return groupMessagesByDate(displayMessages);
-  }, [showImportantOnly, importantMessages, messages]);
+    return groupMessagesByDate(messages);
+  }, [messages]);
 
   // 渲染标题编辑区域
   const renderTitleSection = () => (
@@ -182,34 +175,6 @@ export default function ChatWindow({
         </h4>
       )}
     </div>
-  );
-
-  // 渲染重点消息切换按钮
-  const renderImportantToggle = () => (
-    <button
-      className={`rounded-full px-3 py-1 text-xs font-medium flex items-center space-x-1 transition-colors ${
-        showImportantOnly 
-        ? 'bg-orange-100 text-orange-700 border border-orange-300' 
-        : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
-      }`}
-      onClick={onToggleShowImportantOnly}
-    >
-      <svg 
-        className={`h-4 w-4 ${showImportantOnly ? 'text-orange-500' : 'text-gray-500'}`} 
-        fill="currentColor" 
-        viewBox="0 0 20 20"
-      >
-        <path 
-          fillRule="evenodd" 
-          d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" 
-          clipRule="evenodd" 
-        />
-      </svg>
-      <span>
-        {showImportantOnly ? '查看全部消息' : '仅显示重点标记'}
-        {importantMessages.length > 0 && ` (${importantMessages.length})`}
-      </span>
-    </button>
   );
 
   // 渲染消息列表
@@ -246,24 +211,7 @@ export default function ChatWindow({
 
   // 渲染空状态
   const renderEmptyState = () => {
-    if (showImportantOnly && importantMessages.length === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center h-32 text-gray-500">
-          <svg className="h-12 w-12 mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-          </svg>
-          <p className="text-sm">暂无标记的重点消息</p>
-          <button 
-            className="mt-2 text-sm text-orange-500 hover:underline"
-            onClick={onToggleShowImportantOnly}
-          >
-            返回全部消息
-          </button>
-        </div>
-      );
-    }
-
-    if (!showImportantOnly && messages.length === 0) {
+    if (messages.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center h-64 text-gray-500">
           <svg className="h-16 w-16 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -282,7 +230,6 @@ export default function ChatWindow({
       {/* 消息列表顶部按钮 */}
       <div className="border-b border-gray-200 bg-white p-2 shadow-sm flex justify-between">
         {renderTitleSection()}
-        {renderImportantToggle()}
         {/* 更多操作菜单 */}
         <ChatActionsMenu
           conversationId={conversation.id}
