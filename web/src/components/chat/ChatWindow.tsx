@@ -296,6 +296,7 @@ export default function ChatWindow({
       <div className="border-b border-gray-200 bg-white p-2 shadow-sm flex justify-between">
         {renderTitleSection()}
         {renderImportantToggle()}
+        {/* TODO： 更多按钮：1、开关查找聊天内容 2、开关重点消息 3、咨询会话有开关客户资料 4、开关会话设置（添加参与者，搜索群成员，消息免打挠，置顶聊天） */}
         <Button
           variant="ghost"
           size="sm"
