@@ -28,55 +28,6 @@ interface MessageInputProps {
   messages?: Message[]; // 传递给FAQ使用
 }
 
-/**
- * 发送文字消息
- */
-function createTextMessage(content: string, conversationId: string): Message {
-  const currentUser = authService.getCurrentUser();
-  if (!currentUser) {
-    throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
-  }
-  
-  const userRole = currentUser.currentRole || 'customer';
-  const localId = `local_${uuidv4()}`;
-  const now = new Date().toISOString();
-  
-  // 创建文本消息内容
-  const textContent: TextMessageContent = {
-    text: content
-  };
-  
-  // 创建用户消息（pending状态）
-  const userMessage: Message = {
-    id: localId, // 使用临时ID，保存后会更新为服务器ID
-    localId, // 本地标识
-    conversationId: conversationId || '',
-    content: textContent,
-    type: 'text',
-    sender: {
-      id: currentUser.id,
-      type: userRole,
-      name: currentUser.name,
-      avatar: currentUser.avatar || '/avatars/user.png',
-    },
-    timestamp: now,
-    createdAt: now,
-    // 消息状态相关字段
-    status: 'pending',
-    canRetry: true, // 失败后可重试
-    canDelete: true, // 可以删除
-    canRecall: false, // 初始时不可撤销，发送成功后1分钟内可撤销
-  };
-  
-  return userMessage;
-}
-
-
-
-
-
-
-
 export default function MessageInput({
   conversationId,
   onSendMessage,
@@ -133,10 +84,10 @@ export default function MessageInput({
 
   // 处理消息发送
   const handleSendMessage = useCallback(async () => {
-    const trimmedMessage = message.trim();
+    const flatMessage = message.trim();
     
     // 检查是否有内容可发送（文字、图片、文件或语音）
-    if (!trimmedMessage && !imagePreview && !filePreview && !audioPreview) {
+    if (!flatMessage && !imagePreview && !filePreview && !audioPreview) {
       return;
     }
 
@@ -146,7 +97,7 @@ export default function MessageInput({
     try {
       // 如果有图片预览，发送图片消息（可能包含文字）
       if (imagePreview) {
-        await sendImageMessage(imagePreview, trimmedMessage || undefined);
+        await sendImageMessage(imagePreview, flatMessage || undefined);
         
         // 清理状态
         setMessage('');
@@ -154,7 +105,7 @@ export default function MessageInput({
       }
       // 如果有文件预览，发送文件消息
       else if (filePreview) {
-        await sendFileMessage(filePreview, trimmedMessage || undefined);
+        await sendFileMessage(filePreview, flatMessage || undefined);
         
         // 清理状态
         setMessage('');
@@ -162,17 +113,16 @@ export default function MessageInput({
       }
       // 如果有语音预览，发送语音消息
       else if (audioPreview) {
-        await sendAudioMessage(audioPreview, trimmedMessage || undefined);
+        await sendAudioMessage(audioPreview, flatMessage || undefined);
         
         // 清理状态
         setMessage('');
         cancelAudioPreview();
       }
       // 如果只有文字，发送文字消息
-      else if (trimmedMessage) {
-        const textMessage = createTextMessage(trimmedMessage, conversationId);
-        await onSendMessage(textMessage);
-        
+      else if (flatMessage) {
+        await sendTextMessage(flatMessage);
+
         // 清理状态
         setMessage('');
       }
@@ -183,6 +133,56 @@ export default function MessageInput({
       setIsSending(false);
     }
   }, [message, imagePreview, filePreview, audioPreview, conversationId, onSendMessage, cancelImagePreview, cancelFilePreview, cancelAudioPreview]);
+
+  
+  
+  /**
+   * 发送文字消息
+   */
+  const sendTextMessage = async (content: string) => {
+    try {
+      const currentUser = authService.getCurrentUser();
+      if (!currentUser) {
+        throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
+      }
+      
+      const userRole = currentUser.currentRole || 'customer';
+      const localId = `local_${uuidv4()}`;
+      const now = new Date().toISOString();
+      
+      // 创建文本消息内容
+      const textContent: TextMessageContent = {
+        text: content
+      };
+      
+      // 创建用户消息（pending状态）
+      const textMessage: Message = {
+        id: localId, // 使用临时ID，保存后会更新为服务器ID
+        localId, // 本地标识
+        conversationId: conversationId || '',
+        content: textContent,
+        type: 'text',
+        sender: {
+          id: currentUser.id,
+          type: userRole,
+          name: currentUser.name,
+          avatar: currentUser.avatar || '/avatars/user.png',
+        },
+        timestamp: now,
+        createdAt: now,
+        // 消息状态相关字段
+        status: 'pending',
+        canRetry: true, // 失败后可重试
+        canDelete: true, // 可以删除
+        canRecall: false, // 初始时不可撤销，发送成功后1分钟内可撤销
+      };
+      
+      await onSendMessage(textMessage);
+    } catch (error) {
+      console.error('发送文本消息失败:', error);
+      throw error;
+    }
+  }
 
   // 发送图片消息
   const sendImageMessage = async (imageUrl: string, text?: string) => {
@@ -242,7 +242,7 @@ export default function MessageInput({
           avatar: user?.avatar || '',
         },
         timestamp: new Date().toISOString(),
-        status: 'sent'
+        status: 'pending'
       };
 
       await onSendMessage(mediaMessage);
@@ -303,7 +303,7 @@ export default function MessageInput({
           avatar: user?.avatar || '',
         },
         timestamp: new Date().toISOString(),
-        status: 'sent'
+        status: 'pending'
       };
 
       await onSendMessage(mediaMessage);
@@ -371,7 +371,7 @@ export default function MessageInput({
           avatar: user?.avatar || '',
         },
         timestamp: new Date().toISOString(),
-        status: 'sent'
+        status: 'pending'
       };
 
       await onSendMessage(mediaMessage);

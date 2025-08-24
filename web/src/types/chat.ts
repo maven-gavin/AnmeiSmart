@@ -34,15 +34,15 @@ export interface FileInfo {
 
 // 新的媒体信息接口（统一消息模型）
 export interface MediaInfo {
-  url: string;
-  name: string;
-  mime_type: string;
-  size_bytes: number;
-  metadata?: {
-    width?: number;
-    height?: number;
-    duration_seconds?: number;
-    [key: string]: any;
+  url: string; // 媒体文件的访问URL地址
+  name: string; // 媒体文件的原始文件名
+  mime_type: string; // 媒体文件的MIME类型（如：image/jpeg, audio/mp3, video/mp4等）
+  size_bytes: number; // 媒体文件的大小（字节）
+  metadata?: { // 媒体文件的元数据信息
+    width?: number; // 图片/视频的宽度（像素）
+    height?: number; // 图片/视频的高度（像素）
+    duration_seconds?: number; // 音频/视频的时长（秒）
+    [key: string]: any; // 其他扩展的元数据字段
   };
 }
 
