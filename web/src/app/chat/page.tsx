@@ -11,6 +11,9 @@ import { ErrorDisplay } from '@/components/ui/ErrorDisplay';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { ChatWebSocketStatus } from '@/components/chat/ChatWebSocketStatus';
+// 自定义hooks
+import { useConversationState } from '@/hooks/useConversationState';
+import { useMessageState } from '@/hooks/useMessageState';
 
 function SmartCommunicationContent() {
   const router = useRouter();
@@ -33,132 +36,112 @@ function SmartCommunicationContent() {
   const selectedConversationId = searchParams?.get('conversationId');
   const selectedFriendId = searchParams?.get('friend');
   
+  // 使用自定义hooks管理状态
+  const {
+    conversations,
+    loadingConversations,
+    selectedConversation,
+    getConversation
+  } = useConversationState();
+
+  const {
+    messages,
+    loadingMessages,
+    loadMessages,
+    importantMessages,
+    showImportantOnly,
+    toggleShowImportantOnly,
+    toggleMessageImportant,
+    getDisplayMessages
+  } = useMessageState(selectedConversationId);
+  
   // UI状态管理
   const [isSwitchingConversation, setIsSwitchingConversation] = useState(false);
   const [loadingFriendConversation, setLoadingFriendConversation] = useState(false);
   const prevConversationIdRef = useRef<string | null>(selectedConversationId);
-  
+
+  // 当会话ID变化时加载消息
+  useEffect(() => {
+    if (selectedConversationId) {
+      loadMessages(false);
+    }
+  }, [selectedConversationId, loadMessages]);
 
   const createFriendConversation = async (friendId: string) => {
-    console.log('👥 [createFriendConversation] 创建好友会话开始');
-    console.log('  - friendId:', friendId);
-    console.log('  - 设置 loadingFriendConversation = true');
-    
     setLoadingFriendConversation(true);
     try {
       const { startConversationWithFriend } = await import('@/service/contacts/chatIntegration');
       const conversation = await startConversationWithFriend(friendId);
-      
-      console.log('  - 创建会话成功:', conversation);
       const url = `/chat?conversationId=${conversation.id}`;
-      console.log('  - 跳转到:', url);
-      
-      // 更新URL，移除friend参数，添加conversation参数
       router.replace(url, { scroll: false });
     } catch (error) {
-      console.error('❌ [createFriendConversation] 创建好友会话失败:', error);
-      // 可以显示错误提示
+      console.error('创建好友会话失败:', error);
     } finally {
-      console.log('  - 设置 loadingFriendConversation = false');
       setLoadingFriendConversation(false);
     }
   };
   
   const handleStartNewConsultation = async () => {
-    console.log('🏥 [handleStartNewConsultation] 开始新咨询会话');
-    console.log('  - 设置 loadingFriendConversation = true');
-    
     setLoadingFriendConversation(true);
     try {
-      // 调用咨询API创建新的咨询会话
       const { apiClient } = await import('@/service/apiClient');
       const response = await apiClient.post('/consultation/sessions');
       const consultation = response.data as { id: string };
-      
-      console.log('  - 创建咨询会话成功:', consultation);
       const url = `/chat?conversationId=${consultation.id}`;
-      console.log('  - 跳转到:', url);
-      
-      // 跳转到新创建的咨询会话
       router.push(url, { scroll: false });
     } catch (error) {
-      console.error('❌ [handleStartNewConsultation] 创建咨询会话失败:', error);
-      // 可以显示错误提示
+      console.error('创建咨询会话失败:', error);
       alert('创建咨询会话失败，请重试');
     } finally {
-      console.log('  - 设置 loadingFriendConversation = false');
       setLoadingFriendConversation(false);
     }
   };
 
   // 处理好友会话创建
   useEffect(() => {
-    console.log('👥 [useEffect] 好友会话创建检查');
-    console.log('  - selectedFriendId:', selectedFriendId);
-    console.log('  - selectedConversationId:', selectedConversationId);
-    console.log('  - 条件 (selectedFriendId && !selectedConversationId):', selectedFriendId && !selectedConversationId);
-    
     if (selectedFriendId && !selectedConversationId) {
-      console.log('✅ [useEffect] 触发好友会话创建');
       createFriendConversation(selectedFriendId);
-    } else {
-      console.log('❌ [useEffect] 不创建好友会话');
     }
   }, [selectedFriendId, selectedConversationId]);
   
   // 处理会话ID变化时的切换动画
   useEffect(() => {
-    console.log('🔍 [useEffect] 会话切换动画检查开始');
-    console.log('  - selectedConversationId:', selectedConversationId);
-    console.log('  - prevConversationIdRef.current:', prevConversationIdRef.current);
-    console.log('  - 条件1 (selectedConversationId !== prevConversationIdRef.current):', selectedConversationId !== prevConversationIdRef.current);
-    console.log('  - 条件2 (prevConversationIdRef.current !== null):', prevConversationIdRef.current !== null);
-    console.log('  - 组合条件:', selectedConversationId !== prevConversationIdRef.current && prevConversationIdRef.current !== null);
-    
     if (selectedConversationId !== prevConversationIdRef.current && prevConversationIdRef.current !== null) {
-      console.log('✅ [useEffect] 触发会话切换动画');
-      console.log('  - 设置 isSwitchingConversation = true');
       setIsSwitchingConversation(true);
       
       const timer = setTimeout(() => {
-        console.log('⏰ [useEffect] 定时器回调执行');
-        console.log('  - 设置 isSwitchingConversation = false');
-        console.log('  - 更新 prevConversationIdRef.current =', selectedConversationId);
         setIsSwitchingConversation(false);
         prevConversationIdRef.current = selectedConversationId;
       }, 300);
       
-      console.log('  - 设置定时器，ID:', timer);
-      return () => {
-        console.log('🧹 [useEffect] 清理定时器，ID:', timer);
-        clearTimeout(timer);
-      };
+      return () => clearTimeout(timer);
     } else {
-      console.log('❌ [useEffect] 不触发切换动画，直接更新引用');
-      console.log('  - 更新 prevConversationIdRef.current =', selectedConversationId);
       prevConversationIdRef.current = selectedConversationId;
     }
   }, [selectedConversationId]);
 
   // 会话选择处理
-  const handleConversationSelect = useCallback((conversationId: string, customerId: string, tag: string) => {
-    console.log('🎯 [handleConversationSelect] 会话选择处理开始');
-    console.log('  - conversationId:', conversationId);
-    console.log('  - customerId:', customerId);
-    console.log('  - tag:', tag);
-    console.log('  - isConsultant:', isConsultant);
-    console.log('  - 设置 isSwitchingConversation = true');
+  const handleConversationSelect = useCallback(async (conversationId: string) => {
+    const conversation = await getConversation(conversationId);
+    if (!conversation) {
+      console.error('获取会话详情失败');
+      return;
+    }
         
-    if (isConsultant && tag === 'consultation') {
+    if (isConsultant && conversation.tag === 'consultation') {
+      const customerId = conversation.owner_id;
       const url = `/chat?customerId=${customerId}&conversationId=${conversationId}`;
-      console.log('  - 顾问咨询会话，跳转到:', url);
       router.push(url, { scroll: false });
     } else {
       const url = `/chat?conversationId=${conversationId}`;
-      console.log('  - 普通会话，跳转到:', url);
       router.push(url, { scroll: false });
     }
-  }, [router, isConsultant]);
+  }, [router, isConsultant, getConversation]);
+
+  // 会话操作处理
+  const handleConversationAction = useCallback((action: string, conversationId: string) => {
+    console.log('会话操作:', action, conversationId);
+  }, []);
 
   // 权限检查未通过时显示错误
   if (!isAuthorized && error) {
@@ -195,10 +178,9 @@ function SmartCommunicationContent() {
           <div className="flex items-center space-x-3">
             <ChatWebSocketStatus />
             
-            {/* TODO: 功能待修改为开始新的咨询，仅客户角色显示该按钮 */}
-            {isCustomer ? (
+            {isCustomer && (
               <button
-                onClick={() => router.push('/chat')}
+                onClick={handleStartNewConsultation}
                 className="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
               >
                 <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -206,7 +188,7 @@ function SmartCommunicationContent() {
                 </svg>
                 开始新的咨询
               </button>
-            ) : null}
+            )}
           </div>
         </div>
       </div>
@@ -216,6 +198,8 @@ function SmartCommunicationContent() {
         {/* 左侧：历史会话列表 */}
         <div className="w-80 flex-shrink-0 border-r border-gray-200 bg-white">
           <ConversationHistoryList 
+            conversations={conversations}
+            isLoading={loadingConversations}
             onConversationSelect={handleConversationSelect}
             selectedConversationId={selectedConversationId}
           />
@@ -231,10 +215,18 @@ function SmartCommunicationContent() {
                 <p className="text-gray-500">请稍候，正在为您准备与好友的对话</p>
               </div>
             </div>
-          ) : selectedConversationId ? (
+          ) : selectedConversationId && selectedConversation ? (
             <ChatWindow 
               key={selectedConversationId}
-              conversationId={selectedConversationId} 
+              conversation={selectedConversation}
+              messages={messages}
+              importantMessages={importantMessages}
+              showImportantOnly={showImportantOnly}
+              loadingMessages={loadingMessages}
+              onAction={handleConversationAction}
+              onToggleShowImportantOnly={toggleShowImportantOnly}
+              onToggleMessageImportant={toggleMessageImportant}
+              onLoadMessages={loadMessages}
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-gray-50">

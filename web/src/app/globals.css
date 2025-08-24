@@ -3,6 +3,20 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* 自定义动画 */
+@keyframes loading-bar {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+.animate-loading-bar {
+  animation: loading-bar 0.3s ease-in-out;
+}
+
 :root {
   --primary: oklch(0.216 0.006 56.043);
   --primary-gradient: linear-gradient(90deg, #FF9800 0%, #FFC107 100%);

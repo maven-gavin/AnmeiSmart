@@ -5,117 +5,48 @@ import { Conversation, type Message } from '@/types/chat'
 import ChatMessage from '@/components/chat/message/ChatMessage'
 import { SearchBar } from '@/components/chat/SearchBar'
 import MessageInput from '@/components/chat/MessageInput'
-import { getOrCreateConversation, markMessageAsImportant, saveMessage, getConversationDetails, updateConversationTitle  } from '@/service/chatService'
+import { saveMessage, updateConversationTitle  } from '@/service/chatService'
 import { useAuthContext } from '@/contexts/AuthContext'
-import { useSearchParams, useRouter } from 'next/navigation'
-
+import { MoreHorizontal } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 // 自定义hooks
-import { useChatMessages } from '@/hooks/useChatMessages'
 import { useWebSocketByPage } from '@/hooks/useWebSocketByPage'
 import { useSearch } from '@/hooks/useSearch'
+// 工具函数
+import { getDisplayTitle, groupMessagesByDate } from '@/utils/conversationUtils'
 
 interface ChatWindowProps {
-  conversationId: string;
+  conversation: Conversation;
+  messages: Message[];
+  importantMessages: Message[];
+  showImportantOnly: boolean;
+  loadingMessages: boolean;
+  onAction: (action: string, conversationId: string) => void;
+  onToggleShowImportantOnly: () => void;
+  onToggleMessageImportant: (messageId: string, currentStatus?: boolean) => Promise<void>;
+  onLoadMessages: (forceRefresh?: boolean) => Promise<void>;
 }
 
-export default function ChatWindow({ conversationId }: ChatWindowProps) {
-  const router = useRouter();
-  const searchParams = useSearchParams()
+export default function ChatWindow({ 
+  conversation, 
+  messages, 
+  importantMessages,
+  showImportantOnly,
+  loadingMessages,
+  onAction, 
+  onToggleShowImportantOnly,
+  onToggleMessageImportant,
+  onLoadMessages
+}: ChatWindowProps) {
   const { user } = useAuthContext();
-  
-  // 状态管理
-  const [currentConversationId, setCurrentConversationId] = useState<string>(
-    conversationId || searchParams?.get('conversationId') || ''
-  )
 
+  // 标题编辑状态
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
 
-  const [currentConversation, setCurrentConversation] = useState<Conversation>()
-  
-  // 引用和挂载状态
+  // 聊天容器引用
   const chatContainerRef = useRef<HTMLDivElement>(null)
-  const mounted = useRef(false)
-
-
-  // 开始编辑标题
-  const startEditTitle = (conversation: Conversation, e: React.MouseEvent) => {
-    e.stopPropagation(); // 阻止选择会话
-    setEditingTitleId(conversation.id);
-    setEditingTitle(conversation.title || '');
-    setTimeout(() => {
-      editInputRef.current?.focus();
-      editInputRef.current?.select();
-    }, 0);
-  };
-
-  // 保存标题
-  const saveTitle = async (conversationId: string) => {
-    if (!editingTitle.trim()) {
-      cancelEditTitle();
-      return;
-    }
-
-    try {
-      await updateConversationTitle(conversationId, editingTitle.trim());
-          
-      setEditingTitleId(null);
-      setEditingTitle('');
-    } catch (error) {
-      console.error('更新会话标题失败:', error);
-      // 可以添加错误提示
-    }
-  };
-
-  // 取消编辑
-  const cancelEditTitle = () => {
-    setEditingTitleId(null);
-    setEditingTitle('');
-  };
-
-  // 处理键盘事件
-  const handleKeyDown = (e: React.KeyboardEvent, conversationId: string) => {
-    if (e.key === 'Enter') {
-      saveTitle(conversationId);
-    } else if (e.key === 'Escape') {
-      cancelEditTitle();
-    }
-  };  
-
-
-  // 截取内容作为默认标题
-  const getDisplayTitle = (conversation: Conversation): string => {
-    if (conversation.title) {
-      return conversation.title;
-    }
-    
-    // 如果没有标题，使用最后一条消息的内容
-    if (conversation.first_participant?.name) {
-      return conversation.first_participant.name
-    }
-    
-    return `会话 ${new Date(conversation.updatedAt).toLocaleDateString()}`;
-  };
-
-  // 组件挂载状态管理
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
-
-  // 自定义hooks
-  const {
-    messages,
-    importantMessages,
-    showImportantOnly,
-    isLoading,
-    silentlyUpdateMessages,
-    toggleShowImportantOnly,
-    addMessage
-  } = useChatMessages({ conversationId: currentConversationId, mounted })
 
   const {
     showSearch,
@@ -133,23 +64,6 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
   // 使用页面级WebSocket架构
   const { lastMessage } = useWebSocketByPage()
 
-  // 监听conversationId变化
-  useEffect(() => {
-    getConversationDetails(conversationId).then(conversation => {
-      setCurrentConversation(conversation)
-    })
-    if (conversationId) {
-      if (conversationId !== currentConversationId) {
-        setCurrentConversationId(conversationId)
-      }
-    } else {
-      const urlConversationId = searchParams?.get('conversationId')
-      if (urlConversationId && urlConversationId !== currentConversationId) {
-        setCurrentConversationId(urlConversationId)
-      }
-    }
-  }, [conversationId, searchParams, currentConversationId])
-
   // 滚动到底部
   const scrollToBottom = useCallback(() => {
     if (chatContainerRef.current) {
@@ -157,26 +71,49 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
     }
   }, [])
 
-  // 监听WebSocket消息
-  useEffect(() => {
-    if (!lastMessage || !currentConversationId) return
-
-    if (lastMessage.action === 'new_message' && 
-        lastMessage.data?.conversation_id === currentConversationId) {
-      silentlyUpdateMessages().then(hasNewMessage => {
-        if (hasNewMessage) {
-          setTimeout(scrollToBottom, 100)
-        }
-      }).catch(error => {
-        console.error('更新消息失败:', error)
-      })
-    }
-  }, [lastMessage, currentConversationId, silentlyUpdateMessages, scrollToBottom])
-
   // 新消息自动滚动
   useEffect(() => {
     scrollToBottom()
   }, [showImportantOnly ? importantMessages : messages, scrollToBottom])
+
+  // 标题编辑相关函数
+  const startEditTitle = (conversation: Conversation, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingTitleId(conversation.id);
+    setEditingTitle(conversation.title || '');
+    setTimeout(() => {
+      editInputRef.current?.focus();
+      editInputRef.current?.select();
+    }, 0);
+  };
+
+  const saveTitle = async (conversationId: string) => {
+    if (!editingTitle.trim()) {
+      cancelEditTitle();
+      return;
+    }
+
+    try {
+      await updateConversationTitle(conversationId, editingTitle.trim());
+      setEditingTitleId(null);
+      setEditingTitle('');
+    } catch (error) {
+      console.error('更新会话标题失败:', error);
+    }
+  };
+
+  const cancelEditTitle = () => {
+    setEditingTitleId(null);
+    setEditingTitle('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, conversationId: string) => {
+    if (e.key === 'Enter') {
+      saveTitle(conversationId);
+    } else if (e.key === 'Escape') {
+      cancelEditTitle();
+    }
+  };
 
   // 处理发送消息
   const handleSendMessage = useCallback(async (message: Message) => {
@@ -184,158 +121,199 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
       throw new Error('用户未登录，请重新登录')
     }
 
-    let targetConversationId = currentConversationId
-
     try {
-      // 如果没有会话ID，创建新会话
-      if (!targetConversationId) {
-        const conversation = await getOrCreateConversation()
-        targetConversationId = conversation.id
-        setCurrentConversationId(conversation.id)
-        router.replace(`?conversationId=${conversation.id}`, { scroll: false })
-      }
-
-      // 设置正确的会话ID
-      message.conversationId = targetConversationId;
+      message.conversationId = conversation.id;
       
       // 立即添加到本地状态以提供即时反馈
-      addMessage(message);
+      // 这里需要通知父组件添加消息
       setTimeout(scrollToBottom, 100);
       
       // 异步保存到后端
       try {
         const savedMessage = await saveMessage(message);
-        
-        // 更新消息状态为成功，并使用服务器返回的ID
         message.status = 'sent';
         message.id = savedMessage.id;
-        
-        // 静默刷新消息列表以获取最新状态
-        setTimeout(() => {
-          silentlyUpdateMessages();
-        }, 100);
-        
       } catch (saveError) {
-        // 保存失败，更新消息状态
         message.status = 'failed';
         message.error = saveError instanceof Error ? saveError.message : '发送失败';
         console.error('保存消息到后端失败:', saveError);
-        
-        // 静默刷新消息列表以反映失败状态
-        setTimeout(() => {
-          silentlyUpdateMessages();
-        }, 100);
       }
-      
     } catch (error) {
       console.error('处理消息发送失败:', error)
-      // 如果是添加到本地状态之前就失败了，更新消息状态
       if (message.status === 'pending') {
         message.status = 'failed';
         message.error = error instanceof Error ? error.message : '发送失败';
       }
     }
-  }, [currentConversationId, router, user, scrollToBottom, addMessage, silentlyUpdateMessages])
+  }, [conversation.id, user, scrollToBottom])
 
   // 消息操作回调函数
   const handleToggleImportant = useCallback(async (messageId: string) => {
-    if (!currentConversationId) return;
-    
     try {
       const message = messages.find(msg => msg.id === messageId);
       if (message) {
-        await markMessageAsImportant(currentConversationId, messageId, !message.is_important);
-        // 更新本地状态
-        silentlyUpdateMessages();
+        await onToggleMessageImportant(messageId, message.is_important || false);
       }
     } catch (error) {
       console.error('标记重点消息失败:', error);
     }
-  }, [currentConversationId, messages, silentlyUpdateMessages]);
+  }, [messages, onToggleMessageImportant]);
 
   const handleReaction = useCallback(async (messageId: string, emoji: string) => {
-    // TODO: 实现消息反应功能
     console.log('添加反应:', messageId, emoji);
   }, []);
 
   const handleReply = useCallback((message: Message) => {
-    // TODO: 实现回复功能
     console.log('回复消息:', message);
   }, []);
 
   const handleDelete = useCallback(async (messageId: string) => {
-    // TODO: 实现删除消息功能
     console.log('删除消息:', messageId);
   }, []);
 
   const handleRetry = useCallback(async (message: Message) => {
-    if (!currentConversationId) return;
-    
     try {
-      // 更新消息状态为pending
       message.status = 'pending';
       message.error = undefined;
       
-      // 重新发送消息
       const savedMessage = await saveMessage(message);
-      
-      // 发送成功，更新消息状态
       message.status = 'sent';
       message.id = savedMessage.id;
-      
-      // 刷新消息列表以反映状态变化
-      silentlyUpdateMessages();
-      
     } catch (error) {
-      // 发送失败，恢复失败状态
       message.status = 'failed';
       message.error = error instanceof Error ? error.message : '重试发送失败';
       console.error('重试发送消息失败:', error);
-      
-      // 刷新消息列表以反映状态变化
-      silentlyUpdateMessages();
     }
-  }, [currentConversationId, silentlyUpdateMessages]);
+  }, []);
 
   const handleCardAction = useCallback((action: string, data: any) => {
-    // TODO: 实现卡片操作功能
     console.log('卡片操作:', action, data);
   }, []);
 
   // 按日期分组消息
   const messageGroups = useMemo(() => {
-    const formatMessageDate = (timestamp: string): string => {
-      const date = new Date(timestamp)
-      const today = new Date()
-      const yesterday = new Date()
-      yesterday.setDate(yesterday.getDate() - 1)
-      
-      if (date.toDateString() === today.toDateString()) {
-        return '今天'
-      } else if (date.toDateString() === yesterday.toDateString()) {
-        return '昨天'
-      } else {
-        return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
-      }
+    const displayMessages = showImportantOnly ? importantMessages : messages;
+    return groupMessagesByDate(displayMessages);
+  }, [showImportantOnly, importantMessages, messages]);
+
+  // 渲染标题编辑区域
+  const renderTitleSection = () => (
+    <div className="flex items-center justify-between mb-1">
+      {editingTitleId === conversation.id ? (
+        <input
+          ref={editInputRef}
+          type="text"
+          value={editingTitle}
+          onChange={(e) => setEditingTitle(e.target.value)}
+          onBlur={() => saveTitle(conversation.id)}
+          onKeyDown={(e) => handleKeyDown(e, conversation.id)}
+          className="flex-1 text-sm font-medium bg-white border border-orange-300 rounded px-2 py-1 focus:outline-none focus:border-orange-500"
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <h4 
+          className="text-sm font-medium text-gray-800 truncate cursor-pointer hover:text-orange-600"
+          onClick={(e) => startEditTitle(conversation, e)}
+          title="点击编辑标题"
+        >
+          {getDisplayTitle(conversation)}
+        </h4>
+      )}
+    </div>
+  );
+
+  // 渲染重点消息切换按钮
+  const renderImportantToggle = () => (
+    <button
+      className={`rounded-full px-3 py-1 text-xs font-medium flex items-center space-x-1 transition-colors ${
+        showImportantOnly 
+        ? 'bg-orange-100 text-orange-700 border border-orange-300' 
+        : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+      }`}
+      onClick={onToggleShowImportantOnly}
+    >
+      <svg 
+        className={`h-4 w-4 ${showImportantOnly ? 'text-orange-500' : 'text-gray-500'}`} 
+        fill="currentColor" 
+        viewBox="0 0 20 20"
+      >
+        <path 
+          fillRule="evenodd" 
+          d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" 
+          clipRule="evenodd" 
+        />
+      </svg>
+      <span>
+        {showImportantOnly ? '查看全部消息' : '仅显示重点标记'}
+        {importantMessages.length > 0 && ` (${importantMessages.length})`}
+      </span>
+    </button>
+  );
+
+  // 渲染消息列表
+  const renderMessageList = () => (
+    <>
+      {messageGroups.map((group) => (
+        <div key={group.date} className="space-y-4">
+          {/* 日期分隔符 */}
+          <div className="flex items-center justify-center my-4">
+            <div className="h-px flex-grow bg-gray-200" />
+            <div className="mx-4 text-xs text-gray-500">{group.date}</div>
+            <div className="h-px flex-grow bg-gray-200" />
+          </div>
+          
+          {/* 消息列表 */}
+          {group.messages.map(msg => (
+            <ChatMessage
+              key={msg.localId || msg.id}
+              message={msg}
+              isSelected={selectedMessageId === msg.id}
+              searchTerm={showSearch ? searchTerm : ''}
+              onToggleImportant={handleToggleImportant}
+              onReaction={handleReaction}
+              onReply={handleReply}
+              onDelete={handleDelete}
+              onRetry={handleRetry}
+              onCardAction={handleCardAction}
+            />
+          ))}
+        </div>
+      ))}
+    </>
+  );
+
+  // 渲染空状态
+  const renderEmptyState = () => {
+    if (showImportantOnly && importantMessages.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center h-32 text-gray-500">
+          <svg className="h-12 w-12 mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+          </svg>
+          <p className="text-sm">暂无标记的重点消息</p>
+          <button 
+            className="mt-2 text-sm text-orange-500 hover:underline"
+            onClick={onToggleShowImportantOnly}
+          >
+            返回全部消息
+          </button>
+        </div>
+      );
     }
 
-    const messagesToGroup = showImportantOnly ? importantMessages : messages
-    const groups: { date: string; messages: Message[] }[] = []
-    
-    messagesToGroup.forEach((msg: Message) => {
-      const dateStr = formatMessageDate(msg.timestamp)
-      
-      let group = groups.find(g => g.date === dateStr)
-      if (!group) {
-        group = { date: dateStr, messages: [] }
-        groups.push(group)
-      }
-      
-      group.messages.push(msg)
-    })
-    
-    return groups
-  }, [showImportantOnly, importantMessages, messages])
+    if (!showImportantOnly && messages.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+          <svg className="h-16 w-16 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          <h3 className="text-lg font-medium text-gray-700 mb-2">开始对话</h3>
+        </div>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -355,53 +333,16 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
 
       {/* 消息列表顶部按钮 */}
       <div className="border-b border-gray-200 bg-white p-2 shadow-sm flex justify-between">
-        <div className="flex items-center justify-between mb-1">
-          {editingTitleId === currentConversationId && currentConversation ? (
-            <input
-              ref={editInputRef}
-              type="text"
-              value={editingTitle}
-              onChange={(e) => setEditingTitle(e.target.value)}
-              onBlur={() => saveTitle(currentConversation.id)}
-              onKeyDown={(e) => handleKeyDown(e, currentConversation.id)}
-              className="flex-1 text-sm font-medium bg-white border border-orange-300 rounded px-2 py-1 focus:outline-none focus:border-orange-500"
-              onClick={(e) => e.stopPropagation()}
-            />
-          ) : (
-            <h4 
-              className="text-sm font-medium text-gray-800 truncate cursor-pointer hover:text-orange-600"
-              onClick={(e) => currentConversation && startEditTitle(currentConversation, e)}
-              title="点击编辑标题"
-            >
-              {currentConversation ? getDisplayTitle(currentConversation) : '加载中...'}
-            </h4>
-          )}
-        </div>
-        {/* 重点消息切换按钮 */}
-        <button
-          className={`rounded-full px-3 py-1 text-xs font-medium flex items-center space-x-1 transition-colors ${
-            showImportantOnly 
-            ? 'bg-orange-100 text-orange-700 border border-orange-300' 
-            : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
-          }`}
-          onClick={toggleShowImportantOnly}
+        {renderTitleSection()}
+        {renderImportantToggle()}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onAction('more', conversation.id)}
+          className="h-8 w-8 p-0"
         >
-          <svg 
-            className={`h-4 w-4 ${showImportantOnly ? 'text-orange-500' : 'text-gray-500'}`} 
-            fill="currentColor" 
-            viewBox="0 0 20 20"
-          >
-            <path 
-              fillRule="evenodd" 
-              d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" 
-              clipRule="evenodd" 
-            />
-          </svg>
-          <span>
-            {showImportantOnly ? '查看全部消息' : '仅显示重点标记'}
-            {importantMessages.length > 0 && ` (${importantMessages.length})`}
-          </span>
-        </button>
+          <MoreHorizontal className="w-4 h-4" />
+        </Button>
       </div>
       
       {/* 聊天记录 */}
@@ -411,7 +352,7 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
         className="flex-1 overflow-y-auto p-4 space-y-4"
       >
         {/* 加载状态 */}
-        {isLoading && (
+        {loadingMessages && (
           <div className="flex items-center justify-center h-32">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-2"></div>
@@ -419,73 +360,23 @@ export default function ChatWindow({ conversationId }: ChatWindowProps) {
             </div>
           </div>
         )}
+        
         {/* 只有在不加载时才显示内容 */}
-        {!isLoading && (
+        {!loadingMessages && (
           <>
-            {/* 分组消息列表 */}
-            {messageGroups.map((group) => (
-              <div key={group.date} className="space-y-4">
-                {/* 日期分隔符 */}
-                <div className="flex items-center justify-center my-4">
-                  <div className="h-px flex-grow bg-gray-200" />
-                  <div className="mx-4 text-xs text-gray-500">{group.date}</div>
-                  <div className="h-px flex-grow bg-gray-200" />
-                </div>
-                
-                {/* 消息列表 */}
-                {group.messages.map(msg => (
-                  <ChatMessage
-                    key={msg.localId || msg.id}
-                    message={msg}
-                    isSelected={selectedMessageId === msg.id}
-                    searchTerm={showSearch ? searchTerm : ''}
-                    onToggleImportant={handleToggleImportant}
-                    onReaction={handleReaction}
-                    onReply={handleReply}
-                    onDelete={handleDelete}
-                    onRetry={handleRetry}
-                    onCardAction={handleCardAction}
-                  />
-                ))}
-              </div>
-            ))}
-            
-            {/* 空状态显示 */}
-            {showImportantOnly && importantMessages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-32 text-gray-500">
-                <svg className="h-12 w-12 mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                </svg>
-                <p className="text-sm">暂无标记的重点消息</p>
-                <button 
-                  className="mt-2 text-sm text-orange-500 hover:underline"
-                  onClick={() => toggleShowImportantOnly()}
-                >
-                  返回全部消息
-                </button>
-              </div>
-            )}
-            
-            {/* 会话无消息时的欢迎界面 */}
-            {!showImportantOnly && messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-                <svg className="h-16 w-16 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-                <h3 className="text-lg font-medium text-gray-700 mb-2">开始对话</h3>
-              </div>
-            )}
+            {renderMessageList()}
+            {renderEmptyState()}
           </>
         )}
       </div>
       
       {/* 消息输入组件 */}
       <MessageInput
-        conversationId={currentConversationId}
+        conversationId={conversation.id}
         onSendMessage={handleSendMessage}
         toggleSearch={() => setShowSearch(!showSearch)}
         showSearch={showSearch}
-        onUpdateMessages={silentlyUpdateMessages}
+        onUpdateMessages={() => {}}
         messages={messages}
       />
     </div>

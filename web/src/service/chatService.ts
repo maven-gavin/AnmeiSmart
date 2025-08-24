@@ -4,7 +4,6 @@
  * 保持向后兼容性，确保现有代码不会中断
  */
 
-
 import { authService } from "./authService";
 import { AppError, ErrorType } from './errors';
 import { ConnectionStatus } from './websocket';
@@ -38,8 +37,6 @@ export async function initializeWebSocket(userId: string, conversationId: string
     // 处理排队的消息
     const messageQueue = chatState.getMessageQueue();
     if (messageQueue.length > 0) {
-      console.log(`处理排队的消息，共${messageQueue.length}条`);
-      
       for (const queuedMessage of messageQueue) {
         if (queuedMessage.conversation_id === conversationId) {
           chatWebSocket.sendMessage(queuedMessage);
@@ -75,15 +72,13 @@ export function closeWebSocketConnection(): void {
   chatState.setLastConnectedConversationId(null);
 }
 
-/***
+/**
  * 保存消息
  * @param message 消息
  * @returns 保存后的消息
  */
 export async function saveMessage(message: Message): Promise<Message> {
   try {
-    console.log('开始保存消息:', JSON.stringify(message));
-
     // 验证必要字段
     if (!message.conversationId) {
       throw new AppError(ErrorType.VALIDATION, 400, '消息缺少会话ID');
@@ -95,12 +90,6 @@ export async function saveMessage(message: Message): Promise<Message> {
 
     // 调用API保存消息
     const savedMessage = await ChatApiService.saveMessage(message);
-    
-    console.log('消息保存成功:', {
-      id: savedMessage.id,
-      localId: message.localId,
-      timestamp: savedMessage.timestamp
-    });
 
     // 更新本地缓存
     if (savedMessage.conversationId) {
@@ -126,8 +115,6 @@ export async function saveMessage(message: Message): Promise<Message> {
  * 发送WebSocket消息
  */
 export function sendWebSocketMessage(message: any): boolean {
-  console.log('准备通过WebSocket发送消息:', message);
-  
   if (!message.conversation_id) {
     console.error('发送的消息没有会话ID，无法继续');
     return false;
@@ -139,8 +126,6 @@ export function sendWebSocketMessage(message: any): boolean {
     // 检查当前连接的会话ID是否匹配
     const lastConnectedId = chatState.getLastConnectedConversationId();
     if (lastConnectedId !== conversationId) {
-      console.warn(`当前WebSocket连接的会话ID(${lastConnectedId})与要发送消息的会话ID(${conversationId})不一致，将重新连接`);
-      
       // 将消息加入队列
       chatState.addToMessageQueue(message);
       
@@ -157,7 +142,6 @@ export function sendWebSocketMessage(message: any): boolean {
     return chatWebSocket.sendMessage(message);
   } else {
     // WebSocket未连接，将消息加入队列
-    console.log('WebSocket未连接，将消息加入队列');
     chatState.addToMessageQueue(message);
     
     // 尝试连接
@@ -218,20 +202,15 @@ export function removeMessageCallback(action: string, callback: (message: any) =
  */
 export async function syncChatData(conversationId: string): Promise<void> {
   try {
-    console.log(`同步会话数据: ${conversationId}`);
-    
     // 重新获取会话数据和消息数据
     await Promise.all([
       getConversations(),
       getConversationMessages(conversationId)
     ]);
-    
-    console.log(`会话数据同步完成: ${conversationId}`);
   } catch (error) {
     console.error('会话数据同步出错:', error);
   }
 }
-
 
 // ===== 会话和消息数据管理 =====
 
@@ -405,8 +384,8 @@ export async function getCustomerConsultationHistory(customerId: string): Promis
     const history = conversations.map(conversation => ({
       id: conversation.id,
       date: new Date(conversation.updatedAt).toLocaleDateString('zh-CN'),
-      type: conversation.consultationType || '一般咨询',
-      description: conversation.summary || '无咨询总结'
+      type: conversation.tag === 'consultation' ? '咨询会话' : '一般会话',
+      description: conversation.title || '无咨询总结'
     }));
     
     // 按日期降序排序（最新的在前）
