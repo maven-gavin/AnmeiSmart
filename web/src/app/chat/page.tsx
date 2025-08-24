@@ -14,6 +14,7 @@ import { ChatWebSocketStatus } from '@/components/chat/ChatWebSocketStatus';
 // 自定义hooks
 import { useConversationState } from '@/hooks/useConversationState';
 import { useMessageState } from '@/hooks/useMessageState';
+import { useWebSocketByPage } from '@/hooks/useWebSocketByPage'
 
 function SmartCommunicationContent() {
   const router = useRouter();
@@ -147,6 +148,10 @@ function SmartCommunicationContent() {
   if (!isAuthorized && error) {
     return <ErrorDisplay error={error} />;
   }
+
+
+  // 使用页面级WebSocket架构
+  const { lastMessage } = useWebSocketByPage()
   
   // 加载状态
   if (loading) {

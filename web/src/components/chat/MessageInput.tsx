@@ -22,7 +22,7 @@ import { useSearchParams } from 'next/navigation';
 import { Send, Smile, Image, Paperclip, Mic, Search } from 'lucide-react';
 
 interface MessageInputProps {
-  conversationId?: string | null;
+  conversationId: string;
   onSendMessage: (message: Message) => Promise<void>;
   toggleSearch: () => void;
   showSearch: boolean;
@@ -174,13 +174,12 @@ export default function MessageInput({
       }
       // 如果只有文字，发送文字消息
       else if (trimmedMessage) {
-        const textMessage = createTextMessage(trimmedMessage, conversationId || '');
+        const textMessage = createTextMessage(trimmedMessage, conversationId);
         await onSendMessage(textMessage);
         
         // 清理状态
         setMessage('');
       }
-
     } catch (error) {
       console.error('发送消息失败:', error);
       setSendError(error instanceof Error ? error.message : '发送失败');
@@ -189,48 +188,8 @@ export default function MessageInput({
     }
   }, [message, imagePreview, filePreview, audioPreview, conversationId, onSendMessage, cancelImagePreview, cancelFilePreview, cancelAudioPreview]);
 
-  // 发送文件消息
-  const sendFileMessage = useCallback(async (fileInfo: FileInfo, text?: string) => {
-    try {
-      // 获取原始文件对象
-      const originalFile = getTempFile(fileInfo.file_url);
-      if (!originalFile) {
-        throw new Error('文件已丢失，请重新选择');
-      }
-
-      // 构建FormData，包含文件和附带文字
-      const formData = new FormData();
-      formData.append('file', originalFile);
-      formData.append('conversation_id', conversationId || '');
-      if (text && text.trim()) {
-        formData.append('text', text.trim());
-      }
-
-      // 直接调用后端文件上传API，它会自动创建消息
-      const response = await apiClient.upload<{ success: boolean; message: string; file_info: any }>(
-        '/files/upload', 
-        formData
-      );
-
-      if (!response.data?.success) {
-        throw new Error(response.data?.message || '上传失败');
-      }
-
-      // 上传成功，刷新消息列表以显示新消息
-      if (onUpdateMessages) {
-        setTimeout(() => {
-          onUpdateMessages();
-        }, 100);
-      }
-      
-    } catch (error) {
-      console.error('发送文件消息失败:', error);
-      throw error;
-    }
-  }, [getTempFile, conversationId, onUpdateMessages]);
-
   // 发送图片消息
-  const sendImageMessage = useCallback(async (imageUrl: string, text?: string) => {
+  const sendImageMessage = async (imageUrl: string, text?: string) => {
     try {
       // 从 blob URL 获取文件数据
       const urlToFile = async (objectUrl: string, filename: string): Promise<File> => {
@@ -248,48 +207,118 @@ export default function MessageInput({
       const filename = `image_${timestamp}.png`;
       const file = await urlToFile(imageUrl, filename);
       
-      console.log('准备上传图片文件:', {
-        name: file.name,
-        type: file.type,
-        size: file.size
-      });
-      
-      // 构建FormData，包含文件和附带文字
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('conversation_id', conversationId || '');
-      if (text && text.trim()) {
-        formData.append('text', text.trim());
+      formData.append('conversation_id', conversationId);
+      if (text) {
+        formData.append('text', text);
       }
 
-      // 直接调用后端文件上传API，它会自动创建消息
-      const response = await apiClient.upload<{ success: boolean; message: string; file_info: any }>(
-        '/files/upload', 
-        formData
-      );
+      const response = await fetch('/api/v1/files/upload', {
+        method: 'POST',
+        body: formData,
+      });
 
-      if (!response.data?.success) {
-        throw new Error(response.data?.message || '上传失败');
+      if (!response.ok) {
+        throw new Error('图片上传失败');
       }
 
-      // 上传成功，刷新消息列表以显示新消息
-      if (onUpdateMessages) {
-        setTimeout(() => {
-          onUpdateMessages();
-        }, 100);
-      }
+      const result = await response.json();
+      
+      // 创建媒体消息
+      const mediaMessage: Message = {
+        id: result.id || `local_${Date.now()}`,
+        conversationId: conversationId,
+        content: {
+          text: text,
+          media_info: {
+            url: result.file_url,
+            name: result.file_name,
+            mime_type: result.mime_type,
+            size_bytes: result.file_size,
+          }
+        },
+        type: 'media',
+        sender: {
+          id: user?.id || '',
+          type: 'user',
+          name: user?.name || '',
+          avatar: user?.avatar || '',
+        },
+        timestamp: new Date().toISOString(),
+        status: 'sent'
+      };
+
+      await onSendMessage(mediaMessage);
       
       // 清理 blob URL 以释放内存
       URL.revokeObjectURL(imageUrl);
-      
     } catch (error) {
       console.error('发送图片消息失败:', error);
       throw error;
     }
-  }, [conversationId, onUpdateMessages]);
+  };
+
+  // 发送文件消息
+  const sendFileMessage = async (fileInfo: FileInfo, text?: string) => {
+    try {
+      // 获取原始文件对象
+      const originalFile = getTempFile(fileInfo.file_url);
+      if (!originalFile) {
+        throw new Error('文件已丢失，请重新选择');
+      }
+
+      const formData = new FormData();
+      formData.append('file', originalFile);
+      formData.append('conversation_id', conversationId);
+      if (text) {
+        formData.append('text', text);
+      }
+
+      const response = await fetch('/api/v1/files/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('文件上传失败');
+      }
+
+      const result = await response.json();
+      
+      // 创建媒体消息
+      const mediaMessage: Message = {
+        id: result.id || `local_${Date.now()}`,
+        conversationId: conversationId,
+        content: {
+          text: text,
+          media_info: {
+            url: result.file_url,
+            name: result.file_name,
+            mime_type: result.mime_type,
+            size_bytes: result.file_size,
+          }
+        },
+        type: 'media',
+        sender: {
+          id: user?.id || '',
+          type: 'user',
+          name: user?.name || '',
+          avatar: user?.avatar || '',
+        },
+        timestamp: new Date().toISOString(),
+        status: 'sent'
+      };
+
+      await onSendMessage(mediaMessage);
+    } catch (error) {
+      console.error('发送文件消息失败:', error);
+      throw error;
+    }
+  };
 
   // 发送语音消息
-  const sendAudioMessage = useCallback(async (audioUrl: string, text?: string) => {
+  const sendAudioMessage = async (audioUrl: string, text?: string) => {
     try {
       // 从 Object URL 获取 Blob 数据
       const urlToFile = async (objectUrl: string, filename: string): Promise<File> => {
@@ -307,45 +336,57 @@ export default function MessageInput({
       const filename = `voice_${timestamp}.webm`;
       const file = await urlToFile(audioUrl, filename);
       
-      console.log('准备上传语音文件:', {
-        name: file.name,
-        type: file.type,
-        size: file.size
-      });
-      
-      // 构建FormData，包含文件和附带文字
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('conversation_id', conversationId || '');
-      if (text && text.trim()) {
-        formData.append('text', text.trim());
+      formData.append('conversation_id', conversationId);
+      if (text) {
+        formData.append('text', text);
       }
 
-      // 直接调用后端文件上传API，它会自动创建消息
-      const response = await apiClient.upload<{ success: boolean; message: string; file_info: any }>(
-        '/files/upload', 
-        formData
-      );
+      const response = await fetch('/api/v1/files/upload', {
+        method: 'POST',
+        body: formData,
+      });
 
-      if (!response.data?.success) {
-        throw new Error(response.data?.message || '上传失败');
+      if (!response.ok) {
+        throw new Error('语音上传失败');
       }
 
-      // 上传成功，刷新消息列表以显示新消息
-      if (onUpdateMessages) {
-        setTimeout(() => {
-          onUpdateMessages();
-        }, 100);
-      }
+      const result = await response.json();
+      
+      // 创建媒体消息
+      const mediaMessage: Message = {
+        id: result.id || `local_${Date.now()}`,
+        conversationId: conversationId,
+        content: {
+          text: text,
+          media_info: {
+            url: result.file_url,
+            name: result.file_name,
+            mime_type: result.mime_type,
+            size_bytes: result.file_size,
+          }
+        },
+        type: 'media',
+        sender: {
+          id: user?.id || '',
+          type: 'user',
+          name: user?.name || '',
+          avatar: user?.avatar || '',
+        },
+        timestamp: new Date().toISOString(),
+        status: 'sent'
+      };
+
+      await onSendMessage(mediaMessage);
       
       // 清理 Object URL 以释放内存
       URL.revokeObjectURL(audioUrl);
-      
     } catch (error) {
       console.error('发送语音消息失败:', error);
       throw error;
     }
-  }, [conversationId, onUpdateMessages]);
+  };
 
   // 处理键盘事件
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {

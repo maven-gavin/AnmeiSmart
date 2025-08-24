@@ -5,13 +5,12 @@ import { Conversation, type Message } from '@/types/chat'
 import ChatMessage from '@/components/chat/message/ChatMessage'
 import { SearchBar } from '@/components/chat/SearchBar'
 import MessageInput from '@/components/chat/MessageInput'
-import { saveMessage, updateConversationTitle  } from '@/service/chatService'
+import { saveMessage } from '@/service/chatService'
 import { useAuthContext } from '@/contexts/AuthContext'
 import { MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-// 自定义hooks
-import { useWebSocketByPage } from '@/hooks/useWebSocketByPage'
 import { useSearch } from '@/hooks/useSearch'
+import { useConversationTitleEditor } from '@/hooks/useConversationTitleEditor'
 // 工具函数
 import { getDisplayTitle, groupMessagesByDate } from '@/utils/conversationUtils'
 
@@ -40,13 +39,19 @@ export default function ChatWindow({
 }: ChatWindowProps) {
   const { user } = useAuthContext();
 
-  // 标题编辑状态
-  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
-  const [editingTitle, setEditingTitle] = useState('');
-  const editInputRef = useRef<HTMLInputElement>(null);
-
   // 聊天容器引用
   const chatContainerRef = useRef<HTMLDivElement>(null)
+
+  // 使用标题编辑hook
+  const {
+    editingTitleId,
+    editingTitle,
+    editInputRef,
+    setEditingTitle,
+    startEditTitle,
+    saveTitle,
+    handleKeyDown
+  } = useConversationTitleEditor();
 
   const {
     showSearch,
@@ -61,9 +66,6 @@ export default function ChatWindow({
     clearSearch
   } = useSearch(messages)
 
-  // 使用页面级WebSocket架构
-  const { lastMessage } = useWebSocketByPage()
-
   // 滚动到底部
   const scrollToBottom = useCallback(() => {
     if (chatContainerRef.current) {
@@ -76,49 +78,10 @@ export default function ChatWindow({
     scrollToBottom()
   }, [showImportantOnly ? importantMessages : messages, scrollToBottom])
 
-  // 标题编辑相关函数
-  const startEditTitle = (conversation: Conversation, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingTitleId(conversation.id);
-    setEditingTitle(conversation.title || '');
-    setTimeout(() => {
-      editInputRef.current?.focus();
-      editInputRef.current?.select();
-    }, 0);
-  };
-
-  const saveTitle = async (conversationId: string) => {
-    if (!editingTitle.trim()) {
-      cancelEditTitle();
-      return;
-    }
-
-    try {
-      await updateConversationTitle(conversationId, editingTitle.trim());
-      setEditingTitleId(null);
-      setEditingTitle('');
-    } catch (error) {
-      console.error('更新会话标题失败:', error);
-    }
-  };
-
-  const cancelEditTitle = () => {
-    setEditingTitleId(null);
-    setEditingTitle('');
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent, conversationId: string) => {
-    if (e.key === 'Enter') {
-      saveTitle(conversationId);
-    } else if (e.key === 'Escape') {
-      cancelEditTitle();
-    }
-  };
-
   // 处理发送消息
   const handleSendMessage = useCallback(async (message: Message) => {
     if (!user) {
-      throw new Error('用户未登录，请重新登录')
+      //DODO： Toast 告知用户未登陆，然后系统跳转到登陆页面
     }
 
     try {
@@ -136,14 +99,12 @@ export default function ChatWindow({
       } catch (saveError) {
         message.status = 'failed';
         message.error = saveError instanceof Error ? saveError.message : '发送失败';
-        console.error('保存消息到后端失败:', saveError);
+        //DODO： Toast 告知用户发送失败
       }
     } catch (error) {
-      console.error('处理消息发送失败:', error)
-      if (message.status === 'pending') {
-        message.status = 'failed';
-        message.error = error instanceof Error ? error.message : '发送失败';
-      }
+      message.status = 'failed';
+      message.error = error instanceof Error ? error.message : '发送失败';
+      //DODO： Toast 告知用户发送失败
     }
   }, [conversation.id, user, scrollToBottom])
 
@@ -155,20 +116,20 @@ export default function ChatWindow({
         await onToggleMessageImportant(messageId, message.is_important || false);
       }
     } catch (error) {
-      console.error('标记重点消息失败:', error);
+      //DODO： Toast 告知用户标记重点消息失败
     }
   }, [messages, onToggleMessageImportant]);
 
   const handleReaction = useCallback(async (messageId: string, emoji: string) => {
-    console.log('添加反应:', messageId, emoji);
+    //DODO： Toast 告知用户添加响应
   }, []);
 
   const handleReply = useCallback((message: Message) => {
-    console.log('回复消息:', message);
+    //DODO： Toast 告知用户回复消息
   }, []);
 
   const handleDelete = useCallback(async (messageId: string) => {
-    console.log('删除消息:', messageId);
+    //DODO： Toast 告知用户删除消息
   }, []);
 
   const handleRetry = useCallback(async (message: Message) => {
@@ -182,7 +143,7 @@ export default function ChatWindow({
     } catch (error) {
       message.status = 'failed';
       message.error = error instanceof Error ? error.message : '重试发送失败';
-      console.error('重试发送消息失败:', error);
+      //DODO： Toast 告知用户重试发送失败
     }
   }, []);
 
