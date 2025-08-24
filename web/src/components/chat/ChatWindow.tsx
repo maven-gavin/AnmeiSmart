@@ -1,16 +1,14 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useRef, useEffect, useCallback, useMemo } from 'react'
 import { Conversation, type Message } from '@/types/chat'
 import ChatMessage from '@/components/chat/message/ChatMessage'
-import { SearchBar } from '@/components/chat/SearchBar'
 import MessageInput from '@/components/chat/MessageInput'
 import { saveMessage } from '@/service/chatService'
 import { useAuthContext } from '@/contexts/AuthContext'
-import { MoreHorizontal } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useSearch } from '@/hooks/useSearch'
 import { useConversationTitleEditor } from '@/hooks/useConversationTitleEditor'
+// 新的菜单系统组件
+import { ChatActionsMenu } from '@/components/chat/ChatActionsMenu'
 // 工具函数
 import { getDisplayTitle, groupMessagesByDate } from '@/utils/conversationUtils'
 
@@ -20,10 +18,16 @@ interface ChatWindowProps {
   importantMessages: Message[];
   showImportantOnly: boolean;
   loadingMessages: boolean;
+  isConsultant?: boolean;
+  hasCustomerProfile?: boolean;
   onAction: (action: string, conversationId: string) => void;
   onToggleShowImportantOnly: () => void;
   onToggleMessageImportant: (messageId: string, currentStatus?: boolean) => Promise<void>;
   onLoadMessages: (forceRefresh?: boolean) => Promise<void>;
+  onCustomerProfileToggle?: () => void;
+  onSearchToggle?: () => void;
+  onImportantToggle?: () => void;
+  onSettingsToggle?: () => void;
 }
 
 export default function ChatWindow({ 
@@ -32,10 +36,16 @@ export default function ChatWindow({
   importantMessages,
   showImportantOnly,
   loadingMessages,
+  isConsultant = false,
+  hasCustomerProfile = false,
   onAction, 
   onToggleShowImportantOnly,
   onToggleMessageImportant,
-  onLoadMessages
+  onLoadMessages,
+  onCustomerProfileToggle,
+  onSearchToggle,
+  onImportantToggle,
+  onSettingsToggle
 }: ChatWindowProps) {
   const { user } = useAuthContext();
 
@@ -53,18 +63,7 @@ export default function ChatWindow({
     handleKeyDown
   } = useConversationTitleEditor();
 
-  const {
-    showSearch,
-    setShowSearch,
-    searchTerm,
-    searchResults,
-    selectedMessageId,
-    searchChatMessages,
-    goToNextSearchResult,
-    goToPreviousSearchResult,
-    closeSearch,
-    clearSearch
-  } = useSearch(messages)
+
 
   // 滚动到底部
   const scrollToBottom = useCallback(() => {
@@ -151,6 +150,8 @@ export default function ChatWindow({
     console.log('卡片操作:', action, data);
   }, []);
 
+
+
   // 按日期分组消息
   const messageGroups = useMemo(() => {
     const displayMessages = showImportantOnly ? importantMessages : messages;
@@ -228,8 +229,8 @@ export default function ChatWindow({
             <ChatMessage
               key={msg.localId || msg.id}
               message={msg}
-              isSelected={selectedMessageId === msg.id}
-              searchTerm={showSearch ? searchTerm : ''}
+              isSelected={false}
+              searchTerm={''}
               onToggleImportant={handleToggleImportant}
               onReaction={handleReaction}
               onReply={handleReply}
@@ -276,35 +277,22 @@ export default function ChatWindow({
     return null;
   };
 
-  return (
+    return (
     <div className="flex h-full flex-col">
-      {/* 搜索栏 */}
-      {showSearch && (
-        <SearchBar
-          searchTerm={searchTerm}
-          searchResults={searchResults}
-          selectedMessageId={selectedMessageId}
-          onSearchChange={searchChatMessages}
-          onClearSearch={clearSearch}
-          onNextResult={goToNextSearchResult}
-          onPreviousResult={goToPreviousSearchResult}
-          onClose={closeSearch}
-        />
-      )}
-
       {/* 消息列表顶部按钮 */}
       <div className="border-b border-gray-200 bg-white p-2 shadow-sm flex justify-between">
         {renderTitleSection()}
         {renderImportantToggle()}
-        {/* TODO： 更多按钮：1、开关查找聊天内容 2、开关重点消息 3、咨询会话有开关客户资料 4、开关会话设置（添加参与者，搜索群成员，消息免打挠，置顶聊天） */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onAction('more', conversation.id)}
-          className="h-8 w-8 p-0"
-        >
-          <MoreHorizontal className="w-4 h-4" />
-        </Button>
+        {/* 更多操作菜单 */}
+        <ChatActionsMenu
+          conversationId={conversation.id}
+          isConsultant={isConsultant}
+          hasCustomerProfile={hasCustomerProfile}
+          onSearchToggle={onSearchToggle || (() => {})}
+          onImportantMessagesToggle={onImportantToggle || (() => {})}
+          onCustomerProfileToggle={onCustomerProfileToggle || (() => {})}
+          onConversationSettings={onSettingsToggle || (() => {})}
+        />
       </div>
       
       {/* 聊天记录 */}
@@ -336,8 +324,6 @@ export default function ChatWindow({
       <MessageInput
         conversationId={conversation.id}
         onSendMessage={handleSendMessage}
-        toggleSearch={() => setShowSearch(!showSearch)}
-        showSearch={showSearch}
         onUpdateMessages={() => {}}
         messages={messages}
       />

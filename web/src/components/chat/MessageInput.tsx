@@ -19,13 +19,11 @@ import { apiClient } from '@/service/apiClient';
 import { useAuthContext } from '@/contexts/AuthContext';
 import PlanGenerationButton from './PlanGenerationButton';
 import { useSearchParams } from 'next/navigation';
-import { Send, Smile, Image, Paperclip, Mic, Search } from 'lucide-react';
+import { Send, Smile, Image, Paperclip, Mic } from 'lucide-react';
 
 interface MessageInputProps {
   conversationId: string;
   onSendMessage: (message: Message) => Promise<void>;
-  toggleSearch: () => void;
-  showSearch: boolean;
   onUpdateMessages?: () => void;
   messages?: Message[]; // 传递给FAQ使用
 }
@@ -82,8 +80,6 @@ function createTextMessage(content: string, conversationId: string): Message {
 export default function MessageInput({
   conversationId,
   onSendMessage,
-  toggleSearch,
-  showSearch,
   onUpdateMessages,
   messages = []
 }: MessageInputProps) {
@@ -515,19 +511,6 @@ export default function MessageInput({
           <div className="flex items-center space-x-3">
             {/* FAQ按钮 */}
             {faqSection.button}
-            
-            {/* 搜索按钮 */}
-            <button 
-              className={`p-1.5 rounded-md transition-colors ${
-                showSearch 
-                  ? 'text-orange-500 bg-orange-50' 
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={toggleSearch}
-              title="搜索聊天记录"
-            >
-              <Search className="h-4 w-4" />
-            </button>
             
             {/* 顾问接管按钮 */}
             <ConsultantTakeover conversationId={conversationId} className="p-1.5 rounded-md transition-colors" />

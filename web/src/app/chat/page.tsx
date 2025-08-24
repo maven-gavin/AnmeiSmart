@@ -8,6 +8,10 @@ import CustomerProfile from '@/components/profile/CustomerProfile';
 import ConversationHistoryList from '@/components/chat/ConversationHistoryList';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { ErrorDisplay } from '@/components/ui/ErrorDisplay';
+// 新增面板组件
+import { ChatSearchPanel } from '@/components/chat/ChatSearchPanel';
+import { ImportantMessagesPanel } from '@/components/chat/ImportantMessagesPanel';
+import { ConversationSettingsPanel } from '@/components/chat/ConversationSettingsPanel';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { ChatWebSocketStatus } from '@/components/chat/ChatWebSocketStatus';
@@ -59,6 +63,11 @@ function SmartCommunicationContent() {
   // UI状态管理
   const [isSwitchingConversation, setIsSwitchingConversation] = useState(false);
   const [loadingFriendConversation, setLoadingFriendConversation] = useState(false);
+  
+  // 右侧面板状态管理 - 每次只显示一个面板
+  type RightPanelType = 'customer' | 'search' | 'important' | 'settings' | null;
+  const [activeRightPanel, setActiveRightPanel] = useState<RightPanelType>('customer');
+  
   const prevConversationIdRef = useRef<string | null>(selectedConversationId);
 
   // 当会话ID变化时加载消息
@@ -142,6 +151,43 @@ function SmartCommunicationContent() {
   // 会话操作处理
   const handleConversationAction = useCallback((action: string, conversationId: string) => {
     console.log('会话操作:', action, conversationId);
+  }, []);
+
+  // 右侧面板切换处理
+  const handleRightPanelToggle = useCallback((panelType: RightPanelType) => {
+    setActiveRightPanel(current => current === panelType ? null : panelType);
+  }, []);
+
+  // 各面板的具体切换处理
+  const handleCustomerProfileToggle = useCallback(() => {
+    handleRightPanelToggle('customer');
+  }, [handleRightPanelToggle]);
+
+  const handleSearchToggle = useCallback(() => {
+    handleRightPanelToggle('search');
+  }, [handleRightPanelToggle]);
+
+  const handleImportantToggle = useCallback(() => {
+    handleRightPanelToggle('important');
+  }, [handleRightPanelToggle]);
+
+  const handleSettingsToggle = useCallback(() => {
+    handleRightPanelToggle('settings');
+  }, [handleRightPanelToggle]);
+
+  // 处理消息点击 - 滚动到指定消息
+  const handleMessageClick = useCallback((messageId: string) => {
+    setTimeout(() => {
+      const messageElement = document.getElementById(`message-${messageId}`);
+      const chatContainer = document.querySelector('[data-chat-container]');
+      
+      if (messageElement && chatContainer) {
+        chatContainer.scrollTo({
+          top: messageElement.offsetTop - 100,
+          behavior: 'smooth'
+        });
+      }
+    }, 100);
   }, []);
 
   // 权限检查未通过时显示错误
@@ -228,10 +274,16 @@ function SmartCommunicationContent() {
               importantMessages={importantMessages}
               showImportantOnly={showImportantOnly}
               loadingMessages={loadingMessages}
+              isConsultant={isConsultant}
+              hasCustomerProfile={!!selectedCustomerId}
               onAction={handleConversationAction}
               onToggleShowImportantOnly={toggleShowImportantOnly}
               onToggleMessageImportant={toggleMessageImportant}
               onLoadMessages={loadMessages}
+              onCustomerProfileToggle={handleCustomerProfileToggle}
+              onSearchToggle={handleSearchToggle}
+              onImportantToggle={handleImportantToggle}
+              onSettingsToggle={handleSettingsToggle}
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-gray-50">
@@ -254,13 +306,46 @@ function SmartCommunicationContent() {
           )}
         </div>
 
-        {/* 右侧：客户资料 */}
-        {isConsultant && selectedCustomerId && (
+        {/* 右侧面板区域 - 每次只显示一个面板 */}
+        {activeRightPanel && (
           <div className="w-80 flex-shrink-0 border-l border-gray-200 bg-white">
-            <CustomerProfile 
-              customerId={selectedCustomerId} 
-              conversationId={selectedConversationId || undefined} 
-            />
+            {/* 客户资料面板 */}
+            {activeRightPanel === 'customer' && isConsultant && selectedCustomerId && (
+              <CustomerProfile 
+                customerId={selectedCustomerId} 
+                conversationId={selectedConversationId || undefined} 
+              />
+            )}
+            
+            {/* 搜索面板 */}
+            {activeRightPanel === 'search' && selectedConversationId && (
+              <ChatSearchPanel
+                messages={messages}
+                isOpen={true}
+                onClose={() => setActiveRightPanel(null)}
+                onMessageClick={handleMessageClick}
+              />
+            )}
+            
+            {/* 重点消息面板 */}
+            {activeRightPanel === 'important' && selectedConversationId && (
+              <ImportantMessagesPanel
+                messages={messages}
+                isOpen={true}
+                onClose={() => setActiveRightPanel(null)}
+                onMessageClick={handleMessageClick}
+                onToggleImportant={toggleMessageImportant}
+              />
+            )}
+            
+            {/* 会话设置面板 */}
+            {activeRightPanel === 'settings' && selectedConversationId && selectedConversation && (
+              <ConversationSettingsPanel
+                conversationId={selectedConversation.id}
+                isOpen={true}
+                onClose={() => setActiveRightPanel(null)}
+              />
+            )}
           </div>
         )}
       </div>
