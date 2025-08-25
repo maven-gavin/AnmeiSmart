@@ -25,6 +25,9 @@ function SmartCommunicationContent() {
   const searchParams = useSearchParams();
   const { user } = useAuthContext();
   
+  // 使用页面级WebSocket架构 - 必须在所有条件返回之前调用
+  const websocketState = useWebSocketByPage();
+  
   // 使用公共的权限检查Hook，但不限制特定角色
   const { isAuthorized, error, loading } = useRoleGuard({
     requireAuth: true,
@@ -191,10 +194,6 @@ function SmartCommunicationContent() {
     return <ErrorDisplay error={error} />;
   }
 
-
-  // 使用页面级WebSocket架构
-  useWebSocketByPage()
-  
   // 加载状态
   if (loading) {
     return (
@@ -223,7 +222,14 @@ function SmartCommunicationContent() {
           </div>
           
           <div className="flex items-center space-x-3">
-            <WebSocketStatus />
+            <WebSocketStatus 
+              isConnected={websocketState.isConnected}
+              connectionStatus={websocketState.connectionStatus}
+              isEnabled={websocketState.isEnabled}
+              connectionType={websocketState.connectionType}
+              connect={websocketState.connect}
+              disconnect={websocketState.disconnect}
+            />
             
             {isCustomer && (
               <button

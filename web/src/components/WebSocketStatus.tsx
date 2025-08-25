@@ -1,22 +1,30 @@
 'use client';
 
-import { useWebSocketByPage } from '@/hooks/useWebSocketByPage';
 import { ConnectionStatus } from '@/service/websocket/types';
+
+/**
+ * WebSocket状态组件的Props接口
+ */
+export interface WebSocketStatusProps {
+  isConnected: boolean;
+  connectionStatus: ConnectionStatus;
+  isEnabled: boolean;
+  connectionType: string;
+  connect: () => Promise<boolean>;
+  disconnect: () => void;
+}
 
 /**
  * 聊天页面WebSocket状态指示器
  */
-export function WebSocketStatus() {
-  const {
-    isConnected,
-    connectionStatus,
-    isEnabled,
-    connectionType,
-    supportedFeatures,
-    connect,
-    disconnect
-  } = useWebSocketByPage();
-
+export function WebSocketStatus({
+  isConnected,
+  connectionStatus,
+  isEnabled,
+  connectionType,
+  connect,
+  disconnect
+}: WebSocketStatusProps) {
   // 如果当前页面不需要WebSocket，不显示状态
   if (!isEnabled) {
     return null;

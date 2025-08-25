@@ -54,10 +54,12 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
   const [editingFriendship, setEditingFriendship] = useState<Friendship | null>(null);
   
   // WebSocket实时功能 - 使用现有框架
-  const { isConnected, sendMessage } = useWebSocketByPage('contacts', {
-    onMessage: (data) => {
-      // 处理通讯录相关的WebSocket消息
-      const { type, payload } = data;
+  const websocketState = useWebSocketByPage();
+  
+  // 处理WebSocket消息
+  useEffect(() => {
+    if (websocketState.lastMessage) {
+      const { type, payload } = websocketState.lastMessage;
       
       switch (type) {
         case 'friend_request_received':
@@ -85,7 +87,7 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
           console.log('未知的通讯录WebSocket消息:', type);
       }
     }
-  });
+  }, [websocketState.lastMessage, selectedView]);
   
   // 加载数据
   useEffect(() => {

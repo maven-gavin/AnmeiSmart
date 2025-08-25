@@ -4,7 +4,8 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/contexts/AuthContext';
 import Link from 'next/link';
-import { ChatWebSocketStatus } from '@/components/WebSocketStatus';
+import { WebSocketStatus } from '@/components/WebSocketStatus';
+import { useWebSocketByPage } from '@/hooks/useWebSocketByPage';
 import AppLayout from '../layout/AppLayout';
 
 interface AdminCard {
@@ -17,6 +18,9 @@ interface AdminCard {
 export default function AdminDashboard() {
   const { user } = useAuthContext();
   const router = useRouter();
+  
+  // 使用页面级WebSocket架构
+  const websocketState = useWebSocketByPage();
 
   // 检查用户是否有管理员权限
   useEffect(() => {
@@ -74,7 +78,14 @@ export default function AdminDashboard() {
     <div className="container mx-auto px-4 py-6">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">管理员控制面板</h1>
-        <ChatWebSocketStatus />
+        <WebSocketStatus 
+          isConnected={websocketState.isConnected}
+          connectionStatus={websocketState.connectionStatus}
+          isEnabled={websocketState.isEnabled}
+          connectionType={websocketState.connectionType}
+          connect={websocketState.connect}
+          disconnect={websocketState.disconnect}
+        />
       </div>
       
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
