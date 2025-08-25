@@ -3,8 +3,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { authService } from '@/service/authService';
-import { chatWebSocket } from '@/service/chat/websocket';
-import { ConnectionStatus } from '@/service/websocket/types';
+import { getWebSocketClient, ConnectionStatus } from '@/service/websocket';
+import { SenderType } from '@/service/websocket/types';
+import { getDeviceInfo, getWebSocketDeviceConfig } from '@/service/utils';
+import { createCustomHandler } from '@/service/websocket/handlers';
 
 /**
  * 页面类型定义
@@ -126,175 +128,183 @@ export function useWebSocketByPage() {
     });
   }, [pathname]);
 
-  // 连接状态监听
+  // 消息处理
   useEffect(() => {
     if (!config?.enabled) return;
 
-    const statusListener = (event: any) => {
-      const newStatus = event.newStatus || ConnectionStatus.DISCONNECTED;
-      setConnectionStatus(newStatus);
-      setIsConnected(newStatus === ConnectionStatus.CONNECTED);
-      
-      if (newStatus === ConnectionStatus.CONNECTED && connectionRef.current) {
-        console.log(`页面WebSocket连接成功：${pathname}，连接类型：${config.connectionType}`);
-      }
+    const messageHandler = (data: any): boolean => {
+      setLastMessage(data);
+      return true; // 表示已处理
     };
 
-    // 添加状态监听器
-    chatWebSocket.addConnectionStatusListener(statusListener);
+    // 注册消息处理器
+    const wsClient = getWebSocketClient();
+    const handler = createCustomHandler('page-message-handler', [], messageHandler);
+    wsClient.registerHandler(handler);
 
-    // 立即检查当前连接状态（防止错过状态变化事件）
-    const currentStatus = chatWebSocket.getConnectionStatus();
-    const currentIsConnected = chatWebSocket.isConnected();
+    return () => {
+      wsClient.unregisterHandler('page-message-handler');
+    };
+  }, [config, pathname]);
+
+  // 连接管理
+  useEffect(() => {
+    if (!config?.enabled) return;
+
+    const user = authService.getCurrentUser();
     
-    console.log(`页面${pathname}检查当前WebSocket状态:`, {
-      currentStatus,
-      currentIsConnected,
-      connectionType: config.connectionType
-    });
+    const checkConnection = async () => {
+      const token = await authService.getValidToken();
+      const shouldDisconnect = !config.autoConnect || 
+        (config.requireAuth && !user) ||
+        (config.requireAuth && user && !token);
 
-    setConnectionStatus(currentStatus);
-    setIsConnected(currentIsConnected);
-
-    return () => {
-      chatWebSocket.removeConnectionStatusListener(statusListener);
-    };
-  }, [config, pathname]);
-
-  // 消息监听
-  useEffect(() => {
-    if (!config?.enabled) return;
-
-    const messageHandler = (data: any) => {
-      // 只处理当前页面相关的消息
-      if (config.features.includes(data.feature) || data.feature === '*') {
-        setLastMessage(data);
-        console.log(`页面收到WebSocket消息：${pathname}，类型：${data.action || data.type}`);
-      }
-    };
-
-    chatWebSocket.addMessageHandler('*', messageHandler);
-
-    return () => {
-      chatWebSocket.removeMessageHandler('*');
-    };
-  }, [config, pathname]);
-
-  // 智能连接管理
-  useEffect(() => {
-    const manageConnection = async () => {
-      if (!config) return;
-
-      const user = authService.getCurrentUser();
-      const isAuthenticated = !!user;
-
-      // 检查是否需要建立连接
-      const shouldConnect = 
-        config.enabled && 
-        (!config.requireAuth || isAuthenticated) && 
-        config.autoConnect &&
-        !isConnectingRef.current;
-
-      // 检查是否需要断开连接
-      const shouldDisconnect = 
-        !config.enabled || 
-        (config.requireAuth && !isAuthenticated) ||
-        !config.autoConnect;
+      const shouldConnect = config.autoConnect && 
+        (!config.requireAuth || (user && token));
 
       if (shouldDisconnect && isConnected) {
         console.log(`断开页面WebSocket连接：${pathname}，原因：配置变更或认证失效`);
-        chatWebSocket.disconnect();
+        getWebSocketClient().disconnect();
         connectionRef.current = null;
         return;
       }
 
       if (shouldConnect && !isConnected && !isConnectingRef.current) {
         // 检查是否已经存在连接
-        const currentIsConnected = chatWebSocket.isConnected();
+        const currentIsConnected = getWebSocketClient().isConnected();
         if (currentIsConnected) {
           console.log(`检测到已有WebSocket连接，更新页面状态：${pathname}`);
           setIsConnected(true);
-          setConnectionStatus(chatWebSocket.getConnectionStatus());
+          setConnectionStatus(getWebSocketClient().getConnectionStatus());
           return;
         }
 
-        try {
-          isConnectingRef.current = true;
-          
-          console.log(`建立页面WebSocket连接：${pathname}，类型：${config.connectionType}`);
-          
-          // 根据页面类型使用不同的连接策略
-          const connectionId = `${config.connectionType}_${pathname.replace(/\//g, '_')}_${Date.now()}`;
-          await chatWebSocket.connect(user!.id, connectionId);
-          
-          connectionRef.current = connectionId;
-        } catch (error) {
-          console.error(`页面WebSocket连接失败：${pathname}`, error);
-        } finally {
-          isConnectingRef.current = false;
-        }
+        // 异步连接
+        const connectAsync = async () => {
+          try {
+            isConnectingRef.current = true;
+            setIsConnected(true); // Assuming setIsConnecting is removed or replaced
+
+            // 重新获取用户信息，确保在异步函数中可用
+            const currentUser = authService.getCurrentUser();
+            if (!currentUser) {
+              throw new Error('用户未登录');
+            }
+
+            // 获取设备信息
+            const deviceInfo = await getDeviceInfo();
+            const deviceConfig = getWebSocketDeviceConfig(deviceInfo);
+
+            // 构建连接参数
+            const connectionParams = {
+              userId: currentUser.id,
+              token: await authService.getValidToken() || undefined,
+              userType: mapUserRoleToSenderType(currentUser.currentRole || 'user'),
+              connectionId: `${config.connectionType}_${pathname.replace(/\//g, '_')}_${Date.now()}`,
+              deviceId: deviceInfo?.deviceId,
+              deviceType: deviceInfo?.type,
+              deviceIP: deviceInfo?.ip,
+              userAgent: deviceInfo?.userAgent,
+              platform: deviceInfo?.platform,
+              screenResolution: deviceInfo ? `${deviceInfo.screenWidth}x${deviceInfo.screenHeight}` : undefined
+            };
+
+            // 根据页面类型使用不同的连接策略
+            const connectionId = `${config.connectionType}_${pathname.replace(/\//g, '_')}_${Date.now()}`;
+            await getWebSocketClient().connect(connectionParams);
+            
+            connectionRef.current = connectionId;
+            setIsConnected(true);
+            setConnectionStatus(getWebSocketClient().getConnectionStatus());
+            
+            console.log(`页面WebSocket连接成功：${pathname}，连接ID：${connectionId}`);
+          } catch (error) {
+            console.error(`页面WebSocket连接失败：${pathname}`, error);
+            setConnectionStatus(ConnectionStatus.ERROR);
+          } finally {
+            isConnectingRef.current = false;
+            // setIsConnecting(false); // Assuming setIsConnecting is removed or replaced
+          }
+        };
+
+        connectAsync();
       }
     };
 
-    manageConnection();
+    checkConnection();
   }, [config, pathname, isConnected]);
 
-  // 页面卸载时清理连接
+  // 页面卸载时断开连接
   useEffect(() => {
     return () => {
       if (connectionRef.current && isConnected) {
         console.log(`页面卸载，断开WebSocket连接：${pathname}`);
-        chatWebSocket.disconnect();
+        getWebSocketClient().disconnect();
         connectionRef.current = null;
       }
     };
-  }, [pathname]);
+  }, [pathname, isConnected]);
 
-  // 手动连接方法
-  const connect = async () => {
-    if (!config?.enabled || isConnectingRef.current) return false;
-
-    const user = authService.getCurrentUser();
-    if (config.requireAuth && !user) {
-      console.warn(`页面WebSocket连接失败：${pathname}，用户未认证`);
+  // 手动连接
+  const connect = async (): Promise<boolean> => {
+    if (!config?.enabled || isConnected || isConnectingRef.current) {
       return false;
     }
 
     try {
       isConnectingRef.current = true;
+      const user = authService.getCurrentUser();
       const connectionId = `${config.connectionType}_${pathname.replace(/\//g, '_')}_${Date.now()}`;
-      await chatWebSocket.connect(user?.id || 'anonymous', connectionId);
+      await getWebSocketClient().connect({
+        userId: user?.id || 'anonymous',
+        token: await authService.getValidToken() || undefined,
+        userType: mapUserRoleToSenderType(user?.currentRole || 'user'),
+        connectionId
+      });
       connectionRef.current = connectionId;
       return true;
     } catch (error) {
-      console.error(`手动WebSocket连接失败：${pathname}`, error);
+      console.error('手动连接WebSocket失败:', error);
       return false;
     } finally {
       isConnectingRef.current = false;
     }
   };
 
-  // 断开连接方法
+  // 手动断开
   const disconnect = () => {
     if (connectionRef.current) {
-      chatWebSocket.disconnect();
+      getWebSocketClient().disconnect();
       connectionRef.current = null;
     }
   };
 
-  // 发送消息方法
-  const sendMessage = (message: any) => {
-    if (!isConnected || !config?.enabled) {
-      console.warn(`无法发送消息：${pathname}，WebSocket未连接`);
+  // 发送消息
+  const sendMessage = (message: any): boolean => {
+    if (!isConnected) {
+      console.warn('WebSocket未连接，无法发送消息');
       return false;
     }
 
-    return chatWebSocket.sendMessage({
+    return getWebSocketClient().sendMessage({
       ...message,
       source_page: pathname,
-      connection_type: config.connectionType,
-      features: config.features
+      timestamp: new Date().toISOString()
     });
+  };
+
+  // 工具函数：映射用户角色到发送者类型
+  const mapUserRoleToSenderType = (role: string): SenderType => {
+    switch (role) {
+      case 'customer':
+        return SenderType.CUSTOMER;
+      case 'consultant':
+        return SenderType.CONSULTANT;
+      case 'doctor':
+        return SenderType.DOCTOR;
+      default:
+        return SenderType.USER;
+    }
   };
 
   return {

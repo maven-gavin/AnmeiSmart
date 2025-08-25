@@ -14,7 +14,7 @@ import { ImportantMessagesPanel } from '@/components/chat/ImportantMessagesPanel
 import { ConversationSettingsPanel } from '@/components/chat/ConversationSettingsPanel';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { ChatWebSocketStatus } from '@/components/WebSocketStatus';
+import { WebSocketStatus } from '@/components/WebSocketStatus';
 // 自定义hooks
 import { useConversationState } from '@/hooks/useConversationState';
 import { useMessageState } from '@/hooks/useMessageState';
@@ -223,7 +223,7 @@ function SmartCommunicationContent() {
           </div>
           
           <div className="flex items-center space-x-3">
-            <ChatWebSocketStatus />
+            <WebSocketStatus />
             
             {isCustomer && (
               <button

@@ -11,7 +11,4 @@ export { AI_INFO, SYSTEM_INFO, CACHE_TIME } from './types';
 export { ChatStateManager, chatState } from './state';
 
 // 导出API服务
-export { ChatApiService } from './api';
-
-// 导出WebSocket管理
-export { ChatWebSocketManager, chatWebSocket } from './websocket'; 
+export { ChatApiService } from './api'; 

@@ -6,71 +6,17 @@
 
 import { authService } from "./authService";
 import { AppError, ErrorType } from './errors';
-import { ConnectionStatus } from './websocket';
 
 // 导入重构后的模块
 import {
   chatState,
   ChatApiService,
-  chatWebSocket,
   type Message,
   type Conversation,
   type CustomerProfile,
   type Customer,
   type ConsultationHistoryItem
 } from './chat';
-
-// ===== WebSocket管理功能 =====
-
-/**
- * 初始化WebSocket连接
- * @param userId 用户ID
- * @param conversationId 会话ID
- */
-export async function initializeWebSocket(userId: string, conversationId: string): Promise<void> {
-  try {
-    await chatWebSocket.connect(userId, conversationId);
-    
-    // 设置连接状态
-    chatState.setLastConnectedConversationId(conversationId);
-    
-    // 处理排队的消息
-    const messageQueue = chatState.getMessageQueue();
-    if (messageQueue.length > 0) {
-      for (const queuedMessage of messageQueue) {
-        if (queuedMessage.conversation_id === conversationId) {
-          chatWebSocket.sendMessage(queuedMessage);
-        }
-      }
-      
-      // 清空消息队列
-      chatState.clearMessageQueue();
-    }
-    
-  } catch (error) {
-    console.error('初始化WebSocket连接失败:', error);
-    throw error;
-  }
-}
-
-/**
- * 关闭WebSocket连接
- */
-export function closeWebSocketConnection(): void {
-  // 清理防抖计时器
-  const timer = chatState.getConnectionDebounceTimer();
-  if (timer) {
-    clearTimeout(timer);
-    chatState.setConnectionDebounceTimer(null);
-  }
-  
-  // 断开连接
-  chatWebSocket.disconnect();
-  
-  // 清空状态
-  chatState.clearMessageQueue();
-  chatState.setLastConnectedConversationId(null);
-}
 
 /**
  * 保存消息
@@ -109,92 +55,6 @@ export async function saveMessage(message: Message): Promise<Message> {
     const errorMessage = error instanceof Error ? error.message : '保存消息失败';
     throw new AppError(ErrorType.NETWORK, 500, errorMessage);
   }
-}
-
-/**
- * 发送WebSocket消息
- */
-export function sendWebSocketMessage(message: any): boolean {
-  if (!message.conversation_id) {
-    console.error('发送的消息没有会话ID，无法继续');
-    return false;
-  }
-  
-  const conversationId = message.conversation_id;
-  
-  if (chatWebSocket.isConnected()) {
-    // 检查当前连接的会话ID是否匹配
-    const lastConnectedId = chatState.getLastConnectedConversationId();
-    if (lastConnectedId !== conversationId) {
-      // 将消息加入队列
-      chatState.addToMessageQueue(message);
-      
-      // 重新连接正确的会话
-      const user = authService.getCurrentUser();
-      if (user) {
-        initializeWebSocket(user.id, conversationId);
-      }
-      
-      return false;
-    }
-    
-    // 发送消息
-    return chatWebSocket.sendMessage(message);
-  } else {
-    // WebSocket未连接，将消息加入队列
-    chatState.addToMessageQueue(message);
-    
-    // 尝试连接
-    const user = authService.getCurrentUser();
-    if (user) {
-      initializeWebSocket(user.id, conversationId);
-    }
-    
-    return false;
-  }
-}
-
-/**
- * 获取连接状态
- */
-export function getConnectionStatus(): ConnectionStatus {
-  return chatWebSocket.getConnectionStatus();
-}
-
-/**
- * 添加WebSocket连接状态监听
- */
-export function addWsConnectionStatusListener(listener: (event: any) => void): void {
-  chatWebSocket.addConnectionStatusListener(listener);
-}
-
-/**
- * 移除WebSocket连接状态监听
- */
-export function removeWsConnectionStatusListener(listener: (event: any) => void): void {
-  chatWebSocket.removeConnectionStatusListener(listener);
-}
-
-// ===== 消息回调管理 =====
-
-/**
- * 添加消息回调
- */
-export function addMessageCallback(action: string, callback: (message: any) => void): void {
-  chatState.addMessageCallback(action, callback);
-  
-  // 同时注册到WebSocket管理器
-  chatWebSocket.addMessageHandler(action, callback);
-}
-
-/**
- * 移除消息回调
- */
-export function removeMessageCallback(action: string, callback: (message: any) => void): void {
-  chatState.removeMessageCallback(action, callback);
-  
-  // 同时从WebSocket管理器移除
-  chatWebSocket.removeMessageHandler(action);
 }
 
 /**

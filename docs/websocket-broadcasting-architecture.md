@@ -18,8 +18,7 @@ web/src/
 ├── hooks/
 │   └── useWebSocketByPage.ts              # 页面级WebSocket Hook
 ├── components/
-│   └── chat/
-│       └── ChatWebSocketStatus.tsx        # WebSocket状态指示器组件
+│   └── WebSocketStatus.tsx                # WebSocket状态指示器组件
 ├── service/
 │   ├── websocket/
 │   │   ├── index.ts                       # WebSocket客户端主入口
@@ -36,7 +35,8 @@ web/src/
 │   │       ├── index.ts                   # 处理器注册中心
 │   │       └── messageEventHandler.ts     # 消息事件处理器
 │   ├── chat/
-│   │   ├── websocket.ts                   # 聊天WebSocket管理器
+│   │   ├── api.ts                         # 聊天API服务
+│   │   ├── state.ts                       # 聊天状态管理
 │   │   └── types.ts                       # 聊天相关类型定义
 │   ├── authService.ts                     # 认证服务
 │   └── utils.ts                          # 设备检测和配置工具
@@ -81,11 +81,12 @@ api/app/
 | 文件                             | 作用                  | 说明                              |
 | -------------------------------- | --------------------- | --------------------------------- |
 | `useWebSocketByPage.ts`        | 页面级WebSocket管理   | 根据页面配置智能管理WebSocket连接 |
-| `ChatWebSocketStatus.tsx`      | 连接状态UI组件        | 显示WebSocket连接状态和控制按钮   |
+| `WebSocketStatus.tsx`          | 连接状态UI组件        | 显示WebSocket连接状态和控制按钮   |
 | `websocket/index.ts`           | WebSocket客户端主入口 | 提供统一的WebSocket客户端接口     |
 | `websocket/core/connection.ts` | 连接管理              | 处理WebSocket连接的建立和维护     |
 | `websocket/core/reconnect.ts`  | 重连机制              | 实现智能重连和指数退避策略        |
-| `chat/websocket.ts`            | 聊天WebSocket管理器   | 专门处理聊天相关的WebSocket通信   |
+| `chat/api.ts`                   | 聊天API服务          | 提供与后端通信的接口             |
+| `chat/state.ts`                 | 聊天状态管理          | 管理聊天相关的全局状态           |
 
 #### 后端核心文件
 
@@ -179,8 +180,8 @@ BroadcastingService
 ```
 页面组件 (page.tsx)
 ├── useWebSocketByPage.ts
-│   ├── ChatWebSocketStatus.tsx
-│   └── chat/websocket.ts
+│   ├── WebSocketStatus.tsx
+│   └── chat/api.ts
 │       └── websocket/index.ts (WebSocketClient)
 │           ├── core/connection.ts
 │           ├── core/heartbeat.ts
@@ -216,7 +217,7 @@ HTTP API 端点
 'use client';
 
 import { useWebSocketByPage } from '@/hooks/useWebSocketByPage';
-import { ChatWebSocketStatus } from '@/components/chat/ChatWebSocketStatus';
+import { WebSocketStatus } from '@/components/WebSocketStatus';
 
 function ChatPage() {
   const {
@@ -236,7 +237,7 @@ function ChatPage() {
 
   return (
     <div>
-      <ChatWebSocketStatus />
+      <WebSocketStatus />
       <div>
         连接状态: {isConnected ? '已连接' : '未连接'}
       </div>
@@ -575,7 +576,7 @@ WS_MAX_RECONNECT_ATTEMPTS=15
 
 1. **配置页面**：在 `useWebSocketByPage.ts` 中的 `PAGE_WEBSOCKET_CONFIG` 添加页面配置
 2. **使用 Hook**：在页面组件中使用 `useWebSocketByPage()`
-3. **添加状态指示器**：使用 `<ChatWebSocketStatus />` 组件
+3. **添加状态指示器**：使用 `<WebSocketStatus />` 组件
 4. **注册消息处理**：根据页面功能特性处理相应的WebSocket消息
 
 ## 错误处理和恢复

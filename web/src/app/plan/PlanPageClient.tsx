@@ -27,7 +27,6 @@ import {
 } from '@/service/consultantService';
 import { PersonalizedPlan } from '@/types/consultant';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { getConnectionStatus } from '@/service/chatService';
 import { ConnectionStatus } from '@/service/websocket';
 
 // 新方案的表单数据类型

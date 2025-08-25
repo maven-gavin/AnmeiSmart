@@ -133,19 +133,6 @@ class AuthService {
    * 用户登出
    */
   async logout(): Promise<void> {
-    try {
-      // 关闭WebSocket连接（避免循环依赖）
-      if (isBrowser && 'closeWebSocketConnection' in window) {
-        try {
-          (window as any).closeWebSocketConnection();
-        } catch (error) {
-          console.warn('关闭WebSocket连接失败:', error);
-        }
-      }
-    } catch (error) {
-      console.warn('清理资源时出错:', error);
-    }
-
     // 清除存储的数据
     tokenManager.clearTokens();
     userStorage.removeUser();

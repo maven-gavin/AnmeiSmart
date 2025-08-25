@@ -23,7 +23,6 @@ import {
   getAllSimulations 
 } from '@/service/consultantService';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { getConnectionStatus } from '@/service/chatService';
 import { ConnectionStatus } from '@/service/websocket';
 
 export default function SimulationPageClient() {
