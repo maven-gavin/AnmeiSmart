@@ -85,7 +85,7 @@ async def create_conversation(
         
         conversation = await chat_service.create_conversation(
             title=conversation_in.title,
-            owner_id=conversation_in.customer_id
+            owner_id=str(current_user.id)  # 修复：转换为字符串
         )
         
         return conversation
@@ -111,7 +111,7 @@ async def get_conversations(
                 
         # 调用service层获取会话列表，直接返回结果
         conversations = chat_service.get_conversations(
-            user_id=str(current_user.id),
+            user_id=str(current_user.id),  # 修复：转换为字符串
             user_role=user_role,
             skip=skip,
             limit=limit
@@ -137,7 +137,7 @@ async def get_conversation(
         
         conversation = chat_service.get_conversation_by_id(
             conversation_id=conversation_id,
-            user_id=current_user.id,
+            user_id=str(current_user.id),  # 修复：转换为字符串
             user_role=user_role
         )
         
@@ -198,17 +198,17 @@ async def create_message(
     try:
         message = service.create_message(
             conversation_id=conversation_id,
-            sender_id=current_user.id,
+            sender_id=str(current_user.id),  # 修复：转换为字符串
             sender_type=get_user_role(current_user),
             content=request.content,
             message_type=request.type,
-            is_important=request.is_important,
+            is_important=request.is_important or False,  # 修复：提供默认值
             reply_to_message_id=request.reply_to_message_id,
             extra_metadata=request.extra_metadata
         )
         
         # 广播消息
-        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), current_user.id, db)
+        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), str(current_user.id), db)  # 修复：转换为字符串
         
         return MessageInfo.from_model(message)
         
@@ -233,15 +233,15 @@ async def create_text_message(
     try:
         message = service.create_text_message(
             conversation_id=conversation_id,
-            sender_id=current_user.id,
+            sender_id=str(current_user.id),  # 修复：转换为字符串
             sender_type=get_user_role(current_user),
             text=request.text,
-            is_important=request.is_important,
+            is_important=request.is_important or False,  # 修复：提供默认值
             reply_to_message_id=request.reply_to_message_id
         )
         
         # 广播消息
-        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), current_user.id, db)
+        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), str(current_user.id), db)  # 修复：转换为字符串
         
         return MessageInfo.from_model(message)
         
@@ -266,7 +266,7 @@ async def create_media_message(
     try:
         message = service.create_media_message(
             conversation_id=conversation_id,
-            sender_id=current_user.id,
+            sender_id=str(current_user.id),  # 修复：转换为字符串
             sender_type=get_user_role(current_user),
             media_url=request.media_url,
             media_name=request.media_name,
@@ -274,13 +274,13 @@ async def create_media_message(
             size_bytes=request.size_bytes,
             text=request.text,
             metadata=request.metadata,
-            is_important=request.is_important,
+            is_important=request.is_important or False,  # 修复：提供默认值
             reply_to_message_id=request.reply_to_message_id,
             upload_method=request.upload_method
         )
         
         # 广播消息
-        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), current_user.id, db)
+        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), str(current_user.id), db)  # 修复：转换为字符串
         
         return MessageInfo.from_model(message)
         
@@ -319,7 +319,7 @@ async def create_system_event_message(
         )
         
         # 广播消息
-        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), current_user.id, db)
+        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), str(current_user.id), db)  # 修复：转换为字符串
         
         return MessageInfo.from_model(message)
         
@@ -344,7 +344,7 @@ async def create_structured_message(
     try:
         message = service.create_custom_structured_message(
             conversation_id=conversation_id,
-            sender_id=current_user.id,
+            sender_id=str(current_user.id),  # 修复：转换为字符串
             sender_type=get_user_role(current_user),
             card_type=request.card_type,
             title=request.title,
@@ -355,7 +355,7 @@ async def create_structured_message(
         )
         
         # 广播消息
-        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), current_user.id, db)
+        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), str(current_user.id), db)  # 修复：转换为字符串
         
         return MessageInfo.from_model(message)
         
@@ -388,7 +388,7 @@ async def create_appointment_confirmation(
     try:
         message = service.create_appointment_card_message(
             conversation_id=conversation_id,
-            sender_id=current_user.id,
+            sender_id=str(current_user.id),  # 修复：转换为字符串
             sender_type=get_user_role(current_user),
             appointment_data=appointment_data,
             title="预约确认",
@@ -396,7 +396,7 @@ async def create_appointment_confirmation(
         )
         
         # 广播消息
-        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), current_user.id, db)
+        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), str(current_user.id), db)  # 修复：转换为字符串
         
         return MessageInfo.from_model(message)
         
@@ -424,71 +424,72 @@ async def mark_message_as_read(
     return {"message": "消息已标记为已读"}
 
 
-@router.patch("/conversations/{conversation_id}/messages/read")
-async def mark_conversation_messages_as_read(
-    conversation_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    标记会话所有消息为已读
-    """
-    service = MessageService(db)
-    
-    updated_count = service.mark_conversation_messages_as_read(
-        conversation_id=conversation_id,
-        user_id=current_user.id
-    )
-    
-    return {"message": f"已标记 {updated_count} 条消息为已读"}
+# TODO: 这些功能暂未实现，需要后续开发
+# @router.patch("/conversations/{conversation_id}/messages/read")
+# async def mark_conversation_messages_as_read(
+#     conversation_id: str,
+#     current_user: User = Depends(get_current_user),
+#     db: Session = Depends(get_db)
+# ):
+#     """
+#     标记会话所有消息为已读
+#     """
+#     service = MessageService(db)
+#     
+#     updated_count = service.mark_conversation_messages_as_read(
+#         conversation_id=conversation_id,
+#         user_id=str(current_user.id) # 修复：转换为字符串
+#     )
+#     
+#     return {"message": f"已标记 {updated_count} 条消息为已读"}
 
 
-@router.post("/messages/{message_id}/reactions/{emoji}")
-async def add_reaction_to_message(
-    message_id: str,
-    emoji: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    为消息添加反应
-    """
-    service = MessageService(db)
-    
-    success = service.add_reaction_to_message(
-        message_id=message_id,
-        user_id=current_user.id,
-        emoji=emoji
-    )
-    
-    if not success:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="添加反应失败")
-    
-    return {"message": "反应添加成功"}
+# @router.post("/messages/{message_id}/reactions/{emoji}")
+# async def add_reaction_to_message(
+#     message_id: str,
+#     emoji: str,
+#     current_user: User = Depends(get_current_user),
+#     db: Session = Depends(get_db)
+# ):
+#     """
+#     为消息添加反应
+#     """
+#     service = MessageService(db)
+#     
+#     success = service.add_reaction_to_message(
+#         message_id=message_id,
+#         user_id=str(current_user.id),  # 修复：转换为字符串
+#         emoji=emoji
+#     )
+#     
+#     if not success:
+#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="添加反应失败")
+#     
+#     return {"message": "反应添加成功"}
 
 
-@router.delete("/messages/{message_id}/reactions/{emoji}")
-async def remove_reaction_from_message(
-    message_id: str,
-    emoji: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    移除消息的反应
-    """
-    service = MessageService(db)
-    
-    success = service.remove_reaction_from_message(
-        message_id=message_id,
-        user_id=current_user.id,
-        emoji=emoji
-    )
-    
-    if not success:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="移除反应失败")
-    
-    return {"message": "反应移除成功"}
+# @router.delete("/messages/{message_id}/reactions/{emoji}")
+# async def remove_reaction_from_message(
+#     message_id: str,
+#     emoji: str,
+#     current_user: User = Depends(get_current_user),
+#     db: Session = Depends(get_db)
+# ):
+#     """
+#     移除消息的反应
+#     """
+#     service = MessageService(db)
+#     
+#     success = service.remove_reaction_from_message(
+#         message_id=message_id,
+#         user_id=str(current_user.id),  # 修复：转换为字符串
+#         emoji=emoji
+#     )
+#     
+#     if not success:
+#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="移除反应失败")
+#     
+#     return {"message": "反应移除成功"}
 
 
 @router.patch("/conversations/{conversation_id}/messages/{message_id}/important")
@@ -510,7 +511,7 @@ async def mark_message_as_important(
             conversation_id=conversation_id,
             message_id=message_id,
             is_important=is_important,
-            user_id=current_user.id,
+            user_id=str(current_user.id),  # 修复：转换为字符串
             user_role=user_role
         )
         
@@ -564,7 +565,7 @@ async def update_conversation(
         # 调用service层更新会话，直接返回结果
         updated_conversation = chat_service.update_conversation(
             conversation_id=conversation_id,
-            user_id=current_user.id,
+            user_id=str(current_user.id),  # 修复：转换为字符串
             user_role=user_role,
             update_data=update_data
         )

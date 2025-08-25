@@ -2,7 +2,7 @@
 广播服务 - 统一处理实时消息推送和离线通知
 """
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -24,13 +24,13 @@ class BroadcastingService:
     4. 处理各种类型的消息广播
     """
     
-    def __init__(self, connection_manager: DistributedConnectionManager, db: Session = None, notification_service: NotificationService = None):
+    def __init__(self, connection_manager: DistributedConnectionManager, db: Optional[Session] = None, notification_service: Optional[NotificationService] = None):
         self.connection_manager = connection_manager
         self.db = db  # 用于查询会话参与者
         self.notification_service = notification_service or get_notification_service()
         logger.info("广播服务已初始化，已集成通知推送服务")
     
-    async def broadcast_message(self, conversation_id: str, message_data: Dict[str, Any], exclude_user_id: str = None):
+    async def broadcast_message(self, conversation_id: str, message_data: Dict[str, Any], exclude_user_id: Optional[str] = None):
         """
         广播聊天消息到会话参与者
         
@@ -125,7 +125,7 @@ class BroadcastingService:
         except Exception as e:
             logger.error(f"广播已读状态失败: {e}")
     
-    async def broadcast_system_notification(self, conversation_id: str, notification_data: Dict[str, Any], target_user_ids: List[str] = None):
+    async def broadcast_system_notification(self, conversation_id: str, notification_data: Dict[str, Any], target_user_ids: Optional[List[str]] = None):
         """广播系统通知"""
         try:
             if target_user_ids is None:
@@ -178,7 +178,7 @@ class BroadcastingService:
         except Exception as e:
             logger.error(f"发送直接消息失败: {e}")
     
-    async def _send_to_user_with_fallback(self, user_id: str, payload: Dict[str, Any], notification_data: Dict[str, Any] = None, target_device_type: str = None):
+    async def _send_to_user_with_fallback(self, user_id: str, payload: Dict[str, Any], notification_data: Optional[Dict[str, Any]] = None, target_device_type: Optional[str] = None):
         """
         向用户发送消息，支持在线/离线fallback和多设备支持
         
@@ -201,90 +201,64 @@ class BroadcastingService:
                 else:
                     # 发送到所有设备
                     await self.connection_manager.send_to_user(user_id, payload)
-                    logger.debug(f"实时消息已发送到所有设备: user_id={user_id}")
+                    logger.debug(f"实时消息已发送: user_id={user_id}")
             else:
                 # 离线：发送推送通知
                 if notification_data:
-                    await self._send_push_notification(user_id, notification_data, target_device_type)
-                logger.debug(f"离线推送已发送: user_id={user_id}, device_type={target_device_type or 'all'}")
-                
+                    await self.notification_service.send_push_notification(
+                        user_id=user_id,
+                        notification_data=notification_data
+                    )
+                    logger.debug(f"离线推送已发送: user_id={user_id}")
+                else:
+                    logger.warning(f"用户离线且无推送数据: user_id={user_id}")
+                    
         except Exception as e:
             logger.error(f"发送消息失败: user_id={user_id}, error={e}")
     
-    async def _send_push_notification(self, user_id: str, notification_data: Dict[str, Any], target_device_type: str = None):
-        """
-        发送推送通知（离线时使用）
-        
-        Args:
-            user_id: 目标用户ID
-            notification_data: 推送通知数据
-            target_device_type: 目标设备类型（可选，如mobile、desktop等）
-        """
-        try:
-            # 使用集成的通知推送服务
-            if self.notification_service:
-                success = await self.notification_service.send_push_notification(
-                    user_id=user_id, 
-                    notification_data=notification_data,
-                    device_type=target_device_type
-                )
-                
-                if success:
-                    device_info = f" 到{target_device_type}设备" if target_device_type else ""
-                    logger.debug(f"推送通知发送成功{device_info}: user_id={user_id}")
-                else:
-                    logger.warning(f"推送通知发送失败: user_id={user_id}")
-            else:
-                logger.warning(f"通知服务未配置，无法发送推送: user_id={user_id}")
-            
-        except Exception as e:
-            logger.error(f"发送推送通知失败: user_id={user_id}, error={e}")
-    
     async def _get_conversation_participants(self, conversation_id: str) -> List[str]:
-        """
-        获取会话参与者列表
-        """
+        """获取会话参与者列表"""
         try:
             if not self.db:
-                logger.warning("数据库session未注入，无法查询会话参与者")
+                logger.warning("数据库会话不可用，无法获取会话参与者")
                 return []
             
-            # 查询会话信息
-            conversation = self.db.query(Conversation).filter(
-                Conversation.id == conversation_id
-            ).first()
+            # 查询会话参与者
+            from app.db.models.chat import ConversationParticipant
             
-            if not conversation:
-                logger.warning(f"会话不存在: {conversation_id}")
-                return []
+            participants = self.db.query(ConversationParticipant).filter(
+                ConversationParticipant.conversation_id == conversation_id,
+                ConversationParticipant.is_active == True
+            ).all()
             
-            participants = []
-            
-            # 添加客户ID
-            if conversation.owner_id:
-                participants.append(conversation.owner_id)
-            
-            # 添加分配的顾问ID
-            if conversation.assigned_consultant_id:
-                participants.append(conversation.assigned_consultant_id)
-            
-            logger.debug(f"获取会话参与者: conversation_id={conversation_id}, participants={participants}")
-            return participants
+            return [str(p.user_id) for p in participants if p.user_id is not None]
             
         except Exception as e:
             logger.error(f"获取会话参与者失败: conversation_id={conversation_id}, error={e}")
             return []
     
     def _extract_notification_content(self, message_data: Dict[str, Any]) -> str:
-        """从消息数据中提取推送通知内容"""
+        """从消息数据中提取通知内容"""
         try:
-            content = message_data.get("content", "")
-            # 截取内容用于推送显示
-            max_length = 50
-            if len(content) > max_length:
-                return content[:max_length] + "..."
-            return content
-        except Exception:
+            # 根据消息类型提取内容
+            message_type = message_data.get("type", "text")
+            content = message_data.get("content", {})
+            
+            if message_type == "text":
+                return content.get("text", "新消息")
+            elif message_type == "media":
+                media_info = content.get("media_info", {})
+                media_name = media_info.get("name", "媒体文件")
+                return f"发送了{media_name}"
+            elif message_type == "system":
+                return content.get("message", "系统通知")
+            elif message_type == "structured":
+                return content.get("title", "新消息")
+            else:
+                return "新消息"
+                
+        except Exception as e:
+            logger.error(f"提取通知内容失败: {e}")
             return "新消息"
     
     async def send_mobile_only_notification(self, conversation_id: str, message_data: Dict[str, Any], exclude_user_id: str = None):
@@ -351,8 +325,9 @@ class BroadcastingService:
                     logger.debug(f"顾问回复已发送到在线用户: user_id={participant_id}")
                 else:
                     # 离线用户：优先推送到移动设备
-                    await self._send_push_notification(
+                    await self._send_to_user_with_fallback(
                         user_id=participant_id,
+                        payload=reply_payload,
                         target_device_type="mobile",
                         notification_data={
                             "title": "顾问回复",

@@ -1,7 +1,7 @@
 """
 WebSocket连接管理器 - 专注于连接管理和消息广播
 """
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Set
 from fastapi import WebSocket, WebSocketDisconnect
 import json
 import logging
@@ -22,7 +22,7 @@ class WebSocketConnection:
         self.connected_at = datetime.now()
         self.last_ping = datetime.now()
     
-    async def send_json(self, data: Dict[str, Any]):
+    async def send_json(self, data: Dict[str, Any]) -> bool:
         """发送JSON消息"""
         try:
             await self.websocket.send_json(data)
@@ -115,7 +115,7 @@ class WebSocketManager:
         )
         await event_bus.publish_async(event)
     
-    async def broadcast_to_conversation(self, conversation_id: str, message: Dict[str, Any], exclude_user: str = None):
+    async def broadcast_to_conversation(self, conversation_id: str, message: Dict[str, Any], exclude_user: Optional[str] = None):
         """向会话中的所有用户广播消息"""
         if conversation_id not in self._connections_by_conversation:
             logger.warning(f"尝试广播到不存在的会话: {conversation_id}")
@@ -178,7 +178,7 @@ class WebSocketManager:
         """检查用户是否在线"""
         return user_id in self._connections_by_user
     
-    def get_connection_count(self, conversation_id: str = None) -> int:
+    def get_connection_count(self, conversation_id: Optional[str] = None) -> int:
         """获取连接数"""
         if conversation_id:
             return len(self._connections_by_conversation.get(conversation_id, []))

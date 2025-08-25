@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class ChatService:
     """聊天服务类 - 整合会话和消息管理"""
     
-    def __init__(self, db: Session, broadcasting_service: BroadcastingService = None):
+    def __init__(self, db: Session, broadcasting_service: Optional[BroadcastingService] = None):
         self.db = db
         self.message_service = MessageService(db)
         self.ai_response_service = AIResponseService(db)

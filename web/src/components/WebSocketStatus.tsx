@@ -5,7 +5,6 @@ import { ConnectionStatus } from '@/service/websocket/types';
 
 /**
  * 聊天页面WebSocket状态指示器
- * 展示如何使用新的页面级WebSocket架构
  */
 export function WebSocketStatus() {
   const {

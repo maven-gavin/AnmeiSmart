@@ -12,7 +12,7 @@ TODO 备注：
 """
 import logging
 import os
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 from abc import ABC, abstractmethod
 from enum import Enum
 from dotenv import load_dotenv
@@ -47,8 +47,8 @@ class NotificationProvider(ABC):
         user_id: str, 
         title: str, 
         body: str, 
-        data: Dict[str, Any] = None,
-        device_type: DeviceType = None,
+        data: Optional[Dict[str, Any]] = None,
+        device_type: Optional[DeviceType] = None,
         priority: PushPriority = PushPriority.NORMAL
     ) -> bool:
         """发送推送通知"""
@@ -63,8 +63,8 @@ class LoggingNotificationProvider(NotificationProvider):
         user_id: str, 
         title: str, 
         body: str, 
-        data: Dict[str, Any] = None,
-        device_type: DeviceType = None,
+        data: Optional[Dict[str, Any]] = None,
+        device_type: Optional[DeviceType] = None,
         priority: PushPriority = PushPriority.NORMAL
     ) -> bool:
         """发送推送通知（仅记录日志）"""
@@ -100,8 +100,8 @@ class FirebaseNotificationProvider(NotificationProvider):
         user_id: str, 
         title: str, 
         body: str, 
-        data: Dict[str, Any] = None,
-        device_type: DeviceType = None,
+        data: Optional[Dict[str, Any]] = None,
+        device_type: Optional[DeviceType] = None,
         priority: PushPriority = PushPriority.NORMAL
     ) -> bool:
         """发送Firebase FCM推送通知"""
@@ -125,7 +125,7 @@ class NotificationService:
     通知推送服务主类
     """
     
-    def __init__(self, provider: NotificationProvider = None):
+    def __init__(self, provider: Optional[NotificationProvider] = None):
         """
         初始化通知服务
         
@@ -139,7 +139,7 @@ class NotificationService:
         self, 
         user_id: str, 
         notification_data: Dict[str, Any],
-        device_type: str = None
+        device_type: Optional[str] = None
     ) -> bool:
         """
         发送推送通知
@@ -231,56 +231,42 @@ class NotificationService:
 _notification_service: Optional[NotificationService] = None
 
 
-def create_notification_provider() -> NotificationProvider:
-    """
-    根据环境变量创建推送服务提供商
-    """
-    provider_type = os.getenv("NOTIFICATION_PROVIDER", "logging").lower()
-    
-    if provider_type == "logging":
-        logger.info("使用日志记录推送服务（开发模式）")
-        return LoggingNotificationProvider()
-    elif provider_type == "firebase":
-        # TODO: 实现Firebase FCM推送服务
-        logger.warning("Firebase FCM推送服务尚未实现，回退到日志记录服务")
-        return LoggingNotificationProvider()
-    else:
-        logger.warning(f"未知的推送服务类型: {provider_type}，使用默认日志记录服务")
-        return LoggingNotificationProvider()
-
-
-def get_notification_service(provider: NotificationProvider = None) -> NotificationService:
-    """
-    获取通知服务实例（单例模式）
-    """
+def get_notification_service() -> NotificationService:
+    """获取通知服务实例（单例模式）"""
     global _notification_service
     
     if _notification_service is None:
-        if provider is None:
-            provider = create_notification_provider()
-        _notification_service = NotificationService(provider)
+        _notification_service = NotificationService()
     
     return _notification_service
 
 
-# 快捷函数
+def create_notification_service(provider: Optional[NotificationProvider] = None) -> NotificationService:
+    """创建通知服务实例"""
+    return NotificationService(provider)
+
+
+# 便捷函数
 async def send_push_notification(
     user_id: str, 
     title: str, 
     body: str, 
-    data: Dict[str, Any] = None,
-    device_type: str = None,
+    data: Optional[Dict[str, Any]] = None,
+    device_type: Optional[str] = None,
     priority: str = "normal"
 ) -> bool:
-    """快捷发送推送通知函数"""
+    """便捷函数：发送推送通知"""
     service = get_notification_service()
+    
+    notification_data = {
+        "title": title,
+        "body": body,
+        "data": data or {},
+        "priority": priority
+    }
+    
     return await service.send_push_notification(
         user_id=user_id,
-        notification_data={
-            "title": title,
-            "body": body,
-            "data": data or {},
-            "priority": priority
-        },
+        notification_data=notification_data,
         device_type=device_type
     ) 

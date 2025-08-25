@@ -1,7 +1,7 @@
 """
 事件系统 - 用于WebSocket基础设施与业务逻辑的解耦
 """
-from typing import Dict, List, Callable, Any
+from typing import Dict, List, Callable, Any, Optional, Union
 from dataclasses import dataclass
 from datetime import datetime
 import asyncio
@@ -17,8 +17,8 @@ class Event:
     data: Dict[str, Any]
     timestamp: datetime
     source: str = "unknown"
-    conversation_id: str = None
-    user_id: str = None
+    conversation_id: Optional[str] = None
+    user_id: Optional[str] = None
 
 
 @dataclass
@@ -43,17 +43,17 @@ class EventBus:
     """事件总线 - 管理事件的发布和订阅"""
     
     def __init__(self):
-        self._handlers: Dict[str, List[Callable]] = {}
-        self._async_handlers: Dict[str, List[Callable]] = {}
+        self._handlers: Dict[str, List[Callable[[Event], None]]] = {}
+        self._async_handlers: Dict[str, List[Callable[[Event], Any]]] = {}
     
-    def subscribe(self, event_type: str, handler: Callable):
+    def subscribe(self, event_type: str, handler: Callable[[Event], None]):
         """订阅同步事件处理器"""
         if event_type not in self._handlers:
             self._handlers[event_type] = []
         self._handlers[event_type].append(handler)
         logger.debug(f"订阅事件处理器: {event_type} -> {handler.__name__}")
     
-    def subscribe_async(self, event_type: str, handler: Callable):
+    def subscribe_async(self, event_type: str, handler: Callable[[Event], Any]):
         """订阅异步事件处理器"""
         if event_type not in self._async_handlers:
             self._async_handlers[event_type] = []
@@ -153,7 +153,7 @@ def create_message_event(
 def create_user_event(
     event_type: str,
     user_id: str,
-    conversation_id: str = None,
+    conversation_id: Optional[str] = None,
     **kwargs
 ) -> UserEvent:
     """创建用户事件的便捷函数"""
@@ -170,7 +170,7 @@ def create_user_event(
 def create_system_event(
     event_type: str,
     message: str,
-    conversation_id: str = None,
+    conversation_id: Optional[str] = None,
     **kwargs
 ) -> SystemEvent:
     """创建系统事件的便捷函数"""

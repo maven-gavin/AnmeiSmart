@@ -198,9 +198,11 @@ class MessageService:
         self._validate_message_content(content, message_type)
         
         # 调试日志：记录保存前的内容
-        logger.info(f"创建消息 - 保存前内容: conversation_id={conversation_id}, type={message_type}, content={content}")
+        logger.debug(f"创建消息: conversation_id={conversation_id}, type={message_type}, content={json.dumps(content, ensure_ascii=False)}")
         
+        # 创建消息实例
         message = Message(
+            id=message_id(),
             conversation_id=conversation_id,
             sender_id=sender_id,
             sender_digital_human_id=sender_digital_human_id,
@@ -209,18 +211,33 @@ class MessageService:
             type=message_type,
             is_important=is_important,
             reply_to_message_id=reply_to_message_id,
-            reactions=reactions,
-            extra_metadata=extra_metadata,
+            reactions=reactions or {},
+            extra_metadata=extra_metadata or {},
             requires_confirmation=requires_confirmation,
-            is_confirmed=not requires_confirmation  # 如果需要确认则默认未确认
+            created_at=datetime.now(),
+            updated_at=datetime.now()
         )
         
         self.db.add(message)
         self.db.commit()
         self.db.refresh(message)
         
-        # 调试日志：记录保存后的内容
-        logger.info(f"创建消息 - 保存后内容: message_id={message.id}, content={message.content}")
+        logger.info(f"消息创建成功: id={message.id}, type={message_type}")
+        
+        # 发布消息事件（异步处理）
+        try:
+            event = create_message_event(
+                conversation_id=conversation_id,
+                user_id=sender_id or "system",
+                content=json.dumps(content, ensure_ascii=False),
+                message_type=message_type,
+                sender_type=sender_type
+            )
+            # 使用asyncio.create_task避免阻塞
+            import asyncio
+            asyncio.create_task(event_bus.publish_async(event))
+        except Exception as e:
+            logger.warning(f"发布消息事件失败: {e}")
         
         return message
 
@@ -537,7 +554,7 @@ class MessageService:
             return False
         
         # 更新已读状态
-        message.is_read = True
+        message.is_read = True  # type: ignore
         
         self.db.commit()
         
@@ -582,7 +599,7 @@ class MessageService:
             return False
         
         # 软删除：标记为已删除而不是真正删除
-        message.is_deleted = True
+        message.is_deleted = True  # type: ignore
         message.deleted_at = datetime.now()
         
         self.db.commit()
@@ -603,7 +620,7 @@ class MessageService:
             return False
         
         # 更新重点状态
-        message.is_important = is_important
+        message.is_important = is_important  # type: ignore
         
         self.db.commit()
         

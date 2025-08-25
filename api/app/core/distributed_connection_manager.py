@@ -4,7 +4,7 @@
 import asyncio
 import json
 import logging
-from typing import Dict, Set, Optional
+from typing import Dict, Set, Optional, List, Any
 from datetime import datetime
 import uuid
 
@@ -29,7 +29,7 @@ class DistributedConnectionManager:
         # 按连接ID组织的连接（支持多设备区分）
         self.connections_by_id: Dict[str, WebSocket] = {}       # connection_id -> WebSocket
         # 连接元数据
-        self.connection_metadata: Dict[WebSocket, Dict] = {}     # WebSocket -> 元数据
+        self.connection_metadata: Dict[WebSocket, Dict[str, Any]] = {}     # WebSocket -> 元数据
         # 反向映射：WebSocket -> connection_id
         self.websocket_to_connection_id: Dict[WebSocket, str] = {}
         
@@ -163,7 +163,7 @@ class DistributedConnectionManager:
         except Exception as e:
             logger.error(f"处理在线状态消息失败: {e}")
     
-    async def connect(self, user_id: str, websocket: WebSocket, metadata: dict = None, connection_id: str = None) -> bool:
+    async def connect(self, user_id: str, websocket: WebSocket, metadata: Optional[Dict[str, Any]] = None, connection_id: Optional[str] = None) -> bool:
         """建立WebSocket连接（支持多设备）"""
         try:
             await websocket.accept()
@@ -202,7 +202,7 @@ class DistributedConnectionManager:
                 # 用户新设备上线，广播设备连接状态
                 await self._broadcast_device_change(user_id, connection_id, "device_connected", metadata)
             
-            logger.info(f"用户连接成功: {user_id}, 设备: {metadata.get('device_type', 'unknown')}, 连接ID: {connection_id} [实例: {self.instance_id}]")
+            logger.info(f"用户连接成功: {user_id}, 设备: {metadata.get('device_type', 'unknown') if metadata else 'unknown'}, 连接ID: {connection_id} [实例: {self.instance_id}]")
             return True
             
         except Exception as e:
@@ -368,7 +368,8 @@ class DistributedConnectionManager:
     async def is_user_online(self, user_id: str) -> bool:
         """检查用户是否在线"""
         try:
-            return await self.redis.sismember(self.online_users_key, user_id)
+            result = await self.redis.sismember(self.online_users_key, user_id)
+            return bool(result)
         except Exception as e:
             logger.error(f"检查用户在线状态失败: {e}")
             return False
@@ -376,7 +377,8 @@ class DistributedConnectionManager:
     async def get_online_users(self) -> Set[str]:
         """获取所有在线用户列表"""
         try:
-            return await self.redis.smembers(self.online_users_key)
+            result = await self.redis.smembers(self.online_users_key)
+            return set(result) if result else set()
         except Exception as e:
             logger.error(f"获取在线用户列表失败: {e}")
             return set()
@@ -389,7 +391,7 @@ class DistributedConnectionManager:
         """获取本地用户数量"""
         return len(self.local_connections)
     
-    async def _broadcast_device_change(self, user_id: str, connection_id: str, event_type: str, device_metadata: dict = None):
+    async def _broadcast_device_change(self, user_id: str, connection_id: str, event_type: str, device_metadata: Optional[Dict[str, Any]] = None):
         """广播设备连接状态变化"""
         try:
             message = {
@@ -441,7 +443,7 @@ class DistributedConnectionManager:
         except Exception as e:
             logger.error(f"发送消息到特定设备类型失败: {e}")
     
-    def get_user_devices(self, user_id: str) -> list:
+    def get_user_devices(self, user_id: str) -> List[Dict[str, Any]]:
         """获取用户所有设备的连接信息"""
         devices = []
         if user_id in self.local_connections:
