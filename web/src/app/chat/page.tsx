@@ -14,7 +14,7 @@ import { ImportantMessagesPanel } from '@/components/chat/ImportantMessagesPanel
 import { ConversationSettingsPanel } from '@/components/chat/ConversationSettingsPanel';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { ChatWebSocketStatus } from '@/components/chat/ChatWebSocketStatus';
+import { ChatWebSocketStatus } from '@/components/WebSocketStatus';
 // 自定义hooks
 import { useConversationState } from '@/hooks/useConversationState';
 import { useMessageState } from '@/hooks/useMessageState';

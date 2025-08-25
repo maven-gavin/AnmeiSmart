@@ -78,24 +78,24 @@ api/app/
 
 #### 前端核心文件
 
-| 文件 | 作用 | 说明 |
-|------|------|------|
-| `useWebSocketByPage.ts` | 页面级WebSocket管理 | 根据页面配置智能管理WebSocket连接 |
-| `ChatWebSocketStatus.tsx` | 连接状态UI组件 | 显示WebSocket连接状态和控制按钮 |
-| `websocket/index.ts` | WebSocket客户端主入口 | 提供统一的WebSocket客户端接口 |
-| `websocket/core/connection.ts` | 连接管理 | 处理WebSocket连接的建立和维护 |
-| `websocket/core/reconnect.ts` | 重连机制 | 实现智能重连和指数退避策略 |
-| `chat/websocket.ts` | 聊天WebSocket管理器 | 专门处理聊天相关的WebSocket通信 |
+| 文件                             | 作用                  | 说明                              |
+| -------------------------------- | --------------------- | --------------------------------- |
+| `useWebSocketByPage.ts`        | 页面级WebSocket管理   | 根据页面配置智能管理WebSocket连接 |
+| `ChatWebSocketStatus.tsx`      | 连接状态UI组件        | 显示WebSocket连接状态和控制按钮   |
+| `websocket/index.ts`           | WebSocket客户端主入口 | 提供统一的WebSocket客户端接口     |
+| `websocket/core/connection.ts` | 连接管理              | 处理WebSocket连接的建立和维护     |
+| `websocket/core/reconnect.ts`  | 重连机制              | 实现智能重连和指数退避策略        |
+| `chat/websocket.ts`            | 聊天WebSocket管理器   | 专门处理聊天相关的WebSocket通信   |
 
 #### 后端核心文件
 
-| 文件 | 作用 | 说明 |
-|------|------|------|
-| `broadcasting_service.py` | 主要广播服务 | 处理消息广播和离线推送的核心逻辑 |
-| `broadcasting_factory.py` | 服务工厂 | 管理广播服务的创建和依赖注入 |
-| `distributed_connection_manager.py` | 分布式连接管理 | 基于Redis的跨实例WebSocket连接管理 |
-| `notification_service.py` | 通知推送服务 | 处理离线推送通知（支持多种提供商） |
-| `websocket_manager.py` | WebSocket管理器 | 本地WebSocket连接的管理和路由 |
+| 文件                                  | 作用            | 说明                               |
+| ------------------------------------- | --------------- | ---------------------------------- |
+| `broadcasting_service.py`           | 主要广播服务    | 处理消息广播和离线推送的核心逻辑   |
+| `broadcasting_factory.py`           | 服务工厂        | 管理广播服务的创建和依赖注入       |
+| `distributed_connection_manager.py` | 分布式连接管理  | 基于Redis的跨实例WebSocket连接管理 |
+| `notification_service.py`           | 通知推送服务    | 处理离线推送通知（支持多种提供商） |
+| `websocket_manager.py`              | WebSocket管理器 | 本地WebSocket连接的管理和路由      |
 
 ## 架构组件
 
@@ -111,17 +111,8 @@ api/app/
 
 ```typescript
 const PAGE_WEBSOCKET_CONFIG: Record<string, PageWebSocketConfig> = {
-  // 无需WebSocket的页面
-  '/login': { 
-    enabled: false, 
-    requireAuth: false, 
-    autoConnect: false,
-    connectionType: 'none',
-    features: []
-  },
-  
   // 聊天页面 - 完整功能
-  '/doctor/chat': { 
+  '/chat': { 
     enabled: true, 
     requireAuth: true, 
     autoConnect: true,
@@ -142,12 +133,12 @@ const PAGE_WEBSOCKET_CONFIG: Record<string, PageWebSocketConfig> = {
 
 #### 功能特性分布
 
-| 页面类型     | 消息传递 | 输入指示器 | 文件上传 | 系统监控 |
-|-------------|---------|-----------|---------|---------|
-| 医生聊天    | ✅      | ✅        | ✅      | ❌      |
-| 客户聊天    | ✅      | ✅        | ✅      | ❌      |
-| 顾问聊天    | ✅      | ✅        | ✅      | ❌      |
-| 管理页面    | ❌      | ❌        | ❌      | ✅      |
+| 页面类型 | 消息传递 | 输入指示器 | 文件上传 | 系统监控 |
+| -------- | -------- | ---------- | -------- | -------- |
+| 医生聊天 | ✅       | ✅         | ✅       | ❌       |
+| 客户聊天 | ✅       | ✅         | ✅       | ❌       |
+| 顾问聊天 | ✅       | ✅         | ✅       | ❌       |
+| 管理页面 | ❌       | ❌         | ❌       | ✅       |
 
 #### 统一设备配置
 
@@ -375,17 +366,17 @@ async def send_message(
 ):
     # 获取广播服务实例（每次创建新实例以支持不同的数据库会话）
     broadcasting_service = await get_broadcasting_service_dependency(db)
-    
+  
     # 保存消息到数据库
     saved_message = await save_message_to_db(conversation_id, message)
-    
+  
     # 广播消息
     await broadcasting_service.broadcast_message(
         conversation_id=conversation_id,
         message_data=saved_message.dict(),
         exclude_user_id=message.sender_id
     )
-    
+  
     return {"status": "sent", "message_id": saved_message.id}
 ```
 
@@ -446,6 +437,7 @@ INFO  顾问回复广播完成: conversation_id=conv_123, consultant_id=consulta
 4. 业务代码无需任何修改
 
 支持的推送服务：
+
 - Firebase FCM（待实现）
 - Apple APNs（待实现）
 - 第三方推送服务（极光推送、友盟等）
@@ -491,6 +483,7 @@ INFO  顾问回复广播完成: conversation_id=conv_123, consultant_id=consulta
 ### 性能指标
 
 通过日志可以监控：
+
 - 消息广播响应时间
 - 在线用户数量和分布
 - 推送成功率
@@ -610,4 +603,4 @@ except Exception as e:
 
 **架构版本**：WebSocket V2 + BroadcastingService V1
 **状态**：已完全部署并投入使用
-**最后更新**：基于实际代码实现整理 
+**最后更新**：基于实际代码实现整理

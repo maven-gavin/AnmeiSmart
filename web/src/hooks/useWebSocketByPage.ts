@@ -31,57 +31,13 @@ interface PageWebSocketConfig {
  * 页面路由到WebSocket配置的映射
  */
 const PAGE_WEBSOCKET_CONFIG: Record<string, PageWebSocketConfig> = {
-  // 无需WebSocket的页面
-  '/login': {
-    enabled: false,
-    requireAuth: false,
-    autoConnect: false,
-    connectionType: 'none',
-    features: []
-  },
-  '/register': {
-    enabled: false,
-    requireAuth: false,
-    autoConnect: false,
-    connectionType: 'none',
-    features: []
-  },
-  '/access-denied': {
-    enabled: false,
-    requireAuth: false,
-    autoConnect: false,
-    connectionType: 'none',
-    features: []
-  },
-  '/unauthorized': {
-    enabled: false,
-    requireAuth: false,
-    autoConnect: false,
-    connectionType: 'none',
-    features: []
-  },
-
   // 聊天相关页面
-  '/doctor/chat': {
+  '/chat': {
     enabled: true,
     requireAuth: true,
     autoConnect: true,
     connectionType: 'chat',
-    features: ['messaging', 'typing_indicator', 'file_upload', 'voice_note']
-  },
-  '/customer/chat': {
-    enabled: true,
-    requireAuth: true,
-    autoConnect: true,
-    connectionType: 'chat',
-    features: ['messaging', 'typing_indicator', 'file_upload']
-  },
-  '/consultant/chat': {
-    enabled: true,
-    requireAuth: true,
-    autoConnect: true,
-    connectionType: 'chat',
-    features: ['messaging', 'typing_indicator', 'file_upload', 'screen_share']
+    features: ['messaging', 'typing_indicator', 'file_upload', 'voice_note', 'screen_share']
   },
 
   // 管理员页面

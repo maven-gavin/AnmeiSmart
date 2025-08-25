@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/contexts/AuthContext';
 import Link from 'next/link';
-import { ChatWebSocketStatus } from '@/components/chat/ChatWebSocketStatus';
+import { ChatWebSocketStatus } from '@/components/WebSocketStatus';
 import AppLayout from '../layout/AppLayout';
 
 interface AdminCard {
