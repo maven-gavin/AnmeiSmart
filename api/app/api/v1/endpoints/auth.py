@@ -264,7 +264,7 @@ async def get_roles(
     user_roles = await user_service.get_user_roles(db, user_id=str(current_user.id))  # 修正：确保传递 str 类型
     return user_roles
 
-@router.post("/switch-role", response_model=AccessToken)
+@router.post("/switch-role", response_model=Token)
 async def switch_role(
     *,
     db: Session = Depends(get_db),
@@ -274,7 +274,7 @@ async def switch_role(
     """
     切换用户角色
     
-    更改用户当前活跃角色，并返回新的访问令牌
+    更改用户当前活跃角色，并返回新的访问令牌和刷新令牌
     """
     # 获取真实的 User 对象
     user = db.query(User).filter(User.id == current_user.id).first()
@@ -291,13 +291,21 @@ async def switch_role(
             detail=f"用户没有 '{role_request.role}' 角色权限",
         )
     
-    # 生成包含新活跃角色的令牌
+    # 生成包含新活跃角色的令牌对
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    
     # 修复 user 可能为 None 或没有 id 属性的问题
     access_token = create_access_token(
         subject=str(user.id), expires_delta=access_token_expires, active_role=role_request.role
     )
+    
+    refresh_token = create_refresh_token(
+        subject=str(user.id), expires_delta=refresh_token_expires, active_role=role_request.role
+    )
+    
     return {
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer"
     } 

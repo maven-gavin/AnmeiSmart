@@ -1,14 +1,8 @@
 // API基础URL
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
 
-// WebSocket URL
-export const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL || 
-  (typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:') + 
-  '//' + 
-  (process.env.NEXT_PUBLIC_API_BASE_URL ? 
-    process.env.NEXT_PUBLIC_API_BASE_URL.replace(/^https?:\/\//, '').replace('/api/v1', '') : 
-    'localhost:8000'
-  );
+// WebSocket URL - 单一配置源
+export const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/api/v1/ws';
 
 // 文件相关配置
 export const FILE_CONFIG = {

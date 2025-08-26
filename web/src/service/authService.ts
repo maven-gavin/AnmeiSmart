@@ -84,14 +84,19 @@ class AuthService {
       }
 
       const tokenData = await response.json();
-      const token = tokenData.access_token;
+      const accessToken = tokenData.access_token;
+      const refreshToken = tokenData.refresh_token;
 
-      if (!token) {
+      if (!accessToken) {
         throw new AppError(ErrorType.AUTHENTICATION, 500, '服务器未返回访问令牌');
       }
 
-      // 存储令牌
-      tokenManager.setToken(token);
+      if (!refreshToken) {
+        throw new AppError(ErrorType.AUTHENTICATION, 500, '服务器未返回刷新令牌');
+      }
+
+      // 存储令牌对（访问令牌和刷新令牌）
+      tokenManager.setTokens(accessToken, refreshToken);
 
       // 获取用户信息和角色 - 使用统一的apiClient
       const [userResponse] = await Promise.all([
@@ -112,7 +117,7 @@ class AuthService {
       // 存储用户信息
       userStorage.setUser(authUser);
 
-      return { user: authUser, token };
+      return { user: authUser, token: accessToken };
     } catch (error) {
       console.error('登录失败:', error);
       
@@ -222,13 +227,13 @@ class AuthService {
     }
     
     try {
-      // 调用后端API切换角色并获取新令牌 - 使用统一的apiClient
-      const response = await apiClient.post<{ access_token: string; token_type: string }>('/auth/switch-role', {
+      // 调用后端API切换角色并获取新令牌对 - 使用统一的apiClient
+      const response = await apiClient.post<{ access_token: string; refresh_token: string; token_type: string }>('/auth/switch-role', {
         role
       });
       
-      // 更新令牌
-      tokenManager.setToken(response.data!.access_token);
+      // 更新令牌对
+      tokenManager.setTokens(response.data!.access_token, response.data!.refresh_token);
       
       // 更新用户信息
       const updatedUser: AuthUser = {

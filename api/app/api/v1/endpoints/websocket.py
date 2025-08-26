@@ -29,7 +29,7 @@ def get_connection_manager() -> DistributedConnectionManager:
     return connection_manager
 
 
-async def verify_websocket_token(token: str, db: Session) -> Optional[dict]:
+def verify_websocket_token(token: str, db: Session) -> Optional[dict]:
     """验证WebSocket token并返回用户信息"""
     try:
         # 验证token并获取用户ID
@@ -87,14 +87,22 @@ async def websocket_endpoint(
     - 所有业务相关信息（如conversationId）通过消息payload传递
     - WebSocket仅负责用户级连接管理和设备区分
     """
+    # 添加详细的调试日志
+    logger.info(f"WebSocket连接请求开始: token_prefix={token[:10] if token else 'None'}..., connectionId={connectionId}, deviceType={deviceType}, deviceId={deviceId}")
+    
     user_info = None
     
     try:
         # 验证token并获取用户信息
-        user_info = await verify_websocket_token(token, db)
+        logger.debug(f"开始验证WebSocket token: token_prefix={token[:10] if token else 'None'}...")
+        user_info = verify_websocket_token(token, db)
+        
         if not user_info:
+            logger.warning(f"WebSocket token验证失败: token_prefix={token[:10] if token else 'None'}...")
             await websocket.close(code=4001, reason="Invalid credentials")
             return
+        
+        logger.info(f"WebSocket token验证成功: user_id={user_info['user_id']}, role={user_info['role']}")
         
         user_id = user_info["user_id"]
         user_role = user_info["role"]

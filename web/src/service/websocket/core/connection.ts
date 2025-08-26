@@ -180,7 +180,8 @@ export class WebSocketConnection extends EventEmitter {
       try {
         // 只有在连接已打开或连接中的情况下才关闭
         if (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING) {
-          this.socket.close();
+          // 使用正常关闭代码，避免触发重连
+          this.socket.close(1000, 'Manual disconnect');
           
           // 手动关闭不会触发onclose事件，所以这里需要手动设置状态
           // 但如果状态已经是断开的，则不需要再次设置

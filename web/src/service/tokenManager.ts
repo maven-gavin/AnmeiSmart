@@ -63,7 +63,7 @@ export class TokenManager {
   private refreshPromise: Promise<string> | null = null;
 
   /**
-   * 获取当前存储的令牌
+   * 获取当前存储的访问令牌
    */
   getToken(): string | null {
     const token = secureStorage.getItem(AUTH_CONFIG.TOKEN_STORAGE_KEY);
@@ -71,18 +71,44 @@ export class TokenManager {
   }
 
   /**
-   * 存储令牌
+   * 获取当前存储的刷新令牌
+   */
+  getRefreshToken(): string | null {
+    const token = secureStorage.getItem(AUTH_CONFIG.REFRESH_TOKEN_KEY);
+    return token && jwtUtils.isValidFormat(token) ? token : null;
+  }
+
+  /**
+   * 存储访问令牌
    */
   setToken(token: string): boolean {
     if (!jwtUtils.isValidFormat(token)) {
-      console.error('尝试存储无效格式的令牌');
+      console.error('尝试存储无效格式的访问令牌');
       return false;
     }
     return secureStorage.setItem(AUTH_CONFIG.TOKEN_STORAGE_KEY, token);
   }
 
   /**
-   * 检查令牌是否过期
+   * 存储刷新令牌
+   */
+  setRefreshToken(token: string): boolean {
+    if (!jwtUtils.isValidFormat(token)) {
+      console.error('尝试存储无效格式的刷新令牌');
+      return false;
+    }
+    return secureStorage.setItem(AUTH_CONFIG.REFRESH_TOKEN_KEY, token);
+  }
+
+  /**
+   * 存储令牌对（访问令牌和刷新令牌）
+   */
+  setTokens(accessToken: string, refreshToken: string): boolean {
+    return this.setToken(accessToken) && this.setRefreshToken(refreshToken);
+  }
+
+  /**
+   * 检查访问令牌是否过期
    */
   isTokenExpired(token?: string): boolean {
     const tokenToCheck = token || this.getToken();
@@ -90,7 +116,7 @@ export class TokenManager {
   }
 
   /**
-   * 获取有效的令牌（如果过期会自动刷新）
+   * 获取有效的访问令牌（如果过期会自动刷新）
    */
   async getValidToken(): Promise<string | null> {
     try {
@@ -122,13 +148,13 @@ export class TokenManager {
       return this.refreshPromise;
     }
 
-    const token = this.getToken();
-    if (!token) {
-      throw new AppError(ErrorType.AUTHENTICATION, 401, '没有可用的令牌');
+    const refreshToken = this.getRefreshToken();
+    if (!refreshToken) {
+      throw new AppError(ErrorType.AUTHENTICATION, 401, '没有可用的刷新令牌');
     }
 
     // 创建刷新请求
-    this.refreshPromise = this.performTokenRefresh(token);
+    this.refreshPromise = this.performTokenRefresh(refreshToken);
 
     try {
       const newToken = await this.refreshPromise;
@@ -147,7 +173,7 @@ export class TokenManager {
   /**
    * 执行令牌刷新请求
    */
-  private async performTokenRefresh(token: string): Promise<string> {
+  private async performTokenRefresh(refreshToken: string): Promise<string> {
     const maxRetries = 3;
     const retryDelay = 1000; // 1秒
 
@@ -161,7 +187,7 @@ export class TokenManager {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ token }),
+          body: JSON.stringify({ token: refreshToken }),
           signal: controller.signal,
         });
 
@@ -177,14 +203,21 @@ export class TokenManager {
         }
 
         const data = await response.json();
-        const newToken = data.access_token;
+        const newAccessToken = data.access_token;
+        const newRefreshToken = data.refresh_token;
 
-        if (!newToken || !jwtUtils.isValidFormat(newToken)) {
-          throw new AppError(ErrorType.AUTHENTICATION, 500, '服务器返回无效令牌');
+        if (!newAccessToken || !jwtUtils.isValidFormat(newAccessToken)) {
+          throw new AppError(ErrorType.AUTHENTICATION, 500, '服务器返回无效访问令牌');
+        }
+
+        // 更新两个令牌
+        this.setToken(newAccessToken);
+        if (newRefreshToken && jwtUtils.isValidFormat(newRefreshToken)) {
+          this.setRefreshToken(newRefreshToken);
         }
 
         console.log('令牌刷新成功');
-        return newToken;
+        return newAccessToken;
 
       } catch (error) {
         console.warn(`令牌刷新尝试 ${attempt}/${maxRetries} 失败:`, error);

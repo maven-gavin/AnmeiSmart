@@ -3,10 +3,11 @@
 import { useEffect, useState, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { authService } from '@/service/authService';
-import { getWebSocketClient, ConnectionStatus } from '@/service/websocket';
+import { getWebSocketClient, ConnectionStatus, WebSocketConfig } from '@/service/websocket';
 import { SenderType } from '@/service/websocket/types';
 import { getDeviceInfo, getWebSocketDeviceConfig } from '@/service/utils';
 import { createCustomHandler } from '@/service/websocket/handlers';
+import { WS_BASE_URL } from '@/config';
 
 /**
  * 页面类型定义
@@ -102,6 +103,34 @@ function getWebSocketConfig(pathname: string): PageWebSocketConfig {
 }
 
 /**
+ * 获取默认WebSocket配置
+ */
+function getDefaultWebSocketConfig(): WebSocketConfig {
+  return {
+    url: WS_BASE_URL,
+    reconnectAttempts: 5,
+    reconnectInterval: 3000,
+    heartbeatInterval: 30000,
+    connectionTimeout: 10000,
+    debug: process.env.NODE_ENV === 'development'
+  };
+}
+
+/**
+ * 安全获取WebSocket客户端，如果未初始化则先初始化
+ */
+function getWebSocketClientSafely(): ReturnType<typeof getWebSocketClient> {
+  try {
+    return getWebSocketClient();
+  } catch (error) {
+    // 如果未初始化，则使用默认配置初始化
+    const defaultConfig = getDefaultWebSocketConfig();
+    console.log('WebSocket客户端未初始化，使用默认配置初始化:', defaultConfig);
+    return getWebSocketClient(defaultConfig);
+  }
+}
+
+/**
  * 页面级WebSocket Hook
  * 根据当前页面和认证状态智能管理WebSocket连接
  */
@@ -114,6 +143,7 @@ export function useWebSocketByPage() {
   
   const connectionRef = useRef<string | null>(null);
   const isConnectingRef = useRef(false);
+  const manualDisconnectRef = useRef(false); // 新增：手动断开标志
   
   // 获取当前页面的WebSocket配置
   useEffect(() => {
@@ -138,7 +168,7 @@ export function useWebSocketByPage() {
     };
 
     // 注册消息处理器
-    const wsClient = getWebSocketClient();
+    const wsClient = getWebSocketClientSafely();
     const handler = createCustomHandler('page-message-handler', [], messageHandler);
     wsClient.registerHandler(handler);
 
@@ -160,22 +190,23 @@ export function useWebSocketByPage() {
         (config.requireAuth && user && !token);
 
       const shouldConnect = config.autoConnect && 
-        (!config.requireAuth || (user && token));
+        (!config.requireAuth || (user && token)) &&
+        !manualDisconnectRef.current; // 手动断开后不自动重连
 
       if (shouldDisconnect && isConnected) {
         console.log(`断开页面WebSocket连接：${pathname}，原因：配置变更或认证失效`);
-        getWebSocketClient().disconnect();
+        getWebSocketClientSafely().disconnect();
         connectionRef.current = null;
         return;
       }
 
       if (shouldConnect && !isConnected && !isConnectingRef.current) {
         // 检查是否已经存在连接
-        const currentIsConnected = getWebSocketClient().isConnected();
+        const currentIsConnected = getWebSocketClientSafely().isConnected();
         if (currentIsConnected) {
           console.log(`检测到已有WebSocket连接，更新页面状态：${pathname}`);
           setIsConnected(true);
-          setConnectionStatus(getWebSocketClient().getConnectionStatus());
+          setConnectionStatus(getWebSocketClientSafely().getConnectionStatus());
           return;
         }
 
@@ -211,11 +242,11 @@ export function useWebSocketByPage() {
 
             // 根据页面类型使用不同的连接策略
             const connectionId = `${config.connectionType}_${pathname.replace(/\//g, '_')}_${Date.now()}`;
-            await getWebSocketClient().connect(connectionParams);
+            await getWebSocketClientSafely().connect(connectionParams);
             
             connectionRef.current = connectionId;
             setIsConnected(true);
-            setConnectionStatus(getWebSocketClient().getConnectionStatus());
+            setConnectionStatus(getWebSocketClientSafely().getConnectionStatus());
             
             console.log(`页面WebSocket连接成功：${pathname}，连接ID：${connectionId}`);
           } catch (error) {
@@ -239,43 +270,71 @@ export function useWebSocketByPage() {
     return () => {
       if (connectionRef.current && isConnected) {
         console.log(`页面卸载，断开WebSocket连接：${pathname}`);
-        getWebSocketClient().disconnect();
+        getWebSocketClientSafely().disconnect();
         connectionRef.current = null;
       }
     };
   }, [pathname, isConnected]);
 
-  // 手动连接
-  const connect = async (): Promise<boolean> => {
-    if (!config?.enabled || isConnected || isConnectingRef.current) {
+  // 手动连接函数
+  const connect = async (customParams?: any): Promise<boolean> => {
+    if (!config?.enabled) {
+      console.warn('WebSocket未启用，无法连接');
       return false;
     }
 
     try {
-      isConnectingRef.current = true;
+      // 重置手动断开标志
+      manualDisconnectRef.current = false;
+      
       const user = authService.getCurrentUser();
-      const connectionId = `${config.connectionType}_${pathname.replace(/\//g, '_')}_${Date.now()}`;
-      await getWebSocketClient().connect({
-        userId: user?.id || 'anonymous',
+      if (!user) {
+        throw new Error('用户未登录');
+      }
+
+      const deviceInfo = await getDeviceInfo();
+      const connectionParams = {
+        userId: user.id,
         token: await authService.getValidToken() || undefined,
-        userType: mapUserRoleToSenderType(user?.currentRole || 'user'),
-        connectionId
-      });
+        userType: mapUserRoleToSenderType(user.currentRole || 'user'),
+        connectionId: `${config.connectionType}_${pathname.replace(/\//g, '_')}_${Date.now()}`,
+        deviceId: deviceInfo?.deviceId,
+        deviceType: deviceInfo?.type,
+        deviceIP: deviceInfo?.ip,
+        userAgent: deviceInfo?.userAgent,
+        platform: deviceInfo?.platform,
+        screenResolution: deviceInfo ? `${deviceInfo.screenWidth}x${deviceInfo.screenHeight}` : undefined,
+        ...customParams
+      };
+
+      await getWebSocketClientSafely().connect(connectionParams);
+      
+      // 设置连接ID和状态
+      const connectionId = `${config.connectionType}_${pathname.replace(/\//g, '_')}_${Date.now()}`;
       connectionRef.current = connectionId;
+      setIsConnected(true);
+      setConnectionStatus(getWebSocketClientSafely().getConnectionStatus());
+      
+      console.log(`手动连接WebSocket成功：${pathname}，连接ID：${connectionId}`);
       return true;
     } catch (error) {
-      console.error('手动连接WebSocket失败:', error);
+      console.error(`手动连接WebSocket失败：${pathname}`, error);
+      setConnectionStatus(ConnectionStatus.ERROR);
       return false;
-    } finally {
-      isConnectingRef.current = false;
     }
   };
 
   // 手动断开
   const disconnect = () => {
-    if (connectionRef.current) {
-      getWebSocketClient().disconnect();
+    try {
+      console.log(`手动断开WebSocket连接：${pathname}`);
+      getWebSocketClientSafely().disconnect();
       connectionRef.current = null;
+      setIsConnected(false);
+      setConnectionStatus(ConnectionStatus.DISCONNECTED);
+      manualDisconnectRef.current = true; // 设置手动断开标志
+    } catch (error) {
+      console.error(`断开WebSocket连接失败：${pathname}`, error);
     }
   };
 
@@ -286,7 +345,7 @@ export function useWebSocketByPage() {
       return false;
     }
 
-    return getWebSocketClient().sendMessage({
+    return getWebSocketClientSafely().sendMessage({
       ...message,
       source_page: pathname,
       timestamp: new Date().toISOString()
@@ -307,6 +366,12 @@ export function useWebSocketByPage() {
     }
   };
 
+  // 重置手动断开标志，重新启用自动连接
+  const resetManualDisconnect = () => {
+    manualDisconnectRef.current = false;
+    console.log(`重置手动断开标志：${pathname}，重新启用自动连接`);
+  };
+
   return {
     // 连接状态
     isConnected,
@@ -322,6 +387,7 @@ export function useWebSocketByPage() {
     connect,
     disconnect,
     sendMessage,
+    resetManualDisconnect, // 新增：重置手动断开标志
     
     // 配置信息
     config

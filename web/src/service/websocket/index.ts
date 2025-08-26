@@ -190,11 +190,11 @@ export class WebSocketClient {
    */
   public disconnect(): void {
     try {
+      // 先禁用重连，避免自动重连
+      this.reconnector.disable();
+      
       // 停止心跳
       this.heartbeat.stop();
-      
-      // 禁用重连
-      this.reconnector.disable();
       
       // 关闭连接
       this.connection.close();
