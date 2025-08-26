@@ -19,6 +19,7 @@ import { WebSocketStatus } from '@/components/WebSocketStatus';
 import { useConversationState } from '@/hooks/useConversationState';
 import { useMessageState } from '@/hooks/useMessageState';
 import { useWebSocketByPage } from '@/hooks/useWebSocketByPage'
+import { Message } from '@/types/chat';
 
 function SmartCommunicationContent() {
   const router = useRouter();
@@ -56,6 +57,7 @@ function SmartCommunicationContent() {
     messages,
     loadingMessages,
     loadMessages,
+    saveMessage,
     toggleMessageImportant
   } = useMessageState(selectedConversationId);
   
@@ -128,6 +130,11 @@ function SmartCommunicationContent() {
       prevConversationIdRef.current = selectedConversationId;
     }
   }, [selectedConversationId]);
+
+  // 处理消息添加
+  const handleMessageAdded = useCallback((message: Message) => {
+    saveMessage(message);
+  }, [saveMessage]);
 
   // 会话选择处理
   const handleConversationSelect = useCallback(async (conversationId: string) => {
@@ -283,6 +290,7 @@ function SmartCommunicationContent() {
               onImportantToggle={handleImportantToggle}
               onSettingsToggle={handleSettingsToggle}
               toggleMessageImportant={toggleMessageImportant}
+              onMessageAdded={handleMessageAdded}
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-gray-50">

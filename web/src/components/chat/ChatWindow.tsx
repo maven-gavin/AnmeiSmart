@@ -25,6 +25,7 @@ interface ChatWindowProps {
   onImportantToggle?: () => void;
   onSettingsToggle?: () => void;
   toggleMessageImportant?: (messageId: string, currentStatus: boolean) => Promise<void>;
+  onMessageAdded?: (message: Message) => void;
 }
 
 export default function ChatWindow({ 
@@ -39,7 +40,8 @@ export default function ChatWindow({
   onSearchToggle,
   onImportantToggle,
   onSettingsToggle,
-  toggleMessageImportant
+  toggleMessageImportant,
+  onMessageAdded
 }: ChatWindowProps) {
   const { user } = useAuthContext();
 
@@ -73,15 +75,13 @@ export default function ChatWindow({
 
   // 处理发送消息
   const handleSendMessage = useCallback(async (message: Message) => {
-    if (!user) {
-      //DODO： Toast 告知用户未登陆，然后系统跳转到登陆页面
-    }
-
     try {
       message.conversationId = conversation.id;
       
       // 立即添加到本地状态以提供即时反馈
-      // 这里需要通知父组件添加消息
+      if (onMessageAdded) {
+        onMessageAdded(message);
+      }
       setTimeout(scrollToBottom, 100);
       
       // 异步保存到后端
@@ -89,17 +89,26 @@ export default function ChatWindow({
         const savedMessage = await saveMessage(message);
         message.status = 'sent';
         message.id = savedMessage.id;
+        if (onMessageAdded) {
+          onMessageAdded(message);
+        }
       } catch (saveError) {
         message.status = 'failed';
         message.error = saveError instanceof Error ? saveError.message : '发送失败';
-        //DODO： Toast 告知用户发送失败
+        // 更新失败状态
+        if (onMessageAdded) {
+          onMessageAdded(message);
+        }
       }
     } catch (error) {
       message.status = 'failed';
       message.error = error instanceof Error ? error.message : '发送失败';
-      //DODO： Toast 告知用户发送失败
+      // 更新失败状态
+      if (onMessageAdded) {
+        onMessageAdded(message);
+      }
     }
-  }, [conversation.id, user, scrollToBottom])
+  }, [conversation.id, user, scrollToBottom, onMessageAdded])
 
   // 消息操作回调函数
   const handleToggleImportant = useCallback(async (messageId: string) => {
