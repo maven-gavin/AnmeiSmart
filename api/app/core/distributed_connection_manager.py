@@ -254,9 +254,12 @@ class DistributedConnectionManager:
     async def send_to_user(self, user_id: str, payload: dict):
         """向指定用户发送消息（通过Redis广播）"""
         try:
+            # 确保payload中的所有数据都是可序列化的
+            serializable_payload = self._make_serializable(payload)
+            
             message = {
                 "target_user_id": user_id,
-                "payload": payload,
+                "payload": serializable_payload,
                 "instance_id": self.instance_id,
                 "timestamp": datetime.now().isoformat()
             }
@@ -266,6 +269,21 @@ class DistributedConnectionManager:
             
         except Exception as e:
             logger.error(f"发送消息到Redis失败: {e}")
+    
+    def _make_serializable(self, obj):
+        """确保对象是可序列化的"""
+        if isinstance(obj, dict):
+            return {k: self._make_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._make_serializable(item) for item in obj]
+        elif isinstance(obj, datetime):
+            return obj.isoformat()
+        elif hasattr(obj, 'isoformat'):  # 处理其他可能有isoformat方法的对象
+            return obj.isoformat()
+        elif hasattr(obj, '__dict__'):  # 处理自定义对象
+            return str(obj)
+        else:
+            return obj
     
     async def _send_to_local_user(self, user_id: str, payload: dict):
         """向本地连接的用户发送消息"""

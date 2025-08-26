@@ -63,9 +63,16 @@ def get_user_role(user: User) -> str:
 async def broadcast_message_safe(conversation_id: str, message_info: MessageInfo, sender_id: str, db: Session):
     """安全地广播消息，处理错误"""
     try:
-        # TODO: 广播功能临时禁用，需要修复BroadcastingService集成
-        logger.info(f"消息已创建但未广播: conversation_id={conversation_id}, message_id={message_info.id}")
-        pass
+        # 使用BroadcastingService进行消息广播
+        from app.services.broadcasting_factory import get_broadcasting_service
+        
+        broadcasting_service = await get_broadcasting_service(db)
+        await broadcasting_service.broadcast_message(
+            conversation_id=conversation_id,
+            message_data=message_info.dict(),
+            exclude_user_id=sender_id
+        )
+        logger.info(f"消息广播成功: conversation_id={conversation_id}, message_id={message_info.id}")
     except Exception as e:
         logger.error(f"广播消息失败: {e}")
         # 不抛出异常，因为消息已经成功创建

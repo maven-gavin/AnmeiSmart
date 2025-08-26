@@ -136,7 +136,7 @@ def create_message_event(
 ) -> MessageEvent:
     """创建消息事件的便捷函数"""
     return MessageEvent(
-        type=EventTypes.CHAT_MESSAGE_RECEIVED,
+        type=EventTypes.CHAT_MESSAGE_SENT,  # 修改为CHAT_MESSAGE_SENT以匹配订阅
         data={
             "content": content,
             "message_type": message_type,

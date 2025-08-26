@@ -43,12 +43,33 @@ class BroadcastingService:
             # 获取会话参与者（这里需要根据实际业务逻辑获取）
             participants = await self._get_conversation_participants(conversation_id)
             
+            # 将MessageInfo格式转换为前端期望的扁平化格式
+            timestamp = message_data.get("timestamp")
+            if timestamp and hasattr(timestamp, 'isoformat'):
+                timestamp_str = timestamp.isoformat()
+            else:
+                timestamp_str = datetime.now().isoformat()
+                
+            flattened_data = {
+                "id": message_data.get("id"),
+                "conversation_id": conversation_id,
+                "content": message_data.get("content"),
+                "type": message_data.get("type", "text"),
+                "sender_id": message_data.get("sender", {}).get("id") if isinstance(message_data.get("sender"), dict) else message_data.get("sender_id"),
+                "sender_type": message_data.get("sender", {}).get("type") if isinstance(message_data.get("sender"), dict) else message_data.get("sender_type"),
+                "sender_name": message_data.get("sender", {}).get("name") if isinstance(message_data.get("sender"), dict) else message_data.get("sender_name"),
+                "sender_avatar": message_data.get("sender", {}).get("avatar") if isinstance(message_data.get("sender"), dict) else message_data.get("sender_avatar"),
+                "timestamp": timestamp_str,
+                "is_read": message_data.get("is_read", False),
+                "is_important": message_data.get("is_important", False)
+            }
+            
             # 构造WebSocket消息格式
             websocket_payload = {
-                "event": "new_message",
-                "data": message_data,
+                "action": "new_message",
+                "data": flattened_data,
                 "conversation_id": conversation_id,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": timestamp_str
             }
             
             # 向每个参与者发送消息
@@ -77,7 +98,7 @@ class BroadcastingService:
             participants = await self._get_conversation_participants(conversation_id)
             
             typing_payload = {
-                "event": "typing_status",
+                "action": "typing_status",  # 改为action
                 "data": {
                     "user_id": user_id,
                     "is_typing": is_typing
@@ -104,7 +125,7 @@ class BroadcastingService:
             participants = await self._get_conversation_participants(conversation_id)
             
             read_payload = {
-                "event": "read_status",
+                "action": "read_status",
                 "data": {
                     "user_id": user_id,
                     "message_ids": message_ids
@@ -133,7 +154,7 @@ class BroadcastingService:
                 target_user_ids = await self._get_conversation_participants(conversation_id)
             
             system_payload = {
-                "event": "system_notification",
+                "action": "system_notification",
                 "data": notification_data,
                 "conversation_id": conversation_id,
                 "timestamp": datetime.now().isoformat()
@@ -159,7 +180,7 @@ class BroadcastingService:
         """向指定用户发送直接消息"""
         try:
             direct_payload = {
-                "event": "direct_message",
+                "action": "direct_message",
                 "data": message_data,
                 "timestamp": datetime.now().isoformat()
             }
@@ -269,7 +290,7 @@ class BroadcastingService:
             participants = await self._get_conversation_participants(conversation_id)
             
             notification_payload = {
-                "event": "mobile_notification",
+                "action": "mobile_notification",
                 "data": message_data,
                 "conversation_id": conversation_id,
                 "timestamp": datetime.now().isoformat()
@@ -305,7 +326,7 @@ class BroadcastingService:
             participants = await self._get_conversation_participants(conversation_id)
             
             reply_payload = {
-                "event": "consultation_reply",
+                "action": "consultation_reply",
                 "data": reply_data,
                 "conversation_id": conversation_id,
                 "consultant_id": consultant_id,

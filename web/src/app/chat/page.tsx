@@ -61,6 +61,61 @@ function SmartCommunicationContent() {
     toggleMessageImportant
   } = useMessageState(selectedConversationId);
   
+  // 处理WebSocket消息
+  useEffect(() => {
+    console.log('WebSocket状态变化:', {
+      lastMessage: websocketState.lastMessage,
+      selectedConversationId,
+      isConnected: websocketState.isConnected,
+      connectionStatus: websocketState.connectionStatus
+    });
+    
+    if (websocketState.lastMessage && selectedConversationId) {
+      const { action, data } = websocketState.lastMessage;
+      
+      console.log('处理WebSocket消息:', { action, data, selectedConversationId });
+      
+      if (action === 'new_message' && data) {
+        console.log('收到新消息:', data);
+        
+        // 检查消息是否属于当前会话
+        if (data.conversation_id === selectedConversationId) {
+          console.log('消息属于当前会话，准备添加到消息列表');
+          
+          // 将后端消息格式转换为前端格式
+          const newMessage: Message = {
+            id: data.id,
+            conversationId: data.conversation_id,
+            content: data.content,
+            type: data.type || 'text',
+            sender: {
+              id: data.sender_id,
+              type: data.sender_type || 'user',
+              name: data.sender_name || '未知用户',
+              avatar: data.sender_avatar || '/avatars/user.png'
+            },
+            timestamp: data.timestamp || new Date().toISOString(),
+            status: 'sent',
+            is_important: data.is_important || false
+          };
+          
+          console.log('转换后的消息:', newMessage);
+          
+          // 添加到消息列表
+          saveMessage(newMessage);
+          console.log('消息已添加到列表');
+        } else {
+          console.log('消息不属于当前会话:', {
+            messageConversationId: data.conversation_id,
+            currentConversationId: selectedConversationId
+          });
+        }
+      } else {
+        console.log('不是新消息事件:', { action, data });
+      }
+    }
+  }, [websocketState.lastMessage, selectedConversationId, saveMessage]);
+  
   // UI状态管理
   const [isSwitchingConversation, setIsSwitchingConversation] = useState(false);
   const [loadingFriendConversation, setLoadingFriendConversation] = useState(false);

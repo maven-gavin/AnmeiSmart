@@ -17,6 +17,9 @@ from app.db.base import create_initial_roles, create_initial_system_settings
 from app.core.redis_client import redis_manager, get_redis_client
 from app.api.v1.endpoints.websocket import initialize_connection_manager, cleanup_connection_manager
 
+# 确保MessageBroadcaster被导入和初始化
+from app.services.websocket.message_broadcaster import message_broadcaster
+
 settings = get_settings()
 logger = logging.getLogger(__name__)
 

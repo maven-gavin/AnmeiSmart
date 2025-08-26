@@ -34,7 +34,7 @@ class MessageBroadcaster:
             sender_id = event.user_id
             
             message_data = {
-                "action": "message",
+                "action": "new_message",  # 改为new_message以保持一致性
                 "data": {
                     "id": event.data.get("message_id"),
                     "content": event.data.get("content"),
@@ -87,7 +87,7 @@ class MessageBroadcaster:
                 return
             
             ai_message_data = {
-                "action": "message",
+                "action": "new_message",  # 改为new_message以保持一致性
                 "data": {
                     "id": event.data.get("message_id"),
                     "content": event.data.get("content"),
