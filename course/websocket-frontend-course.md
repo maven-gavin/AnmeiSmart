@@ -175,23 +175,23 @@ export class WebSocketConnection {
     return new Promise((resolve, reject) => {
       try {
         this.ws = new WebSocket(url);
-        
+      
         this.ws.onopen = () => {
           console.log('WebSocket连接已建立');
           this.reconnectAttempts = 0;
           resolve();
         };
-        
+      
         this.ws.onerror = (error) => {
           console.error('WebSocket连接错误:', error);
           reject(error);
         };
-        
+      
         this.ws.onclose = (event) => {
           console.log('WebSocket连接关闭:', event.code, event.reason);
           this.handleReconnect();
         };
-        
+      
       } catch (error) {
         reject(error);
       }
@@ -214,16 +214,16 @@ export class ReconnectManager {
       console.error('达到最大重连次数，停止重连');
       return;
     }
-    
+  
     // 指数退避策略
     const delay = this.baseDelay * Math.pow(2, this.reconnectAttempts);
     const maxDelay = 30000; // 最大30秒
     const actualDelay = Math.min(delay, maxDelay);
-    
+  
     console.log(`第${this.reconnectAttempts + 1}次重连，延迟${actualDelay}ms`);
-    
+  
     await new Promise(resolve => setTimeout(resolve, actualDelay));
-    
+  
     try {
       await this.connect();
       this.reconnectAttempts = 0; // 重连成功，重置计数
@@ -247,14 +247,14 @@ export class HeartbeatManager {
   
   startHeartbeat(ws: WebSocket): void {
     this.stopHeartbeat(); // 停止之前的心跳
-    
+  
     this.heartbeatTimer = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
         const heartbeatMessage = {
           type: 'heartbeat',
           timestamp: Date.now()
         };
-        
+      
         ws.send(JSON.stringify(heartbeatMessage));
         console.log('发送心跳消息');
       }
@@ -388,12 +388,12 @@ export class MessageSerializer {
   static deserialize(data: string): WebSocketMessage {
     try {
       const message = JSON.parse(data);
-      
+    
       // 验证必要字段
       if (!message.id || !message.type || !message.action) {
         throw new Error('消息格式无效');
       }
-      
+    
       return message;
     } catch (error) {
       console.error('消息反序列化失败:', error);
@@ -407,59 +407,128 @@ export class MessageSerializer {
 
 #### 3.2.1 事件处理器注册
 
+事件处理器模式是WebSocket消息处理的核心设计模式。它通过注册不同的处理器函数来处理不同类型的消息，实现了关注点分离和代码模块化。
+
+**核心思想**：将消息处理逻辑分散到不同的处理器中，而不是在一个巨大的switch语句中处理所有消息类型。
+
 ```typescript
 // 文件：web/src/service/websocket/handlers/index.ts
-export class MessageEventHandler {
-  private handlers: Map<string, MessageHandler> = new Map();
+
+// 核心类型定义
+type MessageHandler = (message: WebSocketMessage) => Promise<void>;
+
+class MessageEventHandler {
+  private handlers = new Map<string, MessageHandler>();
   
-  // 注册消息处理器
-  registerHandler(action: string, handler: MessageHandler): void {
+  // 注册处理器
+  registerHandler(action: string, handler: MessageHandler) {
     this.handlers.set(action, handler);
   }
   
-  // 处理接收到的消息
-  async handleMessage(message: WebSocketMessage): Promise<void> {
+  // 处理消息
+  async handleMessage(message: WebSocketMessage) {
     const handler = this.handlers.get(message.action);
     
     if (handler) {
       try {
         await handler(message);
       } catch (error) {
-        console.error(`处理消息失败 [${message.action}]:`, error);
+        console.error(`处理失败 [${message.action}]:`, error);
       }
-    } else {
-      console.warn(`未找到消息处理器: ${message.action}`);
     }
   }
 }
 
-// 注册各种消息处理器
+// 创建事件处理器
 const eventHandler = new MessageEventHandler();
 
-// 聊天消息处理器
-eventHandler.registerHandler('new_message', async (message: ChatMessage) => {
-  // 添加到聊天消息列表
+// 注册聊天消息处理器
+eventHandler.registerHandler('new_message', async (message) => {
+  // 伪代码：添加到聊天列表
   addMessageToChat(message);
   
-  // 播放提示音
+  // 伪代码：播放提示音
   playNotificationSound();
   
-  // 显示桌面通知
+  // 伪代码：显示桌面通知
   showDesktopNotification(message);
 });
 
-// 输入状态处理器
-eventHandler.registerHandler('typing_status', async (message: TypingMessage) => {
-  updateTypingStatus(message.conversationId, message.sender?.id, message.data.isTyping);
+// 注册输入状态处理器
+eventHandler.registerHandler('typing_status', async (message) => {
+  // 伪代码：更新输入状态
+  updateTypingStatus(
+    message.data.conversationId,
+    message.sender.id,
+    message.data.isTyping
+  );
 });
 
-// 系统通知处理器
-eventHandler.registerHandler('system_notification', async (message: SystemMessage) => {
+// 注册系统通知处理器
+eventHandler.registerHandler('system_notification', async (message) => {
+  // 伪代码：显示系统通知
   showSystemNotification(message.data);
 });
 ```
 
-#### 3.2.2 消息适配器
+#### 3.2.2 与WebSocket集成
+
+```typescript
+// 伪代码：在WebSocket连接中集成
+class WebSocketConnection {
+  setupMessageHandler() {
+    this.ws.onmessage = async (event) => {
+      const message = JSON.parse(event.data);
+      
+      // 使用事件处理器处理消息
+      await eventHandler.handleMessage(message);
+    };
+  }
+}
+```
+
+#### 3.2.3 关键优势
+
+**模块化设计**：每个处理器职责单一
+```typescript
+// 每个处理器只处理一种类型的消息
+const chatMessageHandler = async (message) => {
+  // 只处理聊天消息相关逻辑
+};
+
+const typingHandler = async (message) => {
+  // 只处理输入状态相关逻辑
+};
+```
+
+**易于扩展**：添加新消息类型很简单
+```typescript
+// 添加新消息类型
+eventHandler.registerHandler('file_upload', async (message) => {
+  // 处理文件上传消息
+});
+
+eventHandler.registerHandler('voice_message', async (message) => {
+  // 处理语音消息
+});
+```
+
+**错误隔离**：每个处理器的错误不会影响其他处理器
+```typescript
+// 每个处理器的错误不会影响其他处理器
+eventHandler.registerHandler('new_message', async (message) => {
+  try {
+    // 处理消息
+  } catch (error) {
+    // 只影响当前处理器
+    console.error('聊天消息处理失败:', error);
+  }
+});
+```
+
+#### 3.2.4 消息适配器
+
+消息适配器负责在WebSocket消息和业务消息之间进行转换，确保数据格式的一致性。
 
 ```typescript
 // 文件：web/src/service/websocket/adapters/messageAdapter.ts
@@ -568,10 +637,10 @@ export function useWebSocketByPage() {
   // 处理消息接收
   const handleMessage = useCallback((message: WebSocketMessage) => {
     setLastMessage(message);
-    
+  
     // 添加到消息队列
     setMessageQueue(prev => [...prev, message]);
-    
+  
     // 限制队列长度
     if (messageQueue.length > 100) {
       setMessageQueue(prev => prev.slice(-100));
@@ -594,7 +663,14 @@ export function useWebSocketByPage() {
 
 ```typescript
 // 文件：web/src/components/WebSocketStatus.tsx
-export function WebSocketStatus() {
+export function WebSocketStatus({
+  isConnected,
+  connectionStatus,
+  isEnabled,
+  connectionType,
+  connect,
+  disconnect
+}: WebSocketStatusProps) {
   const { connectionState, reconnect } = useWebSocketByPage();
   
   const getStatusIcon = () => {
@@ -635,7 +711,7 @@ export function WebSocketStatus() {
     <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg">
       {getStatusIcon()}
       <span className="text-sm font-medium">{getStatusText()}</span>
-      
+  
       {connectionState.status === 'disconnected' && (
         <button
           onClick={reconnect}
@@ -644,7 +720,7 @@ export function WebSocketStatus() {
           重连
         </button>
       )}
-      
+  
       {connectionState.status === 'error' && (
         <button
           onClick={() => window.location.reload()}
@@ -676,12 +752,12 @@ export function MessageNotification() {
         timestamp: new Date(),
         type: 'message'
       };
-      
+    
       setNotifications(prev => [...prev, notification]);
-      
+    
       // 播放提示音
       playNotificationSound();
-      
+    
       // 显示桌面通知
       if (Notification.permission === 'granted') {
         new Notification(notification.title, {
@@ -689,7 +765,7 @@ export function MessageNotification() {
           icon: '/favicon.ico'
         });
       }
-      
+    
       // 自动移除通知（5秒后）
       setTimeout(() => {
         setNotifications(prev => prev.filter(n => n.id !== notification.id));
@@ -767,7 +843,7 @@ export default function ChatPage() {
       alert('WebSocket未连接，无法发送消息');
       return;
     }
-    
+  
     try {
       await sendMessage({
         action: 'send_message',
@@ -790,17 +866,17 @@ export default function ChatPage() {
         <h1 className="text-xl font-semibold">聊天</h1>
         <WebSocketStatus />
       </div>
-      
+    
       {/* 聊天窗口 */}
       <div className="flex-1 overflow-hidden">
         <ChatWindow />
       </div>
-      
+    
       {/* 消息输入 */}
       <div className="p-4 border-t">
         <MessageInput onSendMessage={handleSendMessage} />
       </div>
-      
+    
       {/* 消息通知 */}
       <MessageNotification />
     </div>
@@ -822,7 +898,7 @@ export function ChatWindow() {
     const chatMessages = messageQueue
       .filter(msg => msg.type === 'text' || msg.type === 'image' || msg.type === 'file')
       .map(msg => MessageAdapter.fromWebSocketMessage(msg));
-    
+  
     setMessages(chatMessages);
   }, [messageQueue]);
   
@@ -840,7 +916,7 @@ export function ChatWindow() {
         ))}
         <div ref={messagesEndRef} />
       </div>
-      
+    
       {/* 输入状态指示器 */}
       <TypingIndicator />
     </div>
@@ -862,12 +938,12 @@ export function MessageInput({ onSendMessage }: { onSendMessage: (content: strin
   // 发送文本消息
   const handleSendText = async () => {
     if (!inputValue.trim()) return;
-    
+  
     try {
       await onSendMessage(inputValue.trim(), 'text');
       setInputValue('');
       setIsTyping(false);
-      
+    
       // 发送停止输入状态
       await sendMessage({
         action: 'typing_status',
@@ -881,7 +957,7 @@ export function MessageInput({ onSendMessage }: { onSendMessage: (content: strin
   // 处理输入状态
   const handleInputChange = async (value: string) => {
     setInputValue(value);
-    
+  
     // 发送输入状态
     if (!isTyping && value.trim()) {
       setIsTyping(true);
@@ -918,7 +994,7 @@ export function MessageInput({ onSendMessage }: { onSendMessage: (content: strin
           rows={1}
         />
       </div>
-      
+    
       <button
         onClick={handleSendText}
         disabled={!inputValue.trim()}
@@ -945,7 +1021,7 @@ export function MessageInput({ onSendMessage }: { onSendMessage: (content: strin
       // 上传文件到服务器
       const formData = new FormData();
       formData.append('file', file);
-      
+    
       const response = await fetch('/api/v1/files/upload', {
         method: 'POST',
         body: formData,
@@ -953,13 +1029,13 @@ export function MessageInput({ onSendMessage }: { onSendMessage: (content: strin
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
         }
       });
-      
+    
       if (!response.ok) {
         throw new Error('文件上传失败');
       }
-      
+    
       const result = await response.json();
-      
+    
       // 发送文件消息
       await sendMessage({
         action: 'send_message',
@@ -970,7 +1046,7 @@ export function MessageInput({ onSendMessage }: { onSendMessage: (content: strin
           fileSize: file.size
         }
       });
-      
+    
     } catch (error) {
       console.error('文件上传失败:', error);
       alert('文件上传失败，请重试');
@@ -993,7 +1069,7 @@ export function MessageInput({ onSendMessage }: { onSendMessage: (content: strin
       >
         <PaperClipIcon className="w-5 h-5" />
       </button>
-      
+    
       <input
         ref={fileInputRef}
         type="file"
@@ -1006,7 +1082,7 @@ export function MessageInput({ onSendMessage }: { onSendMessage: (content: strin
         className="hidden"
         accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt"
       />
-      
+    
       {/* 文本输入框 */}
       <div className="flex-1">
         <textarea
@@ -1018,7 +1094,7 @@ export function MessageInput({ onSendMessage }: { onSendMessage: (content: strin
           rows={1}
         />
       </div>
-      
+    
       <button
         onClick={handleSendText}
         disabled={!inputValue.trim()}
@@ -1057,10 +1133,10 @@ class WebSocketManager {
     if (this.connection && this.connection.isConnected()) {
       return; // 已连接，直接返回
     }
-    
+  
     this.connection = new WebSocketConnection();
     await this.connection.connect(config.url);
-    
+  
     // 设置消息处理器
     this.connection.onMessage = (message) => {
       this.notifySubscribers(message);
@@ -1069,7 +1145,7 @@ class WebSocketManager {
   
   subscribe(callback: (message: WebSocketMessage) => void): () => void {
     this.subscribers.add(callback);
-    
+  
     // 返回取消订阅函数
     return () => {
       this.subscribers.delete(callback);
@@ -1090,7 +1166,7 @@ class WebSocketManager {
     if (!this.connection || !this.connection.isConnected()) {
       throw new Error('WebSocket未连接');
     }
-    
+  
     await this.connection.send(message);
   }
   
@@ -1116,12 +1192,12 @@ export class MessageQueue {
   
   add(message: WebSocketMessage): void {
     this.queue.push(message);
-    
+  
     // 限制队列大小
     if (this.queue.length > this.maxSize) {
       this.queue = this.queue.slice(-this.maxSize);
     }
-    
+  
     // 异步处理消息
     if (!this.processing) {
       this.processQueue();
@@ -1132,22 +1208,22 @@ export class MessageQueue {
     if (this.processing || this.queue.length === 0) {
       return;
     }
-    
+  
     this.processing = true;
-    
+  
     while (this.queue.length > 0) {
       const message = this.queue.shift()!;
-      
+    
       try {
         await this.processMessage(message);
       } catch (error) {
         console.error('处理消息失败:', error);
       }
-      
+    
       // 添加小延迟避免阻塞
       await new Promise(resolve => setTimeout(resolve, 10));
     }
-    
+  
     this.processing = false;
   }
   
@@ -1232,9 +1308,9 @@ export function useWebSocketByPage() {
         }));
       }
     });
-    
+  
     unsubscribeRef.current = unsubscribe;
-    
+  
     return unsubscribe;
   }, [safeSetState]);
   
@@ -1261,7 +1337,7 @@ export class WebSocketErrorBoundary extends React.Component<
   
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('WebSocket错误:', error, errorInfo);
-    
+  
     // 发送错误报告
     this.reportError(error, errorInfo);
   }
@@ -1297,7 +1373,7 @@ export class WebSocketErrorBoundary extends React.Component<
         </div>
       );
     }
-    
+  
     return this.props.children;
   }
 }
