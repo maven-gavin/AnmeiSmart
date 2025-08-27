@@ -101,72 +101,20 @@ class MessageService:
             ).first()
             
             if conversation:
-                logger.info(f"会话详情: id={conversation.id}, owner_id={conversation.owner_id}, assigned_consultant_id={conversation.assigned_consultant_id}")
+                logger.warning(f"会话存在但用户无权访问: conversation_id={conversation_id}, owner_id={conversation.owner_id}, user_id={user_id}")
             else:
-                logger.warning(f"会话不存在: {conversation_id}")
+                logger.warning(f"会话不存在: conversation_id={conversation_id}")
             
             return False
+            
         except Exception as e:
-            logger.error(f"检查会话访问权限失败: {str(e)}", exc_info=True)
+            logger.error(f"检查会话访问权限时出错: {e}")
             return False
 
-    def _validate_message_content(self, content: Dict[str, Any], message_type: str) -> None:
-        """
-        验证消息内容的有效性
-        
-        Args:
-            content: 消息内容
-            message_type: 消息类型
-            
-        Raises:
-            ValueError: 内容验证失败时抛出
-        """
-        if content is None:
-            raise ValueError("消息内容不能为空")
-        
-        if not isinstance(content, dict):
-            raise ValueError("消息内容必须是对象")
-        
-        if len(content) == 0:
-            if message_type == "system":
-                raise ValueError("系统事件消息内容不能为空")
-        
-        # 验证特定类型的必需字段和字段一致性
-        if message_type == "text":
-            if "text" not in content:
-                raise ValueError("文本消息必须包含text字段")
-            # 检查是否包含不应该出现的字段
-            invalid_fields = set(content.keys()) - {"text"}
-            if invalid_fields:
-                raise ValueError(f"文本消息包含无效字段: {', '.join(invalid_fields)}")
-        elif message_type == "media":
-            if "media_info" not in content:
-                raise ValueError("媒体消息必须包含media_info字段")
-            # 验证media_info结构
-            media_info = content["media_info"]
-            if not isinstance(media_info, dict):
-                raise ValueError("media_info必须是对象")
-            required_fields = ["url", "name", "mime_type", "size_bytes"]
-            for field in required_fields:
-                if field not in media_info:
-                    raise ValueError(f"media_info缺少必需字段: {field}")
-            # 检查是否包含不应该出现的字段（除了text和media_info）
-            invalid_fields = set(content.keys()) - {"text", "media_info"}
-            if invalid_fields:
-                raise ValueError(f"媒体消息包含无效字段: {', '.join(invalid_fields)}")
-        elif message_type == "system":
-            if "system_event_type" not in content and "event_type" not in content:
-                raise ValueError("系统事件消息必须包含system_event_type或event_type字段")
-        elif message_type == "structured":
-            required_fields = ["card_type", "title"]
-            for field in required_fields:
-                if field not in content:
-                    raise ValueError(f"结构化消息缺少必需字段: {field}")
-
-    def create_message(
+    async def create_message(
         self,
         conversation_id: str,
-        content: Dict[str, Any],
+        content: Union[str, Dict[str, Any]],
         message_type: str,
         sender_id: Optional[str] = None,
         sender_digital_human_id: Optional[str] = None,
@@ -176,26 +124,37 @@ class MessageService:
         reactions: Optional[Dict[str, List[str]]] = None,
         extra_metadata: Optional[Dict[str, Any]] = None,
         requires_confirmation: bool = False
-    ) -> Message:
+    ) -> MessageInfo:
         """
-        创建新消息
+        创建消息的通用方法
         
         Args:
             conversation_id: 会话ID
-            sender_id: 发送者ID
-            sender_type: 发送者类型
-            content: 结构化消息内容
+            content: 消息内容（字符串或结构化字典）
             message_type: 消息类型 (text, media, system, structured)
+            sender_id: 发送者ID
+            sender_digital_human_id: 数字人发送者ID
+            sender_type: 发送者类型
             is_important: 是否重要
             reply_to_message_id: 回复的消息ID
-            reactions: 消息反应
+            reactions: 反应数据
             extra_metadata: 额外元数据
+            requires_confirmation: 是否需要确认
             
         Returns:
-            创建的消息实例
+            创建的消息信息
         """
-        # 验证消息内容
-        self._validate_message_content(content, message_type)
+        # 验证会话存在
+        conversation = self.db.query(Conversation).filter(
+            Conversation.id == conversation_id
+        ).first()
+        
+        if not conversation:
+            raise ValueError(f"会话不存在: {conversation_id}")
+        
+        # 确保content是字典格式
+        if isinstance(content, str):
+            content = {"text": content}
         
         # 调试日志：记录保存前的内容
         logger.debug(f"创建消息: conversation_id={conversation_id}, type={message_type}, content={json.dumps(content, ensure_ascii=False)}")
@@ -239,7 +198,8 @@ class MessageService:
         except Exception as e:
             logger.warning(f"发布消息事件失败: {e}")
         
-        return message
+        # 返回schema对象而不是ORM对象
+        return MessageInfo.from_model(message)
 
     def create_text_message(
         self,
@@ -252,7 +212,7 @@ class MessageService:
         reply_to_message_id: Optional[str] = None,
         extra_metadata: Optional[Dict[str, Any]] = None,
         requires_confirmation: bool = False
-    ) -> Message:
+    ) -> MessageInfo:
         """
         创建文本消息的便利方法
         
@@ -266,7 +226,7 @@ class MessageService:
             extra_metadata: 额外元数据
             
         Returns:
-            创建的消息实例
+            创建的消息信息
         """
         content = create_text_message_content(text)
         
@@ -283,7 +243,7 @@ class MessageService:
             requires_confirmation=requires_confirmation
         )
 
-    def create_media_message(
+    async def create_media_message(
         self,
         conversation_id: str,
         sender_id: str,
@@ -297,7 +257,7 @@ class MessageService:
         is_important: bool = False,
         reply_to_message_id: Optional[str] = None,
         upload_method: Optional[str] = None
-    ) -> Message:
+    ) -> MessageInfo:
         """
         创建媒体消息的便利方法
         
@@ -316,7 +276,7 @@ class MessageService:
             upload_method: 上传方式
             
         Returns:
-            创建的消息实例
+            创建的消息信息
         """
         content = create_media_message_content(
             media_url=media_url,
@@ -330,7 +290,7 @@ class MessageService:
         # 将上传方式添加到额外元数据中
         extra_metadata = {"upload_method": upload_method} if upload_method else None
         
-        return self.create_message(
+        return await self.create_message(
             conversation_id=conversation_id,
             sender_id=sender_id,
             sender_type=sender_type,
@@ -341,13 +301,14 @@ class MessageService:
             extra_metadata=extra_metadata
         )
 
-    def create_system_event_message(
+    async def create_system_event_message(
         self,
         conversation_id: str,
         event_type: str,
         status: Optional[str] = None,
+        sender_id: Optional[str] = None,
         event_data: Optional[Dict[str, Any]] = None
-    ) -> Message:
+    ) -> MessageInfo:
         """
         创建系统事件消息的便利方法
         
@@ -355,10 +316,11 @@ class MessageService:
             conversation_id: 会话ID
             event_type: 事件类型
             status: 事件状态
+            sender_id: 发送者ID
             event_data: 事件数据
             
         Returns:
-            创建的消息实例
+            创建的消息信息
         """
         content = create_system_event_content(
             event_type=event_type,
@@ -366,15 +328,15 @@ class MessageService:
             **(event_data or {})
         )
         
-        return self.create_message(
+        return await self.create_message(
             conversation_id=conversation_id,
-            sender_id="system",
+            sender_id=sender_id or "system",
             sender_type="system",
             content=content,
             message_type="system"
         )
 
-    def create_appointment_card_message(
+    async def create_appointment_card_message(
         self,
         conversation_id: str,
         sender_id: str,
@@ -382,7 +344,7 @@ class MessageService:
         appointment_data: AppointmentCardData,
         title: str = "预约确认",
         subtitle: Optional[str] = None
-    ) -> Message:
+    ) -> MessageInfo:
         """
         创建预约确认卡片消息
         
@@ -395,7 +357,7 @@ class MessageService:
             subtitle: 卡片副标题
             
         Returns:
-            创建的消息实例
+            创建的消息信息
         """
         content = create_appointment_card_content(
             appointment_data=appointment_data,
@@ -403,7 +365,7 @@ class MessageService:
             subtitle=subtitle
         )
         
-        return self.create_message(
+        return await self.create_message(
             conversation_id=conversation_id,
             sender_id=sender_id,
             sender_type=sender_type,
@@ -412,14 +374,14 @@ class MessageService:
             is_important=True  # 预约消息通常标记为重要
         )
 
-    def create_service_recommendation_message(
+    async def create_service_recommendation_message(
         self,
         conversation_id: str,
         sender_id: str,
         sender_type: str,
         services: List[Dict[str, Any]],
         title: str = "推荐服务"
-    ) -> Message:
+    ) -> MessageInfo:
         """
         创建服务推荐卡片消息
         
@@ -431,14 +393,14 @@ class MessageService:
             title: 卡片标题
             
         Returns:
-            创建的消息实例
+            创建的消息信息
         """
         content = create_service_recommendation_content(
             services=services,
             title=title
         )
         
-        return self.create_message(
+        return await self.create_message(
             conversation_id=conversation_id,
             sender_id=sender_id,
             sender_type=sender_type,
@@ -446,7 +408,7 @@ class MessageService:
             message_type="structured"
         )
 
-    def create_custom_structured_message(
+    async def create_custom_structured_message(
         self,
         conversation_id: str,
         sender_id: str,
@@ -457,7 +419,7 @@ class MessageService:
         subtitle: Optional[str] = None,
         components: Optional[List[Dict[str, Any]]] = None,
         actions: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> Message:
+    ) -> MessageInfo:
         """
         创建自定义结构化消息
         
@@ -473,7 +435,7 @@ class MessageService:
             actions: 卡片操作
             
         Returns:
-            创建的消息实例
+            创建的消息信息
         """
         content = {
             "card_type": card_type,
@@ -484,7 +446,7 @@ class MessageService:
             "actions": actions
         }
         
-        return self.create_message(
+        return await self.create_message(
             conversation_id=conversation_id,
             sender_id=sender_id,
             sender_type=sender_type,
@@ -553,60 +515,13 @@ class MessageService:
             logger.warning(f"消息不存在: message_id={message_id}")
             return False
         
-        # 更新已读状态
-        message.is_read = True  # type: ignore
-        
+        message.is_read = True
+        message.updated_at = datetime.now()
         self.db.commit()
         
         logger.info(f"消息已标记为已读: message_id={message_id}")
         return True
     
-    def get_unread_message_count(self, conversation_id: str, user_id: str) -> int:
-        """获取用户在会话中的未读消息数"""
-        count = self.db.query(Message).filter(
-            Message.conversation_id == conversation_id,
-            Message.sender_id != user_id,  # 不包括自己发送的消息
-            Message.is_read == False
-        ).count()
-        
-        return count
-    
-    def get_recent_messages(
-        self,
-        conversation_id: str,
-        limit: int = 10
-    ) -> List[MessageInfo]:
-        """获取最近的消息（用于AI上下文）"""
-        messages = self.db.query(Message).options(
-            joinedload(Message.sender)
-        ).filter(
-            Message.conversation_id == conversation_id
-        ).order_by(
-            Message.timestamp.desc()
-        ).limit(limit).all()
-        
-        # 返回时间正序的消息
-        return [MessageInfo.from_model(msg) for msg in reversed(messages)]
-    
-    def delete_message(self, message_id: str, user_id: str) -> bool:
-        """删除消息（软删除）"""
-        message = self.db.query(Message).filter(
-            Message.id == message_id,
-            Message.sender_id == user_id  # 只能删除自己的消息
-        ).first()
-        
-        if not message:
-            return False
-        
-        # 软删除：标记为已删除而不是真正删除
-        message.is_deleted = True  # type: ignore
-        message.deleted_at = datetime.now()
-        
-        self.db.commit()
-        
-        logger.info(f"消息已删除: message_id={message_id}, user_id={user_id}")
-        return True
-
     def mark_message_as_important(self, message_id: str, is_important: bool) -> bool:
         """标记消息为重点"""
         logger.info(f"标记消息重点状态: message_id={message_id}, is_important={is_important}")
@@ -619,10 +534,135 @@ class MessageService:
             logger.warning(f"消息不存在: message_id={message_id}")
             return False
         
-        # 更新重点状态
-        message.is_important = is_important  # type: ignore
-        
+        message.is_important = is_important
+        message.updated_at = datetime.now()
         self.db.commit()
         
         logger.info(f"消息重点状态已更新: message_id={message_id}, is_important={is_important}")
-        return True 
+        return True
+    
+    def get_recent_messages(self, conversation_id: str, limit: int = 10) -> List[MessageInfo]:
+        """获取最近的消息"""
+        messages = self.db.query(Message).options(
+            joinedload(Message.sender)
+        ).filter(
+            Message.conversation_id == conversation_id
+        ).order_by(
+            Message.timestamp.desc()
+        ).limit(limit).all()
+        
+        # 按时间正序返回
+        messages.reverse()
+        return [MessageInfo.from_model(msg) for msg in messages]
+    
+    def search_messages(
+        self,
+        conversation_id: str,
+        query: str,
+        skip: int = 0,
+        limit: int = 50
+    ) -> List[MessageInfo]:
+        """搜索消息"""
+        # 简单的文本搜索，可以根据需要扩展
+        messages = self.db.query(Message).options(
+            joinedload(Message.sender)
+        ).filter(
+            Message.conversation_id == conversation_id,
+            Message.content.contains(query)
+        ).order_by(
+            Message.timestamp.desc()
+        ).offset(skip).limit(limit).all()
+        
+        return [MessageInfo.from_model(msg) for msg in messages]
+    
+    def delete_message(self, message_id: str, user_id: str) -> bool:
+        """删除消息（软删除）"""
+        logger.info(f"删除消息: message_id={message_id}, user_id={user_id}")
+        
+        message = self.db.query(Message).filter(
+            Message.id == message_id
+        ).first()
+        
+        if not message:
+            logger.warning(f"消息不存在: message_id={message_id}")
+            return False
+        
+        # 检查权限：只有发送者或管理员可以删除
+        if str(message.sender_id) != user_id:
+            # 检查用户是否是管理员
+            user = self.db.query(User).filter(User.id == user_id).first()
+            if not user or not any(role.name in ['admin', 'operator'] for role in user.roles):
+                logger.warning(f"用户无权删除消息: user_id={user_id}, message_sender_id={message.sender_id}")
+                return False
+        
+        # 软删除：标记为已删除
+        message.is_deleted = True
+        message.deleted_at = datetime.now()
+        message.deleted_by = user_id
+        message.updated_at = datetime.now()
+        
+        self.db.commit()
+        
+        logger.info(f"消息已删除: message_id={message_id}")
+        return True
+    
+    def add_reaction_to_message(self, message_id: str, user_id: str, emoji: str) -> bool:
+        """为消息添加反应"""
+        logger.info(f"添加消息反应: message_id={message_id}, user_id={user_id}, emoji={emoji}")
+        
+        message = self.db.query(Message).filter(
+            Message.id == message_id
+        ).first()
+        
+        if not message:
+            logger.warning(f"消息不存在: message_id={message_id}")
+            return False
+        
+        # 初始化反应数据
+        if not message.reactions:
+            message.reactions = {}
+        
+        # 添加反应
+        if emoji not in message.reactions:
+            message.reactions[emoji] = []
+        
+        if user_id not in message.reactions[emoji]:
+            message.reactions[emoji].append(user_id)
+            message.updated_at = datetime.now()
+            self.db.commit()
+            
+            logger.info(f"反应添加成功: message_id={message_id}, emoji={emoji}")
+            return True
+        
+        logger.info(f"用户已添加过此反应: message_id={message_id}, user_id={user_id}, emoji={emoji}")
+        return False
+    
+    def remove_reaction_from_message(self, message_id: str, user_id: str, emoji: str) -> bool:
+        """移除消息的反应"""
+        logger.info(f"移除消息反应: message_id={message_id}, user_id={user_id}, emoji={emoji}")
+        
+        message = self.db.query(Message).filter(
+            Message.id == message_id
+        ).first()
+        
+        if not message:
+            logger.warning(f"消息不存在: message_id={message_id}")
+            return False
+        
+        # 移除反应
+        if message.reactions and emoji in message.reactions:
+            if user_id in message.reactions[emoji]:
+                message.reactions[emoji].remove(user_id)
+                
+                # 如果没有用户使用此反应，删除整个反应
+                if not message.reactions[emoji]:
+                    del message.reactions[emoji]
+                
+                message.updated_at = datetime.now()
+                self.db.commit()
+                
+                logger.info(f"反应移除成功: message_id={message_id}, emoji={emoji}")
+                return True
+        
+        logger.info(f"用户未添加过此反应: message_id={message_id}, user_id={user_id}, emoji={emoji}")
+        return False 

@@ -20,10 +20,10 @@ from app.schemas.chat import (
 # 导入新的服务层
 from app.services.chat import ChatService
 from app.services.chat.message_service import MessageService
-from app.core.events import event_bus, EventTypes
+from app.core.websocket.events import event_bus, EventTypes
 
 # 导入新的分布式WebSocket组件
-from app.services.broadcasting_service import BroadcastingService
+from app.services.websocket.broadcasting_service import BroadcastingService
 from app.services.websocket.websocket_factory import get_connection_manager
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ async def broadcast_message_safe(conversation_id: str, message_info: MessageInfo
     """安全地广播消息，处理错误"""
     try:
         # 使用BroadcastingService进行消息广播
-        from app.services.broadcasting_factory import get_broadcasting_service
+        from app.services.websocket.broadcasting_factory import get_broadcasting_service
         
         broadcasting_service = await get_broadcasting_service(db)
         await broadcasting_service.broadcast_message(
@@ -203,7 +203,7 @@ async def create_message(
     service = MessageService(db)
     
     try:
-        message = service.create_message(
+        message = await service.create_message(
             conversation_id=conversation_id,
             sender_id=str(current_user.id),  # 修复：转换为字符串
             sender_type=get_user_role(current_user),
@@ -215,9 +215,9 @@ async def create_message(
         )
         
         # 广播消息
-        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), str(current_user.id), db)  # 修复：转换为字符串
+        await broadcast_message_safe(conversation_id, message, str(current_user.id), db)  # 修复：转换为字符串
         
-        return MessageInfo.from_model(message)
+        return message
         
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -248,9 +248,9 @@ async def create_text_message(
         )
         
         # 广播消息
-        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), str(current_user.id), db)  # 修复：转换为字符串
+        await broadcast_message_safe(conversation_id, message, str(current_user.id), db)  # 修复：转换为字符串
         
-        return MessageInfo.from_model(message)
+        return message
         
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -271,7 +271,7 @@ async def create_media_message(
     service = MessageService(db)
     
     try:
-        message = service.create_media_message(
+        message = await service.create_media_message(
             conversation_id=conversation_id,
             sender_id=str(current_user.id),  # 修复：转换为字符串
             sender_type=get_user_role(current_user),
@@ -287,9 +287,9 @@ async def create_media_message(
         )
         
         # 广播消息
-        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), str(current_user.id), db)  # 修复：转换为字符串
+        await broadcast_message_safe(conversation_id, message, str(current_user.id), db)  # 修复：转换为字符串
         
-        return MessageInfo.from_model(message)
+        return message
         
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -318,7 +318,7 @@ async def create_system_event_message(
     service = MessageService(db)
     
     try:
-        message = service.create_system_event_message(
+        message = await service.create_system_event_message(
             conversation_id=conversation_id,
             event_type=request.event_type,
             status=request.status,
@@ -326,9 +326,9 @@ async def create_system_event_message(
         )
         
         # 广播消息
-        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), str(current_user.id), db)  # 修复：转换为字符串
+        await broadcast_message_safe(conversation_id, message, str(current_user.id), db)  # 修复：转换为字符串
         
-        return MessageInfo.from_model(message)
+        return message
         
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -349,7 +349,7 @@ async def create_structured_message(
     service = MessageService(db)
     
     try:
-        message = service.create_custom_structured_message(
+        message = await service.create_custom_structured_message(
             conversation_id=conversation_id,
             sender_id=str(current_user.id),  # 修复：转换为字符串
             sender_type=get_user_role(current_user),
@@ -362,9 +362,9 @@ async def create_structured_message(
         )
         
         # 广播消息
-        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), str(current_user.id), db)  # 修复：转换为字符串
+        await broadcast_message_safe(conversation_id, message, str(current_user.id), db)  # 修复：转换为字符串
         
-        return MessageInfo.from_model(message)
+        return message
         
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -393,7 +393,7 @@ async def create_appointment_confirmation(
     service = MessageService(db)
     
     try:
-        message = service.create_appointment_card_message(
+        message = await service.create_appointment_card_message(
             conversation_id=conversation_id,
             sender_id=str(current_user.id),  # 修复：转换为字符串
             sender_type=get_user_role(current_user),
@@ -403,9 +403,9 @@ async def create_appointment_confirmation(
         )
         
         # 广播消息
-        await broadcast_message_safe(conversation_id, MessageInfo.from_model(message), str(current_user.id), db)  # 修复：转换为字符串
+        await broadcast_message_safe(conversation_id, message, str(current_user.id), db)  # 修复：转换为字符串
         
-        return MessageInfo.from_model(message)
+        return message
         
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

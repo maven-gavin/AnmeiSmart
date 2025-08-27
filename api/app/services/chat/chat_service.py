@@ -155,17 +155,17 @@ class ChatService:
         if user_digital_human and user_digital_human.greeting_message:
             welcome_text = user_digital_human.greeting_message
             # 由数字人发送欢迎消息
-            self.message_service.create_message(
-                conversation_id=new_conversation.id,
+            await self.message_service.create_message(
+                conversation_id=str(new_conversation.id),
                 content={"text": welcome_text},
                 message_type="text",
-                sender_digital_human_id=user_digital_human.id,
+                sender_digital_human_id=str(user_digital_human.id),
                 sender_type="digital_human"
             )
         else:
             # 系统发送欢迎消息
-            self.message_service.create_message(
-                conversation_id=new_conversation.id,
+            await self.message_service.create_message(
+                conversation_id=str(new_conversation.id),
                 content={"text": welcome_text},
                 message_type="text",
                 sender_id=None,

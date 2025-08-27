@@ -1,77 +1,399 @@
 ---
-description: 
-globs: **/*.py
-alwaysApply: false
----
----
 description: 该规则解释分层职责与数据转换项目规则。
 globs: **/*.py
 alwaysApply: false
 ---
 
 
-# 分层职责与数据转换项目规则
+# DDD分层架构与数据转换规范
 
-## 1. 分层职责
+## 1. DDD分层架构
 
-- **Controller 层（API/Endpoint）**
-  - 只负责参数校验、权限校验、调用 service 层、返回 schema。
-  - 不直接操作数据库 ORM 对象。
-  - 不负责 ORM 到 schema 的转换，直接返回 service 层结果。
+### 1.1 分层结构
+```
+┌─────────────────────────────────────┐
+│           Presentation Layer        │ ← API Controllers, WebSocket Handlers
+├─────────────────────────────────────┤
+│         Application Layer           │ ← Application Services, Use Cases
+├─────────────────────────────────────┤
+│           Domain Layer              │ ← Domain Services, Aggregates, Value Objects
+├─────────────────────────────────────┤
+│        Infrastructure Layer         │ ← Repositories, External Services, ORM
+└─────────────────────────────────────┘
+```
 
-- **Service 层**
-  - 负责业务逻辑、数据流转、数据库操作。
-  - 只与 ORM 交互，所有对外返回均为 Pydantic schema。
-  - 负责调用 schema 的 `from_model`（或 `from_orm`）方法，将 ORM 转为 schema。
-  - 不返回原始 ORM 对象给 controller 层。
+### 1.2 各层职责
 
-- **Schema 层**
-  - 只负责数据结构定义和 ORM → schema 的转换。
-  - 每个响应 schema（如 `UserResponse`、`MessageInfo`、`ConversationInfo` 等）必须实现 `from_model` 静态方法，接收 ORM 实例并返回 schema 实例。
-  - 列表/聚合场景用列表推导式 `[Schema.from_model(obj) for obj in orm_list]`。
+#### **Presentation Layer（表现层）**
+- **职责**：处理HTTP请求、WebSocket消息、参数校验、权限控制
+- **原则**：薄层，只负责请求路由和响应格式化
+- **禁止**：直接操作领域对象或基础设施
 
-## 2. 具体代码规范
+#### **Application Layer（应用层）**
+- **职责**：编排领域服务，实现用例，事务管理
+- **原则**：无状态，协调领域对象完成业务用例
+- **特点**：包含应用服务（Application Services）和用例（Use Cases）
 
-- **service 层返回示例：**
-  ```python
-  def get_user(self, user_id: str) -> UserResponse:
-      user = self.db.query(User).get(user_id)
-      return UserResponse.from_model(user)
-  ```
+#### **Domain Layer（领域层）**
+- **职责**：核心业务逻辑，领域规则，领域事件
+- **组成**：
+  - **聚合根（Aggregate Root）**：业务一致性边界
+  - **实体（Entity）**：有身份的对象
+  - **值对象（Value Object）**：无身份的对象
+  - **领域服务（Domain Service）**：跨聚合的业务逻辑
+  - **领域事件（Domain Event）**：领域内的重要事件
 
-- **controller 层返回示例：**
-  ```python
-  @router.get("/user/{user_id}", response_model=UserResponse)
-  def get_user(user_id: str):
-      return user_service.get_user(user_id)
-  ```
+#### **Infrastructure Layer（基础设施层）**
+- **职责**：数据持久化，外部服务集成，技术实现
+- **组成**：仓储实现、外部API客户端、消息队列等
 
-- **schema 层转换方法示例：**
-  ```python
-  class UserResponse(BaseModel):
-      ...
-      @staticmethod
-      def from_model(user) -> "UserResponse":
-          # 组装字段
-          return UserResponse(...)
-  ```
+## 2. 数据转换策略
 
-## 3. 迁移与重构建议
+### 2.1 转换模式选择
 
-- 批量移除 controller 层所有 ORM 到 schema 的转换，直接 return service 层结果。
-- service 层所有返回 ORM 的方法，全部改为返回 schema。
-- schema 层统一实现 from_model 静态方法，聚合/嵌套场景可递归调用。
-- controller 层不再 import/引用 ORM，仅依赖 schema 和 service。
+#### **模式1：Schema转换器（推荐）**
+```python
+# 独立的转换器类
+class UserConverter:
+    @staticmethod
+    def to_response(user: User) -> UserResponse:
+        return UserResponse(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            created_at=user.created_at
+        )
+    
+    @staticmethod
+    def to_list_response(users: List[User]) -> List[UserResponse]:
+        return [UserConverter.to_response(user) for user in users]
+```
 
-## 4. 适用范围
+#### **模式2：Schema内置转换（简单场景）**
+```python
+class UserResponse(BaseModel):
+    id: str
+    name: str
+    email: str
+    created_at: datetime
+    
+    @classmethod
+    def from_entity(cls, user: User) -> "UserResponse":
+        return cls(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            created_at=user.created_at
+        )
+```
 
-- 适用于 FastAPI、Flask、Django REST Framework 等所有分层后端项目。
-- 适用于所有需要清晰分离"业务逻辑/数据结构/接口"的项目。
+#### **模式3：工厂模式（复杂聚合）**
+```python
+class ConversationResponseFactory:
+    @staticmethod
+    def create(conversation: Conversation, include_messages: bool = False) -> ConversationResponse:
+        base_data = {
+            "id": conversation.id,
+            "title": conversation.title,
+            "created_at": conversation.created_at
+        }
+        
+        if include_messages:
+            base_data["messages"] = [
+                MessageConverter.to_response(msg) for msg in conversation.messages
+            ]
+        
+        return ConversationResponse(**base_data)
+```
 
-## 5. 设计理念
+### 2.2 转换最佳实践
 
-- **单一职责**：每层只做自己该做的事，便于维护和测试。
-- **可扩展性**：schema 层集中转换，便于未来支持多种数据源或响应格式。
+- **性能优化**：批量转换使用列表推导式，避免N+1查询
+- **内存管理**：大对象集合考虑使用生成器表达式
+- **类型安全**：使用TypeScript风格的类型注解
+- **错误处理**：转换失败时提供有意义的错误信息
+
+## 3. 代码实现规范
+
+### 3.1 Controller层实现
+```python
+@router.get("/users/{user_id}", response_model=UserResponse)
+async def get_user(
+    user_id: str,
+    user_service: UserApplicationService = Depends(get_user_service)
+) -> UserResponse:
+    """获取用户信息 - 表现层只负责路由和响应"""
+    return await user_service.get_user_by_id(user_id)
+```
+
+### 3.2 Application Service层实现
+```python
+class UserApplicationService:
+    def __init__(self, user_repository: UserRepository):
+        self.user_repository = user_repository
+    
+    async def get_user_by_id(self, user_id: str) -> UserResponse:
+        """应用服务 - 编排领域逻辑"""
+        user = await self.user_repository.get_by_id(user_id)
+        if not user:
+            raise UserNotFoundError(user_id)
+        
+        return UserConverter.to_response(user)
+    
+    async def create_user(self, user_data: CreateUserRequest) -> UserResponse:
+        """创建用户用例"""
+        # 领域逻辑验证
+        if await self.user_repository.exists_by_email(user_data.email):
+            raise EmailAlreadyExistsError(user_data.email)
+        
+        # 创建领域对象
+        user = User.create(
+            name=user_data.name,
+            email=user_data.email,
+            password=user_data.password
+        )
+        
+        # 持久化
+        saved_user = await self.user_repository.save(user)
+        
+        # 发布领域事件
+        await self.event_bus.publish(UserCreatedEvent(user_id=saved_user.id))
+        
+        return UserConverter.to_response(saved_user)
+```
+
+### 3.3 Domain Service层实现
+```python
+class UserDomainService:
+    """领域服务 - 跨聚合的业务逻辑"""
+    
+    def __init__(self, user_repository: UserRepository, password_service: PasswordService):
+        self.user_repository = user_repository
+        self.password_service = password_service
+    
+    async def authenticate_user(self, email: str, password: str) -> Optional[User]:
+        """用户认证 - 领域逻辑"""
+        user = await self.user_repository.get_by_email(email)
+        if not user:
+            return None
+        
+        if not self.password_service.verify_password(password, user.password_hash):
+            return None
+        
+        user.record_login()
+        await self.user_repository.save(user)
+        
+        return user
+```
+
+### 3.4 Repository层实现
+```python
+class UserRepository(AbstractUserRepository):
+    """仓储实现 - 基础设施层"""
+    
+    def __init__(self, session: AsyncSession):
+        self.session = session
+    
+    async def get_by_id(self, user_id: str) -> Optional[User]:
+        """根据ID获取用户"""
+        result = await self.session.execute(
+            select(UserModel).where(UserModel.id == user_id)
+        )
+        user_model = result.scalar_one_or_none()
+        
+        if not user_model:
+            return None
+        
+        return self._to_entity(user_model)
+    
+    async def save(self, user: User) -> User:
+        """保存用户"""
+        user_model = self._to_model(user)
+        self.session.add(user_model)
+        await self.session.commit()
+        await self.session.refresh(user_model)
+        
+        return self._to_entity(user_model)
+    
+    def _to_entity(self, model: UserModel) -> User:
+        """ORM模型转领域实体"""
+        return User(
+            id=model.id,
+            name=model.name,
+            email=model.email,
+            password_hash=model.password_hash,
+            created_at=model.created_at
+        )
+    
+    def _to_model(self, entity: User) -> UserModel:
+        """领域实体转ORM模型"""
+        return UserModel(
+            id=entity.id,
+            name=entity.name,
+            email=entity.email,
+            password_hash=entity.password_hash,
+            created_at=entity.created_at
+        )
+```
+
+## 4. 领域建模指导
+
+### 4.1 聚合设计原则
+- **一致性边界**：聚合内的对象必须保持一致性
+- **事务边界**：一个事务只能修改一个聚合
+- **引用原则**：聚合间通过ID引用，不直接引用对象
+
+### 4.2 实体设计
+```python
+class User(Entity):
+    """用户聚合根"""
+    
+    def __init__(self, id: str, name: str, email: str, password_hash: str, created_at: datetime):
+        super().__init__(id)
+        self._name = name
+        self._email = email
+        self._password_hash = password_hash
+        self._created_at = created_at
+        self._last_login_at = None
+    
+    @property
+    def name(self) -> str:
+        return self._name
+    
+    @property
+    def email(self) -> str:
+        return self._email
+    
+    def change_name(self, new_name: str) -> None:
+        """修改用户名 - 领域逻辑"""
+        if not new_name.strip():
+            raise ValueError("用户名不能为空")
+        self._name = new_name.strip()
+        self._add_domain_event(UserNameChangedEvent(self.id, new_name))
+    
+    def record_login(self) -> None:
+        """记录登录 - 领域逻辑"""
+        self._last_login_at = datetime.utcnow()
+        self._add_domain_event(UserLoggedInEvent(self.id))
+    
+    @classmethod
+    def create(cls, name: str, email: str, password: str) -> "User":
+        """工厂方法 - 创建用户"""
+        if not name.strip():
+            raise ValueError("用户名不能为空")
+        if not email or "@" not in email:
+            raise ValueError("邮箱格式不正确")
+        
+        user_id = str(uuid.uuid4())
+        password_hash = hash_password(password)
+        created_at = datetime.utcnow()
+        
+        return cls(user_id, name.strip(), email.lower(), password_hash, created_at)
+```
+
+### 4.3 值对象设计
+```python
+class Email(ValueObject):
+    """邮箱值对象"""
+    
+    def __init__(self, value: str):
+        if not self._is_valid(value):
+            raise ValueError("邮箱格式不正确")
+        self._value = value.lower()
+    
+    @property
+    def value(self) -> str:
+        return self._value
+    
+    def _is_valid(self, email: str) -> bool:
+        return bool(re.match(r"[^@]+@[^@]+\.[^@]+", email))
+    
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Email):
+            return False
+        return self._value == other._value
+    
+    def __hash__(self) -> int:
+        return hash(self._value)
+```
+
+## 5. 测试策略
+
+### 5.1 分层测试
+```python
+# 领域层测试
+class TestUser:
+    def test_create_user_with_valid_data(self):
+        user = User.create("张三", "zhangsan@example.com", "password123")
+        assert user.name == "张三"
+        assert user.email == "zhangsan@example.com"
+    
+    def test_create_user_with_invalid_email(self):
+        with pytest.raises(ValueError, match="邮箱格式不正确"):
+            User.create("张三", "invalid-email", "password123")
+
+# 应用层测试
+class TestUserApplicationService:
+    async def test_get_user_by_id_success(self):
+        user = User.create("张三", "zhangsan@example.com", "password123")
+        mock_repo = Mock()
+        mock_repo.get_by_id.return_value = user
+        
+        service = UserApplicationService(mock_repo)
+        result = await service.get_user_by_id("user-id")
+        
+        assert isinstance(result, UserResponse)
+        assert result.name == "张三"
+
+# 基础设施层测试
+class TestUserRepository:
+    async def test_save_user(self):
+        user = User.create("张三", "zhangsan@example.com", "password123")
+        session = AsyncSession()
+        repo = UserRepository(session)
+        
+        saved_user = await repo.save(user)
+        assert saved_user.id == user.id
+```
+
+## 6. 重构指导
+
+### 6.1 渐进式重构步骤
+1. **识别领域边界**：分析现有代码，识别核心业务概念
+2. **提取领域模型**：将业务逻辑从服务层提取到领域层
+3. **重构数据转换**：统一使用转换器模式
+4. **引入仓储模式**：抽象数据访问逻辑
+5. **添加领域事件**：解耦业务逻辑
+
+### 6.2 代码质量检查
+- **依赖方向**：确保依赖指向领域层
+- **业务逻辑位置**：业务规则应在领域层
+- **数据转换一致性**：统一使用转换器模式
+- **测试覆盖率**：每层都有对应的测试
+
+## 7. 设计原则总结
+
+### 7.1 DDD原则
+- **领域驱动**：以业务概念为核心设计代码结构
+- **聚合设计**：明确业务边界和一致性约束
+- **分层架构**：清晰的职责分离和依赖方向
+- **领域事件**：解耦业务逻辑，支持事件驱动
+
+### 7.2 整洁代码原则
+- **单一职责**：每个类和方法只做一件事
+- **开闭原则**：对扩展开放，对修改关闭
+- **依赖倒置**：依赖抽象而非具体实现
+- **接口隔离**：客户端不应依赖不需要的接口
+- **里氏替换**：子类可以替换父类而不影响程序正确性
+
+### 7.3 性能考虑
+- **批量操作**：使用批量查询和转换
+- **延迟加载**：按需加载关联数据
+- **缓存策略**：合理使用缓存减少数据库访问
+- **异步处理**：非阻塞操作使用异步模式
+
+
 - **可测试性**：service 层和 schema 层可独立单元测试。
 - **一致性**：团队开发风格统一，减少沟通和维护成本。
+- **整洁性**：减少代码冗余，便于代码阅读。
 

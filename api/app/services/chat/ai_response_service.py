@@ -201,7 +201,7 @@ class AIResponseService:
                 sender_type="ai"
             )
             
-            return MessageInfo.from_model(ai_message)
+            return ai_message
             
         except Exception as e:
             logger.error(f"强制AI回复失败: {e}")
