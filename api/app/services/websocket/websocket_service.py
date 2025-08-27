@@ -76,6 +76,11 @@ class WebSocketService:
             if not conversation_id:
                 return
             
+            # 检查user_id是否存在
+            if not event.user_id:
+                logger.warning("输入状态事件缺少user_id")
+                return
+            
             is_typing = event.data.get("is_typing", False)
             
             await self.broadcasting_service.broadcast_typing_status(
@@ -92,6 +97,11 @@ class WebSocketService:
         try:
             conversation_id = event.conversation_id
             if not conversation_id:
+                return
+            
+            # 检查user_id是否存在
+            if not event.user_id:
+                logger.warning("已读状态事件缺少user_id")
                 return
             
             message_ids = event.data.get("message_ids", [])
@@ -135,15 +145,18 @@ class WebSocketService:
     
     async def send_to_user(self, user_id: str, message: Dict[str, Any]) -> bool:
         """向用户发送消息"""
-        return await self.connection_manager.send_to_user(user_id, message)
+        result = await self.connection_manager.send_to_user(user_id, message)
+        return bool(result)
     
     async def send_to_device(self, connection_id: str, message: Dict[str, Any]) -> bool:
         """向特定设备发送消息"""
-        return await self.connection_manager.send_to_device(connection_id, message)
+        result = await self.connection_manager.send_to_device(connection_id, message)
+        return bool(result)
     
     async def send_to_device_type(self, user_id: str, device_type: str, message: Dict[str, Any]) -> bool:
         """向用户的特定设备类型发送消息"""
-        return await self.connection_manager.send_to_device_type(user_id, device_type, message)
+        result = await self.connection_manager.send_to_device_type(user_id, device_type, message)
+        return bool(result)
     
     async def handle_websocket_message(self, data: Dict[str, Any], user_id: str, conversation_id: str) -> Dict[str, Any]:
         """处理WebSocket消息"""
