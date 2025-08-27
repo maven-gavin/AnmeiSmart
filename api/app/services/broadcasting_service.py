@@ -282,7 +282,7 @@ class BroadcastingService:
             logger.error(f"提取通知内容失败: {e}")
             return "新消息"
     
-    async def send_mobile_only_notification(self, conversation_id: str, message_data: Dict[str, Any], exclude_user_id: str = None):
+    async def send_mobile_only_notification(self, conversation_id: str, message_data: Dict[str, Any], exclude_user_id: Optional[str] = None):
         """
         只向移动设备发送通知（适合重要消息的移动端推送）
         """

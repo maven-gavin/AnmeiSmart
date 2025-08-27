@@ -55,12 +55,15 @@ api/app/
 │   ├── broadcasting_factory.py            # 广播服务工厂和依赖注入
 │   ├── notification_service.py            # 通知推送服务
 │   └── websocket/
-│       └── message_broadcaster.py         # WebSocket消息广播器
+│       ├── __init__.py                    # 服务包初始化
+│       ├── websocket_handler.py           # 消息处理器
+│       ├── websocket_service.py           # 统一WebSocket服务
+│       └── websocket_factory.py           # WebSocket服务工厂
 ├── core/
 │   ├── distributed_connection_manager.py  # 分布式连接管理器
 │   ├── redis_client.py                   # Redis客户端
-│   ├── websocket_manager.py              # WebSocket连接管理
-│   └── events.py                         # 事件系统
+│   ├── events.py                         # 事件系统
+│   └── websocket_lifecycle.py            # 生命周期管理
 ├── api/
 │   ├── deps.py                           # FastAPI依赖注入
 │   └── v1/
@@ -70,8 +73,10 @@ api/app/
 │   └── models/
 │       ├── chat.py                       # 聊天相关模型
 │       └── user.py                       # 用户模型
-└── schemas/
-    └── chat.py                           # 聊天相关Schema
+├── schemas/
+│   └── chat.py                           # 聊天相关Schema
+└── utils/
+    └── websocket_utils.py                # 公共工具函数
 ```
 
 ### 核心文件说明
@@ -96,7 +101,11 @@ api/app/
 | `broadcasting_factory.py`           | 服务工厂        | 管理广播服务的创建和依赖注入       |
 | `distributed_connection_manager.py` | 分布式连接管理  | 基于Redis的跨实例WebSocket连接管理 |
 | `notification_service.py`           | 通知推送服务    | 处理离线推送通知（支持多种提供商） |
-| `websocket_manager.py`              | WebSocket管理器 | 本地WebSocket连接的管理和路由      |
+| `websocket/websocket_service.py`    | 统一WebSocket服务 | 整合连接管理和消息广播的统一接口   |
+| `websocket/websocket_factory.py`    | WebSocket服务工厂 | 统一管理WebSocket服务的创建和依赖注入 |
+| `websocket/websocket_handler.py`    | 消息处理器      | 处理WebSocket消息的解析和路由      |
+| `websocket_lifecycle.py`            | 生命周期管理    | 处理应用启动和关闭时的服务初始化和清理 |
+| `websocket_utils.py`                | 公共工具函数    | 提供WebSocket相关的公共工具函数    |
 
 ## 架构组件
 
@@ -561,8 +570,8 @@ WS_MAX_RECONNECT_ATTEMPTS=15
 ```
 ┌────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Load         │    │   FastAPI       │    │   Redis         │
-│   Balancer     │    │   Instances     │    │   Cluster       │
-│   (Nginx)      │    │   (多实例)       │    │   (主从复制)     │
+│   Balancer     │    │   Instances     │    │   (多实例)       │
+│   (Nginx)      │    │   (主从复制)     │    │                 │
 └────────────────┘    └─────────────────┘    └─────────────────┘
         │                       │                       │
         ▼                       ▼                       ▼
@@ -602,6 +611,6 @@ except Exception as e:
 
 ---
 
-**架构版本**：WebSocket V2 + BroadcastingService V1
-**状态**：已完全部署并投入使用
-**最后更新**：基于实际代码实现整理
+**架构版本**：WebSocket V2 + BroadcastingService V1 + 重构完成
+**状态**：重构完成，已完全部署并投入使用
+**最后更新**：基于重构后的实际代码实现整理

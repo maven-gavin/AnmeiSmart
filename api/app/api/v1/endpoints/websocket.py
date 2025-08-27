@@ -9,24 +9,13 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query, H
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
-from app.core.distributed_connection_manager import DistributedConnectionManager
-from app.core.redis_client import get_redis_client
 from app.core.security import verify_token
 from app.db.models.user import User
+from app.services.websocket import get_websocket_service_dependency
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# 全局连接管理器（将在应用启动时初始化）
-connection_manager: Optional[DistributedConnectionManager] = None
-
-
-def get_connection_manager() -> DistributedConnectionManager:
-    """依赖注入：获取连接管理器实例"""
-    if connection_manager is None:
-        raise HTTPException(status_code=500, detail="连接管理器未初始化")
-    return connection_manager
 
 
 def verify_websocket_token(token: str, db: Session) -> Optional[dict]:
@@ -71,7 +60,7 @@ async def websocket_endpoint(
     deviceType: Optional[str] = Query(None, description="设备类型：desktop/mobile/tablet"),
     deviceId: Optional[str] = Query(None, description="设备唯一标识"),
     db: Session = Depends(get_db),
-    manager: DistributedConnectionManager = Depends(get_connection_manager)
+    service = Depends(get_websocket_service_dependency)
 ):
     """
     通用WebSocket连接端点
@@ -124,7 +113,7 @@ async def websocket_endpoint(
         }
         
         # 建立连接，使用连接标识区分设备
-        success = await manager.connect(user_id, websocket, connection_metadata, connectionId)
+        success = await service.connect_user(user_id, websocket, connection_metadata, connectionId)
         if not success:
             await websocket.close(code=4002, reason="Connection failed")
             return
@@ -182,34 +171,9 @@ async def websocket_endpoint(
     
     finally:
         # 清理连接
-        if user_info and manager:
+        if user_info and service:
             try:
-                await manager.disconnect(websocket)
+                await service.disconnect_user(websocket)
                 logger.info(f"WebSocket连接已清理: user_id={user_info['user_id']}")
             except Exception as e:
-                logger.error(f"清理WebSocket连接失败: {e}")
-
-
-async def initialize_connection_manager(redis_client):
-    """初始化连接管理器（在应用启动时调用）"""
-    global connection_manager
-    try:
-        connection_manager = DistributedConnectionManager(redis_client)
-        await connection_manager.initialize()
-        logger.info("WebSocket连接管理器初始化成功")
-    except Exception as e:
-        logger.error(f"初始化WebSocket连接管理器失败: {e}")
-        raise
-
-
-async def cleanup_connection_manager():
-    """清理连接管理器（在应用关闭时调用）"""
-    global connection_manager
-    if connection_manager:
-        try:
-            await connection_manager.cleanup()
-            logger.info("WebSocket连接管理器清理完成")
-        except Exception as e:
-            logger.error(f"清理WebSocket连接管理器失败: {e}")
-        finally:
-            connection_manager = None 
+                logger.error(f"清理WebSocket连接失败: {e}") 

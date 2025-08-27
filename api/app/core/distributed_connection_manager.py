@@ -44,6 +44,9 @@ class DistributedConnectionManager:
         # 监听任务
         self.pubsub_task: Optional[asyncio.Task] = None
         self.presence_task: Optional[asyncio.Task] = None
+        
+        # 锁，用于保护并发连接操作
+        self._lock = asyncio.Lock()
     
     async def initialize(self):
         """初始化管理器，启动Redis监听器"""
@@ -165,49 +168,50 @@ class DistributedConnectionManager:
     
     async def connect(self, user_id: str, websocket: WebSocket, metadata: Optional[Dict[str, Any]] = None, connection_id: Optional[str] = None) -> bool:
         """建立WebSocket连接（支持多设备）"""
-        try:
-            await websocket.accept()
-            
-            # 生成连接ID（如果没有提供）
-            if not connection_id:
-                connection_id = f"{user_id}_{self.instance_id}_{int(datetime.now().timestamp() * 1000)}"
-            
-            # 添加到本地连接管理（按用户ID）
-            if user_id not in self.local_connections:
-                self.local_connections[user_id] = set()
-            self.local_connections[user_id].add(websocket)
-            
-            # 添加到连接ID映射（支持多设备区分）
-            self.connections_by_id[connection_id] = websocket
-            self.websocket_to_connection_id[websocket] = connection_id
-            
-            # 保存连接元数据
-            self.connection_metadata[websocket] = {
-                "user_id": user_id,
-                "connection_id": connection_id,
-                "connected_at": datetime.now(),
-                "instance_id": self.instance_id,
-                "device_type": metadata.get("device_type", "unknown") if metadata else "unknown",
-                "device_id": metadata.get("device_id") if metadata else None,
-                "metadata": metadata or {}
-            }
-            
-            # 将用户标记为在线
-            was_online = await self._add_user_to_online(user_id)
-            
-            if not was_online:
-                # 用户首次上线，广播在线状态
-                await self._broadcast_presence_change(user_id, "user_online")
-            else:
-                # 用户新设备上线，广播设备连接状态
-                await self._broadcast_device_change(user_id, connection_id, "device_connected", metadata)
-            
-            logger.info(f"用户连接成功: {user_id}, 设备: {metadata.get('device_type', 'unknown') if metadata else 'unknown'}, 连接ID: {connection_id} [实例: {self.instance_id}]")
-            return True
-            
-        except Exception as e:
-            logger.error(f"建立WebSocket连接失败: {e}")
-            return False
+        async with self._lock:
+            try:
+                await websocket.accept()
+                
+                # 生成连接ID（如果没有提供）
+                if not connection_id:
+                    connection_id = f"{user_id}_{self.instance_id}_{int(datetime.now().timestamp() * 1000)}"
+                
+                # 添加到本地连接管理（按用户ID）
+                if user_id not in self.local_connections:
+                    self.local_connections[user_id] = set()
+                self.local_connections[user_id].add(websocket)
+                
+                # 添加到连接ID映射（支持多设备区分）
+                self.connections_by_id[connection_id] = websocket
+                self.websocket_to_connection_id[websocket] = connection_id
+                
+                # 保存连接元数据
+                self.connection_metadata[websocket] = {
+                    "user_id": user_id,
+                    "connection_id": connection_id,
+                    "connected_at": datetime.now(),
+                    "instance_id": self.instance_id,
+                    "device_type": metadata.get("device_type", "unknown") if metadata else "unknown",
+                    "device_id": metadata.get("device_id") if metadata else None,
+                    "metadata": metadata or {}
+                }
+                
+                # 将用户标记为在线
+                was_online = await self._add_user_to_online(user_id)
+                
+                if not was_online:
+                    # 用户首次上线，广播在线状态
+                    await self._broadcast_presence_change(user_id, "user_online")
+                else:
+                    # 用户新设备上线，广播设备连接状态
+                    await self._broadcast_device_change(user_id, connection_id, "device_connected", metadata)
+                
+                logger.info(f"用户连接成功: {user_id}, 设备: {metadata.get('device_type', 'unknown') if metadata else 'unknown'}, 连接ID: {connection_id} [实例: {self.instance_id}]")
+                return True
+                
+            except Exception as e:
+                logger.error(f"建立WebSocket连接失败: {e}")
+                return False
     
     async def disconnect(self, websocket: WebSocket):
         """断开WebSocket连接（支持多设备）"""
@@ -351,7 +355,7 @@ class DistributedConnectionManager:
         """将用户添加到在线列表，返回用户之前是否在线"""
         try:
             # 使用Redis SADD，返回1表示新添加，0表示已存在
-            result = await self.redis.sadd(self.online_users_key, user_id)
+            result = await self.redis.sadd(self.online_users_key, user_id)  # type: ignore
             return result == 0  # 返回之前是否在线
         except Exception as e:
             logger.error(f"添加用户到在线列表失败: {e}")
@@ -361,7 +365,7 @@ class DistributedConnectionManager:
         """从在线列表移除用户，返回用户之前是否在线"""
         try:
             # 使用Redis SREM，返回1表示成功移除，0表示不存在
-            result = await self.redis.srem(self.online_users_key, user_id)
+            result = await self.redis.srem(self.online_users_key, user_id)  # type: ignore
             return result == 1  # 返回之前是否在线
         except Exception as e:
             logger.error(f"从在线列表移除用户失败: {e}")
@@ -386,7 +390,7 @@ class DistributedConnectionManager:
     async def is_user_online(self, user_id: str) -> bool:
         """检查用户是否在线"""
         try:
-            result = await self.redis.sismember(self.online_users_key, user_id)
+            result = await self.redis.sismember(self.online_users_key, user_id)  # type: ignore
             return bool(result)
         except Exception as e:
             logger.error(f"检查用户在线状态失败: {e}")
@@ -395,7 +399,7 @@ class DistributedConnectionManager:
     async def get_online_users(self) -> Set[str]:
         """获取所有在线用户列表"""
         try:
-            result = await self.redis.smembers(self.online_users_key)
+            result = await self.redis.smembers(self.online_users_key)  # type: ignore
             return set(result) if result else set()
         except Exception as e:
             logger.error(f"获取在线用户列表失败: {e}")

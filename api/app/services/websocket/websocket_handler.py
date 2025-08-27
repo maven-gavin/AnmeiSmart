@@ -10,6 +10,10 @@ from app.core.events import (
     event_bus, EventTypes, create_message_event, 
     create_user_event, create_system_event
 )
+from app.utils.websocket_utils import (
+    create_success_response, create_error_response,
+    validate_websocket_message, get_content_length
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,19 +39,24 @@ class WebSocketHandler:
     ) -> Dict[str, Any]:
         """处理WebSocket消息的主入口"""
         try:
+            # 验证消息格式
+            is_valid, error_msg = validate_websocket_message(data)
+            if not is_valid:
+                return create_error_response(error_msg)
+            
             action = data.get("action")
             if not action:
-                return self.create_error_response("缺少action字段")
+                return create_error_response("缺少action字段")
             
             handler = self.message_handlers.get(action)
             if not handler:
-                return self.create_error_response(f"未知的action: {action}")
+                return create_error_response(f"未知的action: {action}")
             
             return await handler(data, user_id, conversation_id)
             
         except Exception as e:
             logger.error(f"处理WebSocket消息失败: {e}")
-            return self.create_error_response(f"处理消息失败: {str(e)}")
+            return create_error_response(f"处理消息失败: {str(e)}")
     
     async def handle_message(
         self, 
@@ -66,14 +75,14 @@ class WebSocketHandler:
             
             # 验证content内容（支持新的JSON格式）
             if not self._validate_content(content, message_type):
-                return self.create_error_response("消息内容不能为空")
+                return create_error_response("消息内容不能为空")
             
             # 根据sender_type确定角色
             # 从token或其他方式获取真实的用户角色
             actual_sender_type = sender_type
             
             # 计算内容长度（用于日志）
-            content_length = self._get_content_length(content)
+            content_length = get_content_length(content)
             logger.info(f"处理消息: user_id={user_id}, sender_type={actual_sender_type}, content_length={content_length}")
             
             # 创建消息事件，让业务层处理消息保存和后续逻辑
@@ -90,11 +99,11 @@ class WebSocketHandler:
             # 发布事件，让业务层处理
             await event_bus.publish_async(event)
             
-            return self.create_success_response("消息已发送")
+            return create_success_response("消息已发送")
             
         except Exception as e:
             logger.error(f"处理消息失败: {e}")
-            return self.create_error_response(f"发送消息失败: {str(e)}")
+            return create_error_response(f"发送消息失败: {str(e)}")
     
     def _validate_content(self, content: Any, message_type: str) -> bool:
         """验证消息内容"""
@@ -115,18 +124,6 @@ class WebSocketHandler:
                 return bool(content.get("system_event_type"))
         
         return False
-    
-    def _get_content_length(self, content: Any) -> int:
-        """获取内容长度（用于日志）"""
-        if isinstance(content, str):
-            return len(content)
-        elif isinstance(content, dict):
-            if "text" in content:
-                return len(content["text"])
-            else:
-                return len(str(content))
-        else:
-            return len(str(content))
     
     async def handle_typing(
         self, 
@@ -149,11 +146,11 @@ class WebSocketHandler:
             
             await event_bus.publish_async(event)
             
-            return self.create_success_response("输入状态已更新")
+            return create_success_response("输入状态已更新")
             
         except Exception as e:
             logger.error(f"处理输入状态失败: {e}")
-            return self.create_error_response(f"更新输入状态失败: {str(e)}")
+            return create_error_response(f"更新输入状态失败: {str(e)}")
     
     async def handle_read(
         self, 
@@ -167,7 +164,7 @@ class WebSocketHandler:
             message_ids = read_data.get("message_ids", [])
             
             if not message_ids:
-                return self.create_error_response("缺少message_ids")
+                return create_error_response("缺少message_ids")
             
             # 创建已读事件
             event = create_user_event(
@@ -179,11 +176,11 @@ class WebSocketHandler:
             
             await event_bus.publish_async(event)
             
-            return self.create_success_response("已读状态已更新")
+            return create_success_response("已读状态已更新")
             
         except Exception as e:
             logger.error(f"处理已读状态失败: {e}")
-            return self.create_error_response(f"更新已读状态失败: {str(e)}")
+            return create_error_response(f"更新已读状态失败: {str(e)}")
     
     async def handle_ping(
         self, 
@@ -228,45 +225,7 @@ class WebSocketHandler:
         
         await event_bus.publish_async(event)
         
-        return self.create_success_response("断开连接")
-    
-    def create_success_response(self, message: str) -> Dict[str, Any]:
-        """创建成功响应"""
-        return {
-            "action": "response",
-            "data": {
-                "status": "success",
-                "message": message
-            },
-            "timestamp": datetime.now().isoformat()
-        }
-    
-    def create_error_response(self, message: str) -> Dict[str, Any]:
-        """创建错误响应"""
-        return {
-            "action": "error",
-            "data": {
-                "status": "error",
-                "message": message
-            },
-            "timestamp": datetime.now().isoformat()
-        }
-    
-    def validate_message_data(self, data: Dict[str, Any]) -> tuple[bool, str]:
-        """验证消息数据格式"""
-        if not isinstance(data, dict):
-            return False, "数据格式必须是JSON对象"
-        
-        if "action" not in data:
-            return False, "缺少action字段"
-        
-        action = data.get("action")
-        if action == "message":
-            message_data = data.get("data", {})
-            if not message_data.get("content", "").strip():
-                return False, "消息内容不能为空"
-        
-        return True, ""
+        return create_success_response("断开连接")
 
 
 # 全局WebSocket处理器实例

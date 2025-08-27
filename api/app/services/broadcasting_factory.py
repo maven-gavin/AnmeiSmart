@@ -34,7 +34,7 @@ async def get_connection_manager() -> DistributedConnectionManager:
     return _connection_manager
 
 
-async def create_broadcasting_service(db: Session = None, notification_service: NotificationService = None) -> BroadcastingService:
+async def create_broadcasting_service(db: Optional[Session] = None, notification_service: Optional[NotificationService] = None) -> BroadcastingService:
     """
     创建广播服务实例
     
@@ -68,7 +68,7 @@ async def create_broadcasting_service(db: Session = None, notification_service: 
         raise
 
 
-async def get_broadcasting_service(db: Session = None) -> BroadcastingService:
+async def get_broadcasting_service(db: Optional[Session] = None) -> BroadcastingService:
     """
     获取广播服务实例（单例模式）
     
@@ -102,7 +102,7 @@ async def cleanup_broadcasting_services():
 
 
 # 依赖注入函数
-async def get_broadcasting_service_dependency(db: Session = None) -> BroadcastingService:
+async def get_broadcasting_service_dependency(db: Optional[Session] = None) -> BroadcastingService:
     """
     FastAPI依赖注入函数
     """
