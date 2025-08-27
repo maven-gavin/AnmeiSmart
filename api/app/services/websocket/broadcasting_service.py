@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Optional, Union
 from datetime import datetime
 
 from sqlalchemy.orm import Session
-from app.core.distributed_connection_manager import DistributedConnectionManager
+from app.core.websocket.distributed_connection_manager import DistributedConnectionManager
 from app.db.models.chat import Conversation
 from app.services.notification_service import NotificationService, get_notification_service
 

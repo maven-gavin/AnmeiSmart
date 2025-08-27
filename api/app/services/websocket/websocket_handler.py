@@ -6,7 +6,7 @@ import logging
 from typing import Dict, Any
 from datetime import datetime
 
-from app.core.events import (
+from app.core.websocket.events import (
     event_bus, EventTypes, create_message_event, 
     create_user_event, create_system_event
 )

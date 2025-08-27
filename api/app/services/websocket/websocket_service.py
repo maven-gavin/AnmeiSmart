@@ -5,9 +5,9 @@ import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
-from app.core.distributed_connection_manager import DistributedConnectionManager
-from app.core.events import event_bus, EventTypes, Event
-from app.services.broadcasting_service import BroadcastingService
+from app.core.websocket.distributed_connection_manager import DistributedConnectionManager
+from app.core.websocket.events import event_bus, EventTypes, Event
+from app.services.websocket.broadcasting_service import BroadcastingService
 from .websocket_handler import websocket_handler
 
 logger = logging.getLogger(__name__)
