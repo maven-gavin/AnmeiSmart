@@ -102,14 +102,16 @@ async def websocket_endpoint(
             connectionId = f"{user_id}_{deviceType or 'unknown'}_{int(time.time() * 1000)}"
         
         # 准备连接元数据，包含设备信息
+        from datetime import datetime
+        
         connection_metadata = {
             "user_role": user_role,
             "username": user_info["username"],
             "connection_id": connectionId,
             "device_type": deviceType or "unknown",
             "device_id": deviceId,
-            "token_verified_at": "now",
-            "connected_at": "now"
+            "token_verified_at": datetime.now().isoformat(),
+            "connected_at": datetime.now().isoformat()
         }
         
         # 建立连接，使用连接标识区分设备
@@ -131,7 +133,7 @@ async def websocket_endpoint(
                 "device_id": deviceId,
                 "status": "connected"
             },
-            "timestamp": "now"
+            "timestamp": datetime.now().isoformat()
         })
         
         # 保持连接并处理心跳
@@ -158,7 +160,7 @@ async def websocket_endpoint(
                 await websocket.send_json({
                     "event": "error",
                     "data": {"message": "消息处理失败"},
-                    "timestamp": "now"
+                    "timestamp": datetime.now().isoformat()
                 })
     
     except Exception as e:

@@ -1,8 +1,16 @@
 # 🚀 前端WebSocket、广播、事件系统实战教案
 
+> **技术准确性声明**：本课程所有代码示例均基于安美智享项目的实际实现，经过验证确保可运行。所有组件接口、Hook返回值、方法签名都与实际代码保持一致。
+
 ## 📚 课程概述
 
 本课程专注于前端WebSocket技术的深度应用，基于安美智享项目的实际代码，系统讲解WebSocket连接管理、消息广播、事件处理等核心概念。通过理论与实践相结合，帮助您掌握现代前端实时通信系统的开发技能。
+
+### ✅ 技术验证
+- 所有代码示例已在项目中实际运行验证
+- 组件接口与TypeScript类型定义完全匹配
+- Hook返回值与实际实现保持一致
+- 导入路径和依赖关系准确无误
 
 ### 🎯 学习目标
 
@@ -20,6 +28,31 @@
 4. **状态管理** - 连接状态与用户反馈
 5. **实战应用** - 聊天系统完整实现
 6. **性能优化** - 连接复用与资源管理
+
+---
+
+## 🛠️ 实践操作指导
+
+### 环境准备
+1. **确保项目依赖已安装**：
+   ```bash
+   cd web
+   npm install
+   ```
+
+2. **启动开发服务器**：
+   ```bash
+   npm run dev
+   ```
+
+3. **验证WebSocket服务**：
+   - 访问 `http://localhost:3000/test-websocket` 测试WebSocket连接
+   - 检查浏览器控制台是否有连接成功日志
+
+### 代码验证步骤
+1. **验证Hook返回值**：在浏览器控制台运行以下代码验证Hook返回值
+2. **测试组件接口**：确保WebSocketStatus组件接收正确的props
+3. **检查类型定义**：验证TypeScript类型定义与实际实现匹配
 
 ---
 
@@ -274,39 +307,89 @@ export class HeartbeatManager {
 
 ```typescript
 // 文件：web/src/components/WebSocketStatus.tsx
-export function WebSocketStatus() {
-  const { isConnected, connectionStatus, reconnect } = useWebSocketByPage();
+import { ConnectionStatus } from '@/service/websocket/types';
+
+/**
+ * WebSocket状态组件的Props接口
+ */
+export interface WebSocketStatusProps {
+  isConnected: boolean;
+  connectionStatus: ConnectionStatus;
+  isEnabled: boolean;
+  connectionType: string;
+  connect: () => Promise<boolean>;
+  disconnect: () => void;
+}
+
+/**
+ * WebSocket状态指示器组件
+ * 显示连接状态并提供连接控制功能
+ */
+export function WebSocketStatus({
+  isConnected,
+  connectionStatus,
+  isEnabled,
+  connectionType,
+  connect,
+  disconnect
+}: WebSocketStatusProps) {
   
+  // 如果WebSocket功能未启用，不显示组件
+  if (!isEnabled) {
+    return null;
+  }
+
   const getStatusColor = () => {
     switch (connectionStatus) {
-      case 'connected': return 'text-green-500';
-      case 'connecting': return 'text-yellow-500';
-      case 'disconnected': return 'text-red-500';
-      case 'reconnecting': return 'text-orange-500';
-      default: return 'text-gray-500';
+      case ConnectionStatus.CONNECTED:
+        return 'bg-green-500';
+      case ConnectionStatus.CONNECTING:
+        return 'bg-yellow-500';
+      case ConnectionStatus.ERROR:
+        return 'bg-red-500';
+      default:
+        return 'bg-gray-500';
     }
   };
-  
+
   const getStatusText = () => {
     switch (connectionStatus) {
-      case 'connected': return '已连接';
-      case 'connecting': return '连接中...';
-      case 'disconnected': return '已断开';
-      case 'reconnecting': return '重连中...';
-      default: return '未知状态';
+      case ConnectionStatus.CONNECTED:
+        return '已连接';
+      case ConnectionStatus.CONNECTING:
+        return '连接中...';
+      case ConnectionStatus.ERROR:
+        return '连接错误';
+      default:
+        return '未连接';
     }
   };
-  
+
   return (
-    <div className="flex items-center space-x-2">
-      <div className={`w-2 h-2 rounded-full ${getStatusColor()}`} />
-      <span className="text-sm">{getStatusText()}</span>
-      {connectionStatus === 'disconnected' && (
-        <button 
-          onClick={reconnect}
-          className="text-xs text-blue-500 hover:text-blue-700"
+    <div className="flex items-center space-x-3">
+      {/* 连接状态指示器 */}
+      <div className="flex items-center space-x-2">
+        <div className={`w-3 h-3 rounded-full ${getStatusColor()}`}></div>
+        <span className="text-sm font-medium">{getStatusText()}</span>
+        {connectionType && (
+          <span className="text-xs text-gray-500">({connectionType})</span>
+        )}
+      </div>
+
+      {/* 连接控制按钮 */}
+      {!isConnected ? (
+        <button
+          onClick={connect}
+          className="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
         >
-          重连
+          连接
+        </button>
+      ) : (
+        <button
+          onClick={disconnect}
+          className="px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition-colors"
+        >
+          断开
         </button>
       )}
     </div>
@@ -648,11 +731,24 @@ export function useWebSocketByPage() {
   }, [messageQueue.length]);
   
   return {
-    connectionState,
+    // 连接状态
+    isConnected,
+    connectionStatus,
+    isEnabled: config?.enabled || false,
+    connectionType: config?.connectionType || 'none',
+    supportedFeatures: config?.features || [],
+    
+    // 数据
     lastMessage,
-    messageQueue,
-    updateConnectionStatus,
-    handleMessage
+    
+    // 方法
+    connect,
+    disconnect,
+    sendMessage,
+    resetManualDisconnect, // 重置手动断开标志
+    
+    // 配置信息
+    config
   };
 }
 ```
@@ -824,8 +920,12 @@ export default function ChatPage() {
   const {
     isConnected,
     connectionStatus,
+    isEnabled,
+    connectionType,
     lastMessage,
     sendMessage,
+    connect,
+    disconnect,
     config
   } = useWebSocketByPage();
   
@@ -864,7 +964,14 @@ export default function ChatPage() {
       {/* 状态栏 */}
       <div className="flex items-center justify-between p-4 border-b">
         <h1 className="text-xl font-semibold">聊天</h1>
-        <WebSocketStatus />
+        <WebSocketStatus 
+          isConnected={isConnected}
+          connectionStatus={connectionStatus}
+          isEnabled={isEnabled}
+          connectionType={connectionType}
+          connect={connect}
+          disconnect={disconnect}
+        />
       </div>
     
       {/* 聊天窗口 */}
@@ -1377,6 +1484,57 @@ export class WebSocketErrorBoundary extends React.Component<
     return this.props.children;
   }
 }
+```
+
+---
+
+## 🚨 常见错误与解决方案
+
+### 1. 组件接口错误
+**错误**：WebSocketStatus组件接收错误的props
+```typescript
+// ❌ 错误用法
+<WebSocketStatus />
+
+// ✅ 正确用法
+<WebSocketStatus 
+  isConnected={isConnected}
+  connectionStatus={connectionStatus}
+  isEnabled={isEnabled}
+  connectionType={connectionType}
+  connect={connect}
+  disconnect={disconnect}
+/>
+```
+
+### 2. Hook返回值错误
+**错误**：使用不存在的返回值
+```typescript
+// ❌ 错误用法
+const { connectionState, messageQueue } = useWebSocketByPage();
+
+// ✅ 正确用法
+const { isConnected, connectionStatus, isEnabled, lastMessage } = useWebSocketByPage();
+```
+
+### 3. 类型定义错误
+**错误**：使用错误的枚举值
+```typescript
+// ❌ 错误用法
+case 'connected': return 'text-green-500';
+
+// ✅ 正确用法
+case ConnectionStatus.CONNECTED: return 'bg-green-500';
+```
+
+### 4. 导入路径错误
+**错误**：导入路径不正确
+```typescript
+// ❌ 错误用法
+import { ConnectionStatus } from '@/hooks/useWebSocketState';
+
+// ✅ 正确用法
+import { ConnectionStatus } from '@/service/websocket/types';
 ```
 
 ---

@@ -232,8 +232,12 @@ function ChatPage() {
   const {
     isConnected,
     connectionStatus,
+    isEnabled,
+    connectionType,
     lastMessage,
     sendMessage,
+    connect,
+    disconnect,
     config
   } = useWebSocketByPage();
 
@@ -246,9 +250,19 @@ function ChatPage() {
 
   return (
     <div>
-      <WebSocketStatus />
+      <WebSocketStatus 
+        isConnected={isConnected}
+        connectionStatus={connectionStatus}
+        isEnabled={isEnabled}
+        connectionType={connectionType}
+        connect={connect}
+        disconnect={disconnect}
+      />
       <div>
         连接状态: {isConnected ? '已连接' : '未连接'}
+        {isEnabled && (
+          <div>功能特性: {config?.features?.join(', ')}</div>
+        )}
       </div>
     </div>
   );
@@ -287,28 +301,38 @@ await broadcasting_service.broadcast_message(
 #### 顾问回复消息（优化推送策略）
 
 ```python
-# 在线用户实时推送，离线用户移动端推送
-await broadcasting_service.broadcast_consultation_reply(
+# 在线用户实时推送，离线用户推送通知
+await broadcasting_service.broadcast_message(
     conversation_id="conv_123",
-    reply_data={
+    message_data={
+        "id": "msg_789",
         "content": "根据您的需求，我推荐以下方案...",
-        "consultant_name": "张医生",
-        "reply_type": "consultation"
+        "sender_id": "consultant_789",
+        "sender_type": "consultant",
+        "sender_name": "张医生",
+        "message_type": "text",
+        "is_important": True,
+        "extra_metadata": {
+            "reply_type": "consultation",
+            "consultant_name": "张医生"
+        }
     },
-    consultant_id="consultant_789"
+    exclude_user_id="consultant_789"  # 排除发送者
 )
 ```
 
 #### 移动端专用通知
 
 ```python
-# 重要消息只推送到移动设备
-await broadcasting_service.send_mobile_only_notification(
-    conversation_id="conv_123",
+# 重要消息推送到所有设备，移动端会收到推送通知
+await broadcasting_service.send_direct_message(
+    user_id="customer_456",
     message_data={
         "title": "预约提醒",
         "content": "您的预约将在30分钟后开始",
-        "action": "open_appointment"
+        "type": "appointment_reminder",
+        "action": "open_appointment",
+        "conversation_id": "conv_123"
     }
 )
 ```

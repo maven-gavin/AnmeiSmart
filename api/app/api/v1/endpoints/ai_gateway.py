@@ -283,10 +283,12 @@ async def reload_configuration(
         from app.services.ai.ai_gateway_service import reload_ai_gateway_service
         reload_ai_gateway_service()
         
+        from datetime import datetime
+        
         return {
             "success": True,
             "message": "AI Gateway配置重新加载成功",
-            "timestamp": "now"
+            "timestamp": datetime.now().isoformat()
         }
         
     except Exception as e:

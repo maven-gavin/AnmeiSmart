@@ -24,20 +24,20 @@ from app.core.events import event_bus, EventTypes
 
 # 导入新的分布式WebSocket组件
 from app.services.broadcasting_service import BroadcastingService
-from app.api.v1.endpoints.websocket import get_connection_manager
+from app.services.websocket.websocket_factory import get_connection_manager
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-def create_chat_service(db: Session) -> ChatService:
+async def create_chat_service(db: Session) -> ChatService:
     """
     创建ChatService实例，集成新的广播服务
     """
     try:
         # 获取分布式连接管理器
-        connection_manager = get_connection_manager()
+        connection_manager = await get_connection_manager()
         
         # 创建广播服务
         broadcasting_service = BroadcastingService(connection_manager, db)
@@ -88,7 +88,7 @@ async def create_conversation(
 ):
     """创建新会话"""
     try:
-        chat_service = create_chat_service(db)
+        chat_service = await create_chat_service(db)
         
         conversation = await chat_service.create_conversation(
             title=conversation_in.title,
@@ -113,7 +113,7 @@ async def get_conversations(
 ):
     """获取会话列表，可选根据客户ID筛选"""
     try:
-        chat_service = create_chat_service(db)
+        chat_service = await create_chat_service(db)
         user_role = get_user_role(current_user)
                 
         # 调用service层获取会话列表，直接返回结果
@@ -139,7 +139,7 @@ async def get_conversation(
 ):
     """获取指定会话"""
     try:
-        chat_service = create_chat_service(db)
+        chat_service = await create_chat_service(db)
         user_role = get_user_role(current_user)
         
         conversation = chat_service.get_conversation_by_id(
@@ -509,7 +509,7 @@ async def mark_message_as_important(
 ):
     """标记消息为重点"""
     try:
-        chat_service = create_chat_service(db)
+        chat_service = await create_chat_service(db)
         user_role = get_user_role(current_user)
         
         is_important = request_data.get("is_important", False)
@@ -544,7 +544,7 @@ async def get_conversation_summary(
 ):
     """获取会话摘要"""
     try:
-        chat_service = create_chat_service(db)
+        chat_service = await create_chat_service(db)
         summary = chat_service.get_conversation_summary(conversation_id)
         
         if not summary:
@@ -566,7 +566,7 @@ async def update_conversation(
 ):
     """更新会话信息（如标题）"""
     try:
-        chat_service = create_chat_service(db)
+        chat_service = await create_chat_service(db)
         user_role = get_user_role(current_user)
         
         # 调用service层更新会话，直接返回结果
@@ -596,7 +596,7 @@ async def consultant_takeover_conversation(
     current_user: User = Depends(get_current_user)
 ):
     """顾问接管会话"""
-    chat_service = create_chat_service(db)
+    chat_service = await create_chat_service(db)
     user_role = get_user_role(current_user)
     if user_role not in ["consultant", "doctor", "admin", "operator"]:
         raise HTTPException(status_code=403, detail="无权接管会话")
@@ -613,7 +613,7 @@ async def consultant_release_conversation(
     current_user: User = Depends(get_current_user)
 ):
     """顾问取消接管，恢复AI回复"""
-    chat_service = create_chat_service(db)
+    chat_service = await create_chat_service(db)
     user_role = get_user_role(current_user)
     if user_role not in ["consultant", "doctor", "admin", "operator"]:
         raise HTTPException(status_code=403, detail="无权操作")
