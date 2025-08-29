@@ -4,10 +4,10 @@ WebSocket服务工厂 - 统一管理WebSocket服务的创建和依赖注入
 import logging
 from typing import Optional
 
-from app.core.distributed_connection_manager import DistributedConnectionManager
+from app.core.websocket.distributed_connection_manager import DistributedConnectionManager
 from app.core.redis_client import get_redis_client
 from .websocket_service import WebSocketService
-from app.services.broadcasting_factory import get_broadcasting_service
+from app.services.websocket.broadcasting_factory import get_broadcasting_service
 
 logger = logging.getLogger(__name__)
 

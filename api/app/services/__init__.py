@@ -5,8 +5,6 @@ from . import system_service
 from . import consultant_service
 from . import file_service
 from . import notification_service
-from . import broadcasting_service
-from . import broadcasting_factory
 from . import agent_config_service
 
 # 定义公共API（可选）
@@ -17,7 +15,5 @@ __all__ = [
     'consultant_service',
     'file_service',
     'notification_service',
-    'broadcasting_service',
-    'broadcasting_factory',
     'agent_config_service'
 ]

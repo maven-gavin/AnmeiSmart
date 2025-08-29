@@ -15,7 +15,6 @@ from app.services.profile_service import ProfileService
 from app.schemas.token import Token, AccessToken, RefreshTokenRequest
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, SwitchRoleRequest
 from app.schemas.profile import LoginHistoryCreate
-from app.services.registration_automation_service import handle_registration_automation
 
 router = APIRouter()
 settings = get_settings()
@@ -124,8 +123,7 @@ async def register(
         "avatar": userResponse.avatar
     }
     
-    # 异步处理注册自动化流程，避免阻塞注册接口
-    background_tasks.add_task(handle_registration_automation, str(userResponse.id), user_info)
+    # TODO: 异步处理注册自动化流程
     
     return userResponse
 

@@ -15,10 +15,9 @@ from app.db.base import create_initial_roles, create_initial_system_settings
 
 # 导入新的WebSocket和Redis组件
 from app.core.redis_client import redis_manager, get_redis_client
-from app.api.v1.endpoints.websocket import initialize_connection_manager, cleanup_connection_manager
+from app.services.websocket.broadcasting_factory import cleanup_broadcasting_services
 
-# 确保MessageBroadcaster被导入和初始化
-from app.services.websocket.message_broadcaster import message_broadcaster
+# MessageBroadcaster会在需要时自动初始化
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -37,9 +36,8 @@ async def lifespan(app: FastAPI):
         redis_client = await get_redis_client()
         logger.info("Redis连接已建立")
         
-        # 初始化WebSocket连接管理器
-        await initialize_connection_manager(redis_client)
-        logger.info("WebSocket分布式连接管理器已初始化")
+        # WebSocket连接管理器会在需要时自动初始化
+        logger.info("WebSocket分布式连接管理器将在需要时初始化")
     
     except Exception as e:
         logger.error(f"应用启动初始化失败: {e}")
@@ -50,7 +48,7 @@ async def lifespan(app: FastAPI):
     # 应用关闭时执行的清理操作
     try:
         # 清理WebSocket连接管理器
-        await cleanup_connection_manager()
+        await cleanup_broadcasting_services()
         logger.info("WebSocket连接管理器已清理")
         
         # 关闭Redis连接

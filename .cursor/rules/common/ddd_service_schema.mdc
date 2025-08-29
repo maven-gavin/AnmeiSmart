@@ -12,7 +12,7 @@ alwaysApply: false
 ### 1.1 分层结构
 ```
 ┌─────────────────────────────────────┐
-│           Presentation Layer        │ ← API Controllers, WebSocket Handlers
+│           Presentation Layer        │ ← API Controllers, WebSocket Handlers, Dependencies
 ├─────────────────────────────────────┤
 │         Application Layer           │ ← Application Services, Use Cases
 ├─────────────────────────────────────┤

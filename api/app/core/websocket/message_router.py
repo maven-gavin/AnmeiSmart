@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional, Set
 from datetime import datetime
 from fastapi import WebSocket
 
-from .redis_client import RedisClient
+from app.core.redis_client import RedisClient
 
 logger = logging.getLogger(__name__)
 

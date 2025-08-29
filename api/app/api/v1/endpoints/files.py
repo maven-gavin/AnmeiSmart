@@ -14,7 +14,7 @@ from app.core.security import get_current_user
 from app.db.base import get_db
 from app.db.models.user import User
 from app.services.file_service import FileService
-from app.services.chat.message_service import MessageService
+from app.services.chat import ChatApplicationService
 from app.schemas.file import (
     FileUploadResponse, ChunkUploadRequest, 
     UploadStatusResponse, CompleteUploadRequest
@@ -59,7 +59,7 @@ async def upload_file(
     try:
         # 初始化服务
         file_service = FileService()
-        message_service = MessageService(db)
+        message_service = ChatApplicationService(db)
         
         # 验证用户对会话的访问权限
         logger.info(f"验证会话访问权限: conversation_id={conversation_id}, user_id={current_user.id}, user_email={current_user.email}")
@@ -487,7 +487,7 @@ async def complete_upload(
     """
     try:
         file_service = FileService()
-        message_service = MessageService(db)
+        message_service = ChatApplicationService(db)
         
         # 验证用户对会话的访问权限
         if not await message_service.can_access_conversation(request.conversation_id, current_user.id):

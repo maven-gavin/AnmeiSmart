@@ -22,7 +22,7 @@ from app.schemas.ai import (
 )
 from app.schemas.chat import MessageInfo
 from app.services.ai.ai_service import get_ai_service
-from app.services.chat import ChatService, MessageService
+from app.services.chat import ChatApplicationService
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -48,7 +48,7 @@ async def chat_with_ai(
         user_role = _get_user_role(current_user)
         
         # 验证会话权限
-        chat_service = ChatService(db)
+        chat_service = ChatApplicationService(db)
         conversation = chat_service.get_conversation_by_id(
             conversation_id=request.conversation_id,
             user_id=current_user.id,

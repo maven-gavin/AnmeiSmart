@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user
 from app.db.models.user import User
-from app.services.chat.consultation_summary_service import ConsultationSummaryService
+from app.services.consultation.consultation_summary_service import ConsultationSummaryService
 from app.schemas.chat import (
     ConsultationSummaryResponse,
     ConsultationSummaryInfo,
