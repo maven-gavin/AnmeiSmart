@@ -1,8 +1,3 @@
----
-description: 该规则解释分层职责与数据转换项目规则。
-globs: **/*.py
-alwaysApply: false
----
 
 
 # DDD分层架构与数据转换规范
@@ -47,9 +42,487 @@ alwaysApply: false
 - **职责**：数据持久化，外部服务集成，技术实现
 - **组成**：仓储实现、外部API客户端、消息队列等
 
-## 2. 数据转换策略
+## 2. 应用服务设计模式
 
-### 2.1 转换模式选择
+### 2.1 统一应用服务模式（推荐）
+
+#### **设计理念**
+为了简化开发者体验，推荐使用统一的应用服务模式，将相关功能整合到一个服务中：
+
+```python
+class ChatApplicationService(IChatApplicationService):
+    """统一的聊天应用服务 - 简化开发者体验"""
+    
+    def __init__(
+        self,
+        conversation_repository: IConversationRepository,
+        message_repository: IMessageRepository,
+        conversation_domain_service: IConversationDomainService,
+        message_domain_service: IMessageDomainService,
+        broadcasting_service: Optional[BroadcastingService] = None
+    ):
+        self.conversation_repository = conversation_repository
+        self.message_repository = message_repository
+        self.conversation_domain_service = conversation_domain_service
+        self.message_domain_service = message_domain_service
+        self.broadcasting_service = broadcasting_service
+    
+    # 会话管理用例
+    async def create_conversation_use_case(self, title: str, owner_id: str, conversation_type: str = "single") -> ConversationInfo:
+        """创建会话用例"""
+        conversation = await self.conversation_domain_service.create_conversation(title, owner_id, conversation_type)
+        saved_conversation = await self.conversation_repository.save(conversation)
+        return ConversationConverter.to_response(saved_conversation)
+    
+    # 消息管理用例
+    async def send_message_use_case(self, conversation_id: str, content: Any, message_type: str, sender_id: str, sender_type: str) -> MessageInfo:
+        """发送消息用例"""
+        # 验证会话访问权限
+        if not await self.conversation_domain_service.verify_access(conversation_id, sender_id, sender_type):
+            raise ValueError("无权访问此会话")
+        
+        # 创建消息
+        message = await self.message_domain_service.create_text_message(conversation_id, content, sender_id, sender_type)
+        saved_message = await self.message_repository.save(message)
+        
+        # 更新会话消息数
+        updated_conversation = await self.conversation_domain_service.increment_message_count(conversation_id)
+        if updated_conversation:
+            await self.conversation_repository.save(updated_conversation)
+        
+        # 广播消息
+        if self.broadcasting_service:
+            await self.broadcasting_service.broadcast_message(conversation_id, saved_message)
+        
+        return MessageConverter.to_response(saved_message)
+```
+
+#### **优势**
+- **简化开发者体验**：一个限界上下文使用一个服务处理所有相关功能
+- **减少抉择难度**：不再需要在多个应用服务之间选择
+- **统一接口**：所有相关功能都通过同一个服务提供
+- **保持DDD原则**：仍然遵循领域驱动设计的分层架构
+
+#### **适用场景**
+- **单一业务领域**：如聊天、用户管理、订单管理等
+- **功能紧密相关**：多个功能之间有强关联关系
+- **团队规模较小**：便于统一管理和维护
+
+## 3. 依赖注入配置
+
+### 3.1 依赖注入最佳实践
+
+#### **依赖注入配置**
+创建专门的依赖注入模块：
+
+```python
+# api/app/api/deps/chat.py
+from typing import Optional
+from fastapi import Depends
+from sqlalchemy.orm import Session
+
+from app.db.base import get_db
+from app.services.chat.application import ChatApplicationService
+from app.services.chat.domain import ConversationDomainService, MessageDomainService
+from app.services.chat.infrastructure import ConversationRepository, MessageRepository
+from app.services.websocket.broadcasting_factory import get_broadcasting_service
+
+def get_conversation_repository(db: Session = Depends(get_db)) -> ConversationRepository:
+    """获取会话仓储实例"""
+    return ConversationRepository(db)
+
+def get_message_repository(db: Session = Depends(get_db)) -> MessageRepository:
+    """获取消息仓储实例"""
+    return MessageRepository(db)
+
+def get_conversation_domain_service(
+    conversation_repository: ConversationRepository = Depends(get_conversation_repository)
+) -> ConversationDomainService:
+    """获取会话领域服务实例"""
+    return ConversationDomainService(conversation_repository)
+
+def get_message_domain_service(
+    message_repository: MessageRepository = Depends(get_message_repository)
+) -> MessageDomainService:
+    """获取消息领域服务实例"""
+    return MessageDomainService(message_repository)
+
+def get_chat_application_service(
+    conversation_repository: ConversationRepository = Depends(get_conversation_repository),
+    message_repository: MessageRepository = Depends(get_message_repository),
+    conversation_domain_service: ConversationDomainService = Depends(get_conversation_domain_service),
+    message_domain_service: MessageDomainService = Depends(get_message_domain_service),
+    broadcasting_service: Optional[BroadcastingService] = Depends(get_broadcasting_service)
+) -> ChatApplicationService:
+    """获取聊天应用服务实例"""
+    return ChatApplicationService(
+        conversation_repository=conversation_repository,
+        message_repository=message_repository,
+        conversation_domain_service=conversation_domain_service,
+        message_domain_service=message_domain_service,
+        broadcasting_service=broadcasting_service
+    )
+```
+
+#### **避免循环依赖**
+- **延迟导入**：在函数内部导入避免循环依赖
+- **接口抽象**：使用抽象接口而不是具体实现
+- **依赖方向**：确保依赖方向指向领域层
+
+```python
+# 避免循环依赖的示例
+def get_service_with_lazy_import():
+    # 延迟导入避免循环依赖
+    from app.services.some_service import SomeService
+    return SomeService()
+```
+
+#### **生命周期管理**
+- **单例模式**：对于无状态服务使用单例
+- **工厂模式**：对于有状态服务使用工厂
+- **作用域管理**：合理管理依赖的作用域
+
+## 4. 错误处理分层策略
+
+### 4.1 分层错误处理原则
+
+#### **表现层错误处理**
+表现层负责捕获和转换异常，提供统一的错误响应：
+
+```python
+@router.post("/conversations", response_model=ConversationInfo)
+async def create_conversation(
+    conversation_in: ConversationCreate,
+    current_user: User = Depends(get_current_user),
+    chat_app_service: ChatApplicationService = Depends(get_chat_application_service)
+):
+    """创建新会话 - 表现层只负责请求路由和响应格式化"""
+    try:
+        conversation = await chat_app_service.create_conversation_use_case(
+            title=conversation_in.title,
+            owner_id=str(current_user.id),
+            conversation_type=conversation_in.conversation_type
+        )
+        return conversation
+        
+    except ValueError as e:
+        # 业务逻辑错误 - 400 Bad Request
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        # 权限错误 - 403 Forbidden
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        # 系统错误 - 500 Internal Server Error
+        logger.error(f"创建会话失败: {e}")
+        raise HTTPException(status_code=500, detail="创建会话失败")
+```
+
+#### **应用层错误处理**
+应用层抛出领域异常，不处理HTTP状态码：
+
+```python
+class ChatApplicationService(IChatApplicationService):
+    async def create_conversation_use_case(self, title: str, owner_id: str, conversation_type: str = "single") -> ConversationInfo:
+        """创建会话用例"""
+        try:
+            # 领域逻辑验证
+            if not title or not title.strip():
+                raise ValueError("会话标题不能为空")
+            
+            # 调用领域服务
+            conversation = await self.conversation_domain_service.create_conversation(title, owner_id, conversation_type)
+            saved_conversation = await self.conversation_repository.save(conversation)
+            
+            return ConversationConverter.to_response(saved_conversation)
+            
+        except ValueError:
+            # 重新抛出业务异常
+            raise
+        except Exception as e:
+            # 记录系统异常并重新抛出
+            logger.error(f"应用服务创建会话失败: {e}")
+            raise
+```
+
+#### **领域层错误处理**
+领域层抛出具体的领域异常：
+
+```python
+class ConversationDomainService(IConversationDomainService):
+    async def create_conversation(self, title: str, owner_id: str, conversation_type: str = "single") -> Conversation:
+        """创建会话 - 领域逻辑"""
+        # 领域规则验证
+        if not title or not title.strip():
+            raise ValueError("会话标题不能为空")
+        
+        if not owner_id:
+            raise ValueError("会话所有者不能为空")
+        
+        # 检查用户是否已有同名会话
+        if await self.conversation_repository.exists_by_title_and_owner(title.strip(), owner_id):
+            raise ValueError(f"会话标题 '{title}' 已存在")
+        
+        # 创建领域对象
+        conversation = Conversation.create(
+            title=title.strip(),
+            owner_id=owner_id,
+            conversation_type=conversation_type
+        )
+        
+        return conversation
+```
+
+### 4.2 统一错误响应格式
+
+#### **错误响应Schema**
+```python
+class ErrorResponse(BaseModel):
+    error: str
+    message: str
+    details: Optional[Dict[str, Any]] = None
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    request_id: Optional[str] = None
+
+class ValidationErrorResponse(BaseModel):
+    error: str = "validation_error"
+    message: str
+    field_errors: List[Dict[str, str]]
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+```
+
+#### **全局异常处理器**
+```python
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    """处理业务逻辑错误"""
+    return JSONResponse(
+        status_code=400,
+        content=ErrorResponse(
+            error="business_error",
+            message=str(exc),
+            request_id=request.headers.get("X-Request-ID")
+        ).dict()
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    """处理请求验证错误"""
+    field_errors = []
+    for error in exc.errors():
+        field_errors.append({
+            "field": ".".join(str(loc) for loc in error["loc"]),
+            "message": error["msg"]
+        })
+    
+    return JSONResponse(
+        status_code=422,
+        content=ValidationErrorResponse(
+            message="请求参数验证失败",
+            field_errors=field_errors,
+            request_id=request.headers.get("X-Request-ID")
+        ).dict()
+    )
+```
+
+## 5. WebSocket集成架构
+
+### 5.1 WebSocket在DDD架构中的位置
+
+#### **架构设计**
+WebSocket服务位于表现层，与HTTP API并列：
+
+```
+┌─────────────────────────────────────┐
+│           Presentation Layer        │ ← HTTP Controllers + WebSocket Handlers
+├─────────────────────────────────────┤
+│         Application Layer           │ ← Application Services
+├─────────────────────────────────────┤
+│           Domain Layer              │ ← Domain Services + Entities
+├─────────────────────────────────────┤
+│        Infrastructure Layer         │ ← Repositories + Broadcasting Service
+└─────────────────────────────────────┘
+```
+
+#### **WebSocket处理器实现**
+```python
+# api/app/api/v1/endpoints/websocket.py
+from fastapi import WebSocket, WebSocketDisconnect, Depends
+from app.core.security import get_current_user_ws
+from app.services.chat.application import ChatApplicationService
+
+@router.websocket("/ws/{conversation_id}")
+async def websocket_endpoint(
+    websocket: WebSocket,
+    conversation_id: str,
+    current_user: User = Depends(get_current_user_ws),
+    chat_app_service: ChatApplicationService = Depends(get_chat_application_service)
+):
+    """WebSocket连接处理"""
+    await websocket.accept()
+    
+    try:
+        # 验证用户对会话的访问权限
+        if not await chat_app_service.verify_conversation_access(conversation_id, str(current_user.id)):
+            await websocket.close(code=4003, reason="无权访问此会话")
+            return
+        
+        # 加入会话房间
+        await chat_app_service.join_conversation_room(conversation_id, str(current_user.id), websocket)
+        
+        # 处理消息
+        while True:
+            data = await websocket.receive_json()
+            message_type = data.get("type")
+            
+            if message_type == "message":
+                # 处理用户消息
+                message = await chat_app_service.send_message_use_case(
+                    conversation_id=conversation_id,
+                    content=data.get("content"),
+                    message_type="text",
+                    sender_id=str(current_user.id),
+                    sender_type="customer"
+                )
+                
+                # 广播消息给会话中的所有用户
+                await chat_app_service.broadcast_message_safe(
+                    conversation_id=conversation_id,
+                    message_info=message,
+                    sender_id=str(current_user.id)
+                )
+                
+            elif message_type == "typing":
+                # 处理输入状态
+                await chat_app_service.broadcast_typing_status(
+                    conversation_id=conversation_id,
+                    user_id=str(current_user.id),
+                    is_typing=data.get("is_typing", False)
+                )
+                
+    except WebSocketDisconnect:
+        # 用户断开连接
+        await chat_app_service.leave_conversation_room(conversation_id, str(current_user.id))
+    except Exception as e:
+        logger.error(f"WebSocket错误: {e}")
+        await websocket.close(code=1011, reason="内部服务器错误")
+```
+
+### 5.2 实时通信与领域事件结合
+
+#### **广播服务实现**
+```python
+# api/app/services/websocket/broadcasting_service.py
+class BroadcastingService:
+    """WebSocket广播服务"""
+    
+    def __init__(self):
+        self.active_connections: Dict[str, List[WebSocket]] = {}
+    
+    async def join_conversation_room(self, conversation_id: str, user_id: str, websocket: WebSocket):
+        """用户加入会话房间"""
+        if conversation_id not in self.active_connections:
+            self.active_connections[conversation_id] = []
+        
+        self.active_connections[conversation_id].append(websocket)
+        logger.info(f"用户 {user_id} 加入会话 {conversation_id}")
+    
+    async def leave_conversation_room(self, conversation_id: str, user_id: str):
+        """用户离开会话房间"""
+        if conversation_id in self.active_connections:
+            # 移除断开的连接
+            self.active_connections[conversation_id] = [
+                conn for conn in self.active_connections[conversation_id]
+                if not conn.client_state.disconnected
+            ]
+            logger.info(f"用户 {user_id} 离开会话 {conversation_id}")
+    
+    async def broadcast_message(self, conversation_id: str, message: MessageInfo):
+        """广播消息给会话中的所有用户"""
+        if conversation_id not in self.active_connections:
+            return
+        
+        message_data = {
+            "type": "message",
+            "data": message.dict()
+        }
+        
+        # 发送给所有连接的客户端
+        for connection in self.active_connections[conversation_id]:
+            try:
+                await connection.send_json(message_data)
+            except Exception as e:
+                logger.error(f"发送消息失败: {e}")
+                # 移除断开的连接
+                self.active_connections[conversation_id].remove(connection)
+    
+    async def broadcast_typing_status(self, conversation_id: str, user_id: str, is_typing: bool):
+        """广播输入状态"""
+        if conversation_id not in self.active_connections:
+            return
+        
+        typing_data = {
+            "type": "typing",
+            "user_id": user_id,
+            "is_typing": is_typing
+        }
+        
+        for connection in self.active_connections[conversation_id]:
+            try:
+                await connection.send_json(typing_data)
+            except Exception as e:
+                logger.error(f"发送输入状态失败: {e}")
+```
+
+#### **应用服务集成广播**
+```python
+class ChatApplicationService(IChatApplicationService):
+    async def broadcast_message_safe(
+        self,
+        conversation_id: str,
+        message_info: MessageInfo,
+        sender_id: str
+    ):
+        """安全地广播消息"""
+        if self.broadcasting_service:
+            try:
+                await self.broadcasting_service.broadcast_message(conversation_id, message_info)
+            except Exception as e:
+                logger.error(f"广播消息失败: {e}")
+                # 不抛出异常，避免影响主要业务流程
+```
+
+### 5.3 WebSocket最佳实践
+
+#### **连接管理**
+- **心跳机制**：定期发送心跳包检测连接状态
+- **重连机制**：客户端自动重连处理
+- **连接池**：合理管理连接数量
+
+#### **消息格式**
+```python
+# 标准消息格式
+{
+    "type": "message|typing|system|heartbeat",
+    "data": {
+        # 具体消息内容
+    },
+    "timestamp": "2024-01-01T00:00:00Z",
+    "message_id": "uuid"
+}
+```
+
+#### **错误处理**
+- **连接错误**：优雅处理连接断开
+- **消息错误**：验证消息格式和内容
+- **权限错误**：验证用户访问权限
+
+## 6. 数据转换策略
+
+### 6.1 转换模式选择
 
 #### **模式1：Schema转换器（推荐）**
 ```python
@@ -106,16 +579,16 @@ class ConversationResponseFactory:
         return ConversationResponse(**base_data)
 ```
 
-### 2.2 转换最佳实践
+### 6.2 转换最佳实践
 
 - **性能优化**：批量转换使用列表推导式，避免N+1查询
 - **内存管理**：大对象集合考虑使用生成器表达式
 - **类型安全**：使用TypeScript风格的类型注解
 - **错误处理**：转换失败时提供有意义的错误信息
 
-## 3. 代码实现规范
+## 7. 代码实现规范
 
-### 3.1 Controller层实现
+### 7.1 Controller层实现
 ```python
 @router.get("/users/{user_id}", response_model=UserResponse)
 async def get_user(
@@ -126,9 +599,9 @@ async def get_user(
     return await user_service.get_user_by_id(user_id)
 ```
 
-### 3.2 Application Service层实现
+### 7.2 Application Service层实现
 ```python
-class UserApplicationService:
+class UserApplicationService(IUserApplicationService):
     def __init__(self, user_repository: UserRepository):
         self.user_repository = user_repository
     
@@ -162,9 +635,9 @@ class UserApplicationService:
         return UserConverter.to_response(saved_user)
 ```
 
-### 3.3 Domain Service层实现
+### 7.3 Domain Service层实现
 ```python
-class UserDomainService:
+class UserDomainService(IUserDomainService):
     """领域服务 - 跨聚合的业务逻辑"""
     
     def __init__(self, user_repository: UserRepository, password_service: PasswordService):
@@ -186,20 +659,17 @@ class UserDomainService:
         return user
 ```
 
-### 3.4 Repository层实现
+### 7.4 Repository层实现
 ```python
-class UserRepository(AbstractUserRepository):
+class UserRepository(IUserRepository):
     """仓储实现 - 基础设施层"""
     
-    def __init__(self, session: AsyncSession):
-        self.session = session
+    def __init__(self, db: Session):
+        self.db = db
     
     async def get_by_id(self, user_id: str) -> Optional[User]:
         """根据ID获取用户"""
-        result = await self.session.execute(
-            select(UserModel).where(UserModel.id == user_id)
-        )
-        user_model = result.scalar_one_or_none()
+        user_model = self.db.query(UserModel).filter(UserModel.id == user_id).first()
         
         if not user_model:
             return None
@@ -209,9 +679,9 @@ class UserRepository(AbstractUserRepository):
     async def save(self, user: User) -> User:
         """保存用户"""
         user_model = self._to_model(user)
-        self.session.add(user_model)
-        await self.session.commit()
-        await self.session.refresh(user_model)
+        self.db.add(user_model)
+        self.db.commit()
+        self.db.refresh(user_model)
         
         return self._to_entity(user_model)
     
@@ -236,7 +706,7 @@ class UserRepository(AbstractUserRepository):
         )
 ```
 
-## 4. 领域建模指导
+## 8. 领域建模指导
 
 ### 4.1 聚合设计原则
 - **一致性边界**：聚合内的对象必须保持一致性
@@ -317,7 +787,7 @@ class Email(ValueObject):
         return hash(self._value)
 ```
 
-## 5. 测试策略
+## 9. 测试策略
 
 ### 5.1 分层测试
 ```python
@@ -349,51 +819,48 @@ class TestUserApplicationService:
 class TestUserRepository:
     async def test_save_user(self):
         user = User.create("张三", "zhangsan@example.com", "password123")
-        session = AsyncSession()
-        repo = UserRepository(session)
+        db = Session()
+        repo = UserRepository(db)
         
         saved_user = await repo.save(user)
         assert saved_user.id == user.id
 ```
 
-## 6. 重构指导
+## 10. 重构指导
 
-### 6.1 渐进式重构步骤
+### 10.1 渐进式重构步骤
 1. **识别领域边界**：分析现有代码，识别核心业务概念
 2. **提取领域模型**：将业务逻辑从服务层提取到领域层
 3. **重构数据转换**：统一使用转换器模式
 4. **引入仓储模式**：抽象数据访问逻辑
 5. **添加领域事件**：解耦业务逻辑
 
-### 6.2 代码质量检查
+### 10.2 代码质量检查
 - **依赖方向**：确保依赖指向领域层
 - **业务逻辑位置**：业务规则应在领域层
 - **数据转换一致性**：统一使用转换器模式
 - **测试覆盖率**：每层都有对应的测试
 
-## 7. 设计原则总结
+## 11. 设计原则总结
 
-### 7.1 DDD原则
+### 11.1 DDD原则
 - **领域驱动**：以业务概念为核心设计代码结构
 - **聚合设计**：明确业务边界和一致性约束
 - **分层架构**：清晰的职责分离和依赖方向
 - **领域事件**：解耦业务逻辑，支持事件驱动
 
-### 7.2 整洁代码原则
+### 11.2 整洁代码原则
 - **单一职责**：每个类和方法只做一件事
 - **开闭原则**：对扩展开放，对修改关闭
 - **依赖倒置**：依赖抽象而非具体实现
 - **接口隔离**：客户端不应依赖不需要的接口
 - **里氏替换**：子类可以替换父类而不影响程序正确性
 
-### 7.3 性能考虑
+### 11.3 性能考虑
 - **批量操作**：使用批量查询和转换
 - **延迟加载**：按需加载关联数据
 - **缓存策略**：合理使用缓存减少数据库访问
 - **异步处理**：非阻塞操作使用异步模式
-
-
 - **可测试性**：service 层和 schema 层可独立单元测试。
 - **一致性**：团队开发风格统一，减少沟通和维护成本。
 - **整洁性**：减少代码冗余，便于代码阅读。
-
