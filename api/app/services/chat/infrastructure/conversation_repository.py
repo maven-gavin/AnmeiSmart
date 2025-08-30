@@ -266,3 +266,13 @@ class ConversationRepository(IConversationRepository):
             conversation_model = self._to_model(conversation)
             self.db.merge(conversation_model)
             self.db.commit()
+    
+    async def is_user_participant(self, conversation_id: str, user_id: str) -> bool:
+        """检查用户是否为会话参与者"""
+        participant = self.db.query(ConversationParticipant).filter(
+            ConversationParticipant.conversation_id == conversation_id,
+            ConversationParticipant.user_id == user_id,
+            ConversationParticipant.is_active == True
+        ).first()
+        
+        return participant is not None

@@ -83,6 +83,11 @@ class IConversationRepository(ABC):
     async def delete(self, conversation_id: str) -> bool:
         """删除会话"""
         pass
+    
+    @abstractmethod
+    async def is_user_participant(self, conversation_id: str, user_id: str) -> bool:
+        """检查用户是否为会话参与者"""
+        pass
 
 
 

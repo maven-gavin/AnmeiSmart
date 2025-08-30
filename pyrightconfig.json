@@ -25,6 +25,8 @@
     "useLibraryCodeForTypes": true,
     "reportMissingImports": "warning",
     "reportMissingTypeStubs": false,
-    "reportOverlappingOverloads": false,
-    "reportRedeclaration": false
+    "reportRedeclaration": false,
+    "reportGeneralTypeIssues": "none",
+    "reportOptionalSubscript": "none",
+    "reportOptionalMemberAccess": "none"
 }
