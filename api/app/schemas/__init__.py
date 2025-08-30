@@ -47,9 +47,11 @@ from .websocket import (
     WebSocketStats,
 )
 
-# AI辅助方案生成领域
-from .plan_generation import (
+# 咨询领域（包含AI辅助方案生成）
+from .consultation import (
     # 枚举
+    PlanStatusEnum,
+    RiskToleranceEnum,
     PlanSessionStatus,
     PlanDraftStatus,
     InfoStatus,
@@ -99,6 +101,37 @@ from .plan_generation import (
     PlanGenerationResponse,
     InfoAnalysisResponse,
     PlanVersionCompareResponse,
+    # 基础咨询
+    ConsultationCreate,
+    ConsultationUpdate,
+    ConsultationResponse,
+    ConsultationListResponse,
+    # 顾问管理
+    ConsultantCreate,
+    ConsultantUpdate,
+    ConsultantResponse,
+    ConsultantListResponse,
+    # 项目类型和模板
+    ProjectTypeResponse,
+    ProjectTemplateResponse,
+    # 客户偏好
+    CustomerPreferenceResponse,
+    CustomerPreferenceUpdate,
+    # 术前模拟
+    SimulationImageResponse,
+    SimulationImageCreate,
+    # 个性化方案
+    PersonalizedPlanResponse,
+    PersonalizedPlanCreate,
+    PersonalizedPlanUpdate,
+    # 方案推荐
+    RecommendationRequest,
+    RecommendationResponse,
+    # 基础方案
+    PlanCreate,
+    PlanUpdate,
+    PlanResponse,
+    PlanListResponse,
 )
 
 # 数字人领域
@@ -152,7 +185,9 @@ __all__ = [
     "WebSocketError", 
     "WebSocketStats",
     
-    # AI辅助方案生成领域
+    # 咨询领域（包含AI辅助方案生成）
+    "PlanStatusEnum",
+    "RiskToleranceEnum",
     "PlanSessionStatus",
     "PlanDraftStatus",
     "InfoStatus",
@@ -194,6 +229,37 @@ __all__ = [
     "PlanGenerationResponse",
     "InfoAnalysisResponse",
     "PlanVersionCompareResponse",
+    # 基础咨询
+    "ConsultationCreate",
+    "ConsultationUpdate",
+    "ConsultationResponse",
+    "ConsultationListResponse",
+    # 顾问管理
+    "ConsultantCreate",
+    "ConsultantUpdate",
+    "ConsultantResponse",
+    "ConsultantListResponse",
+    # 项目类型和模板
+    "ProjectTypeResponse",
+    "ProjectTemplateResponse",
+    # 客户偏好
+    "CustomerPreferenceResponse",
+    "CustomerPreferenceUpdate",
+    # 术前模拟
+    "SimulationImageResponse",
+    "SimulationImageCreate",
+    # 个性化方案
+    "PersonalizedPlanResponse",
+    "PersonalizedPlanCreate",
+    "PersonalizedPlanUpdate",
+    # 方案推荐
+    "RecommendationRequest",
+    "RecommendationResponse",
+    # 基础方案
+    "PlanCreate",
+    "PlanUpdate",
+    "PlanResponse",
+    "PlanListResponse",
     
     # 数字人领域
     "DigitalHumanResponse",

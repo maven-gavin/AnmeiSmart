@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import users, auth, roles, chat, ai, system, customer, websocket, files, consultation_summary, consultant, ai_gateway, plan_generation, agent_config, profile, contacts, consultation
+from app.api.v1.endpoints import users, auth, roles, chat, ai, system, customer, websocket, files, consultation, ai_gateway, agent_config, profile, contacts
 from app.api.v1.endpoints import mcp_config, mcp_server, mcp_oauth, digital_humans, admin_digital_humans, tasks
 
 api_router = APIRouter()
@@ -19,8 +19,8 @@ api_router.include_router(websocket.router, tags=["websocket"])
 # 聊天系统路由
 api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
 
-# 咨询总结路由
-api_router.include_router(consultation_summary.router, prefix="/consultation", tags=["consultation-summary"])
+# 咨询业务路由（整合咨询会话、总结、方案管理、方案生成等所有咨询相关功能）
+api_router.include_router(consultation.router, prefix="/consultation", tags=["consultation"])
 
 # 文件上传路由
 api_router.include_router(files.router, prefix="/files", tags=["files"])
@@ -34,14 +34,8 @@ api_router.include_router(system.router, prefix="/system", tags=["system"])
 # 客户领域路由
 api_router.include_router(customer.router, prefix="/customers", tags=["customers"])
 
-# 顾问方案推荐路由
-api_router.include_router(consultant.router, prefix="/consultant", tags=["consultant"])
-
 # AI Gateway路由
 api_router.include_router(ai_gateway.router, prefix="/ai-gateway", tags=["ai-gateway"])
-
-# AI辅助方案生成路由
-api_router.include_router(plan_generation.router, prefix="/plan-generation", tags=["plan-generation"])
 
 # Agent配置管理路由
 api_router.include_router(agent_config.router, prefix="/agent", tags=["agent-config"])
@@ -69,9 +63,6 @@ api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 
 # 通讯录管理路由
 api_router.include_router(contacts.router, prefix="/contacts", tags=["contacts"])
-
-# 咨询管理路由
-api_router.include_router(consultation.router, prefix="/consultation", tags=["consultation"])
 
 # 后续可添加其他路由
 # api_router.include_router(plans.router, prefix="/plans", tags=["plans"])

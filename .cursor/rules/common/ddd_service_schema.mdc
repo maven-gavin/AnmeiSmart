@@ -522,25 +522,321 @@ class ChatApplicationService(IChatApplicationService):
 
 ## 6. 数据转换策略
 
-### 6.1 转换模式选择
+### 6.1 目录结构规范
 
-#### **模式1：Schema转换器（推荐）**
+#### **完整DDD分层目录结构**
+```
+api/app/api/deps/{domain}.py       # 依赖注入 - 管理领域服务的依赖关系，提供接口实现
+api/app/services/{domain}/
+├── __init__.py                    # 模块入口，导出主要应用服务
+├── interfaces/                    # 接口定义层 - 定义所有服务接口
+│   ├── __init__.py
+│   ├── repository_interfaces.py  # 仓储接口定义
+│   ├── domain_service_interfaces.py  # 领域服务接口定义
+│   └── application_service_interfaces.py  # 应用服务接口定义
+├── application/                   # 应用层 - 用例编排和事务管理
+│   ├── __init__.py
+│   ├── {domain}_application_service.py
+│   └── {sub_domain}_application_service.py
+├── domain/                        # 领域层 - 核心业务逻辑
+│   ├── __init__.py
+│   ├── entities/                  # 聚合根和实体
+│   │   ├── __init__.py
+│   │   ├── {aggregate_root}.py
+│   │   └── {entity}.py
+│   ├── value_objects/            # 值对象
+│   │   ├── __init__.py
+│   │   ├── {value_object}.py
+│   │   └── {enum}.py
+│   ├── {domain}_domain_service.py
+│   └── {sub_domain}_domain_service.py
+├── infrastructure/               # 基础设施层 - 数据访问和外部服务
+│   ├── __init__.py
+│   ├── repositories/             # 仓储实现
+│   │   ├── __init__.py
+│   │   ├── {aggregate_root}_repository.py
+│   │   └── {entity}_repository.py
+│   └── external_services/        # 外部服务集成
+│       ├── __init__.py
+│       └── {external_service}.py
+└── converters/                   # 数据转换层 - 格式转换
+    ├── __init__.py
+    ├── {aggregate_root}_converter.py
+    └── {entity}_converter.py
+```
+
+#### **目录命名规范**
+
+##### **顶层目录**
+- **推荐**: 使用领域名称作为服务目录名
+- **位置**: `api/app/services/{domain}/`
+- **示例**: `consultation/`, `user/`, `order/`
+
+##### **接口定义层目录**
+- **推荐**: 使用 `interfaces/` 目录
+- **职责**: 定义所有服务接口，包括仓储接口、领域服务接口、应用服务接口
+- **命名**: 接口文件使用 `{type}_interfaces.py` 格式
+- **位置**: 放在服务模块的顶层，便于各层引用
+
+##### **应用层目录**
+- **推荐**: 使用 `application/` 目录
+- **职责**: 用例编排、事务管理、依赖注入
+- **命名**: 应用服务文件使用 `{domain}_application_service.py` 格式
+
+##### **领域层目录**
+- **推荐**: 使用 `domain/` 目录
+- **职责**: 核心业务逻辑、领域规则、聚合设计
+- **子目录**:
+  - `entities/`: 聚合根和实体
+  - `value_objects/`: 值对象和枚举
+  - 领域服务直接放在 `domain/` 目录下
+
+##### **基础设施层目录**
+- **推荐**: 使用 `infrastructure/` 目录
+- **职责**: 数据访问、外部服务集成、技术实现
+- **子目录**:
+  - `repositories/`: 仓储实现
+  - `external_services/`: 外部服务集成
+
+##### **转换器目录**
+- **推荐**: 使用 `converters/` 目录
+- **职责**: 数据格式转换、API Schema映射
+- **命名**: 转换器文件使用 `{aggregate_root}_converter.py` 格式
+
+#### **文件命名规范**
+
+##### **聚合根和实体**
+- **文件命名**: `{aggregate_root}.py`, `{entity}.py`
+- **类命名**: `{AggregateRoot}`, `{Entity}`
+- **示例**: `consultation.py` → `Consultation`, `plan.py` → `Plan`
+
+##### **值对象**
+- **文件命名**: `{value_object}.py`
+- **类命名**: `{ValueObject}`
+- **示例**: `consultation_status.py` → `ConsultationStatus`
+
+##### **领域服务**
+- **文件命名**: `{domain}_domain_service.py`
+- **类命名**: `{Domain}DomainService`
+- **示例**: `consultation_domain_service.py` → `ConsultationDomainService`
+
+##### **应用服务**
+- **文件命名**: `{domain}_application_service.py`
+- **类命名**: `{Domain}ApplicationService`
+- **示例**: `consultation_application_service.py` → `ConsultationApplicationService`
+
+##### **仓储**
+- **文件命名**: `{aggregate_root}_repository.py`
+- **类命名**: `{AggregateRoot}Repository`
+- **示例**: `consultation_repository.py` → `ConsultationRepository`
+
+##### **转换器**
+- **文件命名**: `{aggregate_root}_converter.py`
+- **类命名**: `{AggregateRoot}Converter`
+- **示例**: `consultation_converter.py` → `ConsultationConverter`
+
+##### **接口文件**
+- **文件命名**: `{type}_interfaces.py`
+- **类命名**: `{Type}Interface` 或 `I{Type}`
+- **示例**: `repository_interfaces.py` → `RepositoryInterface`, `domain_service_interfaces.py` → `IDomainService`
+
+#### **实际示例：咨询服务模块**
+
+```
+api/app/api/deps/consultation.py   # 依赖注入 - 管理咨询服务依赖关系
+api/app/services/consultation/
+├── __init__.py                    # 导出主要应用服务
+├── interfaces/                    # 接口定义层
+│   ├── __init__.py
+│   ├── repository_interfaces.py  # 仓储接口定义
+│   ├── domain_service_interfaces.py  # 领域服务接口定义
+│   └── application_service_interfaces.py  # 应用服务接口定义
+├── application/                   # 应用层
+│   ├── __init__.py
+│   ├── consultation_application_service.py
+│   ├── plan_generation_application_service.py
+│   └── consultant_application_service.py
+├── domain/                        # 领域层
+│   ├── __init__.py
+│   ├── entities/                  # 聚合根和实体
+│   │   ├── __init__.py
+│   │   ├── consultation.py       # 咨询聚合根
+│   │   ├── plan.py              # 方案聚合根
+│   │   └── consultant.py        # 顾问实体
+│   ├── value_objects/           # 值对象
+│   │   ├── __init__.py
+│   │   ├── consultation_status.py # 咨询状态
+│   │   └── plan_status.py       # 方案状态
+│   ├── consultation_domain_service.py
+│   ├── plan_generation_domain_service.py
+│   └── consultant_domain_service.py
+├── infrastructure/              # 基础设施层
+│   ├── __init__.py
+│   ├── repositories/            # 仓储
+│   │   ├── __init__.py
+│   │   ├── consultation_repository.py
+│   │   ├── plan_repository.py
+│   │   └── consultant_repository.py
+│   └── external_services/       # 外部服务
+│       ├── __init__.py
+│       └── ai_service.py        # AI服务集成
+└── converters/                  # 数据转换层
+    ├── __init__.py
+    ├── consultation_converter.py
+    ├── plan_converter.py
+    └── consultant_converter.py
+```
+
+#### **目录结构最佳实践**
+
+##### **1. 分层原则**
+- **依赖方向**: 确保依赖方向指向领域层
+- **职责分离**: 每层只负责自己的职责
+- **接口隔离**: 上层通过接口依赖下层，不依赖具体实现
+
+##### **2. 目录组织原则**
+- **单一职责**: 每个目录只包含相关功能的文件
+- **高内聚低耦合**: 相关功能放在一起，减少跨目录依赖
+- **可扩展性**: 目录结构支持功能扩展和重构
+
+##### **3. 命名一致性**
+- **统一风格**: 所有目录和文件使用一致的命名风格
+- **语义化命名**: 目录和文件名应反映其内容和用途
+- **避免缩写**: 使用完整的单词，避免缩写造成歧义
+
+##### **4. 文件组织原则**
+- **按类型分组**: 相同类型的文件放在同一目录下
+- **按功能分组**: 相关功能的文件可以放在同一目录下
+- **避免过深嵌套**: 目录嵌套不超过4层
+
+#### **常见目录结构模式**
+
+##### **模式1：标准DDD分层（推荐）**
+```
+{domain}/
+├── application/
+├── domain/
+├── infrastructure/
+└── converters/
+```
+
+##### **模式2：按功能分组**
+```
+{domain}/
+├── core/              # 核心业务逻辑
+├── application/       # 应用服务
+├── infrastructure/    # 基础设施
+└── shared/           # 共享组件
+```
+
+##### **模式3：按模块分组**
+```
+{domain}/
+├── {sub_domain1}/
+├── {sub_domain2}/
+└── shared/
+```
+
+#### **目录结构检查清单**
+
+##### **创建新服务时**
+- [ ] 是否遵循标准DDD分层结构？
+- [ ] 目录命名是否符合规范？
+- [ ] 文件命名是否符合规范？
+- [ ] 是否包含必要的 `__init__.py` 文件？
+- [ ] 导入路径是否正确？
+
+##### **重构现有服务时**
+- [ ] 是否保持了向后兼容性？
+- [ ] 是否更新了所有相关导入？
+- [ ] 是否更新了文档？
+- [ ] 是否进行了充分的测试？
+
+#### **注意事项**
+
+##### **1. 避免的反模式**
+- ❌ 不要创建过深的目录嵌套
+- ❌ 不要使用不一致的命名风格
+- ❌ 不要将不同职责的文件混在一起
+- ❌ 不要忽略 `__init__.py` 文件
+
+##### **2. 性能考虑**
+- 合理使用 `__init__.py` 文件控制导入
+- 避免循环导入
+- 使用延迟导入减少启动时间
+
+##### **3. 团队协作**
+- 建立团队统一的目录结构规范
+- 在代码审查中检查目录结构合规性
+- 定期重构和优化目录结构
+
+### 6.2 转换模式选择
+
+#### **模式1：独立转换器类（推荐）**
 ```python
-# 独立的转换器类
-class UserConverter:
+# api/app/services/consultation/converters/consultation_converter.py
+from typing import List, Optional, Dict, Any
+from app.schemas.consultation import ConsultationResponse, ConsultationCreate
+from ..domain.entities.consultation import Consultation
+
+class ConsultationConverter:
+    """咨询数据转换器"""
+    
     @staticmethod
-    def to_response(user: User) -> UserResponse:
-        return UserResponse(
-            id=user.id,
-            name=user.name,
-            email=user.email,
-            created_at=user.created_at
+    def to_response(consultation: Consultation) -> ConsultationResponse:
+        """转换咨询实体为响应格式"""
+        return ConsultationResponse(
+            id=consultation.id,
+            customer_id=consultation.customer_id,
+            consultant_id=consultation.consultant_id,
+            status=consultation.status.value,
+            title=consultation.title,
+            created_at=consultation.created_at,
+            updated_at=consultation.updated_at,
+            metadata=consultation.metadata
         )
     
     @staticmethod
-    def to_list_response(users: List[User]) -> List[UserResponse]:
-        return [UserConverter.to_response(user) for user in users]
-```
+    def to_list_response(consultations: List[Consultation]) -> List[ConsultationResponse]:
+        """转换咨询列表为响应格式"""
+        return [ConsultationConverter.to_response(consultation) for consultation in consultations]
+    
+    @staticmethod
+    def from_create_request(request: ConsultationCreate) -> Dict[str, Any]:
+        """从创建请求转换为领域对象参数"""
+        return {
+            "customer_id": request.customer_id,
+            "title": request.title,
+            "metadata": request.metadata or {}
+        }
+    
+    @staticmethod
+    def from_model(model) -> Consultation:
+        """从ORM模型转换为领域实体"""
+        return Consultation(
+            id=model.id,
+            customer_id=model.customer_id,
+            consultant_id=model.consultant_id,
+            status=ConsultationStatus.from_string(model.status),
+            title=model.title,
+            created_at=model.created_at,
+            updated_at=model.updated_at,
+            metadata=model.metadata or {}
+        )
+    
+    @staticmethod
+    def to_model_dict(consultation: Consultation) -> Dict[str, Any]:
+        """转换领域实体为ORM模型字典"""
+        return {
+            "id": consultation.id,
+            "customer_id": consultation.customer_id,
+            "consultant_id": consultation.consultant_id,
+            "status": consultation.status.value,
+            "title": consultation.title,
+            "created_at": consultation.created_at,
+            "updated_at": consultation.updated_at,
+            "metadata": consultation.metadata
+        }
 
 #### **模式2：Schema内置转换（简单场景）**
 ```python
@@ -579,12 +875,29 @@ class ConversationResponseFactory:
         return ConversationResponse(**base_data)
 ```
 
-### 6.2 转换最佳实践
+### 6.3 转换器职责
+
+#### **转换器应负责的转换类型**
+1. **领域实体 ↔ API Schema**: 领域对象与API请求/响应之间的转换
+2. **领域实体 ↔ ORM模型**: 领域对象与数据库模型之间的转换
+3. **请求数据 → 领域参数**: API请求数据转换为领域对象创建参数
+
+#### **转换器方法命名规范**
+- `to_response()`: 领域实体转换为API响应
+- `to_list_response()`: 领域实体列表转换为API响应列表
+- `from_create_request()`: 创建请求转换为领域对象参数
+- `from_update_request()`: 更新请求转换为领域对象参数
+- `from_model()`: ORM模型转换为领域实体
+- `to_model_dict()`: 领域实体转换为ORM模型字典
+
+### 6.4 转换最佳实践
 
 - **性能优化**：批量转换使用列表推导式，避免N+1查询
 - **内存管理**：大对象集合考虑使用生成器表达式
-- **类型安全**：使用TypeScript风格的类型注解
+- **类型安全**：使用完整的类型注解，确保类型安全
 - **错误处理**：转换失败时提供有意义的错误信息
+- **一致性**：所有转换器遵循相同的命名和结构模式
+- **文档化**：为每个转换方法提供清晰的文档说明
 
 ## 7. 代码实现规范
 
@@ -835,7 +1148,31 @@ class TestUserRepository:
 4. **引入仓储模式**：抽象数据访问逻辑
 5. **添加领域事件**：解耦业务逻辑
 
-### 10.2 代码质量检查
+### 10.2 目录结构规范
+
+#### **领域服务目录结构**
+- **推荐**: 领域服务直接放在 `domain/` 目录下
+- **位置**: `api/app/services/{domain}/domain/`
+- **命名**: 每个领域服务对应一个文件
+
+```
+api/app/services/consultation/
+├── domain/                       # 领域层
+│   ├── __init__.py
+│   ├── entities/                 # 实体
+│   ├── value_objects/           # 值对象
+│   ├── consultation_domain_service.py
+│   ├── plan_generation_domain_service.py
+│   └── consultant_domain_service.py
+```
+
+#### **领域服务职责**
+- 处理跨聚合的业务逻辑
+- 实现领域规则和约束
+- 协调多个聚合根之间的交互
+- 提供领域级别的验证和服务
+
+### 10.3 代码质量检查
 - **依赖方向**：确保依赖指向领域层
 - **业务逻辑位置**：业务规则应在领域层
 - **数据转换一致性**：统一使用转换器模式

@@ -1,14 +1,29 @@
 """
-AI辅助方案生成领域Schema
-包含方案生成会话、方案草稿、信息完整性等相关的数据模型
+咨询领域Schema定义
+包含咨询、顾问、方案生成、项目类型、客户偏好等相关的数据模型
 """
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Literal, Union
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 from enum import Enum
 
 
 # ===== 枚举类型定义 =====
+
+class PlanStatusEnum(str, Enum):
+    """方案状态枚举"""
+    DRAFT = "DRAFT"
+    SHARED = "SHARED"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+
+
+class RiskToleranceEnum(str, Enum):
+    """风险承受度枚举"""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
 
 class PlanSessionStatus(str, Enum):
     """方案生成会话状态枚举"""
@@ -37,7 +52,51 @@ class InfoStatus(str, Enum):
     complete = "complete"       # 完整
 
 
-# ===== 基础信息结构定义 =====
+# ===== 基础Schema类 =====
+
+class BaseConsultantSchema(BaseModel):
+    """基础Schema类"""
+    class Config:
+        from_attributes = True
+
+
+# ===== 值对象Schema =====
+
+class CustomerProfile(BaseConsultantSchema):
+    """客户画像Schema"""
+    age: Optional[int] = None
+    gender: Optional[str] = None  # male, female
+    concerns: List[str] = []
+    budget: Optional[float] = None
+    expected_results: Optional[str] = None
+
+
+class ProjectDetail(BaseConsultantSchema):
+    """项目详情Schema"""
+    id: str
+    name: str
+    description: str
+    cost: float
+    duration: str
+    recovery_time: str
+    expected_results: str
+    risks: List[str] = []
+
+
+class SimulationParameter(BaseConsultantSchema):
+    """模拟参数Schema"""
+    id: str
+    name: str
+    label: str
+    type: str  # slider, select, radio
+    min: Optional[float] = None
+    max: Optional[float] = None
+    step: Optional[float] = None
+    options: Optional[List[Dict[str, str]]] = None
+    default_value: Union[str, float]
+
+
+# ===== AI辅助方案生成信息结构 =====
 
 class BasicInfo(BaseModel):
     """基础信息结构"""
@@ -88,7 +147,7 @@ class ExtractedInfo(BaseModel):
     last_updated: Optional[str] = None
 
 
-# ===== 方案内容结构定义 =====
+# ===== 方案内容结构 =====
 
 class PlanBasicInfo(BaseModel):
     """方案基础信息"""
@@ -177,7 +236,7 @@ class PlanContent(BaseModel):
     aftercare: Optional[Aftercare] = Field(None, description="后续护理")
 
 
-# ===== 反馈结构定义 =====
+# ===== 反馈结构 =====
 
 class ConsultantFeedback(BaseModel):
     """顾问反馈"""
@@ -214,7 +273,7 @@ class PlanFeedback(BaseModel):
     medical_review: Optional[MedicalReview] = None
 
 
-# ===== 引导问题结构定义 =====
+# ===== 引导问题结构 =====
 
 class GuidanceQuestion(BaseModel):
     """引导问题"""
@@ -235,7 +294,219 @@ class GuidanceQuestions(BaseModel):
     total_questions: Optional[int] = Field(None, description="总问题数")
 
 
-# ===== 会话基础模型 =====
+# ===== 基础咨询Schema =====
+
+class ConsultationCreate(BaseModel):
+    """创建咨询请求"""
+    customer_id: str = Field(..., description="客户ID")
+    title: str = Field(..., description="咨询标题")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="元数据")
+
+
+class ConsultationUpdate(BaseModel):
+    """更新咨询请求"""
+    title: Optional[str] = Field(default=None, description="咨询标题")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="元数据")
+
+
+class ConsultationResponse(BaseModel):
+    """咨询响应"""
+    id: str = Field(..., description="咨询ID")
+    customer_id: str = Field(..., description="客户ID")
+    consultant_id: Optional[str] = Field(default=None, description="顾问ID")
+    status: str = Field(..., description="咨询状态")
+    title: str = Field(..., description="咨询标题")
+    created_at: datetime = Field(..., description="创建时间")
+    updated_at: datetime = Field(..., description="更新时间")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="元数据")
+
+
+class ConsultationListResponse(BaseModel):
+    """咨询列表响应"""
+    consultations: List[ConsultationResponse] = Field(..., description="咨询列表")
+    total: int = Field(..., description="总数")
+
+
+# ===== 顾问管理Schema =====
+
+class ConsultantCreate(BaseModel):
+    """创建顾问请求"""
+    user_id: str = Field(..., description="用户ID")
+    name: str = Field(..., description="顾问姓名")
+    specialization: str = Field(..., description="专业领域")
+    experience_years: int = Field(..., description="工作经验年数")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="元数据")
+
+
+class ConsultantUpdate(BaseModel):
+    """更新顾问请求"""
+    name: Optional[str] = Field(default=None, description="顾问姓名")
+    specialization: Optional[str] = Field(default=None, description="专业领域")
+    experience_years: Optional[int] = Field(default=None, description="工作经验年数")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="元数据")
+
+
+class ConsultantResponse(BaseModel):
+    """顾问响应"""
+    id: str = Field(..., description="顾问ID")
+    user_id: str = Field(..., description="用户ID")
+    name: str = Field(..., description="顾问姓名")
+    specialization: str = Field(..., description="专业领域")
+    experience_years: int = Field(..., description="工作经验年数")
+    is_active: bool = Field(..., description="是否激活")
+    created_at: datetime = Field(..., description="创建时间")
+    updated_at: datetime = Field(..., description="更新时间")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="元数据")
+
+
+class ConsultantListResponse(BaseModel):
+    """顾问列表响应"""
+    consultants: List[ConsultantResponse] = Field(..., description="顾问列表")
+    total: int = Field(..., description="总数")
+
+
+# ===== 项目类型和模板Schema =====
+
+class ProjectTypeResponse(BaseConsultantSchema):
+    """项目类型响应Schema"""
+    id: str
+    name: str
+    label: str
+    description: Optional[str] = None
+    parameters: Optional[List[SimulationParameter]] = None
+    is_active: bool = True
+    category: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+
+class ProjectTemplateResponse(BaseConsultantSchema):
+    """项目模板响应Schema"""
+    id: str
+    name: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+    base_cost: float
+    duration: Optional[str] = None
+    recovery_time: Optional[str] = None
+    expected_results: Optional[str] = None
+    risks: List[str] = []
+    is_active: bool = True
+    suitable_age_min: Optional[int] = None
+    suitable_age_max: Optional[int] = None
+    suitable_concerns: List[str] = []
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+
+# ===== 客户偏好Schema =====
+
+class CustomerPreferenceResponse(BaseConsultantSchema):
+    """客户偏好响应Schema"""
+    id: str
+    customer_id: str
+    preferred_budget_min: Optional[float] = None
+    preferred_budget_max: Optional[float] = None
+    preferred_recovery_time: Optional[str] = None
+    preferred_project_categories: List[str] = []
+    concerns_history: List[str] = []
+    risk_tolerance: RiskToleranceEnum = RiskToleranceEnum.MEDIUM
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+
+class CustomerPreferenceUpdate(BaseConsultantSchema):
+    """更新客户偏好Schema"""
+    preferred_budget_min: Optional[float] = Field(None, ge=0)
+    preferred_budget_max: Optional[float] = Field(None, ge=0)
+    preferred_recovery_time: Optional[str] = Field(None, max_length=50)
+    preferred_project_categories: Optional[List[str]] = None
+    concerns_history: Optional[List[str]] = None
+    risk_tolerance: Optional[RiskToleranceEnum] = None
+
+
+# ===== 术前模拟Schema =====
+
+class SimulationImageResponse(BaseConsultantSchema):
+    """术前模拟图像响应Schema"""
+    id: str
+    customer_id: str
+    customer_name: str
+    original_image_path: str
+    simulated_image_path: str
+    project_type_id: str
+    parameters: Optional[Dict[str, Any]] = None
+    notes: Optional[str] = None
+    consultant_id: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+
+class SimulationImageCreate(BaseConsultantSchema):
+    """创建术前模拟Schema"""
+    customer_id: str
+    customer_name: str = Field(..., max_length=100)
+    project_type_id: str
+    parameters: Optional[Dict[str, Any]] = None
+    notes: Optional[str] = None
+
+
+# ===== 个性化方案Schema =====
+
+class PersonalizedPlanResponse(BaseConsultantSchema):
+    """个性化方案响应Schema"""
+    id: str
+    customer_id: str
+    customer_name: str
+    consultant_id: str
+    consultant_name: str
+    customer_profile: Optional[CustomerProfile] = None
+    projects: List[ProjectDetail] = []
+    total_cost: float = 0.0
+    estimated_timeframe: Optional[str] = None
+    status: PlanStatusEnum = PlanStatusEnum.DRAFT
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+
+class PersonalizedPlanCreate(BaseConsultantSchema):
+    """创建个性化方案Schema"""
+    customer_id: str
+    customer_name: str = Field(..., max_length=100)
+    customer_profile: Optional[CustomerProfile] = None
+    projects: List[ProjectDetail] = []
+    estimated_timeframe: Optional[str] = Field(None, max_length=100)
+    notes: Optional[str] = None
+
+
+class PersonalizedPlanUpdate(BaseConsultantSchema):
+    """更新个性化方案Schema"""
+    customer_profile: Optional[CustomerProfile] = None
+    projects: Optional[List[ProjectDetail]] = None
+    estimated_timeframe: Optional[str] = Field(None, max_length=100)
+    status: Optional[PlanStatusEnum] = None
+    notes: Optional[str] = None
+
+
+# ===== 方案推荐Schema =====
+
+class RecommendationRequest(BaseConsultantSchema):
+    """方案推荐请求Schema"""
+    customer_id: str
+    customer_profile: CustomerProfile
+    preferences: Optional[Dict[str, Any]] = None
+
+
+class RecommendationResponse(BaseConsultantSchema):
+    """方案推荐响应Schema"""
+    recommended_projects: List[ProjectTemplateResponse]
+    total_estimated_cost: float
+    confidence_score: float = Field(..., ge=0, le=1)
+    reasoning: str
+
+
+# ===== AI辅助方案生成Schema =====
 
 class PlanGenerationSessionBase(BaseModel):
     """方案生成会话基础模型"""
@@ -249,7 +520,7 @@ class PlanGenerationSessionCreate(PlanGenerationSessionBase):
     session_metadata: Optional[Dict[str, Any]] = Field(None, description="会话元数据")
 
 
-class PlanGenerationSessionInfo(BaseModel):
+class PlanGenerationSessionInfo(PlanGenerationSessionBase):
     """方案生成会话完整信息"""
     model_config = ConfigDict(from_attributes=True)
     
@@ -263,31 +534,6 @@ class PlanGenerationSessionInfo(BaseModel):
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
 
-    @staticmethod
-    def from_model(session) -> Optional["PlanGenerationSessionInfo"]:
-        """从数据库模型转换为Schema模型"""
-        if not session:
-            return None
-        
-        # 转换提取的信息
-        extracted_info = None
-        if hasattr(session, 'extracted_info') and session.extracted_info:
-            extracted_info = ExtractedInfo(**session.extracted_info)
-        
-        return PlanGenerationSessionInfo(
-            id=getattr(session, 'id', ''),
-            status=getattr(session, 'status', PlanSessionStatus.collecting),
-            required_info=getattr(session, 'required_info', {}),
-            extracted_info=extracted_info,
-            interaction_history=getattr(session, 'interaction_history', []),
-            session_metadata=getattr(session, 'session_metadata', {}),
-            performance_metrics=getattr(session, 'performance_metrics', {}),
-            created_at=getattr(session, 'created_at', datetime.now()),
-            updated_at=getattr(session, 'updated_at', datetime.now())
-        )
-
-
-# ===== 方案草稿模型 =====
 
 class PlanDraftBase(BaseModel):
     """方案草稿基础模型"""
@@ -318,60 +564,6 @@ class PlanDraftInfo(BaseModel):
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
 
-    @staticmethod
-    def from_model(draft) -> Optional["PlanDraftInfo"]:
-        """从数据库模型转换为Schema模型"""
-        if not draft:
-            return None
-        
-        # 转换方案内容
-        content = PlanContent(**draft.content) if draft.content else PlanContent(
-            basic_info=PlanBasicInfo(
-                title="",
-                description="",
-                difficulty_level="",
-                total_duration=None
-            ),
-            analysis=PlanAnalysis(
-                skin_analysis=None,
-                treatment_approach=None,
-                expected_timeline=None
-            ),
-            treatment_plan=TreatmentPlan(),
-            cost_breakdown=CostBreakdown(
-                treatment_costs=None,
-                product_costs=None,
-                maintenance_costs=None,
-                total_cost=None
-            ),
-            timeline=PlanTimeline(
-                start_date=None,
-                completion_date=None
-            ),
-            risks_and_precautions=RisksAndPrecautions(),
-            aftercare=Aftercare()
-        )
-        # 转换反馈
-        feedback = None
-        if hasattr(draft, 'feedback') and draft.feedback:
-            feedback = PlanFeedback(**draft.feedback)
-        
-        return PlanDraftInfo(
-            id=getattr(draft, 'id', ''),
-            session_id=getattr(draft, 'session_id', ''),
-            version=getattr(draft, 'version', 1),
-            parent_version=getattr(draft, 'parent_version', None),
-            status=getattr(draft, 'status', PlanDraftStatus.draft),
-            content=content,
-            feedback=feedback,
-            improvements=getattr(draft, 'improvements', {}),
-            generation_info=getattr(draft, 'generation_info', {}),
-            created_at=getattr(draft, 'created_at', datetime.now()),
-            updated_at=getattr(draft, 'updated_at', datetime.now())
-        )
-
-
-# ===== 信息完整性模型 =====
 
 class InfoCompletenessBase(BaseModel):
     """信息完整性基础模型"""
@@ -410,44 +602,48 @@ class InfoCompletenessInfo(BaseModel):
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
 
-    @staticmethod
-    def from_model(info) -> Optional["InfoCompletenessInfo"]:
-        """从数据库模型转换为Schema模型"""
-        if not info:
-            return None
-        
-        # 转换引导问题
-        guidance_questions = None
-        if hasattr(info, 'guidance_questions') and info.guidance_questions:
-            guidance_questions = GuidanceQuestions(**info.guidance_questions)
-        
-        return InfoCompletenessInfo(
-            id=getattr(info, 'id', ''),
-            session_id=getattr(info, 'session_id', ''),
-            basic_info_status=getattr(info, 'basic_info_status', InfoStatus.missing),
-            basic_info_score=getattr(info, 'basic_info_score', 0.0),
-            concerns_status=getattr(info, 'concerns_status', InfoStatus.missing),
-            concerns_score=getattr(info, 'concerns_score', 0.0),
-            budget_status=getattr(info, 'budget_status', InfoStatus.missing),
-            budget_score=getattr(info, 'budget_score', 0.0),
-            timeline_status=getattr(info, 'timeline_status', InfoStatus.missing),
-            timeline_score=getattr(info, 'timeline_score', 0.0),
-            medical_history_status=getattr(info, 'medical_history_status', InfoStatus.missing),
-            medical_history_score=getattr(info, 'medical_history_score', 0.0),
-            expectations_status=getattr(info, 'expectations_status', InfoStatus.missing),
-            expectations_score=getattr(info, 'expectations_score', 0.0),
-            completeness_score=getattr(info, 'completeness_score', 0.0),
-            missing_fields=getattr(info, 'missing_fields', {}),
-            guidance_questions=guidance_questions,
-            suggestions=getattr(info, 'suggestions', {}),
-            last_analysis_at=getattr(info, 'last_analysis_at', datetime.now()),
-            analysis_version=getattr(info, 'analysis_version', 1),
-            created_at=getattr(info, 'created_at', datetime.now()),
-            updated_at=getattr(info, 'updated_at', datetime.now())
-        )
+
+# ===== 基础方案Schema =====
+
+class PlanCreate(BaseModel):
+    """创建方案请求"""
+    consultation_id: str = Field(..., description="咨询ID")
+    customer_id: str = Field(..., description="客户ID")
+    consultant_id: str = Field(..., description="顾问ID")
+    title: str = Field(..., description="方案标题")
+    content: Dict[str, Any] = Field(..., description="方案内容")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="元数据")
 
 
-# ===== 请求/响应模型 =====
+class PlanUpdate(BaseModel):
+    """更新方案请求"""
+    title: Optional[str] = Field(default=None, description="方案标题")
+    content: Optional[Dict[str, Any]] = Field(default=None, description="方案内容")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="元数据")
+
+
+class PlanResponse(BaseModel):
+    """方案响应"""
+    id: str = Field(..., description="方案ID")
+    consultation_id: str = Field(..., description="咨询ID")
+    customer_id: str = Field(..., description="客户ID")
+    consultant_id: str = Field(..., description="顾问ID")
+    status: str = Field(..., description="方案状态")
+    title: str = Field(..., description="方案标题")
+    content: Dict[str, Any] = Field(..., description="方案内容")
+    version: int = Field(..., description="版本号")
+    created_at: datetime = Field(..., description="创建时间")
+    updated_at: datetime = Field(..., description="更新时间")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="元数据")
+
+
+class PlanListResponse(BaseModel):
+    """方案列表响应"""
+    plans: List[PlanResponse] = Field(..., description="方案列表")
+    total: int = Field(..., description="总数")
+
+
+# ===== AI辅助方案生成请求/响应Schema =====
 
 class GeneratePlanRequest(BaseModel):
     """生成方案请求"""
@@ -508,4 +704,4 @@ class PlanVersionCompareResponse(BaseModel):
     current_version: int = Field(..., description="当前版本")
     compare_version: int = Field(..., description="对比版本")
     differences: List[Dict[str, Any]] = Field(default=[], description="差异列表")
-    improvement_summary: str = Field(..., description="改进摘要") 
+    improvement_summary: str = Field(..., description="改进摘要")
