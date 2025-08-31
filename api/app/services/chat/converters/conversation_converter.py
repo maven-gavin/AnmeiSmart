@@ -21,7 +21,7 @@ class ConversationConverter:
         return ConversationInfo(
             id=conversation.id,
             title=conversation.title,
-            chat_mode=conversation.conversation_type,
+            chat_mode=conversation.chat_mode,
             owner_id=conversation.owner_id,
             tag="chat",  # 默认值
             created_at=conversation.created_at,
@@ -66,7 +66,7 @@ class ConversationConverter:
         return Conversation(
             id=conversation_id(),
             title=conversation_info.title,
-            conversation_type=getattr(conversation_info, 'chat_mode', 'single'),
+            chat_mode=getattr(conversation_info, 'chat_mode', 'single'),
             owner_id=conversation_info.owner_id,
             is_active=getattr(conversation_info, 'is_active', True),
             is_archived=getattr(conversation_info, 'is_archived', False),

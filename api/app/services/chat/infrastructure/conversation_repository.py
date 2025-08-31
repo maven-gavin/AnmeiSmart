@@ -29,7 +29,7 @@ class ConversationRepository(IConversationRepository):
             id=str(model.id),
             title=model.title,
             owner_id=str(model.owner_id),
-            conversation_type=model.chat_mode,
+            chat_mode=model.chat_mode,
             is_active=model.is_active,
             is_archived=model.is_archived,
             message_count=model.message_count,
@@ -43,7 +43,7 @@ class ConversationRepository(IConversationRepository):
         return ConversationModel(
             id=entity.id,
             title=entity.title,
-            chat_mode=entity.conversation_type,
+            chat_mode=entity.chat_mode,
             owner_id=entity.owner_id,
             is_active=entity.is_active,
             is_archived=entity.is_archived,

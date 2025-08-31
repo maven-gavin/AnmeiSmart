@@ -97,7 +97,7 @@ class IChatApplicationService(ABC):
     """聊天应用服务抽象接口"""
     
     @abstractmethod
-    async def create_conversation_use_case(self, title: str, owner_id: str, conversation_type: str, auto_assign_consultant: bool) -> ConversationInfo:
+    async def create_conversation_use_case(self, title: str, owner_id: str, chat_mode: str, auto_assign_consultant: bool) -> ConversationInfo:
         """创建会话用例"""
         pass
     
@@ -121,7 +121,7 @@ class IConversationDomainService(ABC):
     """会话领域服务抽象接口"""
     
     @abstractmethod
-    async def create_conversation(self, title: str, owner_id: str, conversation_type: str = "single") -> Any:
+    async def create_conversation(self, title: str, owner_id: str, chat_mode: str = "single") -> Any:
         """创建会话 - 领域逻辑"""
         pass
     

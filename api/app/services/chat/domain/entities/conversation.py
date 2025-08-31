@@ -15,7 +15,7 @@ class Conversation:
         id: str,
         title: str,
         owner_id: str,
-        conversation_type: str = "single",
+        chat_mode: str = "single",
         is_active: bool = True,
         is_archived: bool = False,
         message_count: int = 0,
@@ -26,7 +26,7 @@ class Conversation:
         self._id = id
         self._title = title
         self._owner_id = owner_id
-        self._conversation_type = conversation_type
+        self._chat_mode = chat_mode
         self._is_active = is_active
         self._is_archived = is_archived
         self._message_count = message_count
@@ -55,8 +55,8 @@ class Conversation:
         return self._owner_id
     
     @property
-    def conversation_type(self) -> str:
-        return self._conversation_type
+    def chat_mode(self) -> str:
+        return self._chat_mode
     
     @property
     def is_active(self) -> bool:
@@ -110,7 +110,7 @@ class Conversation:
         if not self._owner_id:
             raise ValueError("会话所有者ID不能为空")
         
-        if self._conversation_type not in ["single", "group"]:
+        if self._chat_mode not in ["single", "group"]:
             raise ValueError("无效的会话类型")
         
         if self._message_count < 0:
@@ -195,12 +195,12 @@ class Conversation:
         cls,
         title: str,
         owner_id: str,
-        conversation_type: str = "single"
+        chat_mode: str = "single"
     ) -> "Conversation":
         """创建新会话"""
         return cls(
             id=conversation_id(),
             title=title,
             owner_id=owner_id,
-            conversation_type=conversation_type
+            chat_mode=chat_mode
         )

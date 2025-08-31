@@ -57,19 +57,19 @@ class ChatApplicationService(IChatApplicationService):
         self,
         title: str,
         owner_id: str,
-        conversation_type: str = "single",
+        chat_mode: str = "single",
         auto_assign_consultant: bool = True
     ) -> ConversationInfo:
         """创建会话用例"""
         try:
             logger.info(
-                f"创建会话: title={title}, owner_id={owner_id}, type={conversation_type}")
+                f"创建会话: title={title}, owner_id={owner_id}, type={chat_mode}")
 
             # 1. 调用领域服务创建会话
             conversation = await self.conversation_domain_service.create_conversation(
                 title=title,
                 owner_id=owner_id,
-                conversation_type=conversation_type
+                chat_mode=chat_mode
             )
 
             # 2. 保存到仓储
@@ -107,7 +107,7 @@ class ChatApplicationService(IChatApplicationService):
         return await self.create_conversation_use_case(
             title=request.title,
             owner_id=owner_id,
-            conversation_type=request.chat_mode
+            chat_mode=request.chat_mode
         )
 
     async def get_conversations_use_case(

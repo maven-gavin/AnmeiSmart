@@ -23,7 +23,7 @@ class ConversationDomainService(IConversationDomainService):
         self,
         title: str,
         owner_id: str,
-        conversation_type: str = "single"
+        chat_mode: str = "single"
     ) -> Conversation:
         """创建会话 - 领域逻辑"""
         logger.info(f"领域服务：创建会话 - title={title}, owner_id={owner_id}")
@@ -43,7 +43,7 @@ class ConversationDomainService(IConversationDomainService):
         conversation = Conversation.create(
             title=title.strip(),
             owner_id=owner_id,
-            conversation_type=conversation_type
+            chat_mode=chat_mode
         )
 
         # 发布领域事件
@@ -51,7 +51,7 @@ class ConversationDomainService(IConversationDomainService):
             "conversation_id": str(conversation.id),
             "owner_id": owner_id,
             "title": title,
-            "conversation_type": conversation_type
+            "chat_mode": chat_mode
         })
 
         return conversation

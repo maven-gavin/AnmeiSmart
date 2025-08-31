@@ -27,7 +27,7 @@ class ConsultationSessionApplicationService:
             conversation = await self.chat_application_service.create_conversation_use_case(
                 title="咨询会话",
                 owner_id=user_id,
-                conversation_type="consultation",
+                chat_mode="consultation",
                 auto_assign_consultant=True
             )
             
@@ -113,9 +113,9 @@ class ConsultationSessionApplicationService:
             # 根据参数过滤会话类型
             filtered_conversations = []
             for conv in conversations:
-                if include_consultation and conv.conversation_type == "consultation":
+                if include_consultation and conv.chat_mode == "consultation":
                     filtered_conversations.append(conv)
-                elif include_friend_chat and conv.conversation_type == "single":
+                elif include_friend_chat and conv.chat_mode == "single":
                     filtered_conversations.append(conv)
             
             return filtered_conversations

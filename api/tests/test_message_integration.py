@@ -69,7 +69,7 @@ class TestMessageIntegration:
             id="conv-123",
             title="测试会话",
             owner_id="user-123",
-            conversation_type="single",
+            chat_mode="single",
             message_count=5,
             unread_count=2
         )

@@ -59,7 +59,7 @@ class ChatIntegrationService:
             conversation = await self.chat_app_service.create_conversation_use_case(
                 title=conversation_title,
                 owner_id=user_id,
-                conversation_type="single",
+                chat_mode="single",
                 auto_assign_consultant=False
             )
             
@@ -96,7 +96,7 @@ class ChatIntegrationService:
             friend_ids = [f.friend_id for f in friendships.items]
             
             for conversation in conversations:
-                if conversation.conversation_type == "single":
+                if conversation.chat_mode == "single":
                     # 检查会话的参与者是否包含好友
                     # 这里需要根据实际的会话参与者结构来判断
                     # 暂时返回所有单聊会话
@@ -140,7 +140,7 @@ class ChatIntegrationService:
             conversation = await self.chat_app_service.create_conversation_use_case(
                 title=title or target_group.name,
                 owner_id=user_id,
-                conversation_type="group",
+                chat_mode="group",
                 auto_assign_consultant=False
             )
             
