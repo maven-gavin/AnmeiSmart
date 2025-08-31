@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import users, auth, roles, chat, ai, system, customer, websocket, files, consultation, ai_gateway, agent_config, profile, contacts
+from app.api.v1.endpoints import users, auth, roles, chat, ai, system, customer, websocket, files, consultation, ai_gateway, agent_config, preferences, contacts
 from app.api.v1.endpoints import mcp_config, mcp_server, mcp_oauth, digital_humans, admin_digital_humans, tasks
 
 api_router = APIRouter()
@@ -50,7 +50,7 @@ api_router.include_router(mcp_server.router, prefix="/mcp", tags=["mcp-server"])
 api_router.include_router(mcp_oauth.router, prefix="/oauth", tags=["oauth-server"])
 
 # 个人中心路由
-api_router.include_router(profile.router, prefix="/profile", tags=["profile"])
+api_router.include_router(preferences.router, prefix="/profile", tags=["profile"])
 
 # 数字人管理路由
 api_router.include_router(digital_humans.router, prefix="/digital-humans", tags=["digital-humans"])
