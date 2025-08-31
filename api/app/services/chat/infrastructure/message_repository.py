@@ -87,7 +87,8 @@ class MessageRepository(IMessageRepository):
     async def get_conversation_messages(self, conversation_id: str, skip: int = 0, limit: int = 100) -> List[Message]:
         """获取会话消息"""
         message_models = self.db.query(MessageModel).options(
-            joinedload(MessageModel.sender)
+            joinedload(MessageModel.sender),
+            joinedload(MessageModel.sender_digital_human)
         ).filter(
             MessageModel.conversation_id == conversation_id
         ).order_by(
@@ -95,6 +96,32 @@ class MessageRepository(IMessageRepository):
         ).offset(skip).limit(limit).all()
         
         return [self._to_entity(msg) for msg in message_models]
+    
+    async def get_conversation_messages_with_senders(self, conversation_id: str, skip: int = 0, limit: int = 100) -> tuple[List[Message], dict, dict]:
+        """获取会话消息及发送者信息"""
+        message_models = self.db.query(MessageModel).options(
+            joinedload(MessageModel.sender),
+            joinedload(MessageModel.sender_digital_human)
+        ).filter(
+            MessageModel.conversation_id == conversation_id
+        ).order_by(
+            MessageModel.timestamp
+        ).offset(skip).limit(limit).all()
+        
+        # 转换为领域实体
+        messages = [self._to_entity(msg) for msg in message_models]
+        
+        # 构建发送者信息字典
+        sender_users = {}
+        sender_digital_humans = {}
+        
+        for msg_model in message_models:
+            if msg_model.sender and msg_model.sender_id:
+                sender_users[str(msg_model.sender_id)] = msg_model.sender
+            if msg_model.sender_digital_human and msg_model.sender_digital_human_id:
+                sender_digital_humans[str(msg_model.sender_digital_human_id)] = msg_model.sender_digital_human
+        
+        return messages, sender_users, sender_digital_humans
     
     async def mark_as_read(self, message_id: str) -> bool:
         """标记消息为已读"""

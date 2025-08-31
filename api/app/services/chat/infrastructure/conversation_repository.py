@@ -3,7 +3,7 @@
 负责数据持久化，外部服务集成，技术实现
 遵循DDD分层架构的基础设施层职责
 """
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session, joinedload, subqueryload
 from sqlalchemy import and_, or_
 import logging
@@ -130,7 +130,10 @@ class ConversationRepository(IConversationRepository):
     
     async def get_last_message(self, conversation_id: str) -> Optional[Message]:
         """获取会话的最后一条消息"""
-        message_model = self.db.query(MessageModel).filter(
+        message_model = self.db.query(MessageModel).options(
+            joinedload(MessageModel.sender),
+            joinedload(MessageModel.sender_digital_human)
+        ).filter(
             MessageModel.conversation_id == conversation_id
         ).order_by(MessageModel.timestamp.desc()).first()
         
@@ -154,6 +157,38 @@ class ConversationRepository(IConversationRepository):
             created_at=message_model.created_at,
             updated_at=message_model.updated_at
         )
+    
+    async def get_last_message_with_sender(self, conversation_id: str) -> tuple[Optional[Message], Optional[Any], Optional[Any]]:
+        """获取会话的最后一条消息及发送者信息"""
+        message_model = self.db.query(MessageModel).options(
+            joinedload(MessageModel.sender),
+            joinedload(MessageModel.sender_digital_human)
+        ).filter(
+            MessageModel.conversation_id == conversation_id
+        ).order_by(MessageModel.timestamp.desc()).first()
+        
+        if not message_model:
+            return None, None, None
+        
+        # 转换为领域实体
+        message = Message(
+            id=str(message_model.id),
+            conversation_id=str(message_model.conversation_id),
+            content=message_model.content,
+            message_type=message_model.type,
+            sender_id=str(message_model.sender_id) if message_model.sender_id else None,
+            sender_digital_human_id=str(message_model.sender_digital_human_id) if message_model.sender_digital_human_id else None,
+            sender_type=message_model.sender_type,
+            is_important=message_model.is_important,
+            reply_to_message_id=str(message_model.reply_to_message_id) if message_model.reply_to_message_id else None,
+            reactions=message_model.reactions,
+            extra_metadata=message_model.extra_metadata,
+            requires_confirmation=message_model.requires_confirmation,
+            created_at=message_model.created_at,
+            updated_at=message_model.updated_at
+        )
+        
+        return message, message_model.sender, message_model.sender_digital_human
     
     async def get_last_messages(self, conversation_ids: List[str]) -> Dict[str, Message]:
         """批量获取会话的最后消息"""

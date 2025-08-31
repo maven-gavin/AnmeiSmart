@@ -26,6 +26,11 @@ class IMessageRepository(ABC):
         pass
     
     @abstractmethod
+    async def get_conversation_messages_with_senders(self, conversation_id: str, skip: int = 0, limit: int = 100) -> tuple[List[Any], dict, dict]:
+        """获取会话消息及发送者信息"""
+        pass
+    
+    @abstractmethod
     async def mark_as_read(self, message_id: str) -> bool:
         """标记消息为已读"""
         pass
@@ -62,6 +67,11 @@ class IConversationRepository(ABC):
     @abstractmethod
     async def get_last_message(self, conversation_id: str) -> Optional[Any]:
         """获取会话的最后一条消息"""
+        pass
+    
+    @abstractmethod
+    async def get_last_message_with_sender(self, conversation_id: str) -> tuple[Optional[Any], Optional[Any], Optional[Any]]:
+        """获取会话的最后一条消息及发送者信息"""
         pass
     
     @abstractmethod

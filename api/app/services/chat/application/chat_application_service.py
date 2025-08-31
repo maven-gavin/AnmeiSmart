@@ -170,7 +170,7 @@ class ChatApplicationService(IChatApplicationService):
                 return None
 
             # 3. 获取最后消息
-            last_message = await self.conversation_repository.get_last_message(conversation_id)
+            last_message = await self.conversation_repository.get_last_message_with_sender(conversation_id)
 
             # 4. 获取未读数
             unread_count = await self.conversation_repository.get_unread_count(conversation_id, user_id)
@@ -541,15 +541,15 @@ class ChatApplicationService(IChatApplicationService):
     ) -> List[MessageInfo]:
         """获取会话消息列表用例"""
         try:
-            # 1. 从仓储获取消息列表
-            messages = await self.message_repository.get_conversation_messages(
+            # 1. 从仓储获取消息列表及发送者信息
+            messages, sender_users, sender_digital_humans = await self.message_repository.get_conversation_messages_with_senders(
                 conversation_id=conversation_id,
                 skip=skip,
                 limit=limit
             )
 
             # 2. 转换为响应Schema列表
-            return MessageConverter.to_list_response(messages)
+            return MessageConverter.to_list_response(messages, sender_users, sender_digital_humans)
 
         except Exception as e:
             logger.error(f"获取消息列表失败: {e}")

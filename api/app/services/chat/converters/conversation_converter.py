@@ -6,13 +6,14 @@ from typing import List, Optional, Dict
 from app.services.chat.domain.entities.conversation import Conversation
 from app.services.chat.domain.entities.message import Message
 from app.schemas.chat import ConversationInfo
+from .message_converter import MessageConverter
 
 
 class ConversationConverter:
     """会话转换器类"""
     
     @staticmethod
-    def to_response(conversation: Conversation, last_message: Optional[Message] = None, unread_count: int = 0) -> Optional[ConversationInfo]:
+    def to_response(conversation: Conversation, last_message: Optional[Message] = None, unread_count: int = 0, sender_user=None, sender_digital_human=None) -> Optional[ConversationInfo]:
         """将领域实体转换为响应Schema"""
         if not conversation:
             return None
@@ -36,7 +37,7 @@ class ConversationConverter:
             last_message_at=conversation.last_message_at,
             owner=None,  # 需要从仓储获取
             first_participant=None,  # 需要从仓储获取
-            last_message=MessageConverter.to_response(last_message) if last_message else None
+            last_message=MessageConverter.to_response(last_message, sender_user, sender_digital_human) if last_message else None
         )
     
     @staticmethod
@@ -77,5 +78,3 @@ class ConversationConverter:
         )
 
 
-# 导入MessageConverter避免循环导入
-from .message_converter import MessageConverter

@@ -11,7 +11,7 @@ class MessageConverter:
     """消息转换器类"""
     
     @staticmethod
-    def to_response(message: Message) -> Optional[MessageInfo]:
+    def to_response(message: Message, sender_user=None, sender_digital_human=None) -> Optional[MessageInfo]:
         """将领域实体转换为响应Schema"""
         if not message:
             return None
@@ -29,13 +29,23 @@ class MessageConverter:
             sender_name = "数字人助手"
             sender_avatar = "/avatars/ai.png"
             actual_sender_id = message.sender_digital_human_id or "digital_human"
+            # 如果有数字人信息，使用真实名称
+            if sender_digital_human:
+                sender_name = getattr(sender_digital_human, 'name', sender_name)
+                sender_avatar = getattr(sender_digital_human, 'avatar', sender_avatar)
         elif message.sender_type == "ai":
             sender_name = "AI助手"
             sender_avatar = "/avatars/ai.png"
             actual_sender_id = message.sender_id or "ai"
         else:
+            # 用户类型（customer, consultant, doctor等）
             sender_name = "未知用户"
+            sender_avatar = None
             actual_sender_id = message.sender_id or "unknown"
+            # 如果有用户信息，使用真实用户名
+            if sender_user:
+                sender_name = getattr(sender_user, 'username', sender_name)
+                sender_avatar = getattr(sender_user, 'avatar', sender_avatar)
         
         # 确保sender_type是有效的Literal类型
         sender_type: Literal["customer", "consultant", "doctor", "ai", "system", "digital_human"] = "system"
@@ -70,12 +80,21 @@ class MessageConverter:
         )
     
     @staticmethod
-    def to_list_response(messages: List[Message]) -> List[MessageInfo]:
+    def to_list_response(messages: List[Message], sender_users: dict = None, sender_digital_humans: dict = None) -> List[MessageInfo]:
         """将领域实体列表转换为响应Schema列表"""
         result = []
         for msg in messages:
             if msg:
-                converted = MessageConverter.to_response(msg)
+                # 获取对应的用户信息
+                sender_user = None
+                sender_digital_human = None
+                
+                if sender_users and msg.sender_id:
+                    sender_user = sender_users.get(msg.sender_id)
+                if sender_digital_humans and msg.sender_digital_human_id:
+                    sender_digital_human = sender_digital_humans.get(msg.sender_digital_human_id)
+                
+                converted = MessageConverter.to_response(msg, sender_user, sender_digital_human)
                 if converted:
                     result.append(converted)
         return result
