@@ -9,7 +9,7 @@ import logging
 from app.core.config import get_settings
 from app.db.base import get_db
 from app.core.password_utils import verify_password
-from app.services import user_service
+# from app.services import user_service  # 已重构为DDD架构，不再需要
 from app.db.models import User
 
 # 配置日志

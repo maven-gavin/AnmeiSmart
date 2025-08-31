@@ -25,7 +25,7 @@ try:
     from app.db.models.user import User, Role, Doctor, Consultant, Operator, Administrator, AdminLevel
     from app.db.models.customer import Customer, CustomerProfile
     from app.db.base import get_db, engine
-    from app.services import user_service as crud_user
+    # from app.services import user_service as crud_user  # 已重构为DDD架构，不再需要
     from app.schemas.user import UserCreate, DoctorBase, ConsultantBase, OperatorBase, AdministratorBase
     from app.schemas.customer import CustomerBase
     from app.db.uuid_utils import (
