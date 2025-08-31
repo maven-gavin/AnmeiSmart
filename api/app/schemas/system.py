@@ -12,67 +12,14 @@ class SystemSettingsUpdate(BaseModel):
     userRegistrationEnabled: Optional[bool] = Field(None, description="是否允许用户注册")
 
 
-class AIModelConfigCreate(BaseModel):
-    """创建AI模型配置的Schema"""
-    modelName: str = Field(..., description="模型名称", min_length=1, max_length=255)
-    provider: str = Field(..., description="服务商", min_length=1, max_length=100)
-    apiKey: str = Field(..., description="API密钥", min_length=1)
-    baseUrl: Optional[str] = Field(None, description="API基础URL")
-    maxTokens: int = Field(2000, description="最大Token数", ge=1, le=100000)
-    temperature: float = Field(0.7, description="采样温度", ge=0.0, le=2.0)
-    enabled: bool = Field(True, description="是否启用")
-    description: Optional[str] = Field(None, description="模型描述", max_length=500)
 
-
-class AIModelConfigUpdate(BaseModel):
-    """更新AI模型配置的Schema"""
-    modelName: Optional[str] = Field(None, description="模型名称", min_length=1, max_length=255)
-    provider: Optional[str] = Field(None, description="服务商", min_length=1, max_length=100)
-    apiKey: Optional[str] = Field(None, description="API密钥", min_length=1)
-    baseUrl: Optional[str] = Field(None, description="API基础URL")
-    maxTokens: Optional[int] = Field(None, description="最大Token数", ge=1, le=100000)
-    temperature: Optional[float] = Field(None, description="采样温度", ge=0.0, le=2.0)
-    enabled: Optional[bool] = Field(None, description="是否启用")
-    description: Optional[str] = Field(None, description="模型描述", max_length=500)
-
-
-class AIModelConfigInfo(BaseModel):
-    """AI模型配置信息Schema"""
-    model_config = ConfigDict(from_attributes=True)
-    
-    id: str = Field(..., description="模型配置ID")
-    modelName: str = Field(..., description="模型名称")
-    provider: str = Field(..., description="服务商")
-    baseUrl: Optional[str] = Field(None, description="API基础URL")
-    maxTokens: int = Field(2000, description="最大Token数")
-    temperature: float = Field(0.7, description="采样温度")
-    enabled: bool = Field(True, description="是否启用")
-    description: Optional[str] = Field(None, description="模型描述")
-    createdAt: datetime = Field(..., description="创建时间")
-    updatedAt: datetime = Field(..., description="更新时间")
-
-    @staticmethod
-    def from_model(model) -> "AIModelConfigInfo":
-        """从ORM模型创建Schema实例"""
-        return AIModelConfigInfo(
-            id=model.id,
-            modelName=model.model_name,
-            provider=model.provider,
-            baseUrl=model.base_url,
-            maxTokens=model.max_tokens,
-            temperature=model.temperature,
-            enabled=model.enabled,
-            description=model.description,
-            createdAt=model.created_at,
-            updatedAt=model.updated_at
-        )
 
 
 class SystemSettings(BaseModel):
     """系统设置Schema"""
     siteName: str = Field(..., description="站点名称")
     logoUrl: Optional[str] = Field(None, description="站点Logo URL")
-    aiModels: List[AIModelConfigInfo] = Field(default_factory=list, description="AI模型配置列表")
+
     defaultModelId: Optional[str] = Field(None, description="默认AI模型ID")
     maintenanceMode: bool = Field(False, description="维护模式开关")
     userRegistrationEnabled: bool = Field(True, description="是否允许用户注册")
@@ -85,18 +32,7 @@ class SystemSettingsResponse(BaseModel):
     message: str = Field(..., description="响应消息")
 
 
-class AIModelConfigResponse(BaseModel):
-    """AI模型配置响应Schema"""
-    success: bool = Field(..., description="操作是否成功")
-    data: Optional[AIModelConfigInfo] = Field(None, description="AI模型配置数据")
-    message: str = Field(..., description="响应消息")
 
-
-class AIModelConfigListResponse(BaseModel):
-    """AI模型配置列表响应Schema"""
-    success: bool = Field(..., description="操作是否成功")
-    data: List[AIModelConfigInfo] = Field(default_factory=list, description="AI模型配置列表")
-    message: str = Field(..., description="响应消息")
 
 
 class AgentConfigCreate(BaseModel):

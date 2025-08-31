@@ -20,7 +20,7 @@ from . import contacts  # 添加contacts模块导入
 from .user import User, Role, Doctor, Consultant, Operator, Administrator
 from .chat import Conversation, Message, ConversationParticipant
 from .customer import Customer, CustomerProfile
-from .system import SystemSettings, AIModelConfig, AgentConfig
+from .system import SystemSettings, AgentConfig
 from .upload import UploadSession, UploadChunk  # 添加upload模型导出
 from .consultant import PersonalizedPlan, ProjectType, SimulationImage, ProjectTemplate, CustomerPreference, PlanVersion  # 添加consultant模型导出 
 from .plan_generation import PlanGenerationSession, PlanDraft, InfoCompleteness  # 添加plan_generation模型导出

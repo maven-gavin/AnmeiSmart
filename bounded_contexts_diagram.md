@@ -48,8 +48,7 @@ graph TB
 
     subgraph "系统配置上下文"
         G1[SystemSettings 聚合根]
-        G2[AIModelConfig]
-        G3[AgentConfig]
+        G2[AgentConfig]
     end
 
     subgraph "文件管理上下文"
@@ -83,7 +82,7 @@ graph TB
     classDef valueObject fill:#e8f5e8,stroke:#1b5e20,stroke-width:1px
 
     class A1,B1,C1,D1,E1,E2,F1,F2,F3,G1,H1,H2 aggregate
-    class A2,A3,B2,C2,C3,C4,D2,D3,D4,E3,E4,E5,E6,F4,G2,G3,H3,H4,H5 entity
+    class A2,A3,B2,C2,C3,C4,D2,D3,D4,E3,E4,E5,E6,F4,G2,H3,H4,H5 entity
     class A4,A5,C5 valueObject
 ```
 
@@ -120,7 +119,7 @@ graph TB
 - **关键业务规则：** 数字人可参与咨询、任务自动分配
 
 ### 7. 系统配置上下文 (System Configuration)
-- **核心职责：** 系统设置、AI模型配置、智能体管理
+- **核心职责：** 系统设置、智能体管理
 - **聚合根：** SystemSettings
 - **关键业务规则：** 配置加密存储、环境隔离
 

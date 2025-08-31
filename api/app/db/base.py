@@ -62,7 +62,7 @@ def init_db():
     from app.db.models.user import User, Role
     from app.db.models.chat import Conversation, Message
     from app.db.models.customer import Customer, CustomerProfile
-    from app.db.models.system import SystemSettings, AIModelConfig
+    from app.db.models.system import SystemSettings
     Base.metadata.create_all(bind=engine)
 
 # 创建初始角色
@@ -87,8 +87,8 @@ def create_initial_roles(db: Session):
 # 创建初始系统设置
 @with_db
 def create_initial_system_settings(db: Session):
-    from app.db.models.system import SystemSettings, AIModelConfig
-    from app.db.uuid_utils import system_id, model_id
+    from app.db.models.system import SystemSettings
+    from app.db.uuid_utils import system_id
     
     # 检查是否已存在系统设置
     system_settings = db.query(SystemSettings).first()
@@ -107,20 +107,7 @@ def create_initial_system_settings(db: Session):
         db.commit()
         db.refresh(system_settings)
         
-        # 创建默认AI模型配置
-        default_model = AIModelConfig(
-            id=model_id(),
-            modelName="GPT-4",
-            apiKey="sk-••••••••••••••••••••••••",  # 实际部署时应使用环境变量或安全存储
-            baseUrl="https://api.openai.com/v1",
-            maxTokens="2000",
-            temperature=0.7,
-            enabled=True,
-            provider="openai",
-            system_settings_id=settings_id
-        )
-        db.add(default_model)
-        db.commit()
+
         
         logger.info("初始系统设置已创建")
     
