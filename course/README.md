@@ -1,12 +1,33 @@
-# 📚 WebSocket、广播、事件系统实战课程
+# 📚 技术课程集合
 
 ## 🎯 课程简介
 
-本课程基于安美智享项目的实际代码，深入讲解WebSocket、分布式广播、事件驱动架构的核心概念和实现。通过理论与实践相结合的方式，帮助您掌握现代实时通信系统的开发技能。
+本目录包含多个技术领域的实战课程，涵盖WebSocket实时通信、Spark大数据处理等核心技术。每个课程都基于实际项目经验，通过理论与实践相结合的方式，帮助您掌握现代软件开发的核心技能。
 
 ## 📋 课程文件
 
-### 📖 主课程
+### 🔥 Spark大数据处理课程
+- **[spark-beginner-course.md](./spark-beginner-course.md)** - Spark完整入门课程
+  - 基础概念：Spark架构与核心组件
+  - RDD编程：弹性分布式数据集
+  - DataFrame：结构化数据处理
+  - Spark SQL：SQL查询引擎
+  - Spark Streaming：实时流处理
+  - 性能优化：内存管理与分区优化
+  - 实战项目：日志分析系统、推荐系统
+
+- **[spark-practice-exercises.md](./spark-practice-exercises.md)** - Spark实践练习集
+  - 10个基础到高级的练习
+  - 2个综合项目实战
+  - 详细的代码示例和解答
+
+- **[spark-quick-start-guide.md](./spark-quick-start-guide.md)** - Spark快速入门指南
+  - 30分钟环境搭建
+  - 第一个Spark程序
+  - 常用命令速查
+  - 常见问题解决
+
+### 🌐 WebSocket实时通信课程
 - **[websocket-broadcasting-events-course.md](./websocket-broadcasting-events-course.md)** - 后端完整课程内容
   - 基础概念：WebSocket协议与实时通信
   - 连接管理：分布式WebSocket连接管理
@@ -36,7 +57,57 @@
 
 ## 🚀 快速开始
 
-### 学习路径
+### Spark学习路径
+
+#### 入门阶段（1-2周）
+1. **环境搭建**
+   - 阅读快速入门指南
+   - 搭建Spark开发环境
+   - 运行第一个Spark程序
+
+2. **基础概念**
+   - 学习Spark架构和组件
+   - 理解RDD概念和操作
+   - 掌握DataFrame基础操作
+
+3. **实践练习**
+   - 完成基础练习1-3
+   - 熟悉Spark Shell使用
+   - 理解转换和行动操作
+
+#### 进阶阶段（2-4周）
+1. **数据处理**
+   - 学习Spark SQL
+   - 掌握复杂数据处理
+   - 理解时间序列分析
+
+2. **流处理**
+   - 学习Spark Streaming
+   - 掌握实时数据处理
+   - 理解窗口操作
+
+3. **实践练习**
+   - 完成中级练习4-6
+   - 实现数据处理管道
+   - 掌握性能优化技巧
+
+#### 高级阶段（4-6周）
+1. **机器学习**
+   - 学习Spark MLlib
+   - 掌握特征工程
+   - 理解模型训练和评估
+
+2. **图计算**
+   - 学习GraphX
+   - 掌握图算法
+   - 理解网络分析
+
+3. **项目实战**
+   - 完成高级练习7-9
+   - 实现完整项目
+   - 掌握最佳实践
+
+### WebSocket学习路径
 
 #### 后端学习路径
 
@@ -101,32 +172,40 @@
 
 ## 🎯 学习目标
 
-### 基础目标
+### Spark学习目标
+- ✅ 理解Spark架构和核心概念
+- ✅ 掌握RDD、DataFrame、Dataset的使用
+- ✅ 学会Spark SQL进行数据查询
+- ✅ 掌握Spark Streaming处理实时数据
+- ✅ 能够独立完成Spark项目开发
+- ✅ 学会性能优化和调优技巧
+
+### WebSocket学习目标
 - ✅ 理解WebSocket协议原理
 - ✅ 掌握连接生命周期管理
 - ✅ 学会处理各种消息类型
-
-### 进阶目标
 - ✅ 理解分布式广播系统
 - ✅ 掌握Redis Pub/Sub机制
 - ✅ 学会设计消息路由策略
-
-### 高级目标
 - ✅ 理解事件驱动架构
 - ✅ 掌握异步事件处理
 - ✅ 学会系统性能优化
-
-### 实战目标
 - ✅ 能够独立实现实时通信功能
 - ✅ 能够设计高并发系统
 - ✅ 能够进行性能调优
 
 ## 📚 相关资源
 
-### 项目代码
-- **后端代码**：`api/app/core/` - WebSocket核心实现
-- **后端代码**：`api/app/services/` - 广播和事件服务
-- **后端代码**：`api/app/api/v1/endpoints/` - API端点实现
+### Spark相关资源
+- **官方文档**：[Spark官方文档](https://spark.apache.org/docs/latest/)
+- **GitHub示例**：[Spark官方示例](https://github.com/apache/spark/tree/master/examples)
+- **性能调优**：[Spark性能调优指南](https://spark.apache.org/docs/latest/tuning.html)
+- **社区论坛**：[Stack Overflow Spark标签](https://stackoverflow.com/questions/tagged/apache-spark)
+
+### WebSocket相关资源
+- **项目代码**：`api/app/core/` - WebSocket核心实现
+- **项目代码**：`api/app/services/` - 广播和事件服务
+- **项目代码**：`api/app/api/v1/endpoints/` - API端点实现
 - **前端代码**：`web/src/hooks/` - WebSocket Hook实现
 - **前端代码**：`web/src/service/websocket/` - WebSocket客户端实现
 - **前端代码**：`web/src/components/` - WebSocket相关组件
@@ -140,11 +219,33 @@
 - [Apache Kafka](https://kafka.apache.org/) - 消息中间件
 - [RabbitMQ](https://www.rabbitmq.com/) - 消息队列
 - [Socket.IO](https://socket.io/) - 实时通信库
+- [Hadoop生态系统](https://hadoop.apache.org/) - 大数据处理
+- [Databricks](https://databricks.com/) - Spark云平台
 
 ## 🎉 学习成果
 
 完成本课程后，您将能够：
 
+### Spark学习成果
+1. **技术能力**
+   - 独立设计和实现Spark应用
+   - 构建大数据处理管道
+   - 实现实时流处理系统
+   - 进行性能优化和调优
+
+2. **项目经验**
+   - 理解大数据项目架构设计
+   - 掌握分布式计算原理
+   - 学会数据处理和清洗
+   - 具备大规模数据处理能力
+
+3. **职业发展**
+   - 掌握现代大数据技术
+   - 具备数据工程师能力
+   - 能够承担数据架构设计
+   - 具备团队协作能力
+
+### WebSocket学习成果
 1. **技术能力**
    - 独立设计和实现WebSocket服务
    - 构建分布式实时通信系统

@@ -4,8 +4,8 @@ WebSocket生命周期管理 - 处理应用启动和关闭事件
 import logging
 from fastapi import FastAPI
 
-from app.services.websocket import cleanup_websocket_services
-from app.services.broadcasting_factory import cleanup_broadcasting_services
+from app.core.websocket import cleanup_websocket_services
+from app.websocket.broadcasting_factory import cleanup_broadcasting_services
 
 logger = logging.getLogger(__name__)
 

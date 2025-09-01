@@ -5,7 +5,7 @@
 """
 
 from typing import Optional
-from app.db.models.user import AdminLevel, User
+from app.identity_access.infrastructure.db.user import AdminLevel, User
 
 
 class AdminLevelHelper:

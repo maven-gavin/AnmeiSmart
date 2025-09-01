@@ -10,12 +10,12 @@ from datetime import datetime
 import logging
 
 from app.core.config import get_settings
-from app.api.v1.api import api_router
-from app.db.base import create_initial_roles, create_initial_system_settings
+from app.api import api_router
+from app.common.infrastructure.db.base import create_initial_roles, create_initial_system_settings
 
 # 导入新的WebSocket和Redis组件
 from app.core.redis_client import redis_manager, get_redis_client
-from app.services.websocket.broadcasting_factory import cleanup_broadcasting_services
+from app.websocket.broadcasting_factory import cleanup_broadcasting_services
 
 # MessageBroadcaster会在需要时自动初始化
 
@@ -82,7 +82,7 @@ app.add_middleware(
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # OAuth发现端点需要在根路径可访问（MCP Inspector要求）
-from app.api.v1.endpoints.mcp_oauth import (
+from app.mcp.endpoints.mcp_oauth import (
     oauth_metadata, oauth_metadata_options
 )
 

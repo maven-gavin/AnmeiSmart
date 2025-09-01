@@ -6,7 +6,7 @@ from tokenize import Token
 from typing import Dict, List, Optional, Any
 from sqlalchemy.orm import Session
 
-from app.db.models.mcp import MCPToolGroup, MCPTool, MCPCallLog
+from app.mcp.infrastructure.db.mcp import MCPToolGroup, MCPTool, MCPCallLog
 from app.mcp.types import Tool, ServerCapabilities, ToolsCapability, Implementation, SERVER_LATEST_PROTOCOL_VERSION
 from app.mcp.utils import MCPSession, generate_token
 from app.core.config import get_settings
