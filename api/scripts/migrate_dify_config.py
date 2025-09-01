@@ -13,7 +13,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from app.db.base import get_db
-from app.db.models.system import AgentConfig
+from app.system.infrastructure.db.system import AgentConfig
 from app.core.config import get_settings
 
 def migrate_env_to_db():

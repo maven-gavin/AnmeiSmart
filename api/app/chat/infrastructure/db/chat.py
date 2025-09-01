@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, Enum
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
-from app.db.models.base_model import BaseModel
+from app.common.infrastructure.db.base_model import BaseModel
 from app.db.uuid_utils import conversation_id, message_id
 
 
@@ -48,10 +48,10 @@ class Conversation(BaseModel):
     last_message_at = Column(DateTime(timezone=True), nullable=True, comment="最后消息时间")
     
     # 关联关系
-    owner = relationship("User", foreign_keys=[owner_id], back_populates="owned_conversations")
-    first_participant = relationship("User", foreign_keys=[first_participant_id])
-    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
-    participants = relationship("ConversationParticipant", back_populates="conversation", cascade="all, delete-orphan")
+    owner = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[owner_id], back_populates="owned_conversations")
+    first_participant = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[first_participant_id])
+    messages = relationship("app.chat.infrastructure.db.chat.Message", back_populates="conversation", cascade="all, delete-orphan")
+    participants = relationship("app.chat.infrastructure.db.chat.ConversationParticipant", back_populates="conversation", cascade="all, delete-orphan")
 
 
 class Message(BaseModel):
@@ -98,12 +98,12 @@ class Message(BaseModel):
     extra_metadata = Column(JSON, nullable=True, comment="附加元数据")
 
     # 关联关系
-    conversation = relationship("Conversation", back_populates="messages")
-    sender = relationship("User", foreign_keys=[sender_id])
-    sender_digital_human = relationship("DigitalHuman", foreign_keys=[sender_digital_human_id])
-    confirmed_by_user = relationship("User", foreign_keys=[confirmed_by])
-    reply_to_message = relationship("Message", remote_side=[id], backref="replies")
-    attachments = relationship("MessageAttachment", back_populates="message", cascade="all, delete-orphan")
+    conversation = relationship("app.chat.infrastructure.db.chat.Conversation", back_populates="messages")
+    sender = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[sender_id])
+    sender_digital_human = relationship("app.digital_humans.infrastructure.db.digital_human.DigitalHuman", foreign_keys=[sender_digital_human_id])
+    confirmed_by_user = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[confirmed_by])
+    reply_to_message = relationship("app.chat.infrastructure.db.chat.Message", remote_side=[id], backref="replies")
+    attachments = relationship("app.chat.infrastructure.db.message_attachment.MessageAttachment", back_populates="message", cascade="all, delete-orphan")
 
 
 class ConversationParticipant(BaseModel):
@@ -141,9 +141,9 @@ class ConversationParticipant(BaseModel):
     last_read_at = Column(DateTime(timezone=True), nullable=True, comment="最后阅读时间")
     
     # 关联关系
-    conversation = relationship("Conversation", back_populates="participants")
-    user = relationship("User")
-    digital_human = relationship("DigitalHuman")
+    conversation = relationship("app.chat.infrastructure.db.chat.Conversation", back_populates="participants")
+    user = relationship("app.identity_access.infrastructure.db.user.User")
+    digital_human = relationship("app.digital_humans.infrastructure.db.digital_human.DigitalHuman")
     
     def __repr__(self):
         participant = self.user_id or self.digital_human_id

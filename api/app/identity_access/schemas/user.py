@@ -2,7 +2,7 @@ from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from app.customer.schemas.customer import CustomerBase
-from app.identity_access.infrastructure.db.user import AdminLevel
+from app.identity_access.domain.enums import AdminLevel
 
 class RoleBase(BaseModel):
     """角色基础模型"""

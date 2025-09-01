@@ -15,10 +15,10 @@ class Customer(BaseModel):
     preferences = Column(Text, nullable=True, comment="偏好")
     
     # 关联到基础用户表
-    user = relationship("User", back_populates="customer")
+    user = relationship("app.identity_access.infrastructure.db.user.User", back_populates="customer")
     
     # 关联到客户档案
-    profile = relationship("CustomerProfile", back_populates="customer", uselist=False, cascade="all, delete-orphan")
+    profile = relationship("app.customer.infrastructure.db.customer.CustomerProfile", back_populates="customer", uselist=False, cascade="all, delete-orphan")
 
 class CustomerProfile(BaseModel):
     """客户档案数据库模型，扩展客户信息"""
@@ -34,4 +34,4 @@ class CustomerProfile(BaseModel):
     risk_notes = Column(JSON, nullable=True, comment="风险提示信息")
 
     # 关联关系
-    customer = relationship("Customer", back_populates="profile") 
+    customer = relationship("app.customer.infrastructure.db.customer.Customer", back_populates="profile") 

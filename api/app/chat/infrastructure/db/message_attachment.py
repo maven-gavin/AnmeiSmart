@@ -3,7 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from typing import Optional
 
-from app.db.models.base_model import BaseModel
+from app.common.infrastructure.db.base_model import BaseModel
 from app.db.uuid_utils import message_id
 
 
@@ -36,8 +36,8 @@ class MessageAttachment(BaseModel):
     is_public = Column(Boolean, default=True, comment="是否公开可见")
     
     # 关联关系
-    message = relationship("Message", back_populates="attachments")
-    upload_session = relationship("UploadSession", back_populates="message_attachments")
+    message = relationship("app.chat.infrastructure.db.chat.Message", back_populates="attachments")
+    upload_session = relationship("app.common.infrastructure.db.upload.UploadSession", back_populates="message_attachments")
     
     def __repr__(self):
         return f"<MessageAttachment(message_id={self.message_id}, upload_id={self.upload_session_id})>"

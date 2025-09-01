@@ -47,11 +47,11 @@ class Friendship(BaseModel):
     interaction_count = Column(Integer, default=0, comment="互动次数")
     
     # 关联关系
-    user = relationship("User", foreign_keys=[user_id], back_populates="friendships")
-    friend = relationship("User", foreign_keys=[friend_id])
-    tags = relationship("FriendshipTag", back_populates="friendship", cascade="all, delete-orphan")
-    group_memberships = relationship("ContactGroupMember", back_populates="friendship", cascade="all, delete-orphan")
-    interaction_records = relationship("InteractionRecord", back_populates="friendship", cascade="all, delete-orphan")
+    user = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[user_id], back_populates="friendships")
+    friend = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[friend_id])
+    tags = relationship("app.contacts.infrastructure.db.contacts.FriendshipTag", back_populates="friendship", cascade="all, delete-orphan")
+    group_memberships = relationship("app.contacts.infrastructure.db.contacts.ContactGroupMember", back_populates="friendship", cascade="all, delete-orphan")
+    interaction_records = relationship("app.contacts.infrastructure.db.contacts.InteractionRecord", back_populates="friendship", cascade="all, delete-orphan")
 
 
 class ContactTag(BaseModel):
@@ -87,8 +87,8 @@ class ContactTag(BaseModel):
     usage_count = Column(Integer, default=0, comment="使用次数")
     
     # 关联关系
-    user = relationship("User", back_populates="contact_tags")
-    friendship_tags = relationship("FriendshipTag", back_populates="tag", cascade="all, delete-orphan")
+    user = relationship("app.identity_access.infrastructure.db.user.User", back_populates="contact_tags")
+    friendship_tags = relationship("app.contacts.infrastructure.db.contacts.FriendshipTag", back_populates="tag", cascade="all, delete-orphan")
 
 
 class FriendshipTag(BaseModel):
@@ -112,9 +112,9 @@ class FriendshipTag(BaseModel):
     assigned_by = Column(String(36), ForeignKey("users.id"), nullable=True, comment="分配人（支持系统自动分配）")
     
     # 关联关系
-    friendship = relationship("Friendship", back_populates="tags")
-    tag = relationship("ContactTag", back_populates="friendship_tags")
-    assigned_by_user = relationship("User", foreign_keys=[assigned_by])
+    friendship = relationship("app.contacts.infrastructure.db.friendship.Friendship", back_populates="tags")
+    tag = relationship("app.contacts.infrastructure.db.contacts.ContactTag", back_populates="friendship_tags")
+    assigned_by_user = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[assigned_by])
 
 
 class ContactGroup(BaseModel):
@@ -152,8 +152,8 @@ class ContactGroup(BaseModel):
     member_count = Column(Integer, default=0, comment="当前成员数")
     
     # 关联关系
-    user = relationship("User", back_populates="contact_groups")
-    members = relationship("ContactGroupMember", back_populates="group", cascade="all, delete-orphan")
+    user = relationship("app.identity_access.infrastructure.db.user.User", back_populates="contact_groups")
+    members = relationship("app.contacts.infrastructure.db.contacts.ContactGroupMember", back_populates="group", cascade="all, delete-orphan")
 
 
 class ContactGroupMember(BaseModel):
@@ -180,9 +180,9 @@ class ContactGroupMember(BaseModel):
     invited_by = Column(String(36), ForeignKey("users.id"), nullable=True, comment="邀请人ID")
     
     # 关联关系
-    group = relationship("ContactGroup", back_populates="members")
-    friendship = relationship("Friendship", back_populates="group_memberships")
-    invited_by_user = relationship("User", foreign_keys=[invited_by])
+    group = relationship("app.contacts.infrastructure.db.contacts.ContactGroup", back_populates="members")
+    friendship = relationship("app.contacts.infrastructure.db.friendship.Friendship", back_populates="group_memberships")
+    invited_by_user = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[invited_by])
 
 
 class ContactPrivacySetting(BaseModel):
@@ -213,7 +213,7 @@ class ContactPrivacySetting(BaseModel):
     show_profile_to_friends = Column(Boolean, default=True, comment="向好友显示详细资料")
     
     # 关联关系
-    user = relationship("User", back_populates="contact_privacy_setting", uselist=False)
+    user = relationship("app.identity_access.infrastructure.db.user.User", back_populates="contact_privacy_setting", uselist=False)
 
 
 class InteractionRecord(BaseModel):
@@ -244,4 +244,4 @@ class InteractionRecord(BaseModel):
     occurred_at = Column(DateTime(timezone=True), server_default=func.now(), comment="发生时间")
     
     # 关联关系
-    friendship = relationship("Friendship", back_populates="interaction_records")
+    friendship = relationship("app.contacts.infrastructure.db.friendship.Friendship", back_populates="interaction_records")

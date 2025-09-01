@@ -44,7 +44,7 @@ class UserPreferences(BaseModel):
     )
 
     # 关联到用户表
-    user = relationship("User", backref="preferences", uselist=False)
+    user = relationship("app.identity_access.infrastructure.db.user.User", backref="preferences", uselist=False)
 
 
 class UserDefaultRole(BaseModel):
@@ -72,7 +72,7 @@ class UserDefaultRole(BaseModel):
     )
 
     # 关联到用户表
-    user = relationship("User", backref="default_role_setting", uselist=False)
+    user = relationship("app.identity_access.infrastructure.db.user.User", backref="default_role_setting", uselist=False)
 
 
 class LoginHistory(BaseModel):
@@ -120,4 +120,4 @@ class LoginHistory(BaseModel):
     )
 
     # 关联到用户表
-    user = relationship("User", backref="login_histories") 
+    user = relationship("app.identity_access.infrastructure.db.user.User", backref="login_histories") 

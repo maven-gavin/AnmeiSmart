@@ -197,7 +197,7 @@ class FileService:
             是否有权限
         """
         try:
-            from app.db.models.chat import Conversation
+            from app.chat.infrastructure.db.chat import Conversation
             
             conversation = db.query(Conversation).filter(
                 and_(
@@ -215,7 +215,7 @@ class FileService:
     def _is_admin(self, user_id: str, db: Session = None) -> bool:
         """检查用户是否为管理员"""
         try:
-            from app.db.models.user import User
+            from app.identity_access.infrastructure.db.user import User
             
             user = db.query(User).filter(User.id == user_id).first()
             return user and user.role == 'admin'
@@ -371,7 +371,7 @@ class FileService:
             文件列表
         """
         try:
-            from app.db.models.chat import Message
+            from app.chat.infrastructure.db.chat import Message
             import json
             
             # 查询文件类型的消息
@@ -453,7 +453,7 @@ class FileService:
     def _has_message_record(self, object_name: str, db: Session = None) -> bool:
         """检查文件是否有对应的消息记录"""
         try:
-            from app.db.models.chat import Message
+            from app.chat.infrastructure.db.chat import Message
             import json
             
             # 查询包含此文件的消息
@@ -621,7 +621,7 @@ class FileService:
             db: 数据库会话
         """
         try:
-            from app.db.models.upload import UploadSession
+            from app.common.infrastructure.db.upload import UploadSession
             
             total_chunks = (file_size + chunk_size - 1) // chunk_size
             
@@ -657,7 +657,7 @@ class FileService:
             上传状态信息
         """
         try:
-            from app.db.models.upload import UploadSession, UploadChunk
+            from app.common.infrastructure.db.upload import UploadSession, UploadChunk
             
             upload_session = db.query(UploadSession).filter(
                 UploadSession.upload_id == upload_id
@@ -717,7 +717,7 @@ class FileService:
             是否上传成功
         """
         try:
-            from app.db.models.upload import UploadSession, UploadChunk
+            from app.common.infrastructure.db.upload import UploadSession, UploadChunk
             
             # 验证上传会话
             upload_session = db.query(UploadSession).filter(
@@ -796,7 +796,7 @@ class FileService:
             完整文件信息
         """
         try:
-            from app.db.models.upload import UploadSession, UploadChunk
+            from app.common.infrastructure.db.upload import UploadSession, UploadChunk
             import tempfile
             import os
             
@@ -910,7 +910,7 @@ class FileService:
             db: 数据库会话
         """
         try:
-            from app.db.models.upload import UploadChunk
+            from app.common.infrastructure.db.upload import UploadChunk
             
             chunks = db.query(UploadChunk).filter(
                 UploadChunk.upload_id == upload_id
@@ -947,7 +947,7 @@ class FileService:
             是否取消成功
         """
         try:
-            from app.db.models.upload import UploadSession
+            from app.common.infrastructure.db.upload import UploadSession
             
             upload_session = db.query(UploadSession).filter(
                 UploadSession.upload_id == upload_id,

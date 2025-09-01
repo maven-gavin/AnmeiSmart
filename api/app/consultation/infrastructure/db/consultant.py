@@ -48,8 +48,8 @@ class SimulationImage(BaseModel):
     
     # 关联
     project_type = relationship("ProjectType", back_populates="simulation_images")
-    customer = relationship("Customer", foreign_keys=[customer_id])
-    consultant = relationship("Consultant", foreign_keys=[consultant_id])
+    customer = relationship("app.customer.infrastructure.db.customer.Customer", foreign_keys=[customer_id])
+    consultant = relationship("app.identity_access.infrastructure.db.user.Consultant", foreign_keys=[consultant_id])
 
 
 class PersonalizedPlan(BaseModel):
@@ -76,8 +76,8 @@ class PersonalizedPlan(BaseModel):
     notes = Column(Text, nullable=True, comment="方案备注")
     
     # 关联
-    customer = relationship("Customer", foreign_keys=[customer_id])
-    consultant = relationship("Consultant", foreign_keys=[consultant_id])
+    customer = relationship("app.customer.infrastructure.db.customer.Customer", foreign_keys=[customer_id])
+    consultant = relationship("app.identity_access.infrastructure.db.user.Consultant", foreign_keys=[consultant_id])
     plan_versions = relationship("PlanVersion", back_populates="plan", cascade="all, delete-orphan")
 
 
@@ -138,4 +138,4 @@ class CustomerPreference(BaseModel):
     risk_tolerance = Column(String(20), default="medium", comment="风险承受度(low/medium/high)")
     
     # 关联
-    customer = relationship("Customer", foreign_keys=[customer_id]) 
+    customer = relationship("app.customer.infrastructure.db.customer.Customer", foreign_keys=[customer_id]) 

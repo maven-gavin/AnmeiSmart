@@ -1,18 +1,11 @@
 from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, Table, Text, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-import enum
 
 from app.common.infrastructure.db.base_model import BaseModel
 from app.common.infrastructure.db.base import Base
 from app.common.infrastructure.db.uuid_utils import user_id, role_id
-
-
-class AdminLevel(str, enum.Enum):
-    """管理员级别枚举"""
-    BASIC = "basic"           # 基础管理员
-    ADVANCED = "advanced"     # 高级管理员
-    SUPER = "super"           # 超级管理员
+from app.identity_access.domain.enums import AdminLevel
 
 # 用户-角色关联表 (使用String类型的外键)
 user_roles = Table(
@@ -52,27 +45,27 @@ class User(BaseModel):
     roles = relationship("Role", secondary="user_roles", back_populates="users")
     
     # 扩展表关联
-    customer = relationship("Customer", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    customer = relationship("app.customer.infrastructure.db.customer.Customer", back_populates="user", uselist=False, cascade="all, delete-orphan")
     doctor = relationship("Doctor", back_populates="user", uselist=False, cascade="all, delete-orphan")
     consultant = relationship("Consultant", back_populates="user", uselist=False, cascade="all, delete-orphan")
     operator = relationship("Operator", back_populates="user", uselist=False, cascade="all, delete-orphan")
     administrator = relationship("Administrator", back_populates="user", uselist=False, cascade="all, delete-orphan")
     
     # 上传会话关联
-    upload_sessions = relationship("UploadSession", back_populates="user", cascade="all, delete-orphan")
+    upload_sessions = relationship("app.common.infrastructure.db.upload_session.UploadSession", back_populates="user", cascade="all, delete-orphan")
     
     # 数字人关联（新增）
-    digital_humans = relationship("DigitalHuman", back_populates="user", cascade="all, delete-orphan")
-    owned_conversations = relationship("Conversation", foreign_keys="Conversation.owner_id", back_populates="owner")
-    created_tasks = relationship("PendingTask", foreign_keys="PendingTask.created_by")
-    assigned_tasks = relationship("PendingTask", foreign_keys="PendingTask.assigned_to")
+    digital_humans = relationship("app.ai.infrastructure.db.digital_human.DigitalHuman", back_populates="user", cascade="all, delete-orphan")
+    owned_conversations = relationship("app.chat.infrastructure.db.chat.Conversation", foreign_keys="app.chat.infrastructure.db.chat.Conversation.owner_id", back_populates="owner")
+    created_tasks = relationship("app.common.infrastructure.db.pending_task.PendingTask", foreign_keys="app.common.infrastructure.db.pending_task.PendingTask.created_by")
+    assigned_tasks = relationship("app.common.infrastructure.db.pending_task.PendingTask", foreign_keys="app.common.infrastructure.db.pending_task.PendingTask.assigned_to")
     
     # 通讯录关联（新增）
-    friendships = relationship("Friendship", foreign_keys="Friendship.user_id", 
+    friendships = relationship("app.contacts.infrastructure.db.friendship.Friendship", foreign_keys="app.contacts.infrastructure.db.friendship.Friendship.user_id", 
                               back_populates="user", cascade="all, delete-orphan")
-    contact_tags = relationship("ContactTag", back_populates="user", cascade="all, delete-orphan")
-    contact_groups = relationship("ContactGroup", back_populates="user", cascade="all, delete-orphan")
-    contact_privacy_setting = relationship("ContactPrivacySetting", back_populates="user", 
+    contact_tags = relationship("app.contacts.infrastructure.db.contacts.ContactTag", back_populates="user", cascade="all, delete-orphan")
+    contact_groups = relationship("app.contacts.infrastructure.db.contacts.ContactGroup", back_populates="user", cascade="all, delete-orphan")
+    contact_privacy_setting = relationship("app.contacts.infrastructure.db.contacts.ContactPrivacySetting", back_populates="user", 
                                           uselist=False, cascade="all, delete-orphan")
 
 class Doctor(BaseModel):

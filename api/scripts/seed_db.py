@@ -22,12 +22,13 @@ from pathlib import Path
 
 try:
     from sqlalchemy.orm import Session
-    from app.db.models.user import User, Role, Doctor, Consultant, Operator, Administrator, AdminLevel
-    from app.db.models.customer import Customer, CustomerProfile
+    from app.identity_access.infrastructure.db.user import User, Role, Doctor, Consultant, Operator, Administrator
+    from app.identity_access.domain.enums import AdminLevel
+    from app.customer.infrastructure.db.customer import Customer, CustomerProfile
     from app.db.base import get_db, engine
     # from app.services import user_service as crud_user  # 已重构为DDD架构，不再需要
-    from app.schemas.user import UserCreate, DoctorBase, ConsultantBase, OperatorBase, AdministratorBase
-    from app.schemas.customer import CustomerBase
+    from app.identity_access.schemas.user import UserCreate, DoctorBase, ConsultantBase, OperatorBase, AdministratorBase
+    from app.customer.schemas.customer import CustomerBase
     from app.db.uuid_utils import (
         user_id, role_id, conversation_id, message_id, profile_id, system_id, model_id
     )
@@ -367,8 +368,8 @@ async def create_test_conversations(db: Session) -> None:
     """
     创建测试会话和消息数据
     """
-    from app.db.models.chat import Conversation, Message
-    from app.db.models.customer import CustomerProfile
+    from app.chat.infrastructure.db.chat import Conversation, Message
+    from app.customer.infrastructure.db.customer import CustomerProfile
     from app.db.uuid_utils import conversation_id, message_id, profile_id
     from datetime import datetime, timedelta
     

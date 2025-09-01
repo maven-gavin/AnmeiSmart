@@ -50,9 +50,9 @@ class UploadSession(BaseModel):
     expires_at = Column(DateTime, nullable=True, comment="过期时间（临时文件）")
     
     # 关系
-    user = relationship("User", back_populates="upload_sessions")
-    chunks = relationship("UploadChunk", back_populates="upload_session", cascade="all, delete-orphan")
-    message_attachments = relationship("MessageAttachment", back_populates="upload_session", cascade="all, delete-orphan")
+    user = relationship("app.identity_access.infrastructure.db.user.User", back_populates="upload_sessions")
+    chunks = relationship("app.common.infrastructure.db.upload.UploadChunk", back_populates="upload_session", cascade="all, delete-orphan")
+    message_attachments = relationship("app.chat.infrastructure.db.message_attachment.MessageAttachment", back_populates="upload_session", cascade="all, delete-orphan")
 
 
 class UploadChunk(BaseModel):
@@ -79,7 +79,7 @@ class UploadChunk(BaseModel):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment="更新时间")
     
     # 关系
-    upload_session = relationship("UploadSession", back_populates="chunks")
+    upload_session = relationship("app.common.infrastructure.db.upload.UploadSession", back_populates="chunks")
     
     # 复合唯一索引：同一个上传ID下，分片索引唯一
     __table_args__ = (

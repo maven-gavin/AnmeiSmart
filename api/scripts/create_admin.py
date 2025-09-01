@@ -16,7 +16,8 @@ from app.core.bcrypt_patch import *
 import logging
 from sqlalchemy.orm import Session
 
-from app.db.models.user import User, Role, Administrator, AdminLevel
+from app.identity_access.infrastructure.db.user import User, Role, Administrator
+from app.identity_access.domain.enums import AdminLevel
 from app.db.base import get_db, engine
 from app.core.password_utils import get_password_hash
 from app.db.uuid_utils import user_id

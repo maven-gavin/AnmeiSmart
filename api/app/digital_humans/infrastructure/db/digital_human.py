@@ -41,8 +41,8 @@ class DigitalHuman(BaseModel):
     last_active_at = Column(DateTime(timezone=True), nullable=True, comment="最后活跃时间")
     
     # 关联关系
-    user = relationship("User", back_populates="digital_humans")
-    agent_configs = relationship("DigitalHumanAgentConfig", back_populates="digital_human", cascade="all, delete-orphan")
+    user = relationship("app.identity_access.infrastructure.db.user.User", back_populates="digital_humans")
+    agent_configs = relationship("app.digital_humans.infrastructure.db.digital_human.DigitalHumanAgentConfig", back_populates="digital_human", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<DigitalHuman(id={self.id}, name={self.name}, user_id={self.user_id})>"
@@ -73,8 +73,8 @@ class DigitalHumanAgentConfig(BaseModel):
     context_prompt = Column(Text, nullable=True, comment="上下文提示词")
     
     # 关联关系
-    digital_human = relationship("DigitalHuman", back_populates="agent_configs")
-    agent_config = relationship("AgentConfig")
+    digital_human = relationship("app.digital_humans.infrastructure.db.digital_human.DigitalHuman", back_populates="agent_configs")
+    agent_config = relationship("app.system.infrastructure.db.system.AgentConfig")
     
     def __repr__(self):
         return f"<DigitalHumanAgentConfig(dh_id={self.digital_human_id}, agent_id={self.agent_config_id})>"
@@ -120,10 +120,10 @@ class ConsultationRecord(BaseModel):
     follow_up_required = Column(Boolean, default=False, comment="是否需要跟进")
     
     # 关联关系
-    conversation = relationship("Conversation")
-    customer = relationship("User", foreign_keys=[customer_id])
-    consultant = relationship("User", foreign_keys=[consultant_id])
-    digital_human = relationship("DigitalHuman", foreign_keys=[digital_human_id])
+    conversation = relationship("app.chat.infrastructure.db.chat.Conversation")
+    customer = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[customer_id])
+    consultant = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[consultant_id])
+    digital_human = relationship("app.digital_humans.infrastructure.db.digital_human.DigitalHuman", foreign_keys=[digital_human_id])
     
     def __repr__(self):
         return f"<ConsultationRecord(id={self.id}, type={self.consultation_type}, customer_id={self.customer_id})>"

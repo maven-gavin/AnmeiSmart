@@ -141,11 +141,11 @@ class PlanGenerationSession(BaseModel):
     """)
 
     # 关联关系
-    conversation = relationship("Conversation", backref="plan_generation_sessions")
-    customer = relationship("User", foreign_keys=[customer_id], backref="customer_plan_sessions")
-    consultant = relationship("User", foreign_keys=[consultant_id], backref="consultant_plan_sessions")
-    plan_drafts = relationship("PlanDraft", back_populates="session", cascade="all, delete-orphan", order_by="PlanDraft.version.desc()")
-    info_completeness = relationship("InfoCompleteness", back_populates="session", uselist=False, cascade="all, delete-orphan")
+    conversation = relationship("app.chat.infrastructure.db.chat.Conversation", backref="plan_generation_sessions")
+    customer = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[customer_id], backref="customer_plan_sessions")
+    consultant = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[consultant_id], backref="consultant_plan_sessions")
+    plan_drafts = relationship("app.consultation.infrastructure.db.plan_generation.PlanDraft", back_populates="session", cascade="all, delete-orphan", order_by="app.consultation.infrastructure.db.plan_generation.PlanDraft.version.desc()")
+    info_completeness = relationship("app.consultation.infrastructure.db.plan_generation.InfoCompleteness", back_populates="session", uselist=False, cascade="all, delete-orphan")
 
 
 class PlanDraft(BaseModel):
@@ -307,7 +307,7 @@ class PlanDraft(BaseModel):
     """)
 
     # 关联关系
-    session = relationship("PlanGenerationSession", back_populates="plan_drafts")
+    session = relationship("app.consultation.infrastructure.db.plan_generation.PlanGenerationSession", back_populates="plan_drafts")
 
 
 class InfoCompleteness(BaseModel):
@@ -418,4 +418,4 @@ class InfoCompleteness(BaseModel):
     analysis_version = Column(Integer, default=1, comment="分析版本号")
 
     # 关联关系
-    session = relationship("PlanGenerationSession", back_populates="info_completeness") 
+    session = relationship("app.consultation.infrastructure.db.plan_generation.PlanGenerationSession", back_populates="info_completeness") 
