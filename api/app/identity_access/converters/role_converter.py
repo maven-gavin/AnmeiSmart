@@ -11,7 +11,9 @@ from app.identity_access.schemas.user import RoleResponse
 from ..domain.entities.role import Role
 
 
-class RoleConverter:
+from ..interfaces.converter_interfaces import IRoleConverter
+
+class RoleConverter(IRoleConverter):
     """角色数据转换器"""
     
     @staticmethod

@@ -14,14 +14,15 @@ from app.identity_access.domain.entities.role import Role
 from app.identity_access.infrastructure.db.profile import UserDefaultRole, UserPreferences
 from app.identity_access.infrastructure.db.user import User as UserModel, Role as RoleModel
 from ...interfaces.repository_interfaces import IUserRepository
-from ...converters import UserConverter
+from ...interfaces.converter_interfaces import IUserConverter
 
 
 class UserRepository(IUserRepository):
     """用户仓储实现"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user_converter: IUserConverter):
         self.db = db
+        self.user_converter = user_converter
     
     async def get_by_id(self, user_id: str) -> Optional[User]:
         """根据ID获取用户"""
@@ -29,7 +30,7 @@ class UserRepository(IUserRepository):
         if not user_model:
             return None
         
-        return UserConverter.from_model(user_model)
+        return self.user_converter.from_model(user_model)
     
     async def get_by_email(self, email: str) -> Optional[User]:
         """根据邮箱获取用户"""
@@ -37,7 +38,7 @@ class UserRepository(IUserRepository):
         if not user_model:
             return None
         
-        return UserConverter.from_model(user_model)
+        return self.user_converter.from_model(user_model)
     
     async def get_by_username(self, username: str) -> Optional[User]:
         """根据用户名获取用户"""
@@ -45,7 +46,7 @@ class UserRepository(IUserRepository):
         if not user_model:
             return None
         
-        return UserConverter.from_model(user_model)
+        return self.user_converter.from_model(user_model)
     
     async def get_by_phone(self, phone: str) -> Optional[User]:
         """根据手机号获取用户"""
@@ -53,7 +54,7 @@ class UserRepository(IUserRepository):
         if not user_model:
             return None
         
-        return UserConverter.from_model(user_model)
+        return self.user_converter.from_model(user_model)
     
     async def exists_by_email(self, email: str) -> bool:
         """检查邮箱是否存在"""
@@ -74,7 +75,7 @@ class UserRepository(IUserRepository):
         
         if existing_user:
             # 更新现有用户
-            user_dict = UserConverter.to_model_dict(user)
+            user_dict = self.user_converter.to_model_dict(user)
             for key, value in user_dict.items():
                 if key != "id":  # 不更新ID
                     setattr(existing_user, key, value)
@@ -84,10 +85,10 @@ class UserRepository(IUserRepository):
             
             self.db.commit()
             self.db.refresh(existing_user)
-            return UserConverter.from_model(existing_user)
+            return self.user_converter.from_model(existing_user)
         else:
             # 创建新用户
-            user_dict = UserConverter.to_model_dict(user)
+            user_dict = self.user_converter.to_model_dict(user)
             new_user = UserModel(**user_dict)
             
             # 设置角色关联
@@ -96,7 +97,7 @@ class UserRepository(IUserRepository):
             self.db.add(new_user)
             self.db.commit()
             self.db.refresh(new_user)
-            return UserConverter.from_model(new_user)
+            return self.user_converter.from_model(new_user)
     
     async def delete(self, user_id: str) -> bool:
         """删除用户"""
@@ -135,7 +136,7 @@ class UserRepository(IUserRepository):
         # 分页
         users = query.offset(skip).limit(limit).all()
         
-        return [UserConverter.from_model(user) for user in users]
+        return [self.user_converter.from_model(user) for user in users]
     
     async def get_user_roles(self, user_id: str) -> List[str]:
         """获取用户角色列表"""

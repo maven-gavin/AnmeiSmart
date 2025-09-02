@@ -12,7 +12,9 @@ from ..domain.value_objects.user_status import UserStatus
 from app.identity_access.infrastructure.db.user import User as UserModel
 
 
-class UserConverter:
+from ..interfaces.converter_interfaces import IUserConverter
+
+class UserConverter(IUserConverter):
     """用户数据转换器"""
     
     @staticmethod

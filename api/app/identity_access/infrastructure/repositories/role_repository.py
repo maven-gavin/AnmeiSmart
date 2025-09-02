@@ -9,14 +9,15 @@ from sqlalchemy.orm import Session
 
 from app.identity_access.infrastructure.db.user import Role as RoleModel
 from ...interfaces.repository_interfaces import IRoleRepository
-from ...converters.role_converter import RoleConverter
+from ...interfaces.converter_interfaces import IRoleConverter
 
 
 class RoleRepository(IRoleRepository):
     """角色仓储实现"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, role_converter: IRoleConverter):
         self.db = db
+        self.role_converter = role_converter
     
     async def get_by_id(self, role_id: str) -> Optional[RoleModel]:
         """根据ID获取角色"""
@@ -24,7 +25,7 @@ class RoleRepository(IRoleRepository):
         if not role_model:
             return None
         
-        return RoleConverter.from_model(role_model)
+        return self.role_converter.from_model(role_model)
     
     async def get_by_name(self, name: str) -> Optional[RoleModel]:
         """根据名称获取角色"""
@@ -32,12 +33,12 @@ class RoleRepository(IRoleRepository):
         if not role_model:
             return None
         
-        return RoleConverter.from_model(role_model)
+        return self.role_converter.from_model(role_model)
     
     async def get_all(self) -> List[RoleModel]:
         """获取所有角色"""
         roles = self.db.query(RoleModel).all()
-        return [RoleConverter.from_model(role) for role in roles]
+        return [self.role_converter.from_model(role) for role in roles]
     
     async def exists_by_name(self, name: str) -> bool:
         """检查角色名称是否存在"""
@@ -50,23 +51,23 @@ class RoleRepository(IRoleRepository):
         
         if existing_role:
             # 更新现有角色
-            role_dict = RoleConverter.to_model_dict(role)
+            role_dict = self.role_converter.to_model_dict(role)
             for key, value in role_dict.items():
                 if key != "id":  # 不更新ID
                     setattr(existing_role, key, value)
             
             self.db.commit()
             self.db.refresh(existing_role)
-            return RoleConverter.from_model(existing_role)
+            return self.role_converter.from_model(existing_role)
         else:
             # 创建新角色
-            role_dict = RoleConverter.to_model_dict(role)
+            role_dict = self.role_converter.to_model_dict(role)
             new_role = RoleModel(**role_dict)
             
             self.db.add(new_role)
             self.db.commit()
             self.db.refresh(new_role)
-            return RoleConverter.from_model(new_role)
+            return self.role_converter.from_model(new_role)
     
     async def delete(self, role_id: str) -> bool:
         """删除角色"""
