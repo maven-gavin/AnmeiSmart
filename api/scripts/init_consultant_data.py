@@ -11,9 +11,9 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 from sqlalchemy.orm import Session
-from app.db.base import get_db
-from app.db.models.consultant import ProjectTemplate, ProjectType, PersonalizedPlan, PlanStatusEnum
-from app.db.uuid_utils import generate_uuid
+from app.common.infrastructure.db.base import get_db
+from app.consultation.infrastructure.db.consultant import ProjectTemplate, ProjectType, PersonalizedPlan, PlanStatusEnum
+from app.common.infrastructure.db.uuid_utils import generate_uuid
 
 
 def init_project_templates(db: Session):

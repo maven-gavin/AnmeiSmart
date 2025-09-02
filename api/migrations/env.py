@@ -10,10 +10,22 @@ import os
 # 将项目根目录添加到Python路径
 sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
 
-# 导入Base模型和所有模型定义
-from app.db.base import Base
+# 导入Base模型
+from app.common.infrastructure.db.base import Base
+
 # 导入所有模型确保元数据完整
-from app.db.models import user, chat, system
+# 通过导入各领域模块来确保SQLAlchemy可以正确建立关系映射
+import app.identity_access.infrastructure.db
+import app.chat.infrastructure.db
+import app.consultation.infrastructure.db
+import app.contacts.infrastructure.db
+import app.digital_humans.infrastructure.db
+import app.tasks.infrastructure.db
+import app.mcp.infrastructure.db
+import app.ai.infrastructure.db
+import app.system.infrastructure.db
+import app.customer.infrastructure.db
+import app.common.infrastructure.db.upload
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -44,8 +56,7 @@ def run_migrations_offline() -> None:
     here as well.  By skipping the Engine creation
     we don't even need a DBAPI to be available.
 
-    Calls to context.execute() here emit the given string to the
-    script output.
+    Calls to context.execute() here emit the given string to the script output.
 
     """
     url = config.get_main_option("sqlalchemy.url")

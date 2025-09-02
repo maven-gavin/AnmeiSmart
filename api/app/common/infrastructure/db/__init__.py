@@ -1,6 +1,12 @@
-from app.common.infrastructure.db.base import Base
-from app.common.infrastructure.db.base_model import BaseModel
-from app.common.infrastructure.db.uuid_utils import generate_uuid
-from app.common.infrastructure.db.upload import UploadSession, UploadChunk
+"""
+通用模块数据库模型导出
 
-__all__ = ["Base", "BaseModel", "generate_uuid", "UploadSession", "UploadChunk"]
+导出该领域的所有数据库模型，确保SQLAlchemy可以正确建立关系映射。
+"""
+
+from .base_model import BaseModel
+from .upload import UploadSession, UploadChunk
+
+__all__ = [
+    "BaseModel", "UploadSession", "UploadChunk"
+]

@@ -1,4 +1,12 @@
-from app.chat.infrastructure.db.chat import Conversation
-from app.chat.infrastructure.db.message_attachment import MessageAttachment
+"""
+聊天模块数据库模型导出
 
-__all__ = ["Conversation", "MessageAttachment"]
+导出该领域的所有数据库模型，确保SQLAlchemy可以正确建立关系映射。
+"""
+
+from .chat import Conversation, Message
+from .message_attachment import MessageAttachment
+
+__all__ = [
+    "Conversation", "Message", "MessageAttachment"
+]

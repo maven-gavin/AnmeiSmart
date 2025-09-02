@@ -53,19 +53,23 @@ def with_db(func: F) -> F:
 
 # 初始化数据库
 def init_db():
-    # 导入所有数据库模型，确保SQLAlchemy可以正确建立关系映射
-    # 显式导入所有模型以避免linter警告
-    from app.common.infrastructure.db.models import (
-        BaseModel, User, Role, Doctor, Consultant, Operator, Administrator,
-        UserPreferences, UserDefaultRole, LoginHistory, Customer, CustomerProfile,
-        SystemSettings, Conversation, Message, MessageAttachment, 
-        PlanGenerationSession, PlanDraft, InfoCompleteness, DigitalHuman,
-        ContactTag, ContactGroup, ContactPrivacySetting, Friendship, PendingTask, MCPToolGroup,
-        MCPTool, MCPCallLog, AgentConfig, UploadSession, UploadChunk
-    )
+    """初始化数据库，通过导入各领域模型确保映射完整"""
+    # 导入各领域的模型初始化文件，确保SQLAlchemy可以正确建立关系映射
+    import app.identity_access.infrastructure.db
+    import app.chat.infrastructure.db
+    import app.consultation.infrastructure.db
+    import app.contacts.infrastructure.db
+    import app.digital_humans.infrastructure.db
+    import app.tasks.infrastructure.db
+    import app.mcp.infrastructure.db
+    import app.ai.infrastructure.db
+    import app.system.infrastructure.db
+    import app.customer.infrastructure.db
+    import app.common.infrastructure.db.upload
     
     # 创建所有表
     Base.metadata.create_all(bind=engine)
+    logger.info("数据库表创建完成")
 
 # 创建初始角色
 @with_db
@@ -108,8 +112,6 @@ def create_initial_system_settings(db: Session):
         db.add(system_settings)
         db.commit()
         db.refresh(system_settings)
-        
-
         
         logger.info("初始系统设置已创建")
     
