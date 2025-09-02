@@ -500,7 +500,92 @@ class ChatApplicationService(IChatApplicationService):
 
 ## 6. 数据转换策略
 
-### 6.1 目录结构规范
+### 6.1 转换模式选择
+
+#### **模式1：独立转换器类（推荐）**
+```python
+# api/app/{domain}/converters/{domain}_converter.py
+from typing import List, Optional, Dict, Any
+from app.{domain}.schemas.responses import {Domain}Response, {Domain}Create
+from app.{domain}.domain.entities.{domain} import {Domain}
+
+class {Domain}Converter:
+    """{domain}数据转换器"""
+    
+    @staticmethod
+    def to_response({domain}: {Domain}) -> {Domain}Response:
+        """转换{domain}实体为响应格式"""
+        return {Domain}Response(
+            id={domain}.id,
+            title={domain}.title,
+            created_at={domain}.created_at,
+            updated_at={domain}.updated_at,
+            metadata={domain}.metadata
+        )
+    
+    @staticmethod
+    def to_list_response({domain}s: List[{Domain}]) -> List[{Domain}Response]:
+        """转换{domain}列表为响应格式"""
+        return [{Domain}Converter.to_response({domain}) for {domain} in {domain}s]
+    
+    @staticmethod
+    def from_create_request(request: {Domain}Create) -> Dict[str, Any]:
+        """从创建请求转换为领域对象参数"""
+        return {
+            "title": request.title,
+            "metadata": request.metadata or {}
+        }
+    
+    @staticmethod
+    def from_model(model) -> {Domain}:
+        """从ORM模型转换为领域实体"""
+        return {Domain}(
+            id=model.id,
+            title=model.title,
+            created_at=model.created_at,
+            updated_at=model.updated_at,
+            metadata=model.metadata or {}
+        )
+    
+    @staticmethod
+    def to_model_dict({domain}: {Domain}) -> Dict[str, Any]:
+        """转换领域实体为ORM模型字典"""
+        return {
+            "id": {domain}.id,
+            "title": {domain}.title,
+            "created_at": {domain}.created_at,
+            "updated_at": {domain}.updated_at,
+            "metadata": {domain}.metadata
+        }
+```
+
+### 6.2 转换器职责
+
+#### **转换器应负责的转换类型**
+1. **领域实体 ↔ API Schema**: 领域对象与API请求/响应之间的转换
+2. **领域实体 ↔ ORM模型**: 领域对象与数据库模型之间的转换
+3. **请求数据 → 领域参数**: API请求数据转换为领域对象创建参数
+
+#### **转换器方法命名规范**
+- `to_response()`: 领域实体转换为API响应
+- `to_list_response()`: 领域实体列表转换为API响应列表
+- `from_create_request()`: 创建请求转换为领域对象参数
+- `from_update_request()`: 更新请求转换为领域对象参数
+- `from_model()`: ORM模型转换为领域实体
+- `to_model_dict()`: 领域实体转换为ORM模型字典
+
+### 6.3 转换最佳实践
+
+- **性能优化**：批量转换使用列表推导式，避免N+1查询
+- **内存管理**：大对象集合考虑使用生成器表达式
+- **类型安全**：使用完整的类型注解，确保类型安全
+- **错误处理**：转换失败时提供有意义的错误信息
+- **一致性**：所有转换器遵循相同的命名和结构模式
+- **文档化**：为每个转换方法提供清晰的文档说明
+
+## 7. 代码实现规范
+
+### 7.1 目录结构规范
 
 #### **完整DDD分层目录结构**
 ```
@@ -737,91 +822,7 @@ api/app/consultation/
 - 在代码审查中检查目录结构合规性
 - 定期重构和优化目录结构
 
-### 6.2 转换模式选择
-
-#### **模式1：独立转换器类（推荐）**
-```python
-# api/app/{domain}/converters/{domain}_converter.py
-from typing import List, Optional, Dict, Any
-from app.{domain}.schemas.responses import {Domain}Response, {Domain}Create
-from app.{domain}.domain.entities.{domain} import {Domain}
-
-class {Domain}Converter:
-    """{domain}数据转换器"""
-    
-    @staticmethod
-    def to_response({domain}: {Domain}) -> {Domain}Response:
-        """转换{domain}实体为响应格式"""
-        return {Domain}Response(
-            id={domain}.id,
-            title={domain}.title,
-            created_at={domain}.created_at,
-            updated_at={domain}.updated_at,
-            metadata={domain}.metadata
-        )
-    
-    @staticmethod
-    def to_list_response({domain}s: List[{Domain}]) -> List[{Domain}Response]:
-        """转换{domain}列表为响应格式"""
-        return [{Domain}Converter.to_response({domain}) for {domain} in {domain}s]
-    
-    @staticmethod
-    def from_create_request(request: {Domain}Create) -> Dict[str, Any]:
-        """从创建请求转换为领域对象参数"""
-        return {
-            "title": request.title,
-            "metadata": request.metadata or {}
-        }
-    
-    @staticmethod
-    def from_model(model) -> {Domain}:
-        """从ORM模型转换为领域实体"""
-        return {Domain}(
-            id=model.id,
-            title=model.title,
-            created_at=model.created_at,
-            updated_at=model.updated_at,
-            metadata=model.metadata or {}
-        )
-    
-    @staticmethod
-    def to_model_dict({domain}: {Domain}) -> Dict[str, Any]:
-        """转换领域实体为ORM模型字典"""
-        return {
-            "id": {domain}.id,
-            "title": {domain}.title,
-            "created_at": {domain}.created_at,
-            "updated_at": {domain}.updated_at,
-            "metadata": {domain}.metadata
-        }
-
-### 6.3 转换器职责
-
-#### **转换器应负责的转换类型**
-1. **领域实体 ↔ API Schema**: 领域对象与API请求/响应之间的转换
-2. **领域实体 ↔ ORM模型**: 领域对象与数据库模型之间的转换
-3. **请求数据 → 领域参数**: API请求数据转换为领域对象创建参数
-
-#### **转换器方法命名规范**
-- `to_response()`: 领域实体转换为API响应
-- `to_list_response()`: 领域实体列表转换为API响应列表
-- `from_create_request()`: 创建请求转换为领域对象参数
-- `from_update_request()`: 更新请求转换为领域对象参数
-- `from_model()`: ORM模型转换为领域实体
-- `to_model_dict()`: 领域实体转换为ORM模型字典
-
-### 6.4 转换最佳实践
-
-- **性能优化**：批量转换使用列表推导式，避免N+1查询
-- **内存管理**：大对象集合考虑使用生成器表达式
-- **类型安全**：使用完整的类型注解，确保类型安全
-- **错误处理**：转换失败时提供有意义的错误信息
-- **一致性**：所有转换器遵循相同的命名和结构模式
-- **文档化**：为每个转换方法提供清晰的文档说明
-
-## 7. 代码实现规范
-
-### 7.1 Controller层实现
+### 7.2 Controller层实现
 ```python
 @router.get("/users/{user_id}", response_model=UserResponse)
 async def get_user(
@@ -832,7 +833,7 @@ async def get_user(
     return await user_service.get_user_by_id(user_id)
 ```
 
-### 7.2 Application Service层实现
+### 7.3 Application Service层实现
 ```python
 class UserApplicationService(IUserApplicationService):
     def __init__(self, user_repository: UserRepository):
@@ -868,7 +869,7 @@ class UserApplicationService(IUserApplicationService):
         return UserConverter.to_response(saved_user)
 ```
 
-### 7.3 Domain Service层实现
+### 7.4 Domain Service层实现
 ```python
 class UserDomainService(IUserDomainService):
     """领域服务 - 跨聚合的业务逻辑"""
@@ -892,7 +893,7 @@ class UserDomainService(IUserDomainService):
         return user
 ```
 
-### 7.4 Repository层实现
+### 7.5 Repository层实现
 ```python
 class UserRepository(IUserRepository):
     """仓储实现 - 基础设施层"""
@@ -941,14 +942,14 @@ class UserRepository(IUserRepository):
 
 ## 8. 领域建模指导
 
-### 4.1 聚合设计原则
+### 8.1 聚合设计原则
 - **一致性边界**：聚合内的对象必须保持一致性
 - **事务边界**：一个事务只能修改一个聚合
 - **引用原则**：聚合间通过ID引用，不直接引用对象
 
-### 4.2 实体设计
+### 8.2 实体设计
 ```python
-class User(Entity):
+class User(BaseEntity):
     """用户聚合根"""
     
     def __init__(self, id: str, name: str, email: str, password_hash: str, created_at: datetime):
@@ -994,7 +995,7 @@ class User(Entity):
         return cls(user_id, name.strip(), email.lower(), password_hash, created_at)
 ```
 
-### 4.3 值对象设计
+### 8.3 值对象设计
 ```python
 class Email(ValueObject):
     """邮箱值对象"""
@@ -1022,7 +1023,7 @@ class Email(ValueObject):
 
 ## 9. 测试策略
 
-### 5.1 分层测试
+### 9.1 分层测试
 ```python
 # 领域层测试
 class TestUser:
@@ -1068,31 +1069,7 @@ class TestUserRepository:
 4. **引入仓储模式**：抽象数据访问逻辑
 5. **添加领域事件**：解耦业务逻辑
 
-### 10.2 目录结构规范
-
-#### **领域服务目录结构**
-- **推荐**: 领域服务直接放在 `domain/` 目录下
-- **位置**: `api/app/{domain}/domain/`
-- **命名**: 每个领域服务对应一个文件
-
-```
-api/app/{domain}/
-├── domain/                       # 领域层
-│   ├── __init__.py
-│   ├── entities/                 # 实体
-│   ├── value_objects/           # 值对象
-│   ├── consultation_domain_service.py
-│   ├── plan_generation_domain_service.py
-│   └── consultant_domain_service.py
-```
-
-#### **领域服务职责**
-- 处理跨聚合的业务逻辑
-- 实现领域规则和约束
-- 协调多个聚合根之间的交互
-- 提供领域级别的验证和服务
-
-### 10.3 代码质量检查
+### 10.2 代码质量检查
 - **依赖方向**：确保依赖指向领域层
 - **业务逻辑位置**：业务规则应在领域层
 - **数据转换一致性**：统一使用转换器模式
