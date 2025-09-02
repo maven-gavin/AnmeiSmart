@@ -5,11 +5,11 @@
 """
 
 from typing import List, Optional, Dict, Any
-from datetime import datetime
 
 from app.identity_access.schemas.user import UserCreate, UserUpdate, UserResponse
 from ..domain.entities.user import User
 from ..domain.value_objects.user_status import UserStatus
+from app.identity_access.infrastructure.db.user import User as UserModel
 
 
 class UserConverter:
@@ -68,7 +68,7 @@ class UserConverter:
         return updates
     
     @staticmethod
-    def from_model(model) -> User:
+    def from_model(model: UserModel) -> User:
         """从ORM模型转换为领域实体"""
         from ..domain.value_objects.email import Email
         from ..domain.value_objects.password import Password

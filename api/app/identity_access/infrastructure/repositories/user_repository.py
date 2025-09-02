@@ -9,10 +9,12 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
-from app.identity_access.infrastructure.db.user import User as UserModel, Role as RoleModel
+from app.identity_access.domain.entities.user import User
+from app.identity_access.domain.entities.role import Role
 from app.identity_access.infrastructure.db.profile import UserDefaultRole, UserPreferences
+from app.identity_access.infrastructure.db.user import User as UserModel, Role as RoleModel
 from ...interfaces.repository_interfaces import IUserRepository
-from ...converters.user_converter import UserConverter
+from ...converters import UserConverter
 
 
 class UserRepository(IUserRepository):
@@ -21,7 +23,7 @@ class UserRepository(IUserRepository):
     def __init__(self, db: Session):
         self.db = db
     
-    async def get_by_id(self, user_id: str) -> Optional[UserModel]:
+    async def get_by_id(self, user_id: str) -> Optional[User]:
         """根据ID获取用户"""
         user_model = self.db.query(UserModel).filter(UserModel.id == user_id).first()
         if not user_model:
@@ -29,7 +31,7 @@ class UserRepository(IUserRepository):
         
         return UserConverter.from_model(user_model)
     
-    async def get_by_email(self, email: str) -> Optional[UserModel]:
+    async def get_by_email(self, email: str) -> Optional[User]:
         """根据邮箱获取用户"""
         user_model = self.db.query(UserModel).filter(UserModel.email == email).first()
         if not user_model:
@@ -37,7 +39,7 @@ class UserRepository(IUserRepository):
         
         return UserConverter.from_model(user_model)
     
-    async def get_by_username(self, username: str) -> Optional[UserModel]:
+    async def get_by_username(self, username: str) -> Optional[User]:
         """根据用户名获取用户"""
         user_model = self.db.query(UserModel).filter(UserModel.username == username).first()
         if not user_model:
@@ -45,7 +47,7 @@ class UserRepository(IUserRepository):
         
         return UserConverter.from_model(user_model)
     
-    async def get_by_phone(self, phone: str) -> Optional[UserModel]:
+    async def get_by_phone(self, phone: str) -> Optional[User]:
         """根据手机号获取用户"""
         user_model = self.db.query(UserModel).filter(UserModel.phone == phone).first()
         if not user_model:
@@ -65,7 +67,7 @@ class UserRepository(IUserRepository):
         """检查手机号是否存在"""
         return self.db.query(UserModel).filter(UserModel.phone == phone).first() is not None
     
-    async def save(self, user: UserModel) -> UserModel:
+    async def save(self, user: User) -> User:
         """保存用户"""
         # 检查用户是否存在
         existing_user = self.db.query(UserModel).filter(UserModel.id == user.id).first()
