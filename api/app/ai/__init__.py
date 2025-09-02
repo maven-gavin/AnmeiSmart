@@ -162,4 +162,13 @@ def get_ai_service() -> AIService:
     # TODO: 根据配置返回适当的AI服务实例
     return MockAIService()
 
-__all__ = ["AIService", "get_ai_service"] 
+__all__ = ["AIService", "get_ai_service"]
+
+# 导出依赖注入配置
+try:
+    from .deps import get_ai_service as get_ai_service_di
+    from .deps import get_agent_config_service
+    __all__.extend(["get_ai_service_di", "get_agent_config_service"])
+except ImportError:
+    # 如果依赖注入配置不可用，使用默认实现
+    pass 
