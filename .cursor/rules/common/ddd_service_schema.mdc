@@ -151,17 +151,9 @@ def get_{domain}_application_service(
 ```
 
 #### **避免循环依赖**
-- **延迟导入**：在函数内部导入避免循环依赖
+- **依赖注入**：使用FastAPI的依赖注入避免循环依赖
 - **接口抽象**：使用抽象接口而不是具体实现
 - **依赖方向**：确保依赖方向指向领域层
-
-```python
-# 避免循环依赖的示例
-def get_service_with_lazy_import():
-    # 延迟导入避免循环依赖
-    from app.services.some_service import SomeService
-    return SomeService()
-```
 
 #### **生命周期管理**
 - **单例模式**：对于无状态服务使用单例
