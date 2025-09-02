@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.common.deps import get_db
-from app.identity_access.deps.security_deps import get_current_user
+from app.identity_access.deps import get_current_user
 from app.identity_access.infrastructure.db.user import User, Role
 from app.customer.infrastructure.db.customer import Customer, CustomerProfile
 from app.customer.schemas.customer import (

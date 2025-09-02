@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 import logging
 
 from app.core.config import get_settings
-from app.identity_access.deps.security_deps import get_current_user
+from app.identity_access.deps import get_current_user
 from app.identity_access.infrastructure.db.user import User
 from app.identity_access.deps.identity_access import get_identity_access_application_service
 from app.identity_access.application import IdentityAccessApplicationService

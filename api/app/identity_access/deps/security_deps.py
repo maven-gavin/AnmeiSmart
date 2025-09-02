@@ -2,6 +2,7 @@
 安全相关依赖注入配置
 
 提供安全服务的依赖注入函数。
+遵循DDD分层架构，从identity_access.py导入基础依赖。
 """
 
 from typing import Optional, List
@@ -16,20 +17,18 @@ from app.identity_access.infrastructure.jwt_service import JWTService
 from app.identity_access.domain.security_domain_service import SecurityDomainService
 from app.identity_access.application.security_application_service import SecurityApplicationService
 
+# 从核心依赖模块导入基础依赖
+from .identity_access import get_user_repository
+
 # 获取配置
 settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+
 
 def get_jwt_service() -> JWTService:
     """获取JWT服务实例"""
     return JWTService()
 
-from app.identity_access.infrastructure.repositories.user_repository import UserRepository
-from app.identity_access.converters.user_converter import UserConverter
-
-def get_user_repository(db: Session = Depends(get_db)):
-    """获取用户仓储实例"""
-    return UserRepository(db, UserConverter())
 
 def get_security_domain_service(
     jwt_service: JWTService = Depends(get_jwt_service),
@@ -38,19 +37,21 @@ def get_security_domain_service(
     """获取安全领域服务实例"""
     return SecurityDomainService(user_repository, jwt_service)
 
+
 def get_security_application_service(
     security_domain_service: SecurityDomainService = Depends(get_security_domain_service)
 ) -> SecurityApplicationService:
     """获取安全应用服务实例"""
     return SecurityApplicationService(security_domain_service)
 
-# 重构后的依赖函数
+
+# 核心认证依赖函数
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     security_app_service: SecurityApplicationService = Depends(get_security_application_service)
 ) -> User:
     """
-    获取当前用户 - 重构后的依赖函数
+    获取当前用户 - 核心认证依赖函数
     
     Args:
         token: JWT令牌
@@ -63,6 +64,7 @@ async def get_current_user(
         HTTPException: 如果认证失败或用户不存在
     """
     return await security_app_service.get_current_user_use_case(token)
+
 
 def check_role_permission(required_roles: Optional[List[str]] = None):
     """
@@ -83,12 +85,13 @@ def check_role_permission(required_roles: Optional[List[str]] = None):
     
     return check_permission
 
+
 async def get_current_admin(
     current_user: User = Depends(get_current_user),
     security_app_service: SecurityApplicationService = Depends(get_security_application_service)
 ) -> User:
     """
-    获取当前管理员用户 - 重构后的依赖函数
+    获取当前管理员用户 - 管理员权限检查
     
     Args:
         current_user: 当前认证用户
@@ -101,6 +104,7 @@ async def get_current_admin(
         HTTPException: 如果用户不是管理员
     """
     return await security_app_service.get_current_admin_use_case(current_user)
+
 
 # 向后兼容的函数 - 从原security.py迁移
 def verify_token(token: str) -> Optional[str]:
@@ -118,6 +122,7 @@ def verify_token(token: str) -> Optional[str]:
     if payload:
         return payload.get("sub")
     return None
+
 
 def create_access_token(
     subject, 
@@ -138,6 +143,7 @@ def create_access_token(
     jwt_service = JWTService()
     return jwt_service.create_access_token(subject, expires_delta, active_role)
 
+
 def create_refresh_token(
     subject,
     expires_delta=None,
@@ -156,3 +162,18 @@ def create_refresh_token(
     """
     jwt_service = JWTService()
     return jwt_service.create_refresh_token(subject, expires_delta, active_role)
+
+
+# 导出所有依赖函数
+__all__ = [
+    "oauth2_scheme",
+    "get_jwt_service",
+    "get_security_domain_service", 
+    "get_security_application_service",
+    "get_current_user",
+    "check_role_permission",
+    "get_current_admin",
+    "verify_token",
+    "create_access_token",
+    "create_refresh_token"
+]

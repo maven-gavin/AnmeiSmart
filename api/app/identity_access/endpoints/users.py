@@ -5,7 +5,7 @@ from app.identity_access.schemas.user import UserCreate, UserUpdate, UserRespons
 from app.identity_access.infrastructure.db.user import User, Role
 from app.identity_access.deps.identity_access import get_identity_access_application_service
 from app.identity_access.application import IdentityAccessApplicationService
-from app.identity_access.deps.security_deps import get_current_user
+from app.identity_access.deps import get_current_user
 from app.common.infrastructure.db.base import get_db
 
 router = APIRouter()

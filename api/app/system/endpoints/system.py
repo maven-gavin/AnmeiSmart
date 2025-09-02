@@ -7,7 +7,7 @@ from app.system.schemas.system import (
     SystemSettingsResponse, 
     SystemSettingsUpdate,
 )
-from app.identity_access.deps.security_deps import get_current_admin
+from app.identity_access.deps import get_current_admin
 
 router = APIRouter()
 

@@ -6,7 +6,7 @@
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 
-from app.identity_access.deps.security_deps import get_current_user
+from app.identity_access.deps import get_current_user
 from app.consultation.deps.consultation_business import (
     get_consultation_session_app_service,
     get_consultation_summary_app_service,

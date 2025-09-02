@@ -5,7 +5,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.identity_access.infrastructure.db.user import User
-from app.identity_access.deps.security_deps import get_current_user
+from app.identity_access.deps import get_current_user
 from app.contacts.deps.contacts import get_contact_application_service
 from app.contacts.schemas.contacts import (
     # 好友管理相关

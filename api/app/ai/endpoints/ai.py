@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 
 from app.common.deps import get_db
-from app.identity_access.deps.security_deps import get_current_user
+from app.identity_access.deps import get_current_user
 from app.identity_access.infrastructure.db.user import User
 from app.ai.schemas.ai import (
     AIChatRequest, AIChatResponse, AICapabilitiesResponse, 

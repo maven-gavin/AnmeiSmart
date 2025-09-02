@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.common.deps import get_db
-from app.identity_access.deps.security_deps import get_current_admin
+from app.identity_access.deps import get_current_admin
 from app.ai.schemas.ai import (
     AgentConfigCreate, AgentConfigUpdate, AgentConfigInfo, 
     AgentConfigResponse, AgentConfigListResponse
