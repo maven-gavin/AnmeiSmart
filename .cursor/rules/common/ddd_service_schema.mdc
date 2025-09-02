@@ -2,6 +2,47 @@
 
 # DDD分层架构与数据转换规范
 
+## ⚠️ 重要提醒：实体设计强制要求
+
+**在创建任何领域实体之前，请务必阅读以下要求：**
+
+### **强制要求（违反将导致代码审查失败）**
+
+1. **所有领域实体必须继承BaseEntity**：
+   ```python
+   from app.common.domain.entities.base_entity import BaseEntity
+   
+   class Customer(BaseEntity):  # ✅ 必须继承
+       pass
+   ```
+
+2. **必须调用父类构造函数**：
+   ```python
+   def __init__(self, id: str, name: str):
+       super().__init__(id)  # ✅ 必须调用
+       self._name = name
+   ```
+
+3. **必须实现validate方法**：
+   ```python
+   def validate(self) -> None:  # ✅ 必须实现
+       if not self.name:
+           raise ValueError("名称不能为空")
+   ```
+
+4. **使用工厂方法创建实体**：
+   ```python
+   @classmethod
+   def create(cls, name: str) -> "Customer":
+       customer = cls(id=customer_id(), name=name)
+       customer.validate()  # ✅ 创建后必须验证
+       return customer
+   ```
+
+**详细规范请参考第8.2节和第11.2节**
+
+---
+
 ## 1. DDD分层架构
 
 ### 1.1 分层结构
@@ -680,6 +721,8 @@ api/app/{domain}/
 - **文件命名**: `{aggregate_root}.py`, `{entity}.py`
 - **类命名**: `{AggregateRoot}`, `{Entity}`
 - **示例**: `consultation.py` → `Consultation`, `plan.py` → `Plan`
+- **重要**: 所有实体必须继承`BaseEntity`基类
+- **要求**: 必须实现`validate()`方法和调用`super().__init__(id)`
 
 ##### **值对象**
 - **文件命名**: `{value_object}.py`
@@ -947,52 +990,272 @@ class UserRepository(IUserRepository):
 - **事务边界**：一个事务只能修改一个聚合
 - **引用原则**：聚合间通过ID引用，不直接引用对象
 
-### 8.2 实体设计
+### 8.2 实体设计规范
+
+#### **8.2.1 实体继承要求**
+
+**强制要求**：所有领域实体都必须继承`BaseEntity`基类：
+
 ```python
+from app.common.domain.entities.base_entity import BaseEntity
+
 class User(BaseEntity):
     """用户聚合根"""
     
     def __init__(self, id: str, name: str, email: str, password_hash: str, created_at: datetime):
-        super().__init__(id)
+        super().__init__(id)  # 必须调用父类构造函数
         self._name = name
         self._email = email
         self._password_hash = password_hash
         self._created_at = created_at
         self._last_login_at = None
+```
+
+**继承BaseEntity的原因**：
+- **统一标识管理**：所有实体都有统一的ID管理
+- **领域事件支持**：支持事件驱动架构和事件溯源
+- **实体验证机制**：强制实现验证逻辑
+- **相等性和哈希支持**：支持集合操作和缓存
+
+#### **8.2.2 实体设计模式**
+
+##### **聚合根实体设计**
+```python
+@dataclass
+class Customer(BaseEntity):
+    """客户聚合根 - 管理客户的核心业务逻辑"""
     
-    @property
-    def name(self) -> str:
-        return self._name
+    user_id: str
+    medical_history: Optional[str] = None
+    allergies: Optional[str] = None
+    preferences: Optional[str] = None
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
     
-    @property
-    def email(self) -> str:
-        return self._email
+    def __post_init__(self):
+        """初始化后验证"""
+        self.validate()  # 必须调用验证方法
     
-    def change_name(self, new_name: str) -> None:
-        """修改用户名 - 领域逻辑"""
-        if not new_name.strip():
-            raise ValueError("用户名不能为空")
-        self._name = new_name.strip()
-        self._add_domain_event(UserNameChangedEvent(self.id, new_name))
-    
-    def record_login(self) -> None:
-        """记录登录 - 领域逻辑"""
-        self._last_login_at = datetime.utcnow()
-        self._add_domain_event(UserLoggedInEvent(self.id))
+    def validate(self) -> None:
+        """验证实体状态 - 必须实现"""
+        if not self.user_id:
+            raise ValueError("用户ID不能为空")
+        
+        if self.medical_history and len(self.medical_history.strip()) > 1000:
+            raise ValueError("病史信息过长，不能超过1000字符")
     
     @classmethod
-    def create(cls, name: str, email: str, password: str) -> "User":
-        """工厂方法 - 创建用户"""
-        if not name.strip():
-            raise ValueError("用户名不能为空")
-        if not email or "@" not in email:
-            raise ValueError("邮箱格式不正确")
+    def create(cls, user_id: str, **kwargs) -> "Customer":
+        """工厂方法 - 创建客户"""
+        from app.common.infrastructure.db.uuid_utils import customer_id
         
-        user_id = str(uuid.uuid4())
-        password_hash = hash_password(password)
-        created_at = datetime.utcnow()
+        customer = cls(
+            id=customer_id(),
+            user_id=user_id,
+            **kwargs
+        )
         
-        return cls(user_id, name.strip(), email.lower(), password_hash, created_at)
+        customer.validate()  # 创建后必须验证
+        return customer
+```
+
+##### **普通实体设计**
+```python
+@dataclass
+class CustomerProfile(BaseEntity):
+    """客户档案实体 - 扩展客户信息"""
+    
+    customer_id: str
+    medical_history: Optional[str] = None
+    tags: Optional[str] = None
+    risk_notes: List[Dict[str, Any]] = field(default_factory=list)
+    
+    def validate(self) -> None:
+        """验证实体状态 - 必须实现"""
+        if not self.customer_id:
+            raise ValueError("客户ID不能为空")
+    
+    @classmethod
+    def create(cls, customer_id: str, **kwargs) -> "CustomerProfile":
+        """工厂方法 - 创建档案"""
+        from app.common.infrastructure.db.uuid_utils import profile_id
+        
+        profile = cls(
+            id=profile_id(),
+            customer_id=customer_id,
+            **kwargs
+        )
+        
+        profile.validate()  # 创建后必须验证
+        return profile
+```
+
+#### **8.2.3 实体设计最佳实践**
+
+##### **1. 构造函数要求**
+- **必须调用super().__init__(id)**：确保BaseEntity正确初始化
+- **使用工厂方法**：通过`@classmethod create()`方法创建实体
+- **延迟验证**：在`__post_init__`或工厂方法中调用验证
+
+##### **2. 验证方法要求**
+- **必须实现validate()方法**：继承自BaseEntity的抽象方法
+- **业务规则验证**：验证所有业务约束和规则
+- **抛出ValueError**：验证失败时抛出有意义的错误信息
+
+##### **3. 领域事件支持**
+```python
+def update_medical_history(self, medical_history: str) -> None:
+    """更新病史信息"""
+    if medical_history and len(medical_history.strip()) > 1000:
+        raise ValueError("病史信息过长，不能超过1000字符")
+    
+    old_value = self.medical_history
+    self.medical_history = medical_history.strip() if medical_history else None
+    self.updated_at = datetime.now()
+    
+    # 添加领域事件
+    self._add_domain_event(DomainEvent(
+        event_type="customer_medical_history_updated",
+        aggregate_id=self.id,
+        data={"old_value": old_value, "new_value": self.medical_history}
+    ))
+```
+
+##### **4. 不可变性设计**
+- **使用私有属性**：`_field_name`形式，通过属性访问器访问
+- **提供更新方法**：通过方法更新状态，而不是直接赋值
+- **状态验证**：每次状态变更都要验证
+
+##### **5. 实体关系管理**
+```python
+class Customer(BaseEntity):
+    """客户聚合根"""
+    
+    def __init__(self, id: str, user_id: str, **kwargs):
+        super().__init__(id)
+        self._user_id = user_id
+        self._profile: Optional[CustomerProfile] = None  # 关联实体
+    
+    @property
+    def profile(self) -> Optional[CustomerProfile]:
+        """获取关联的档案"""
+        return self._profile
+    
+    def set_profile(self, profile: CustomerProfile) -> None:
+        """设置关联的档案"""
+        if profile.customer_id != self.id:
+            raise ValueError("档案不属于此客户")
+        self._profile = profile
+```
+
+#### **8.2.4 实体设计检查清单**
+
+创建新实体时，必须检查：
+
+- [ ] 是否继承了`BaseEntity`？
+- [ ] 是否调用了`super().__init__(id)`？
+- [ ] 是否实现了`validate()`方法？
+- [ ] 是否使用工厂方法创建实体？
+- [ ] 是否在创建后调用验证？
+- [ ] 是否支持领域事件？
+- [ ] 是否提供了适当的更新方法？
+- [ ] 是否使用了私有属性保护状态？
+
+#### **8.2.5 常见错误和解决方案**
+
+##### **错误1：忘记继承BaseEntity**
+```python
+# ❌ 错误：没有继承BaseEntity
+@dataclass
+class Customer:
+    id: str
+    user_id: str
+
+# ✅ 正确：继承BaseEntity
+@dataclass
+class Customer(BaseEntity):
+    user_id: str
+```
+
+##### **错误2：忘记调用父类构造函数**
+```python
+# ❌ 错误：没有调用super().__init__()
+def __init__(self, id: str, user_id: str):
+    self._user_id = user_id  # 缺少super().__init__(id)
+
+# ✅ 正确：调用父类构造函数
+def __init__(self, id: str, user_id: str):
+    super().__init__(id)
+    self._user_id = user_id
+```
+
+##### **错误3：忘记实现验证方法**
+```python
+# ❌ 错误：没有实现validate方法
+@dataclass
+class Customer(BaseEntity):
+    user_id: str
+    # 缺少validate方法
+
+# ✅ 正确：实现validate方法
+def validate(self) -> None:
+    if not self.user_id:
+        raise ValueError("用户ID不能为空")
+```
+
+#### **8.2.6 实体设计示例**
+
+##### **完整聚合根示例**
+```python
+@dataclass
+class Consultation(BaseEntity):
+    """咨询聚合根"""
+    
+    title: str
+    owner_id: str
+    consultant_id: Optional[str] = None
+    status: ConsultationStatus = ConsultationStatus.PENDING
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+    
+    def __post_init__(self):
+        self.validate()
+    
+    def validate(self) -> None:
+        if not self.title or not self.title.strip():
+            raise ValueError("咨询标题不能为空")
+        if not self.owner_id:
+            raise ValueError("咨询所有者不能为空")
+    
+    @classmethod
+    def create(cls, title: str, owner_id: str) -> "Consultation":
+        from app.common.infrastructure.db.uuid_utils import consultation_id
+        
+        consultation = cls(
+            id=consultation_id(),
+            title=title.strip(),
+            owner_id=owner_id
+        )
+        
+        consultation.validate()
+        return consultation
+    
+    def assign_consultant(self, consultant_id: str) -> None:
+        """分配顾问"""
+        if not consultant_id:
+            raise ValueError("顾问ID不能为空")
+        
+        old_consultant = self.consultant_id
+        self.consultant_id = consultant_id
+        self.status = ConsultationStatus.ASSIGNED
+        self.updated_at = datetime.now()
+        
+        # 添加领域事件
+        self._add_domain_event(DomainEvent(
+            event_type="consultation_consultant_assigned",
+            aggregate_id=self.id,
+            data={"old_consultant": old_consultant, "new_consultant": consultant_id}
+        ))
 ```
 
 ### 8.3 值对象设计
@@ -1082,6 +1345,68 @@ class TestUserRepository:
 - **聚合设计**：明确业务边界和一致性约束
 - **分层架构**：清晰的职责分离和依赖方向
 - **领域事件**：解耦业务逻辑，支持事件驱动
+
+### 11.2 实体设计强制要求
+
+#### **BaseEntity继承要求**
+
+**重要提醒**：在创建任何领域实体时，必须严格遵循以下要求：
+
+1. **强制继承BaseEntity**：
+   ```python
+   # ❌ 绝对禁止：不继承BaseEntity
+   class Customer:
+       pass
+   
+   # ✅ 必须：继承BaseEntity
+   class Customer(BaseEntity):
+       pass
+   ```
+
+2. **强制调用父类构造函数**：
+   ```python
+   # ❌ 绝对禁止：忘记调用super().__init__(id)
+   def __init__(self, id: str, name: str):
+       self._name = name
+   
+   # ✅ 必须：调用父类构造函数
+   def __init__(self, id: str, name: str):
+       super().__init__(id)  # 必须调用
+       self._name = name
+   ```
+
+3. **强制实现验证方法**：
+   ```python
+   # ❌ 绝对禁止：忘记实现validate方法
+   class Customer(BaseEntity):
+       pass  # 缺少validate方法
+   
+   # ✅ 必须：实现validate方法
+   def validate(self) -> None:
+       if not self.user_id:
+           raise ValueError("用户ID不能为空")
+   ```
+
+#### **为什么必须继承BaseEntity？**
+
+- **架构一致性**：确保所有实体遵循相同的设计模式
+- **功能完整性**：获得领域事件、验证、ID管理等基础功能
+- **类型安全**：支持完整的类型检查和IDE智能提示
+- **测试友好**：提供统一的测试基类和工具方法
+- **维护性**：统一的接口和实现模式，便于维护和扩展
+
+#### **AI生成代码时的检查要点**
+
+当AI生成领域实体代码时，必须检查：
+
+1. **导入语句**：是否导入了`BaseEntity`
+2. **类定义**：是否继承了`BaseEntity`
+3. **构造函数**：是否调用了`super().__init__(id)`
+4. **验证方法**：是否实现了`validate()`方法
+5. **工厂方法**：是否使用`@classmethod create()`模式
+6. **领域事件**：是否支持事件驱动架构
+
+**违反这些要求的代码将无法通过代码审查和测试**。
 
 ### 11.2 整洁代码原则
 - **单一职责**：每个类和方法只做一件事

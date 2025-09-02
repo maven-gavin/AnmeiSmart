@@ -1,21 +1,17 @@
 """
-系统设置领域层
-
-包含：
-- 聚合根：SystemSettings
-- 值对象：SiteConfiguration, UserRegistrationConfig, AIModelConfig等
-- 领域服务：SystemDomainService
+系统领域模块
 """
 
-from app.system.domain.entities.system_settings import SystemSettings
-from app.system.domain.value_objects.system_config import (
-    SystemStatus,
-    MaintenanceMode,
-    SiteConfiguration,
-    UserRegistrationConfig,
+from .entities.system_settings import SystemSettings
+from .value_objects.system_config import (
+    SystemStatus, 
+    MaintenanceMode, 
+    SiteConfiguration, 
+    UserRegistrationConfig, 
     AIModelConfig
 )
-from app.system.domain.system_domain_service import SystemDomainService
+from .system_domain_service import SystemDomainService
+from .exceptions import SystemConfigurationError, MaintenanceModeError
 
 __all__ = [
     "SystemSettings",
@@ -25,4 +21,6 @@ __all__ = [
     "UserRegistrationConfig",
     "AIModelConfig",
     "SystemDomainService",
+    "SystemConfigurationError",
+    "MaintenanceModeError"
 ]

@@ -147,3 +147,24 @@ class SystemApplicationService(ISystemApplicationService):
         except Exception as e:
             logger.error(f"通知AI服务配置变更失败: {e}")
             # 不抛出异常，避免影响主要业务流程
+    
+    async def _handle_domain_events(self, settings: SystemSettings) -> None:
+        """处理领域事件"""
+        try:
+            domain_events = settings.get_domain_events()
+            
+            for event in domain_events:
+                logger.info(f"处理领域事件: {event.event_type} - {event.data}")
+                
+                # 这里可以添加事件发布逻辑
+                # 例如：发布到消息队列、发送通知等
+                
+                # 记录事件到日志
+                logger.info(f"领域事件已处理: {event.event_type}")
+            
+            # 清除已处理的事件
+            settings.clear_domain_events()
+            
+        except Exception as e:
+            logger.error(f"处理领域事件失败: {e}")
+            # 不抛出异常，避免影响主要业务流程
