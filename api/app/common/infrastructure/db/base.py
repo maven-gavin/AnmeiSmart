@@ -53,10 +53,18 @@ def with_db(func: F) -> F:
 
 # 初始化数据库
 def init_db():
-    # 导入基础模型类
-    from app.common.infrastructure.db.base_model import BaseModel
+    # 导入所有数据库模型，确保SQLAlchemy可以正确建立关系映射
+    # 显式导入所有模型以避免linter警告
+    from app.common.infrastructure.db.models import (
+        BaseModel, User, Role, Doctor, Consultant, Operator, Administrator,
+        UserPreferences, UserDefaultRole, LoginHistory, Customer, CustomerProfile,
+        SystemSettings, Conversation, Message, MessageAttachment, 
+        PlanGenerationSession, PlanDraft, InfoCompleteness, DigitalHuman,
+        ContactTag, ContactGroup, ContactPrivacySetting, Friendship, PendingTask, MCPToolGroup,
+        MCPTool, MCPCallLog, AgentConfig, UploadSession, UploadChunk
+    )
     
-    # 在这里导入模型，避免循环导入
+    # 创建所有表
     Base.metadata.create_all(bind=engine)
 
 # 创建初始角色

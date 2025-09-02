@@ -405,23 +405,22 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
     async def _generate_tokens(self, user_id: str, active_role: Optional[str]) -> Dict[str, str]:
         """生成访问令牌和刷新令牌"""
         try:
-            # 延迟导入避免循环依赖
-            from app.core.security import create_access_token, create_refresh_token
-            from app.core.config import get_settings
+            # 使用新的JWT服务
+            from app.identity_access.infrastructure.jwt_service import JWTService
             
-            settings = get_settings()
+            jwt_service = JWTService()
             
             # 创建访问令牌
-            access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-            access_token = create_access_token(
+            access_token_expires = timedelta(minutes=jwt_service.settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+            access_token = jwt_service.create_access_token(
                 subject=user_id,
                 expires_delta=access_token_expires,
                 active_role=active_role
             )
             
             # 创建刷新令牌
-            refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-            refresh_token = create_refresh_token(
+            refresh_token_expires = timedelta(days=jwt_service.settings.REFRESH_TOKEN_EXPIRE_DAYS)
+            refresh_token = jwt_service.create_refresh_token(
                 subject=user_id,
                 expires_delta=refresh_token_expires,
                 active_role=active_role

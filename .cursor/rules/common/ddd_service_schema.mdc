@@ -116,50 +116,36 @@ class ChatApplicationService(IChatApplicationService):
 创建专门的依赖注入模块：
 
 ```python
-# api/app/api/deps/chat.py
+# api/app/{domain}/deps/{domain}.py
 from typing import Optional
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
-from app.services.chat.application import ChatApplicationService
-from app.services.chat.domain import ConversationDomainService, MessageDomainService
-from app.services.chat.infrastructure import ConversationRepository, MessageRepository
-from app.services.websocket.broadcasting_factory import get_broadcasting_service
+from app.{domain}.application import {Domain}ApplicationService
+from app.{domain}.domain import {Domain}DomainService
+from app.{domain}.infrastructure.repositories import {Domain}Repository
+from app.websocket.broadcasting_factory import get_broadcasting_service
 
-def get_conversation_repository(db: Session = Depends(get_db)) -> ConversationRepository:
-    """获取会话仓储实例"""
-    return ConversationRepository(db)
+def get_{domain}_repository(db: Session = Depends(get_db)) -> {Domain}Repository:
+    """获取{domain}仓储实例"""
+    return {Domain}Repository(db)
 
-def get_message_repository(db: Session = Depends(get_db)) -> MessageRepository:
-    """获取消息仓储实例"""
-    return MessageRepository(db)
+def get_{domain}_domain_service(
+    {domain}_repository: {Domain}Repository = Depends(get_{domain}_repository)
+) -> {Domain}DomainService:
+    """获取{domain}领域服务实例"""
+    return {Domain}DomainService({domain}_repository)
 
-def get_conversation_domain_service(
-    conversation_repository: ConversationRepository = Depends(get_conversation_repository)
-) -> ConversationDomainService:
-    """获取会话领域服务实例"""
-    return ConversationDomainService(conversation_repository)
-
-def get_message_domain_service(
-    message_repository: MessageRepository = Depends(get_message_repository)
-) -> MessageDomainService:
-    """获取消息领域服务实例"""
-    return MessageDomainService(message_repository)
-
-def get_chat_application_service(
-    conversation_repository: ConversationRepository = Depends(get_conversation_repository),
-    message_repository: MessageRepository = Depends(get_message_repository),
-    conversation_domain_service: ConversationDomainService = Depends(get_conversation_domain_service),
-    message_domain_service: MessageDomainService = Depends(get_message_domain_service),
+def get_{domain}_application_service(
+    {domain}_repository: {Domain}Repository = Depends(get_{domain}_repository),
+    {domain}_domain_service: {Domain}DomainService = Depends(get_{domain}_domain_service),
     broadcasting_service: Optional[BroadcastingService] = Depends(get_broadcasting_service)
-) -> ChatApplicationService:
-    """获取聊天应用服务实例"""
-    return ChatApplicationService(
-        conversation_repository=conversation_repository,
-        message_repository=message_repository,
-        conversation_domain_service=conversation_domain_service,
-        message_domain_service=message_domain_service,
+) -> {Domain}ApplicationService:
+    """获取{domain}应用服务实例"""
+    return {Domain}ApplicationService(
+        {domain}_repository={domain}_repository,
+        {domain}_domain_service={domain}_domain_service,
         broadcasting_service=broadcasting_service
     )
 ```
@@ -349,29 +335,29 @@ WebSocket服务位于表现层，与HTTP API并列：
 
 #### **WebSocket处理器实现**
 ```python
-# api/app/api/v1/endpoints/websocket.py
+# api/app/{domain}/endpoints/{domain}.py
 from fastapi import WebSocket, WebSocketDisconnect, Depends
 from app.core.security import get_current_user_ws
-from app.services.chat.application import ChatApplicationService
+from app.{domain}.application import {Domain}ApplicationService
 
 @router.websocket("/ws/{conversation_id}")
 async def websocket_endpoint(
     websocket: WebSocket,
     conversation_id: str,
     current_user: User = Depends(get_current_user_ws),
-    chat_app_service: ChatApplicationService = Depends(get_chat_application_service)
+    {domain}_app_service: {Domain}ApplicationService = Depends(get_{domain}_application_service)
 ):
     """WebSocket连接处理"""
     await websocket.accept()
     
     try:
         # 验证用户对会话的访问权限
-        if not await chat_app_service.verify_conversation_access(conversation_id, str(current_user.id)):
+        if not await {domain}_app_service.verify_conversation_access(conversation_id, str(current_user.id)):
             await websocket.close(code=4003, reason="无权访问此会话")
             return
         
         # 加入会话房间
-        await chat_app_service.join_conversation_room(conversation_id, str(current_user.id), websocket)
+        await {domain}_app_service.join_conversation_room(conversation_id, str(current_user.id), websocket)
         
         # 处理消息
         while True:
@@ -380,7 +366,7 @@ async def websocket_endpoint(
             
             if message_type == "message":
                 # 处理用户消息
-                message = await chat_app_service.send_message_use_case(
+                message = await {domain}_app_service.send_message_use_case(
                     conversation_id=conversation_id,
                     content=data.get("content"),
                     message_type="text",
@@ -389,7 +375,7 @@ async def websocket_endpoint(
                 )
                 
                 # 广播消息给会话中的所有用户
-                await chat_app_service.broadcast_message_safe(
+                await {domain}_app_service.broadcast_message_safe(
                     conversation_id=conversation_id,
                     message_info=message,
                     sender_id=str(current_user.id)
@@ -397,7 +383,7 @@ async def websocket_endpoint(
                 
             elif message_type == "typing":
                 # 处理输入状态
-                await chat_app_service.broadcast_typing_status(
+                await {domain}_app_service.broadcast_typing_status(
                     conversation_id=conversation_id,
                     user_id=str(current_user.id),
                     is_typing=data.get("is_typing", False)
@@ -405,7 +391,7 @@ async def websocket_endpoint(
                 
     except WebSocketDisconnect:
         # 用户断开连接
-        await chat_app_service.leave_conversation_room(conversation_id, str(current_user.id))
+        await {domain}_app_service.leave_conversation_room(conversation_id, str(current_user.id))
     except Exception as e:
         logger.error(f"WebSocket错误: {e}")
         await websocket.close(code=1011, reason="内部服务器错误")
@@ -415,7 +401,7 @@ async def websocket_endpoint(
 
 #### **广播服务实现**
 ```python
-# api/app/services/websocket/broadcasting_service.py
+# api/app/websocket/broadcasting_service.py
 class BroadcastingService:
     """WebSocket广播服务"""
     
@@ -526,14 +512,9 @@ class ChatApplicationService(IChatApplicationService):
 
 #### **完整DDD分层目录结构**
 ```
-api/app/api/deps/{domain}.py       # 依赖注入 - 管理领域服务的依赖关系，提供接口实现
-api/app/services/{domain}/
+api/app/{domain}/deps/{domain}.py   # 依赖注入 - 管理领域服务的依赖关系，提供接口实现
+api/app/{domain}/
 ├── __init__.py                    # 模块入口，导出主要应用服务
-├── interfaces/                    # 接口定义层 - 定义所有服务接口
-│   ├── __init__.py
-│   ├── repository_interfaces.py  # 仓储接口定义
-│   ├── domain_service_interfaces.py  # 领域服务接口定义
-│   └── application_service_interfaces.py  # 应用服务接口定义
 ├── application/                   # 应用层 - 用例编排和事务管理
 │   ├── __init__.py
 │   ├── {domain}_application_service.py
@@ -556,20 +537,33 @@ api/app/services/{domain}/
 │   │   ├── __init__.py
 │   │   ├── {aggregate_root}_repository.py
 │   │   └── {entity}_repository.py
+│   ├── db/                      # 数据库相关
+│   │   ├── __init__.py
+│   │   └── models.py
 │   └── external_services/        # 外部服务集成
 │       ├── __init__.py
 │       └── {external_service}.py
-└── converters/                   # 数据转换层 - 格式转换
+├── converters/                   # 数据转换层 - 格式转换
+│   ├── __init__.py
+│   ├── {aggregate_root}_converter.py
+│   └── {entity}_converter.py
+├── schemas/                      # API Schema定义
+│   ├── __init__.py
+│   ├── requests.py
+│   └── responses.py
+├── endpoints/                    # API端点定义
+│   ├── __init__.py
+│   └── {domain}.py
+└── deps/                         # 依赖注入配置
     ├── __init__.py
-    ├── {aggregate_root}_converter.py
-    └── {entity}_converter.py
+    └── {domain}.py
 ```
 
 #### **目录命名规范**
 
 ##### **顶层目录**
 - **推荐**: 使用领域名称作为服务目录名
-- **位置**: `api/app/services/{domain}/`
+- **位置**: `api/app/{domain}/`
 - **示例**: `consultation/`, `user/`, `order/`
 
 ##### **接口定义层目录**
@@ -643,14 +637,9 @@ api/app/services/{domain}/
 #### **实际示例：咨询服务模块**
 
 ```
-api/app/api/deps/consultation.py   # 依赖注入 - 管理咨询服务依赖关系
-api/app/services/consultation/
+api/app/consultation/deps/consultation.py   # 依赖注入 - 管理咨询服务依赖关系
+api/app/consultation/
 ├── __init__.py                    # 导出主要应用服务
-├── interfaces/                    # 接口定义层
-│   ├── __init__.py
-│   ├── repository_interfaces.py  # 仓储接口定义
-│   ├── domain_service_interfaces.py  # 领域服务接口定义
-│   └── application_service_interfaces.py  # 应用服务接口定义
 ├── application/                   # 应用层
 │   ├── __init__.py
 │   ├── consultation_application_service.py
@@ -677,14 +666,27 @@ api/app/services/consultation/
 │   │   ├── consultation_repository.py
 │   │   ├── plan_repository.py
 │   │   └── consultant_repository.py
+│   ├── db/                     # 数据库模型
+│   │   ├── __init__.py
+│   │   └── models.py
 │   └── external_services/       # 外部服务
 │       ├── __init__.py
 │       └── ai_service.py        # AI服务集成
-└── converters/                  # 数据转换层
+├── converters/                  # 数据转换层
+│   ├── __init__.py
+│   ├── consultation_converter.py
+│   ├── plan_converter.py
+│   └── consultant_converter.py
+├── schemas/                     # API Schema
+│   ├── __init__.py
+│   ├── requests.py
+│   └── responses.py
+├── endpoints/                   # API端点
+│   ├── __init__.py
+│   └── consultation.py
+└── deps/                        # 依赖注入
     ├── __init__.py
-    ├── consultation_converter.py
-    ├── plan_converter.py
-    └── consultant_converter.py
+    └── consultation.py
 ```
 
 #### **目录结构最佳实践**
@@ -709,33 +711,6 @@ api/app/services/consultation/
 - **按功能分组**: 相关功能的文件可以放在同一目录下
 - **避免过深嵌套**: 目录嵌套不超过4层
 
-#### **常见目录结构模式**
-
-##### **模式1：标准DDD分层（推荐）**
-```
-{domain}/
-├── application/
-├── domain/
-├── infrastructure/
-└── converters/
-```
-
-##### **模式2：按功能分组**
-```
-{domain}/
-├── core/              # 核心业务逻辑
-├── application/       # 应用服务
-├── infrastructure/    # 基础设施
-└── shared/           # 共享组件
-```
-
-##### **模式3：按模块分组**
-```
-{domain}/
-├── {sub_domain1}/
-├── {sub_domain2}/
-└── shared/
-```
 
 #### **目录结构检查清单**
 
@@ -774,50 +749,43 @@ api/app/services/consultation/
 
 #### **模式1：独立转换器类（推荐）**
 ```python
-# api/app/services/consultation/converters/consultation_converter.py
+# api/app/{domain}/converters/{domain}_converter.py
 from typing import List, Optional, Dict, Any
-from app.schemas.consultation import ConsultationResponse, ConsultationCreate
-from ..domain.entities.consultation import Consultation
+from app.{domain}.schemas.responses import {Domain}Response, {Domain}Create
+from app.{domain}.domain.entities.{domain} import {Domain}
 
-class ConsultationConverter:
-    """咨询数据转换器"""
+class {Domain}Converter:
+    """{domain}数据转换器"""
     
     @staticmethod
-    def to_response(consultation: Consultation) -> ConsultationResponse:
-        """转换咨询实体为响应格式"""
-        return ConsultationResponse(
-            id=consultation.id,
-            customer_id=consultation.customer_id,
-            consultant_id=consultation.consultant_id,
-            status=consultation.status.value,
-            title=consultation.title,
-            created_at=consultation.created_at,
-            updated_at=consultation.updated_at,
-            metadata=consultation.metadata
+    def to_response({domain}: {Domain}) -> {Domain}Response:
+        """转换{domain}实体为响应格式"""
+        return {Domain}Response(
+            id={domain}.id,
+            title={domain}.title,
+            created_at={domain}.created_at,
+            updated_at={domain}.updated_at,
+            metadata={domain}.metadata
         )
     
     @staticmethod
-    def to_list_response(consultations: List[Consultation]) -> List[ConsultationResponse]:
-        """转换咨询列表为响应格式"""
-        return [ConsultationConverter.to_response(consultation) for consultation in consultations]
+    def to_list_response({domain}s: List[{Domain}]) -> List[{Domain}Response]:
+        """转换{domain}列表为响应格式"""
+        return [{Domain}Converter.to_response({domain}) for {domain} in {domain}s]
     
     @staticmethod
-    def from_create_request(request: ConsultationCreate) -> Dict[str, Any]:
+    def from_create_request(request: {Domain}Create) -> Dict[str, Any]:
         """从创建请求转换为领域对象参数"""
         return {
-            "customer_id": request.customer_id,
             "title": request.title,
             "metadata": request.metadata or {}
         }
     
     @staticmethod
-    def from_model(model) -> Consultation:
+    def from_model(model) -> {Domain}:
         """从ORM模型转换为领域实体"""
-        return Consultation(
+        return {Domain}(
             id=model.id,
-            customer_id=model.customer_id,
-            consultant_id=model.consultant_id,
-            status=ConsultationStatus.from_string(model.status),
             title=model.title,
             created_at=model.created_at,
             updated_at=model.updated_at,
@@ -825,55 +793,15 @@ class ConsultationConverter:
         )
     
     @staticmethod
-    def to_model_dict(consultation: Consultation) -> Dict[str, Any]:
+    def to_model_dict({domain}: {Domain}) -> Dict[str, Any]:
         """转换领域实体为ORM模型字典"""
         return {
-            "id": consultation.id,
-            "customer_id": consultation.customer_id,
-            "consultant_id": consultation.consultant_id,
-            "status": consultation.status.value,
-            "title": consultation.title,
-            "created_at": consultation.created_at,
-            "updated_at": consultation.updated_at,
-            "metadata": consultation.metadata
+            "id": {domain}.id,
+            "title": {domain}.title,
+            "created_at": {domain}.created_at,
+            "updated_at": {domain}.updated_at,
+            "metadata": {domain}.metadata
         }
-
-#### **模式2：Schema内置转换（简单场景）**
-```python
-class UserResponse(BaseModel):
-    id: str
-    name: str
-    email: str
-    created_at: datetime
-    
-    @classmethod
-    def from_entity(cls, user: User) -> "UserResponse":
-        return cls(
-            id=user.id,
-            name=user.name,
-            email=user.email,
-            created_at=user.created_at
-        )
-```
-
-#### **模式3：工厂模式（复杂聚合）**
-```python
-class ConversationResponseFactory:
-    @staticmethod
-    def create(conversation: Conversation, include_messages: bool = False) -> ConversationResponse:
-        base_data = {
-            "id": conversation.id,
-            "title": conversation.title,
-            "created_at": conversation.created_at
-        }
-        
-        if include_messages:
-            base_data["messages"] = [
-                MessageConverter.to_response(msg) for msg in conversation.messages
-            ]
-        
-        return ConversationResponse(**base_data)
-```
 
 ### 6.3 转换器职责
 
@@ -1152,11 +1080,11 @@ class TestUserRepository:
 
 #### **领域服务目录结构**
 - **推荐**: 领域服务直接放在 `domain/` 目录下
-- **位置**: `api/app/services/{domain}/domain/`
+- **位置**: `api/app/{domain}/domain/`
 - **命名**: 每个领域服务对应一个文件
 
 ```
-api/app/services/consultation/
+api/app/{domain}/
 ├── domain/                       # 领域层
 │   ├── __init__.py
 │   ├── entities/                 # 实体

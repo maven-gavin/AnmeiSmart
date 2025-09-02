@@ -3,7 +3,7 @@
 负责AI辅助方案生成相关的用例编排和事务管理
 遵循DDD分层架构
 """
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 import logging
 
 from ..schemas.consultation import (

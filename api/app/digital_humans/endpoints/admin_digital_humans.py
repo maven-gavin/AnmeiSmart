@@ -6,7 +6,8 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
-from app.common.deps import get_db, require_admin_role
+from app.common.deps import get_db
+from app.identity_access.deps.security_deps import get_current_admin
 from app.identity_access.infrastructure.db.user import User
 from app.digital_humans.schemas.digital_human import (
     AdminDigitalHumanResponse,
@@ -25,7 +26,7 @@ async def get_all_digital_humans(
     user_id: Optional[str] = Query(None, description="用户ID筛选"),
     is_system_created: Optional[bool] = Query(None, description="是否系统创建筛选"),
     search: Optional[str] = Query(None, description="搜索关键词"),
-    current_user: User = Depends(require_admin_role),
+    current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
     """获取所有数字人列表（管理员专用）"""
@@ -57,7 +58,7 @@ async def get_all_digital_humans(
 @router.get("/{digital_human_id}", response_model=AdminDigitalHumanResponse)
 async def get_digital_human_detail(
     digital_human_id: str,
-    current_user: User = Depends(require_admin_role),
+    current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
     """获取数字人详情（管理员专用）"""
@@ -87,7 +88,7 @@ async def get_digital_human_detail(
 async def update_digital_human_status(
     digital_human_id: str,
     data: UpdateDigitalHumanStatusRequest,
-    current_user: User = Depends(require_admin_role),
+    current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
     """更新数字人状态（管理员专用）"""
@@ -126,7 +127,7 @@ async def batch_update_digital_humans(
     digital_human_ids: List[str],
     action: str,
     data: Optional[dict] = None,
-    current_user: User = Depends(require_admin_role),
+    current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
     """批量操作数字人（管理员专用）"""

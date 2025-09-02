@@ -52,16 +52,14 @@ class User(BaseModel):
     administrator = relationship("Administrator", back_populates="user", uselist=False, cascade="all, delete-orphan")
     
     # 上传会话关联
-    upload_sessions = relationship("app.common.infrastructure.db.upload_session.UploadSession", back_populates="user", cascade="all, delete-orphan")
+    upload_sessions = relationship("app.common.infrastructure.db.upload.UploadSession", back_populates="user", cascade="all, delete-orphan")
     
     # 数字人关联（新增）
-    digital_humans = relationship("app.ai.infrastructure.db.digital_human.DigitalHuman", back_populates="user", cascade="all, delete-orphan")
+    digital_humans = relationship("app.digital_humans.infrastructure.db.digital_human.DigitalHuman", back_populates="user", cascade="all, delete-orphan")
     owned_conversations = relationship("app.chat.infrastructure.db.chat.Conversation", foreign_keys="app.chat.infrastructure.db.chat.Conversation.owner_id", back_populates="owner")
-    created_tasks = relationship("app.common.infrastructure.db.pending_task.PendingTask", foreign_keys="app.common.infrastructure.db.pending_task.PendingTask.created_by")
-    assigned_tasks = relationship("app.common.infrastructure.db.pending_task.PendingTask", foreign_keys="app.common.infrastructure.db.pending_task.PendingTask.assigned_to")
     
     # 通讯录关联（新增）
-    friendships = relationship("app.contacts.infrastructure.db.friendship.Friendship", foreign_keys="app.contacts.infrastructure.db.friendship.Friendship.user_id", 
+    friendships = relationship("app.contacts.infrastructure.db.contacts.Friendship", foreign_keys="app.contacts.infrastructure.db.contacts.Friendship.user_id", 
                               back_populates="user", cascade="all, delete-orphan")
     contact_tags = relationship("app.contacts.infrastructure.db.contacts.ContactTag", back_populates="user", cascade="all, delete-orphan")
     contact_groups = relationship("app.contacts.infrastructure.db.contacts.ContactGroup", back_populates="user", cascade="all, delete-orphan")

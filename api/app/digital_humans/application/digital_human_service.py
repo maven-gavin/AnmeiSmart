@@ -7,10 +7,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from datetime import datetime
 
+from app.ai.infrastructure.db.agent_config import AgentConfig
+
 from ..infrastructure.db.digital_human import (
     DigitalHuman, 
     DigitalHumanAgentConfig, 
-    AgentConfig, 
 )
 from app.common.infrastructure.db.uuid_utils import digital_human_id
 from ..schemas.digital_human import (

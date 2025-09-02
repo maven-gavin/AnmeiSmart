@@ -112,7 +112,7 @@ class FriendshipTag(BaseModel):
     assigned_by = Column(String(36), ForeignKey("users.id"), nullable=True, comment="分配人（支持系统自动分配）")
     
     # 关联关系
-    friendship = relationship("app.contacts.infrastructure.db.friendship.Friendship", back_populates="tags")
+    friendship = relationship("app.contacts.infrastructure.db.contacts.Friendship", back_populates="tags")
     tag = relationship("app.contacts.infrastructure.db.contacts.ContactTag", back_populates="friendship_tags")
     assigned_by_user = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[assigned_by])
 
@@ -181,7 +181,7 @@ class ContactGroupMember(BaseModel):
     
     # 关联关系
     group = relationship("app.contacts.infrastructure.db.contacts.ContactGroup", back_populates="members")
-    friendship = relationship("app.contacts.infrastructure.db.friendship.Friendship", back_populates="group_memberships")
+    friendship = relationship("app.contacts.infrastructure.db.contacts.Friendship", back_populates="group_memberships")
     invited_by_user = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[invited_by])
 
 
@@ -244,4 +244,4 @@ class InteractionRecord(BaseModel):
     occurred_at = Column(DateTime(timezone=True), server_default=func.now(), comment="发生时间")
     
     # 关联关系
-    friendship = relationship("app.contacts.infrastructure.db.friendship.Friendship", back_populates="interaction_records")
+    friendship = relationship("app.contacts.infrastructure.db.contacts.Friendship", back_populates="interaction_records")

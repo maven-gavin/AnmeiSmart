@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Q
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.core.security import get_current_user
+from app.identity_access.deps.security_deps import get_current_user
 from app.common.infrastructure.db.base import get_db
 from app.identity_access.infrastructure.db.user import User
 from app.common.application.file_service import FileService

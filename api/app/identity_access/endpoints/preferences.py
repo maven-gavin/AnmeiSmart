@@ -2,7 +2,7 @@ from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 
-from app.core.security import get_current_user
+from app.identity_access.deps.security_deps import get_current_user
 from app.identity_access.infrastructure.db.user import User
 from app.identity_access.deps.identity_access import get_identity_access_application_service
 from app.identity_access.application import IdentityAccessApplicationService

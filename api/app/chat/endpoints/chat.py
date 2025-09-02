@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.common.infrastructure.db.base import get_db
-from app.core.security import get_current_user
+from app.identity_access.deps.security_deps import get_current_user
 from app.identity_access.infrastructure.db.user import User
 from app.chat.schemas.chat import (
     ConversationCreate, ConversationInfo,

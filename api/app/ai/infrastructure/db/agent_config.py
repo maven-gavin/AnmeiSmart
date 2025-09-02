@@ -1,7 +1,5 @@
-from sqlalchemy import Column, String, Boolean, Float, Text, Integer, Index, JSON
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, String, Boolean, Text, Integer, Index, JSON
 from sqlalchemy.ext.hybrid import hybrid_property
-from datetime import datetime
 from typing import Optional
 
 from app.common.infrastructure.db.base_model import BaseModel

@@ -77,12 +77,12 @@ class AuthenticationDomainService:
     async def validate_token(self, token: str) -> Optional[Dict[str, Any]]:
         """验证令牌"""
         try:
-            # 延迟导入避免循环依赖
-            from app.core.security import get_current_user_from_token
+            # 使用新的JWT服务
+            from app.identity_access.infrastructure.jwt_service import JWTService
             
-            # 这里需要实现令牌验证逻辑
-            # 暂时返回None，实际实现需要调用security模块
-            return None
+            jwt_service = JWTService()
+            payload = jwt_service.verify_token(token)
+            return payload
             
         except Exception:
             return None
@@ -90,15 +90,29 @@ class AuthenticationDomainService:
     async def refresh_token(self, refresh_token: str) -> Optional[Dict[str, str]]:
         """刷新令牌"""
         try:
-            # 延迟导入避免循环依赖
-            from app.core.security import create_access_token, create_refresh_token
-            from app.core.config import get_settings
+            # 使用新的JWT服务
+            from app.identity_access.infrastructure.jwt_service import JWTService
             
-            settings = get_settings()
+            jwt_service = JWTService()
             
-            # 这里需要实现刷新令牌逻辑
-            # 暂时返回None，实际实现需要调用security模块
-            return None
+            # 验证刷新令牌
+            payload = jwt_service.verify_token(refresh_token)
+            if not payload or payload.get("type") != "refresh":
+                return None
+            
+            user_id = payload.get("sub")
+            if not user_id:
+                return None
+            
+            # 创建新的访问令牌和刷新令牌
+            new_access_token = jwt_service.create_access_token(user_id)
+            new_refresh_token = jwt_service.create_refresh_token(user_id)
+            
+            return {
+                "access_token": new_access_token,
+                "refresh_token": new_refresh_token,
+                "token_type": "bearer"
+            }
             
         except Exception:
             return None

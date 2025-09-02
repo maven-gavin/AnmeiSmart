@@ -4,7 +4,7 @@
 """
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-from app.db.uuid_utils import message_id
+from app.common.infrastructure.db.uuid_utils import message_id
 
 
 class Message:

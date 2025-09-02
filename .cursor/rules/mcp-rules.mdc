@@ -9,10 +9,10 @@
 - **协议**: 支持 SSE (Server-Sent Events) 传输
 
 ### 1.2 分层架构
-- **Controller层**: `api/app/api/v1/endpoints/mcp_config.py`
-- **Service层**: `api/app/services/mcp_group_service.py`
-- **Schema层**: `api/app/schemas/mcp.py`
-- **Model层**: `api/app/db/models/mcp.py`
+- **Controller层**: `api/app/mcp/endpoints/mcp_config.py`
+- **Service层**: `api/app/mcp/mcp_group_service.py`
+- **Schema层**: `api/app/mcp/schemas/mcp.py`
+- **Model层**: `api/app/mcp/infrastructure/db/models.py`
 
 ## 2. API路由规范
 

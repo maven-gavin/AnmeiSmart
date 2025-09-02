@@ -9,7 +9,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query, H
 from sqlalchemy.orm import Session
 
 from app.common.deps import get_db
-from app.core.security import verify_token
+from app.identity_access.deps.security_deps import verify_token
 from app.identity_access.infrastructure.db.user import User
 from app.websocket import get_websocket_service_dependency
 

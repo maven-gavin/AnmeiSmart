@@ -1,14 +1,13 @@
-from typing import Any, List, Dict, Optional, Dict, Any
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
-from app.common.infrastructure.db.base import deps
+from app.common.infrastructure.db.base import get_db
+
 from app.system.application import system_service
 from app.system.schemas.system import (
     SystemSettingsResponse, 
     SystemSettingsUpdate,
-
 )
-# 移除了Dify相关导入，现在使用独立的AI应用管理模块
+from app.identity_access.deps.security_deps import get_current_admin
 
 router = APIRouter()
 
@@ -16,8 +15,8 @@ router = APIRouter()
 @router.get("/settings", response_model=SystemSettingsResponse, status_code=status.HTTP_200_OK)
 def get_system_settings(
     *,
-    db: Session = Depends(deps.get_db),
-    current_user = Depends(deps.get_current_admin),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_admin),
 ) -> SystemSettingsResponse:
     """
     获取系统设置
@@ -29,22 +28,15 @@ def get_system_settings(
 @router.put("/settings", response_model=SystemSettingsResponse, status_code=status.HTTP_200_OK)
 def update_system_settings(
     *,
-    db: Session = Depends(deps.get_db),
+    db: Session = Depends(get_db),
     settings_update: SystemSettingsUpdate,
-    current_user = Depends(deps.get_current_admin),
+    current_user = Depends(get_current_admin),
 ) -> SystemSettingsResponse:
     """
     更新系统设置
     """
     # 直接调用service层方法，该方法已返回所需格式的响应
     return system_service.update_system_settings(db, settings_update)
-
-
-
-
-
-# 已移除的Dify管理端点 - 现在使用 /api/v1/ai-apps 端点
-
 
 def _notify_ai_service_config_change():
     """通知AI服务配置已更改"""

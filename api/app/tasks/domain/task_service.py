@@ -2,12 +2,12 @@
 待办任务服务 - 处理任务相关的业务逻辑
 """
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from datetime import datetime
 
-from app.tasks.infrastructure.db.task import PendingTask, User
+from app.tasks.infrastructure.db.task import PendingTask
 from app.common.infrastructure.db.uuid_utils import task_id
 from app.tasks.schemas.task import (
     CreateTaskRequest,

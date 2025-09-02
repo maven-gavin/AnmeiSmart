@@ -74,7 +74,7 @@ class DigitalHumanAgentConfig(BaseModel):
     
     # 关联关系
     digital_human = relationship("app.digital_humans.infrastructure.db.digital_human.DigitalHuman", back_populates="agent_configs")
-    agent_config = relationship("app.system.infrastructure.db.system.AgentConfig")
+    agent_config = relationship("app.ai.infrastructure.db.agent_config.AgentConfig")
     
     def __repr__(self):
         return f"<DigitalHumanAgentConfig(dh_id={self.digital_human_id}, agent_id={self.agent_config_id})>"

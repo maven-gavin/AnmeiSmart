@@ -9,14 +9,21 @@
 - 角色实体：定义系统角色和权限
 - 认证服务：处理用户登录和令牌管理
 - 权限服务：验证用户访问权限
+- 安全服务：处理JWT令牌和权限验证
 """
 
 from .application.identity_access_application_service import IdentityAccessApplicationService
+from .application.security_application_service import SecurityApplicationService
+from .domain.security_domain_service import SecurityDomainService
+from .infrastructure.jwt_service import JWTService
 from .converters.user_converter import UserConverter
 from .converters.role_converter import RoleConverter
 
 __all__ = [
     "IdentityAccessApplicationService",
+    "SecurityApplicationService",
+    "SecurityDomainService", 
+    "JWTService",
     "UserConverter", 
     "RoleConverter"
 ]

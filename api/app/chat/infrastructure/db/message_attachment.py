@@ -4,7 +4,7 @@ from sqlalchemy.sql import func
 from typing import Optional
 
 from app.common.infrastructure.db.base_model import BaseModel
-from app.db.uuid_utils import message_id
+from app.common.infrastructure.db.uuid_utils import message_id
 
 
 class MessageAttachment(BaseModel):

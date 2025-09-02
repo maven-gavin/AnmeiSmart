@@ -9,7 +9,7 @@ from typing import List, Optional, Dict, Any
 from app.contacts.schemas.contacts import (
     ContactTagResponse, FriendshipResponse,
     PaginatedFriendsResponse, UserSearchResult, FriendRequestResponse,
-    CreateContactGroupRequest, 
+    CreateContactGroupRequest, ContactTagCreate,
     ContactGroupResponse, ContactAnalyticsResponse
 )
 from app.contacts.domain.interfaces import (

@@ -3,7 +3,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
 from app.common.infrastructure.db.base_model import BaseModel
-from app.db.uuid_utils import conversation_id, message_id
+from app.common.infrastructure.db.uuid_utils import conversation_id, message_id
 
 
 class Conversation(BaseModel):

@@ -4,7 +4,7 @@
 """
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from app.db.uuid_utils import conversation_id
+from app.common.infrastructure.db.uuid_utils import conversation_id
 
 
 class Conversation:

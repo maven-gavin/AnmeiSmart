@@ -7,7 +7,7 @@ from typing import List
 import logging
 
 from app.core.config import get_settings
-from app.core.security import get_current_user
+from app.identity_access.deps.security_deps import get_current_user
 from app.identity_access.infrastructure.db.user import User
 
 logger = logging.getLogger(__name__)
