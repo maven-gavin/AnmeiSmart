@@ -8,7 +8,11 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.common.infrastructure.db.base import get_db
-from app.identity_access.infrastructure.dependency_container import dependency_container
+from app.identity_access.infrastructure.repositories.user_repository import UserRepository
+from app.identity_access.infrastructure.repositories.role_repository import RoleRepository
+from app.identity_access.infrastructure.repositories.login_history_repository import LoginHistoryRepository
+from app.identity_access.converters.user_converter import UserConverter
+from app.identity_access.converters.role_converter import RoleConverter
 from app.identity_access.domain import (
     UserDomainService,
     AuthenticationDomainService,
@@ -19,17 +23,17 @@ from app.identity_access.application import IdentityAccessApplicationService
 
 def get_user_repository(db: Session = Depends(get_db)):
     """获取用户仓储实例"""
-    return dependency_container.create_user_repository(db)
+    return UserRepository(db, UserConverter())
 
 
 def get_role_repository(db: Session = Depends(get_db)):
     """获取角色仓储实例"""
-    return dependency_container.create_role_repository(db)
+    return RoleRepository(db, RoleConverter())
 
 
 def get_login_history_repository(db: Session = Depends(get_db)):
     """获取登录历史仓储实例"""
-    return dependency_container.create_login_history_repository(db)
+    return LoginHistoryRepository(db)
 
 
 

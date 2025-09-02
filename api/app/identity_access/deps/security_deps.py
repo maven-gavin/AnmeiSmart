@@ -24,11 +24,12 @@ def get_jwt_service() -> JWTService:
     """获取JWT服务实例"""
     return JWTService()
 
-from app.identity_access.infrastructure.dependency_container import dependency_container
+from app.identity_access.infrastructure.repositories.user_repository import UserRepository
+from app.identity_access.converters.user_converter import UserConverter
 
 def get_user_repository(db: Session = Depends(get_db)):
     """获取用户仓储实例"""
-    return dependency_container.create_user_repository(db)
+    return UserRepository(db, UserConverter())
 
 def get_security_domain_service(
     jwt_service: JWTService = Depends(get_jwt_service),
