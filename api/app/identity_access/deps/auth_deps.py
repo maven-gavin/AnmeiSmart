@@ -2,7 +2,6 @@
 认证授权相关依赖注入配置
 
 整合认证、授权、权限检查等所有安全相关功能。
-遵循DDD分层架构，避免功能重复和循环依赖。
 """
 
 from typing import List, Optional

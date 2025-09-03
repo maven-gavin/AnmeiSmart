@@ -18,22 +18,12 @@ from app.identity_access.application.identity_access_application_service import 
 
 
 def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
-    """获取用户仓储实例
-    
-    遵循DDD规范：
-    - 使用FastAPI的依赖注入避免循环依赖
-    - 依赖方向：确保依赖方向指向领域层
-    """
+    """获取用户仓储实例"""
     return UserRepository(db)
 
 
 def get_role_repository(db: Session = Depends(get_db)) -> RoleRepository:
-    """获取角色仓储实例
-    
-    遵循DDD规范：
-    - 使用FastAPI的依赖注入避免循环依赖
-    - 依赖方向：确保依赖方向指向领域层
-    """
+    """获取角色仓储实例"""
     return RoleRepository(db)
 
 
@@ -41,12 +31,7 @@ def get_identity_access_application_service(
     user_repository: UserRepository = Depends(get_user_repository),
     role_repository: RoleRepository = Depends(get_role_repository)
 ) -> IdentityAccessApplicationService:
-    """获取身份访问应用服务实例
-    
-    遵循DDD规范：
-    - 编排领域服务，实现用例，事务管理
-    - 无状态，协调领域对象完成业务用例
-    """
+    """获取身份访问应用服务实例"""
     return IdentityAccessApplicationService(
         user_repository=user_repository,
         role_repository=role_repository
