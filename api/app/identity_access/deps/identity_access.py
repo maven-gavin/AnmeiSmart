@@ -1,91 +1,54 @@
 """
-用户身份与权限上下文依赖注入配置
+身份访问模块依赖注入配置
 
-管理领域服务的依赖关系，提供接口实现。
-遵循DDD分层架构的依赖注入最佳实践。
+遵循 @ddd_service_schema.mdc 第3章依赖注入配置规范：
+- 使用FastAPI的依赖注入避免循环依赖
+- 接口抽象：使用抽象接口而不是具体实现
+- 依赖方向：确保依赖方向指向领域层
+- 生命周期管理：合理管理依赖的作用域
 """
 
+from typing import Optional
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from app.common.infrastructure.db.base import get_db
+from app.common.deps import get_db
 from app.identity_access.infrastructure.repositories.user_repository import UserRepository
 from app.identity_access.infrastructure.repositories.role_repository import RoleRepository
-from app.identity_access.infrastructure.repositories.login_history_repository import LoginHistoryRepository
-from app.identity_access.converters.user_converter import UserConverter
-from app.identity_access.converters.role_converter import RoleConverter
-from app.identity_access.domain import (
-    UserDomainService,
-    AuthenticationDomainService,
-    PermissionDomainService
-)
-from app.identity_access.application import IdentityAccessApplicationService
+from app.identity_access.application.identity_access_application_service import IdentityAccessApplicationService
 
 
 def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
-    """获取用户仓储实例"""
-    return UserRepository(db, UserConverter())
+    """获取用户仓储实例
+    
+    遵循DDD规范：
+    - 使用FastAPI的依赖注入避免循环依赖
+    - 依赖方向：确保依赖方向指向领域层
+    """
+    return UserRepository(db)
 
 
 def get_role_repository(db: Session = Depends(get_db)) -> RoleRepository:
-    """获取角色仓储实例"""
-    return RoleRepository(db, RoleConverter())
-
-
-def get_login_history_repository(db: Session = Depends(get_db)) -> LoginHistoryRepository:
-    """获取登录历史仓储实例"""
-    return LoginHistoryRepository(db)
-
-
-def get_user_domain_service(
-    user_repository: UserRepository = Depends(get_user_repository),
-    role_repository: RoleRepository = Depends(get_role_repository)
-) -> UserDomainService:
-    """获取用户领域服务实例"""
-    return UserDomainService(user_repository, role_repository)
-
-
-def get_authentication_domain_service(
-    user_repository: UserRepository = Depends(get_user_repository),
-    login_history_repository: LoginHistoryRepository = Depends(get_login_history_repository)
-) -> AuthenticationDomainService:
-    """获取认证领域服务实例"""
-    return AuthenticationDomainService(user_repository, login_history_repository)
-
-
-def get_permission_domain_service(
-    user_repository: UserRepository = Depends(get_user_repository)
-) -> PermissionDomainService:
-    """获取权限领域服务实例"""
-    return PermissionDomainService(user_repository)
+    """获取角色仓储实例
+    
+    遵循DDD规范：
+    - 使用FastAPI的依赖注入避免循环依赖
+    - 依赖方向：确保依赖方向指向领域层
+    """
+    return RoleRepository(db)
 
 
 def get_identity_access_application_service(
     user_repository: UserRepository = Depends(get_user_repository),
-    role_repository: RoleRepository = Depends(get_role_repository),
-    login_history_repository: LoginHistoryRepository = Depends(get_login_history_repository),
-    user_domain_service: UserDomainService = Depends(get_user_domain_service),
-    authentication_domain_service: AuthenticationDomainService = Depends(get_authentication_domain_service),
-    permission_domain_service: PermissionDomainService = Depends(get_permission_domain_service)
+    role_repository: RoleRepository = Depends(get_role_repository)
 ) -> IdentityAccessApplicationService:
-    """获取用户身份与权限应用服务实例"""
+    """获取身份访问应用服务实例
+    
+    遵循DDD规范：
+    - 编排领域服务，实现用例，事务管理
+    - 无状态，协调领域对象完成业务用例
+    """
     return IdentityAccessApplicationService(
         user_repository=user_repository,
-        role_repository=role_repository,
-        login_history_repository=login_history_repository,
-        user_domain_service=user_domain_service,
-        authentication_domain_service=authentication_domain_service,
-        permission_domain_service=permission_domain_service
+        role_repository=role_repository
     )
-
-
-# 导出所有依赖函数
-__all__ = [
-    "get_user_repository",
-    "get_role_repository", 
-    "get_login_history_repository",
-    "get_user_domain_service",
-    "get_authentication_domain_service",
-    "get_permission_domain_service",
-    "get_identity_access_application_service"
-]

@@ -1,5 +1,5 @@
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from app.system.domain.value_objects.system_config import (
     SystemStatus, 
@@ -10,7 +10,7 @@ from app.system.domain.value_objects.system_config import (
 )
 from app.common.domain.entities.base_entity import BaseEntity, DomainEvent
 
-@dataclass
+@dataclass(kw_only=True)
 class SystemSettings(BaseEntity):
     """系统设置聚合根"""
     id: str
@@ -18,8 +18,8 @@ class SystemSettings(BaseEntity):
     ai_model_config: AIModelConfig
     maintenance_mode: MaintenanceMode
     user_registration_config: UserRegistrationConfig
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
     def __post_init__(self):
         # 调用父类构造函数
@@ -29,7 +29,7 @@ class SystemSettings(BaseEntity):
         self.validate()
         
         # 更新修改时间
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
     
     def validate(self) -> None:
         """验证实体状态 - 必须实现"""
@@ -75,7 +75,7 @@ class SystemSettings(BaseEntity):
                 logo_url=logo_url.strip() if logo_url else None
             )
         
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
         
         # 添加领域事件
         self._add_domain_event(DomainEvent(
@@ -99,7 +99,7 @@ class SystemSettings(BaseEntity):
             self.ai_model_config = AIModelConfig(
                 default_model_id=default_model_id.strip() if default_model_id else None
             )
-            self.updated_at = datetime.utcnow()
+            self.updated_at = datetime.now(timezone.utc)
             
             # 添加领域事件
             self._add_domain_event(DomainEvent(
@@ -115,7 +115,7 @@ class SystemSettings(BaseEntity):
         """设置维护模式"""
         old_mode = self.maintenance_mode
         self.maintenance_mode = MaintenanceMode.ENABLED if enabled else MaintenanceMode.DISABLED
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
         
         # 添加领域事件
         self._add_domain_event(DomainEvent(
@@ -132,7 +132,7 @@ class SystemSettings(BaseEntity):
         """设置用户注册开关"""
         old_enabled = self.user_registration_config.enabled
         self.user_registration_config = UserRegistrationConfig(enabled=enabled)
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
         
         # 添加领域事件
         self._add_domain_event(DomainEvent(

@@ -12,13 +12,7 @@
 - 安全服务：处理JWT令牌和权限验证
 """
 
-from .application.identity_access_application_service import IdentityAccessApplicationService
-from .application.security_application_service import SecurityApplicationService
-from .domain.security_domain_service import SecurityDomainService
-from .infrastructure.jwt_service import JWTService
-from .converters.user_converter import UserConverter
-from .converters.role_converter import RoleConverter
-
+# 延迟导入避免循环依赖
 __all__ = [
     "IdentityAccessApplicationService",
     "SecurityApplicationService",
@@ -27,3 +21,26 @@ __all__ = [
     "UserConverter", 
     "RoleConverter"
 ]
+
+def __getattr__(name):
+    """延迟导入避免循环依赖"""
+    if name == "IdentityAccessApplicationService":
+        from .application.identity_access_application_service import IdentityAccessApplicationService
+        return IdentityAccessApplicationService
+    elif name == "SecurityApplicationService":
+        from .application.security_application_service import SecurityApplicationService
+        return SecurityApplicationService
+    elif name == "SecurityDomainService":
+        from .domain.security_domain_service import SecurityDomainService
+        return SecurityDomainService
+    elif name == "JWTService":
+        from .infrastructure.jwt_service import JWTService
+        return JWTService
+    elif name == "UserConverter":
+        from .converters.user_converter import UserConverter
+        return UserConverter
+    elif name == "RoleConverter":
+        from .converters.role_converter import RoleConverter
+        return RoleConverter
+    else:
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

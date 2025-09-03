@@ -5,11 +5,12 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 
-from app.identity_access.schemas.user import UserCreate, UserUpdate, UserResponse, RoleResponse
-from app.identity_access.schemas.token import Token, RefreshTokenRequest
-from app.identity_access.schemas.profile import LoginHistoryCreate
+if TYPE_CHECKING:
+    from app.identity_access.schemas.user import UserCreate, UserUpdate, UserResponse, RoleResponse
+    from app.identity_access.schemas.token import Token, RefreshTokenRequest
+    from app.identity_access.schemas.profile import LoginHistoryCreate
 
 
 class IIdentityAccessApplicationService(ABC):
@@ -19,18 +20,18 @@ class IIdentityAccessApplicationService(ABC):
     @abstractmethod
     async def create_user_use_case(
         self, 
-        user_data: UserCreate
-    ) -> UserResponse:
+        user_data: "UserCreate"
+    ) -> "UserResponse":
         """创建用户用例"""
         pass
     
     @abstractmethod
-    async def get_user_by_id_use_case(self, user_id: str) -> Optional[UserResponse]:
+    async def get_user_by_id_use_case(self, user_id: str) -> Optional["UserResponse"]:
         """根据ID获取用户用例"""
         pass
     
     @abstractmethod
-    async def get_user_by_email_use_case(self, email: str) -> Optional[UserResponse]:
+    async def get_user_by_email_use_case(self, email: str) -> Optional["UserResponse"]:
         """根据邮箱获取用户用例"""
         pass
     
@@ -38,8 +39,8 @@ class IIdentityAccessApplicationService(ABC):
     async def update_user_use_case(
         self, 
         user_id: str, 
-        user_data: UserUpdate
-    ) -> UserResponse:
+        user_data: "UserUpdate"
+    ) -> "UserResponse":
         """更新用户用例"""
         pass
     
@@ -54,7 +55,7 @@ class IIdentityAccessApplicationService(ABC):
         skip: int = 0, 
         limit: int = 100,
         filters: Optional[Dict[str, Any]] = None
-    ) -> List[UserResponse]:
+    ) -> List["UserResponse"]:
         """获取用户列表用例"""
         pass
     
@@ -66,15 +67,15 @@ class IIdentityAccessApplicationService(ABC):
         password: str,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None
-    ) -> Token:
+    ) -> "Token":
         """用户登录用例"""
         pass
     
     @abstractmethod
     async def refresh_token_use_case(
         self, 
-        refresh_token_request: RefreshTokenRequest
-    ) -> Token:
+        refresh_token_request: "RefreshTokenRequest"
+    ) -> "Token":
         """刷新令牌用例"""
         pass
     
@@ -94,7 +95,7 @@ class IIdentityAccessApplicationService(ABC):
         self, 
         user_id: str, 
         target_role: str
-    ) -> Token:
+    ) -> "Token":
         """切换用户角色用例"""
         pass
     
@@ -109,7 +110,7 @@ class IIdentityAccessApplicationService(ABC):
     
     # 角色管理用例
     @abstractmethod
-    async def get_all_roles_use_case(self) -> List[RoleResponse]:
+    async def get_all_roles_use_case(self) -> List["RoleResponse"]:
         """获取所有角色用例"""
         pass
     
@@ -118,7 +119,7 @@ class IIdentityAccessApplicationService(ABC):
         self, 
         name: str, 
         description: Optional[str] = None
-    ) -> RoleResponse:
+    ) -> "RoleResponse":
         """创建角色用例"""
         pass
     
@@ -144,7 +145,7 @@ class IIdentityAccessApplicationService(ABC):
     @abstractmethod
     async def create_login_history_use_case(
         self, 
-        login_data: LoginHistoryCreate
+        login_data: "LoginHistoryCreate"
     ) -> bool:
         """创建登录历史用例"""
         pass

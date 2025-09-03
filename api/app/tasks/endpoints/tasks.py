@@ -14,7 +14,8 @@ from app.tasks.schemas.task import (
     CreateTaskRequest,
     UpdateTaskRequest,
 )
-from app.tasks.domain.task_service import TaskService
+from app.tasks.application.task_application_service import TaskApplicationService
+from app.tasks.deps.tasks import get_task_application_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -37,21 +38,23 @@ async def get_tasks(
     search: Optional[str] = Query(None, description="搜索关键词"),
     user_role: Optional[str] = Query(None, description="用户角色（用于筛选）"),
     current_user: User = Depends(get_current_user),
+    task_app_service: TaskApplicationService = Depends(get_task_application_service),
     db: Session = Depends(get_db)
 ):
-    """获取待办任务列表"""
+    """获取待办任务列表 - 表现层只负责请求路由和响应格式化"""
     try:
         # 获取用户角色
         actual_user_role = user_role or get_user_role(current_user)
         
-        service = TaskService(db)
-        tasks = service.get_tasks_for_user(
-            user_id=current_user.id,
+        # 调用应用服务用例
+        tasks = task_app_service.get_tasks_for_user_use_case(
+            user_id=str(current_user.id),
             user_role=actual_user_role,
             status=status,
             task_type=task_type,
             priority=priority,
-            search=search
+            search=search,
+            db=db
         )
         
         return {
@@ -60,26 +63,33 @@ async def get_tasks(
             "message": "获取任务列表成功"
         }
         
+    except ValueError as e:
+        # 业务逻辑错误 - 400 Bad Request
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        # 系统错误 - 500 Internal Server Error
         logger.error(f"获取任务列表失败: {e}")
-        return {
-            "success": False,
-            "data": [],
-            "message": f"获取任务列表失败: {str(e)}"
-        }
+        raise HTTPException(status_code=500, detail="获取任务列表失败")
 
 
 @router.get("/{task_id}", response_model=TaskResponse)
 async def get_task(
     task_id: str,
     current_user: User = Depends(get_current_user),
+    task_app_service: TaskApplicationService = Depends(get_task_application_service),
     db: Session = Depends(get_db)
 ):
-    """获取任务详情"""
+    """获取任务详情 - 表现层只负责请求路由和响应格式化"""
     try:
         user_role = get_user_role(current_user)
-        service = TaskService(db)
-        task = service.get_task_by_id(task_id, current_user.id, user_role)
+        
+        # 调用应用服务用例
+        task = task_app_service.get_task_by_id_use_case(
+            task_id=task_id,
+            user_id=str(current_user.id),
+            user_role=user_role,
+            db=db
+        )
         
         if not task:
             raise HTTPException(
@@ -91,45 +101,57 @@ async def get_task(
         
     except HTTPException:
         raise
+    except ValueError as e:
+        # 业务逻辑错误 - 400 Bad Request
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        # 系统错误 - 500 Internal Server Error
         logger.error(f"获取任务详情失败: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="获取任务详情失败"
-        )
+        raise HTTPException(status_code=500, detail="获取任务详情失败")
 
 
 @router.post("/", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
 async def create_task(
     data: CreateTaskRequest,
     current_user: User = Depends(get_current_user),
+    task_app_service: TaskApplicationService = Depends(get_task_application_service),
     db: Session = Depends(get_db)
 ):
-    """创建待办任务"""
+    """创建待办任务 - 表现层只负责请求路由和响应格式化"""
     try:
-        service = TaskService(db)
-        task = service.create_task(current_user.id, data)
+        # 调用应用服务用例
+        task = task_app_service.create_task_use_case(
+            user_id=str(current_user.id),
+            data=data,
+            db=db
+        )
         
         return task
         
+    except ValueError as e:
+        # 业务逻辑错误 - 400 Bad Request
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        # 系统错误 - 500 Internal Server Error
         logger.error(f"创建任务失败: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"创建任务失败: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail="创建任务失败")
 
 
 @router.post("/{task_id}/claim", response_model=TaskResponse)
 async def claim_task(
     task_id: str,
     current_user: User = Depends(get_current_user),
+    task_app_service: TaskApplicationService = Depends(get_task_application_service),
     db: Session = Depends(get_db)
 ):
-    """认领任务"""
+    """认领任务 - 表现层只负责请求路由和响应格式化"""
     try:
-        service = TaskService(db)
-        task = service.claim_task(task_id, current_user.id)
+        # 调用应用服务用例
+        task = task_app_service.claim_task_use_case(
+            task_id=task_id,
+            user_id=str(current_user.id),
+            db=db
+        )
         
         if not task:
             raise HTTPException(
@@ -141,12 +163,13 @@ async def claim_task(
         
     except HTTPException:
         raise
+    except ValueError as e:
+        # 业务逻辑错误 - 400 Bad Request
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        # 系统错误 - 500 Internal Server Error
         logger.error(f"认领任务失败: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"认领任务失败: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail="认领任务失败")
 
 
 @router.put("/{task_id}", response_model=TaskResponse)
@@ -154,13 +177,21 @@ async def update_task(
     task_id: str,
     data: UpdateTaskRequest,
     current_user: User = Depends(get_current_user),
+    task_app_service: TaskApplicationService = Depends(get_task_application_service),
     db: Session = Depends(get_db)
 ):
-    """更新任务状态"""
+    """更新任务状态 - 表现层只负责请求路由和响应格式化"""
     try:
         user_role = get_user_role(current_user)
-        service = TaskService(db)
-        task = service.update_task_status(task_id, current_user.id, user_role, data)
+        
+        # 调用应用服务用例
+        task = task_app_service.update_task_status_use_case(
+            task_id=task_id,
+            user_id=str(current_user.id),
+            user_role=user_role,
+            data=data,
+            db=db
+        )
         
         if not task:
             raise HTTPException(
@@ -172,9 +203,10 @@ async def update_task(
         
     except HTTPException:
         raise
+    except ValueError as e:
+        # 业务逻辑错误 - 400 Bad Request
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        # 系统错误 - 500 Internal Server Error
         logger.error(f"更新任务失败: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"更新任务失败: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail="更新任务失败")

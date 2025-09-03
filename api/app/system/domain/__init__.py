@@ -11,7 +11,7 @@ from .value_objects.system_config import (
     AIModelConfig
 )
 from .system_domain_service import SystemDomainService
-from .exceptions import SystemConfigurationError, MaintenanceModeError
+from .exceptions import SystemSettingsError, MaintenanceModeError
 
 __all__ = [
     "SystemSettings",
@@ -21,6 +21,6 @@ __all__ = [
     "UserRegistrationConfig",
     "AIModelConfig",
     "SystemDomainService",
-    "SystemConfigurationError",
+    "SystemSettingsError",
     "MaintenanceModeError"
 ]

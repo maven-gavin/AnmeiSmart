@@ -12,7 +12,6 @@ from app.customer.infrastructure.repositories.customer_profile_repository import
 from app.customer.converters.customer_converter import CustomerConverter
 from app.customer.converters.customer_profile_converter import CustomerProfileConverter
 from app.customer.schemas.customer import CustomerInfo, CustomerProfileInfo, CustomerProfileCreate, CustomerProfileUpdate
-from app.identity_access.infrastructure.db.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ class CustomerApplicationService:
             if not customer:
                 raise ValueError("客户不存在")
             
-            # 获取用户信息
+            # 获取用户信息 - 延迟导入避免循环依赖
             from app.identity_access.infrastructure.db.user import User
             user = self.customer_repository.db.query(User).filter(User.id == customer_id).first()
             if not user:
@@ -309,7 +308,7 @@ class CustomerApplicationService:
     
     # 辅助方法
     
-    def get_user_role(self, user: User) -> str:
+    def get_user_role(self, user: "User") -> str:
         """获取用户的当前角色"""
         if hasattr(user, '_active_role') and user._active_role:
             return user._active_role
@@ -318,7 +317,7 @@ class CustomerApplicationService:
         else:
             return 'customer'  # 默认角色
     
-    def check_permission(self, user: User, required_roles: List[str]) -> bool:
+    def check_permission(self, user: "User", required_roles: List[str]) -> bool:
         """检查用户权限"""
         user_role = self.get_user_role(user)
         return user_role in required_roles

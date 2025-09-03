@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.customer.domain.entities.customer import Customer
 from app.customer.infrastructure.db.customer import Customer as CustomerModel
-from app.identity_access.infrastructure.db.user import User
 
 
 class CustomerRepository:
@@ -76,6 +75,9 @@ class CustomerRepository:
     
     async def get_customers_with_users(self, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
         """获取客户列表，包含用户信息和聊天统计"""
+        # 延迟导入避免循环依赖
+        from app.identity_access.infrastructure.db.user import User
+        
         # 查询客户用户
         customers_query = self.db.query(User).join(User.roles).filter(
             User.is_active == True

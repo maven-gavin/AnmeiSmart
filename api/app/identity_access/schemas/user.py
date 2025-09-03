@@ -1,8 +1,10 @@
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
-from app.customer.schemas.customer import CustomerBase
 from app.identity_access.domain.enums import AdminLevel
+
+if TYPE_CHECKING:
+    from app.customer.schemas.customer import CustomerBase
 
 class RoleBase(BaseModel):
     """角色基础模型"""
@@ -60,7 +62,7 @@ class UserCreate(UserBase):
     """用户创建模型"""
     password: str = Field(..., min_length=8)
     roles: List[str] = ["customer"]  # 默认为客户角色
-    customer_info: Optional[CustomerBase] = None
+    customer_info: Optional["CustomerBase"] = None
     doctor_info: Optional[DoctorBase] = None
     consultant_info: Optional[ConsultantBase] = None
     operator_info: Optional[OperatorBase] = None
@@ -74,7 +76,7 @@ class UserUpdate(BaseModel):
     phone: Optional[str] = None
     avatar: Optional[str] = None
     roles: Optional[List[str]] = None
-    customer_info: Optional[CustomerBase] = None
+    customer_info: Optional["CustomerBase"] = None
     doctor_info: Optional[DoctorBase] = None
     consultant_info: Optional[ConsultantBase] = None
     operator_info: Optional[OperatorBase] = None
@@ -82,7 +84,7 @@ class UserUpdate(BaseModel):
 
 class ExtendedUserInfo(BaseModel):
     """扩展用户信息，包含角色特定信息"""
-    customer_info: Optional[CustomerBase] = None
+    customer_info: Optional["CustomerBase"] = None
     doctor_info: Optional[DoctorBase] = None
     consultant_info: Optional[ConsultantBase] = None
     operator_info: Optional[OperatorBase] = None
