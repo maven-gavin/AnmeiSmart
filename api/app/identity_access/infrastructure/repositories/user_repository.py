@@ -294,8 +294,6 @@ class UserRepository(IUserRepository):
                 "notification_enabled": preferences.notification_enabled,
                 "email_notification": preferences.email_notification,
                 "push_notification": preferences.push_notification,
-                "language": preferences.language,
-                "timezone": preferences.timezone,
                 "created_at": preferences.created_at,
                 "updated_at": preferences.updated_at
             }
@@ -310,8 +308,6 @@ class UserRepository(IUserRepository):
                 notification_enabled=preferences.get("notification_enabled", True),
                 email_notification=preferences.get("email_notification", True),
                 push_notification=preferences.get("push_notification", True),
-                language=preferences.get("language", "zh-CN"),
-                timezone=preferences.get("timezone", "Asia/Shanghai")
             )
             
             self.db.add(user_preferences)
@@ -324,8 +320,6 @@ class UserRepository(IUserRepository):
                 "notification_enabled": user_preferences.notification_enabled,
                 "email_notification": user_preferences.email_notification,
                 "push_notification": user_preferences.push_notification,
-                "language": user_preferences.language,
-                "timezone": user_preferences.timezone,
                 "created_at": user_preferences.created_at,
                 "updated_at": user_preferences.updated_at
             }
@@ -359,8 +353,6 @@ class UserRepository(IUserRepository):
                 "notification_enabled": user_preferences.notification_enabled,
                 "email_notification": user_preferences.email_notification,
                 "push_notification": user_preferences.push_notification,
-                "language": user_preferences.language,
-                "timezone": user_preferences.timezone,
                 "created_at": user_preferences.created_at,
                 "updated_at": user_preferences.updated_at
             }

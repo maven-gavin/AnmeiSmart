@@ -3,8 +3,7 @@ from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
 from app.identity_access.domain.enums import AdminLevel
 
-if TYPE_CHECKING:
-    from app.customer.schemas.customer import CustomerBase
+from app.customer.schemas.customer import CustomerBase
 
 class RoleBase(BaseModel):
     """角色基础模型"""
@@ -18,16 +17,6 @@ class RoleCreate(RoleBase):
 class RoleResponse(RoleBase):
     """API响应中的角色模型"""
     id: str
-
-    @classmethod
-    def from_orm(cls, role):
-        return cls(
-            id=role.id,
-            name=role.name,
-            description=role.description
-        )
-
-    model_config = ConfigDict(from_attributes=True)
 
 class UserBase(BaseModel):
     """用户基础模型"""
@@ -62,7 +51,7 @@ class UserCreate(UserBase):
     """用户创建模型"""
     password: str = Field(..., min_length=8)
     roles: List[str] = ["customer"]  # 默认为客户角色
-    customer_info: Optional["CustomerBase"] = None
+    customer_info: Optional[CustomerBase] = None
     doctor_info: Optional[DoctorBase] = None
     consultant_info: Optional[ConsultantBase] = None
     operator_info: Optional[OperatorBase] = None
@@ -76,7 +65,7 @@ class UserUpdate(BaseModel):
     phone: Optional[str] = None
     avatar: Optional[str] = None
     roles: Optional[List[str]] = None
-    customer_info: Optional["CustomerBase"] = None
+    customer_info: Optional[CustomerBase] = None
     doctor_info: Optional[DoctorBase] = None
     consultant_info: Optional[ConsultantBase] = None
     operator_info: Optional[OperatorBase] = None
@@ -84,7 +73,7 @@ class UserUpdate(BaseModel):
 
 class ExtendedUserInfo(BaseModel):
     """扩展用户信息，包含角色特定信息"""
-    customer_info: Optional["CustomerBase"] = None
+    customer_info: Optional[CustomerBase] = None
     doctor_info: Optional[DoctorBase] = None
     consultant_info: Optional[ConsultantBase] = None
     operator_info: Optional[OperatorBase] = None
@@ -95,48 +84,11 @@ class UserResponse(UserBase):
     id: str
     created_at: datetime
     updated_at: datetime
+    last_login_at: Optional[datetime] = None
     roles: List[str] = []
     active_role: Optional[str] = None
     extended_info: Optional[ExtendedUserInfo] = None
 
-    @staticmethod
-    def from_model(user, active_role=None) -> "UserResponse":
-        extended_info = ExtendedUserInfo()
-        if getattr(user, 'doctor', None):
-            extended_info.doctor_info = DoctorBase(
-                specialization=user.doctor.specialization,
-                certification=user.doctor.certification,
-                license_number=user.doctor.license_number
-            )
-        if getattr(user, 'consultant', None):
-            extended_info.consultant_info = ConsultantBase(
-                expertise=user.consultant.expertise,
-                performance_metrics=user.consultant.performance_metrics
-            )
-        if getattr(user, 'operator', None):
-            extended_info.operator_info = OperatorBase(
-                department=user.operator.department,
-                responsibilities=user.operator.responsibilities
-            )
-        if getattr(user, 'administrator', None):
-            extended_info.administrator_info = AdministratorBase(
-                admin_level=user.administrator.admin_level,
-                access_permissions=user.administrator.access_permissions
-            )
-        active_role = active_role or (user.roles[0].name if getattr(user, 'roles', None) else None)
-        return UserResponse(
-            id=user.id,
-            email=user.email,
-            username=user.username, 
-            phone=user.phone,
-            avatar=user.avatar,
-            is_active=user.is_active,
-            created_at=user.created_at,
-            updated_at=user.updated_at,
-            roles=[role.name for role in user.roles] if getattr(user, 'roles', None) else [],
-            active_role=active_role,
-            extended_info=extended_info
-        )
 
 class SwitchRoleRequest(BaseModel):
     """角色切换请求模型"""

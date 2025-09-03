@@ -22,7 +22,21 @@ class UserConverter(IUserConverter):
         """转换用户实体为响应格式"""
         # 如果没有提供active_role，使用用户的第一个角色作为默认角色
         if active_role is None and user.roles:
-            active_role = list(user.roles)[0]
+            # 确保与UserResponse.from_model的逻辑一致
+            first_role = list(user.roles)[0]
+            if hasattr(first_role, 'name'):
+                active_role = first_role.name
+            else:
+                active_role = str(first_role)
+        
+        # 处理角色，确保与UserResponse.from_model的逻辑一致
+        roles_list = []
+        if user.roles:
+            for role in user.roles:
+                if hasattr(role, 'name'):
+                    roles_list.append(role.name)
+                else:
+                    roles_list.append(str(role))
         
         return UserResponse(
             id=user.id,
@@ -31,11 +45,12 @@ class UserConverter(IUserConverter):
             phone=user.phone,
             avatar=user.avatar,
             is_active=user.status.to_bool(),
-            roles=list(user.roles),
+            roles=roles_list,
             active_role=active_role,
             created_at=user.created_at,
             updated_at=user.updated_at,
-            last_login_at=user.last_login_at
+            last_login_at=user.last_login_at,
+            extended_info=None  # 暂时设为None，避免前向引用问题
         )
     
     @staticmethod

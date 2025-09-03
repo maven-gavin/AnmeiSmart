@@ -517,32 +517,35 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
     ) -> UserPreferencesInfo:
         """创建用户偏好设置用例"""
         try:
-            # 延迟导入避免循环依赖
-            from app.identity_access.infrastructure.db.profile import UserPreferences
-            from app.common.infrastructure.db.base import get_db
-            
-            db = next(get_db())
-            
-            # 检查用户是否存在
+            # 1. 验证用户是否存在
             user = await self.user_repository.get_by_id(user_id)
             if not user:
                 raise ValueError("用户不存在")
             
-            # 创建偏好设置
-            preferences = UserPreferences(
-                user_id=user_id,
-                notification_enabled=preferences_data.notification_enabled,
-                email_notification=preferences_data.email_notification,
-                push_notification=preferences_data.push_notification,
-                language=preferences_data.language,
-                timezone=preferences_data.timezone
+            # 2. 检查用户是否已有偏好设置
+            existing_preferences = await self.user_repository.get_user_preferences(user_id)
+            if existing_preferences:
+                raise ValueError("用户偏好设置已存在")
+            
+            # 3. 创建偏好设置数据
+            preferences_dict = {
+                "notification_enabled": preferences_data.notification_enabled,
+                "email_notification": preferences_data.email_notification,
+                "push_notification": preferences_data.push_notification
+            }
+            
+            # 4. 通过仓储保存偏好设置
+            saved_preferences = await self.user_repository.save_user_preferences(user_id, preferences_dict)
+            
+            # 5. 转换为响应格式
+            return UserPreferencesInfo(
+                user_id=saved_preferences["user_id"],
+                notification_enabled=saved_preferences["notification_enabled"],
+                email_notification=saved_preferences["email_notification"],
+                push_notification=saved_preferences["push_notification"],
+                created_at=saved_preferences.get("created_at"),
+                updated_at=saved_preferences.get("updated_at")
             )
-            
-            db.add(preferences)
-            db.commit()
-            db.refresh(preferences)
-            
-            return UserPreferencesInfo.from_model(preferences)
             
         except ValueError as e:
             logger.warning(f"创建用户偏好设置失败: {str(e)}")
@@ -558,31 +561,37 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
     ) -> UserPreferencesInfo:
         """更新用户偏好设置用例"""
         try:
-            # 延迟导入避免循环依赖
-            from app.identity_access.infrastructure.db.profile import UserPreferences
-            from app.common.infrastructure.db.base import get_db
+            # 1. 验证用户是否存在
+            user = await self.user_repository.get_by_id(user_id)
+            if not user:
+                raise ValueError("用户不存在")
             
-            db = next(get_db())
-            
-            # 获取现有偏好设置
-            preferences = db.query(UserPreferences).filter(
-                UserPreferences.user_id == user_id
-            ).first()
-            
-            if not preferences:
+            # 2. 获取现有偏好设置
+            existing_preferences = await self.user_repository.get_user_preferences(user_id)
+            if not existing_preferences:
                 raise ValueError("用户偏好设置不存在")
             
-            # 更新偏好设置
-            update_data = preferences_data.model_dump(exclude_unset=True)
-            for key, value in update_data.items():
-                setattr(preferences, key, value)
+            # 3. 准备更新数据
+            update_data = {}
+            if preferences_data.notification_enabled is not None:
+                update_data["notification_enabled"] = preferences_data.notification_enabled
+            if preferences_data.email_notification is not None:
+                update_data["email_notification"] = preferences_data.email_notification
+            if preferences_data.push_notification is not None:
+                update_data["push_notification"] = preferences_data.push_notification
             
-            preferences.updated_at = datetime.now()
+            # 4. 通过仓储更新偏好设置
+            updated_preferences = await self.user_repository.update_user_preferences(user_id, update_data)
             
-            db.commit()
-            db.refresh(preferences)
-            
-            return UserPreferencesInfo.from_model(preferences)
+            # 5. 转换为响应格式
+            return UserPreferencesInfo(
+                user_id=updated_preferences["user_id"],
+                notification_enabled=updated_preferences["notification_enabled"],
+                email_notification=updated_preferences["email_notification"],
+                push_notification=updated_preferences["push_notification"],
+                created_at=updated_preferences.get("created_at"),
+                updated_at=updated_preferences.get("updated_at")
+            )
             
         except ValueError as e:
             logger.warning(f"更新用户偏好设置失败: {str(e)}")
@@ -729,8 +738,6 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
                 notification_enabled=preferences_data["notification_enabled"],
                 email_notification=preferences_data["email_notification"],
                 push_notification=preferences_data["push_notification"],
-                language=preferences_data["language"],
-                timezone=preferences_data["timezone"],
                 created_at=preferences_data["created_at"],
                 updated_at=preferences_data["updated_at"]
             )
