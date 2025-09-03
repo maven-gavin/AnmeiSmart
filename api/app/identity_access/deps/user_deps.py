@@ -1,5 +1,5 @@
 """
-身份访问模块依赖注入配置
+用户相关依赖注入配置
 
 遵循 @ddd_service_schema.mdc 第3章依赖注入配置规范：
 - 使用FastAPI的依赖注入避免循环依赖
@@ -8,7 +8,6 @@
 - 生命周期管理：合理管理依赖的作用域
 """
 
-from typing import Optional
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
@@ -52,3 +51,11 @@ def get_identity_access_application_service(
         user_repository=user_repository,
         role_repository=role_repository
     )
+
+
+# 导出所有依赖函数
+__all__ = [
+    "get_user_repository",
+    "get_role_repository", 
+    "get_identity_access_application_service"
+]

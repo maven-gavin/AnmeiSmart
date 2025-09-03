@@ -1,29 +1,32 @@
 """
-安全相关依赖注入配置
+认证授权相关依赖注入配置
 
-提供安全服务的依赖注入函数。
-遵循DDD分层架构，从identity_access.py导入基础依赖。
+整合认证、授权、权限检查等所有安全相关功能。
+遵循DDD分层架构，避免功能重复和循环依赖。
 """
 
-from typing import Optional, List
+from typing import List, Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session
+import logging
 
 from app.core.config import get_settings
-from app.common.infrastructure.db.base import get_db
 from app.identity_access.infrastructure.db.user import User
 from app.identity_access.infrastructure.jwt_service import JWTService
 from app.identity_access.domain.security_domain_service import SecurityDomainService
 from app.identity_access.application.security_application_service import SecurityApplicationService
 
-# 从核心依赖模块导入基础依赖
-from .identity_access import get_user_repository
+# 从用户依赖模块导入基础依赖
+from .user_deps import get_user_repository
+
+logger = logging.getLogger(__name__)
 
 # 获取配置
 settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
+
+# ==================== 服务依赖注入 ====================
 
 def get_jwt_service() -> JWTService:
     """获取JWT服务实例"""
@@ -45,7 +48,8 @@ def get_security_application_service(
     return SecurityApplicationService(security_domain_service)
 
 
-# 核心认证依赖函数
+# ==================== 核心认证依赖 ====================
+
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     security_app_service: SecurityApplicationService = Depends(get_security_application_service)
@@ -64,26 +68,6 @@ async def get_current_user(
         HTTPException: 如果认证失败或用户不存在
     """
     return await security_app_service.get_current_user_use_case(token)
-
-
-def check_role_permission(required_roles: Optional[List[str]] = None):
-    """
-    检查用户是否有所需角色的装饰器工厂函数
-    
-    Args:
-        required_roles: 所需的角色列表
-        
-    Returns:
-        函数: 检查用户角色的依赖函数
-    """
-    async def check_permission(
-        current_user: User = Depends(get_current_user),
-        security_app_service: SecurityApplicationService = Depends(get_security_application_service)
-    ):
-        """检查用户权限的依赖函数"""
-        return await security_app_service.check_role_permission_use_case(current_user, required_roles)
-    
-    return check_permission
 
 
 async def get_current_admin(
@@ -106,7 +90,97 @@ async def get_current_admin(
     return await security_app_service.get_current_admin_use_case(current_user)
 
 
-# 向后兼容的函数 - 从原security.py迁移
+# ==================== 权限检查工具函数 ====================
+
+def get_user_roles(user: User) -> List[str]:
+    """获取用户角色列表"""
+    roles = [role.name for role in user.roles]
+    logger.debug(f"用户 {user.id} 的角色: {roles}")
+    return roles
+
+
+def check_user_has_role(user: User, role_name: str) -> bool:
+    """检查用户是否有指定角色"""
+    has_role = any(role.name == role_name for role in user.roles)
+    logger.debug(f"检查用户 {user.id} 是否有角色 {role_name}: {has_role}")
+    return has_role
+
+
+# ==================== 权限检查依赖函数 ====================
+
+def require_role(role_name: str):
+    """
+    要求用户具有指定角色的装饰器工厂函数
+    
+    Args:
+        role_name: 所需的角色名称
+        
+    Returns:
+        函数: 检查用户角色的依赖函数
+    """
+    async def check_role(
+        current_user: User = Depends(get_current_user)
+    ) -> User:
+        """检查用户是否有指定角色"""
+        if not check_user_has_role(current_user, role_name):
+            logger.warning(f"权限不足: 用户 {current_user.id} 缺少角色 {role_name}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"需要角色权限: {role_name}",
+            )
+        return current_user
+    
+    return check_role
+
+
+def require_any_role(role_names: List[str]):
+    """
+    要求用户具有指定角色列表中任一角色的装饰器工厂函数
+    
+    Args:
+        role_names: 所需的角色名称列表
+        
+    Returns:
+        函数: 检查用户角色的依赖函数
+    """
+    async def check_any_role(
+        current_user: User = Depends(get_current_user)
+    ) -> User:
+        """检查用户是否有指定角色列表中的任一角色"""
+        user_roles = get_user_roles(current_user)
+        if not any(role in user_roles for role in role_names):
+            logger.warning(f"权限不足: 用户 {current_user.id} 缺少所需角色 {role_names}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"需要以下角色之一: {', '.join(role_names)}",
+            )
+        return current_user
+    
+    return check_any_role
+
+
+def check_role_permission(required_roles: Optional[List[str]] = None):
+    """
+    检查用户是否有所需角色的装饰器工厂函数
+    
+    Args:
+        required_roles: 所需的角色列表
+        
+    Returns:
+        函数: 检查用户角色的依赖函数
+    """
+    async def check_permission(
+        current_user: User = Depends(get_current_user),
+        security_app_service: SecurityApplicationService = Depends(get_security_application_service)
+    ):
+        """检查用户权限的依赖函数"""
+        return await security_app_service.check_role_permission_use_case(current_user, required_roles)
+    
+    return check_permission
+
+
+# ==================== 向后兼容函数 ====================
+
 def verify_token(token: str) -> Optional[str]:
     """
     验证JWT令牌并提取用户ID - 向后兼容函数
@@ -164,15 +238,31 @@ def create_refresh_token(
     return jwt_service.create_refresh_token(subject, expires_delta, active_role)
 
 
-# 导出所有依赖函数
+# ==================== 导出所有依赖函数 ====================
+
 __all__ = [
+    # OAuth2配置
     "oauth2_scheme",
+    
+    # 服务依赖
     "get_jwt_service",
     "get_security_domain_service", 
     "get_security_application_service",
+    
+    # 核心认证
     "get_current_user",
-    "check_role_permission",
     "get_current_admin",
+    
+    # 权限检查工具
+    "get_user_roles",
+    "check_user_has_role",
+    
+    # 权限检查依赖
+    "require_role",
+    "require_any_role",
+    "check_role_permission",
+    
+    # 向后兼容函数
     "verify_token",
     "create_access_token",
     "create_refresh_token"

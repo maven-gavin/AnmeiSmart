@@ -6,7 +6,7 @@ import logging
 from app.core.config import get_settings
 from app.identity_access.deps import get_current_user
 from app.identity_access.infrastructure.db.user import User
-from app.identity_access.deps.identity_access import get_identity_access_application_service
+from app.identity_access.deps import get_identity_access_application_service
 from app.identity_access.application import IdentityAccessApplicationService
 from app.identity_access.schemas.token import Token, RefreshTokenRequest
 from app.identity_access.schemas.user import UserCreate, UserUpdate, UserResponse, SwitchRoleRequest
