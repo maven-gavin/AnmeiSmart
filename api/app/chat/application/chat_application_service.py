@@ -131,13 +131,13 @@ class ChatApplicationService(IChatApplicationService):
 
             # 2. 获取最后消息和未读数
             conversation_ids = [str(conv.id) for conv in conversations]
-            last_messages = await self.conversation_repository.get_last_messages(conversation_ids)
+            last_messages_with_senders = await self.conversation_repository.get_last_messages(conversation_ids)
             unread_counts = await self.conversation_repository.get_unread_counts(conversation_ids, user_id)
 
             # 3. 转换为响应Schema列表
             return ConversationConverter.to_list_response(
                 conversations=conversations,
-                last_messages=last_messages,
+                last_messages_with_senders=last_messages_with_senders,
                 unread_counts=unread_counts
             )
 
@@ -170,7 +170,7 @@ class ChatApplicationService(IChatApplicationService):
                 return None
 
             # 3. 获取最后消息
-            last_message = await self.conversation_repository.get_last_message_with_sender(conversation_id)
+            last_message, sender_user, sender_digital_human = await self.conversation_repository.get_last_message_with_sender(conversation_id)
 
             # 4. 获取未读数
             unread_count = await self.conversation_repository.get_unread_count(conversation_id, user_id)
@@ -179,7 +179,9 @@ class ChatApplicationService(IChatApplicationService):
             conversation_info = ConversationConverter.to_response(
                 conversation=conversation,
                 last_message=last_message,
-                unread_count=unread_count
+                unread_count=unread_count,
+                sender_user=sender_user,
+                sender_digital_human=sender_digital_human
             )
             return conversation_info
 

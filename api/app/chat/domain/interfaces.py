@@ -80,7 +80,7 @@ class IConversationRepository(ABC):
         pass
     
     @abstractmethod
-    async def get_last_messages(self, conversation_ids: List[str]) -> Dict[str, Any]:
+    async def get_last_messages(self, conversation_ids: List[str]) -> Dict[str, tuple[Optional[Any], Optional[Any], Optional[Any]]]:
         """批量获取会话的最后消息"""
         pass
     

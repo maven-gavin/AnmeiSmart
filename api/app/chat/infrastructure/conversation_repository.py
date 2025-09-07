@@ -190,8 +190,8 @@ class ConversationRepository(IConversationRepository):
         
         return message, message_model.sender, message_model.sender_digital_human
     
-    async def get_last_messages(self, conversation_ids: List[str]) -> Dict[str, Message]:
-        """批量获取会话的最后消息"""
+    async def get_last_messages(self, conversation_ids: List[str]) -> Dict[str, tuple[Optional[Message], Optional[Any], Optional[Any]]]:
+        """批量获取会话的最后消息及发送者信息"""
         if not conversation_ids:
             return {}
         
@@ -204,7 +204,10 @@ class ConversationRepository(IConversationRepository):
             MessageModel.conversation_id.in_(conversation_ids)
         ).group_by(MessageModel.conversation_id).subquery()
         
-        message_models = self.db.query(MessageModel).join(
+        message_models = self.db.query(MessageModel).options(
+            joinedload(MessageModel.sender),
+            joinedload(MessageModel.sender_digital_human)
+        ).join(
             subquery,
             and_(
                 MessageModel.conversation_id == subquery.c.conversation_id,
@@ -230,7 +233,7 @@ class ConversationRepository(IConversationRepository):
                 created_at=msg_model.created_at,
                 updated_at=msg_model.updated_at
             )
-            result[str(msg_model.conversation_id)] = message
+            result[str(msg_model.conversation_id)] = (message, msg_model.sender, msg_model.sender_digital_human)
         
         return result
     

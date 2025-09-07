@@ -41,18 +41,32 @@ class ConversationConverter:
         )
     
     @staticmethod
-    def to_list_response(conversations: List[Conversation], last_messages: Optional[Dict[str, Message]] = None, unread_counts: Optional[Dict[str, int]] = None) -> List[ConversationInfo]:
+    def to_list_response(conversations: List[Conversation], last_messages_with_senders: Optional[Dict[str, tuple]] = None, unread_counts: Optional[Dict[str, int]] = None) -> List[ConversationInfo]:
         """将领域实体列表转换为响应Schema列表"""
-        if not last_messages:
-            last_messages = {}
+        if not last_messages_with_senders:
+            last_messages_with_senders = {}
         if not unread_counts:
             unread_counts = {}
         
         result = []
         for conv in conversations:
-            last_msg = last_messages.get(str(conv.id))
+            last_msg_data = last_messages_with_senders.get(str(conv.id))
             unread_count = unread_counts.get(str(conv.id), 0)
-            conv_info = ConversationConverter.to_response(conv, last_msg, unread_count)
+            
+            # 解包元组数据
+            last_msg = None
+            sender_user = None
+            sender_digital_human = None
+            if last_msg_data:
+                last_msg, sender_user, sender_digital_human = last_msg_data
+            
+            conv_info = ConversationConverter.to_response(
+                conv, 
+                last_msg, 
+                unread_count,
+                sender_user,
+                sender_digital_human
+            )
             if conv_info:
                 result.append(conv_info)
         
