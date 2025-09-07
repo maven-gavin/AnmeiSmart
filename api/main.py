@@ -20,6 +20,16 @@ from app.websocket.broadcasting_factory import cleanup_broadcasting_services
 # MessageBroadcaster会在需要时自动初始化
 
 settings = get_settings()
+
+# 配置日志级别为DEBUG，确保调试日志能够正确输出
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+
 logger = logging.getLogger(__name__)
 
 # 定义应用生命周期管理器

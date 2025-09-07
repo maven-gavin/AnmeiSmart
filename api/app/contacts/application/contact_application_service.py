@@ -48,38 +48,66 @@ class ContactApplicationService(IContactApplicationService):
     ) -> PaginatedFriendsResponse:
         """获取好友列表用例"""
         try:
+            logger.info(f"开始获取好友列表: user_id={user_id}, view={view}, tags={tags}, groups={groups}, search={search}, status={status}, sort_by={sort_by}, sort_order={sort_order}, page={page}, size={size}")
+            
             # 获取用户的所有好友关系
+            logger.debug(f"从仓储获取用户好友关系: user_id={user_id}")
             friendships = await self.contact_repository.get_friendships_by_user_id(user_id)
+            logger.info(f"获取到好友关系数量: {len(friendships)}")
+            
+            # 记录每个好友关系的基本信息
+            for i, friendship in enumerate(friendships):
+                logger.debug(f"好友关系[{i}]: id={friendship.id}, user_id={friendship.user_id}, friend_id={friendship.friend_id}, status={friendship.status}")
+                if friendship.friend:
+                    logger.debug(f"  好友信息: id={friendship.friend.id}, username={friendship.friend.username}, avatar={friendship.friend.avatar}")
+                else:
+                    logger.warning(f"  好友关系 {friendship.id} 缺少friend对象")
             
             # 应用筛选条件
+            logger.debug(f"应用筛选条件: view={view}, tags={tags}, groups={groups}, search={search}, status={status}")
             filtered_friendships = await self._apply_friendship_filters(
                 friendships, view, tags, groups, search, status
             )
+            logger.info(f"筛选后好友关系数量: {len(filtered_friendships)}")
             
             # 应用排序
+            logger.debug(f"应用排序: sort_by={sort_by}, sort_order={sort_order}")
             sorted_friendships = await self._apply_friendship_sorting(
                 filtered_friendships, sort_by, sort_order
             )
+            logger.info(f"排序后好友关系数量: {len(sorted_friendships)}")
             
             # 应用分页
             total = len(sorted_friendships)
             start_idx = (page - 1) * size
             end_idx = start_idx + size
             paged_friendships = sorted_friendships[start_idx:end_idx]
+            logger.info(f"分页结果: total={total}, page={page}, size={size}, start_idx={start_idx}, end_idx={end_idx}, paged_count={len(paged_friendships)}")
             
             # 转换为响应模型
-            friendship_responses = ContactConverter.to_friendship_list_response(paged_friendships)
+            logger.debug(f"开始转换为响应模型: paged_count={len(paged_friendships)}")
+            try:
+                friendship_responses = ContactConverter.to_friendship_list_response(paged_friendships)
+                logger.info(f"转换成功: 响应数量={len(friendship_responses)}")
+            except Exception as convert_error:
+                logger.error(f"转换好友关系响应失败: error={str(convert_error)}", exc_info=True)
+                raise
             
-            return PaginatedFriendsResponse(
+            result = PaginatedFriendsResponse(
                 items=friendship_responses,
                 total=total,
                 page=page,
                 size=size,
-                pages=(total + size - 1) // size
+                pages=(total + size - 1) // size,
+                has_next=page < (total + size - 1) // size,
+                has_prev=page > 1
             )
             
+            logger.info(f"好友列表获取成功: total={total}, page={page}, size={size}, pages={result.pages}")
+            return result
+            
         except Exception as e:
-            logger.error(f"获取好友列表失败: {e}")
+            logger.error(f"获取好友列表失败: user_id={user_id}, error={str(e)}", exc_info=True)
             raise
     
     async def search_users_use_case(
@@ -509,7 +537,7 @@ class ContactApplicationService(IContactApplicationService):
         if search:
             search_lower = search.lower()
             filtered = [f for f in filtered if (
-                (f.friend and f.friend.name and search_lower in f.friend.name.lower()) or
+                (f.friend and f.friend.username and search_lower in f.friend.username.lower()) or
                 (f.nickname and search_lower in f.nickname.lower()) or
                 (f.remark and search_lower in f.remark.lower())
             )]
@@ -527,7 +555,7 @@ class ContactApplicationService(IContactApplicationService):
         
         if sort_by == "name":
             friendships.sort(
-                key=lambda f: (f.friend.name if f.friend and f.friend.name else "") or 
+                key=lambda f: (f.friend.username if f.friend and f.friend.username else "") or 
                              (f.nickname or ""),
                 reverse=reverse
             )
