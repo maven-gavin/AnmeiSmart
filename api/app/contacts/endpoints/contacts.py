@@ -153,7 +153,9 @@ async def get_friend_requests(
             total=0,
             page=page,
             size=size,
-            pages=0
+            pages=0,
+            has_next=False,
+            has_prev=False
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -361,7 +363,9 @@ async def get_friends_by_tag(
             total=0,
             page=page,
             size=size,
-            pages=0
+            pages=0,
+            has_next=False,
+            has_prev=False
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
