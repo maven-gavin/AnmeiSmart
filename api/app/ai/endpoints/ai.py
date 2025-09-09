@@ -259,7 +259,7 @@ async def _get_user_role(user: User) -> str:
     
     if identity_service:
         try:
-            roles = await identity_service.get_user_roles_use_case(user.id)
+            roles = await identity_service.get_user_roles(user.id)
             if roles:
                 return roles[0]  # 返回第一个角色
         except Exception:

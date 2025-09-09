@@ -18,7 +18,7 @@ class IIdentityAccessApplicationService(ABC):
     
     # 用户管理用例
     @abstractmethod
-    async def create_user_use_case(
+    async def create_user(
         self, 
         user_data: "UserCreate"
     ) -> "UserResponse":
@@ -26,17 +26,17 @@ class IIdentityAccessApplicationService(ABC):
         pass
     
     @abstractmethod
-    async def get_user_by_id_use_case(self, user_id: str) -> Optional["UserResponse"]:
+    async def get_user_by_id(self, user_id: str) -> Optional["UserResponse"]:
         """根据ID获取用户用例"""
         pass
     
     @abstractmethod
-    async def get_user_by_email_use_case(self, email: str) -> Optional["UserResponse"]:
+    async def get_user_by_email(self, email: str) -> Optional["UserResponse"]:
         """根据邮箱获取用户用例"""
         pass
     
     @abstractmethod
-    async def update_user_use_case(
+    async def update_user(
         self, 
         user_id: str, 
         user_data: "UserUpdate"
@@ -45,12 +45,12 @@ class IIdentityAccessApplicationService(ABC):
         pass
     
     @abstractmethod
-    async def delete_user_use_case(self, user_id: str) -> bool:
+    async def delete_user(self, user_id: str) -> bool:
         """删除用户用例"""
         pass
     
     @abstractmethod
-    async def get_users_list_use_case(
+    async def get_users_list(
         self, 
         skip: int = 0, 
         limit: int = 100,
@@ -61,7 +61,7 @@ class IIdentityAccessApplicationService(ABC):
     
     # 认证用例
     @abstractmethod
-    async def login_use_case(
+    async def login(
         self, 
         username_or_email: str, 
         password: str,
@@ -72,7 +72,7 @@ class IIdentityAccessApplicationService(ABC):
         pass
     
     @abstractmethod
-    async def refresh_token_use_case(
+    async def refresh_token(
         self, 
         refresh_token_request: "RefreshTokenRequest"
     ) -> "Token":
@@ -80,18 +80,18 @@ class IIdentityAccessApplicationService(ABC):
         pass
     
     @abstractmethod
-    async def logout_use_case(self, token: str) -> bool:
+    async def logout(self, token: str) -> bool:
         """用户登出用例"""
         pass
     
     # 权限管理用例
     @abstractmethod
-    async def get_user_roles_use_case(self, user_id: str) -> List[str]:
+    async def get_user_roles(self, user_id: str) -> List[str]:
         """获取用户角色用例"""
         pass
     
     @abstractmethod
-    async def switch_role_use_case(
+    async def switch_role(
         self, 
         user_id: str, 
         target_role: str
@@ -100,7 +100,7 @@ class IIdentityAccessApplicationService(ABC):
         pass
     
     @abstractmethod
-    async def check_permission_use_case(
+    async def check_permission(
         self, 
         user_id: str, 
         permission: str
@@ -110,12 +110,12 @@ class IIdentityAccessApplicationService(ABC):
     
     # 角色管理用例
     @abstractmethod
-    async def get_all_roles_use_case(self) -> List["RoleResponse"]:
+    async def get_all_roles(self) -> List["RoleResponse"]:
         """获取所有角色用例"""
         pass
     
     @abstractmethod
-    async def create_role_use_case(
+    async def create_role(
         self, 
         name: str, 
         description: Optional[str] = None
@@ -124,7 +124,7 @@ class IIdentityAccessApplicationService(ABC):
         pass
     
     @abstractmethod
-    async def assign_role_to_user_use_case(
+    async def assign_role_to_user(
         self, 
         user_id: str, 
         role_name: str
@@ -133,7 +133,7 @@ class IIdentityAccessApplicationService(ABC):
         pass
     
     @abstractmethod
-    async def remove_role_from_user_use_case(
+    async def remove_role_from_user(
         self, 
         user_id: str, 
         role_name: str
@@ -143,7 +143,7 @@ class IIdentityAccessApplicationService(ABC):
     
     # 登录历史用例
     @abstractmethod
-    async def create_login_history_use_case(
+    async def create_login_history(
         self, 
         login_data: "LoginHistoryCreate"
     ) -> bool:
@@ -151,7 +151,7 @@ class IIdentityAccessApplicationService(ABC):
         pass
     
     @abstractmethod
-    async def get_user_login_history_use_case(
+    async def get_user_login_history(
         self, 
         user_id: str, 
         limit: int = 10

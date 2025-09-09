@@ -23,7 +23,7 @@ async def create_user(
     """
     try:
         # 检查当前用户是否有管理员权限
-        can_manage = await identity_access_service.check_permission_use_case(
+        can_manage = await identity_access_service.check_permission(
             str(current_user.id), "user:create"
         )
         if not can_manage:
@@ -32,7 +32,7 @@ async def create_user(
                 detail="没有足够的权限执行此操作"
             )
         
-        user = await identity_access_service.create_user_use_case(user_in)
+        user = await identity_access_service.create_user(user_in)
         return user
     except HTTPException:
         raise
@@ -56,7 +56,7 @@ async def read_users(
     """
     try:
         # 检查当前用户是否有管理员权限
-        can_read = await identity_access_service.check_permission_use_case(
+        can_read = await identity_access_service.check_permission(
             str(current_user.id), "user:read"
         )
         if not can_read:
@@ -65,7 +65,7 @@ async def read_users(
                 detail="没有足够的权限执行此操作"
             )
         
-        users = await identity_access_service.get_users_list_use_case(
+        users = await identity_access_service.get_users_list(
             skip=skip, limit=limit
         )
         return users
@@ -84,7 +84,7 @@ async def read_user_me(
 ) -> UserResponse:
     """获取当前用户信息"""
     try:
-        user_response = await identity_access_service.get_user_by_id_use_case(str(current_user.id))
+        user_response = await identity_access_service.get_user_by_id(str(current_user.id))
         if not user_response:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -111,7 +111,7 @@ async def update_user_me(
         if hasattr(user_in, "roles"):
             delattr(user_in, "roles")
         
-        user = await identity_access_service.update_user_use_case(
+        user = await identity_access_service.update_user(
             user_id=str(current_user.id),
             user_data=user_in
         )
@@ -135,7 +135,7 @@ async def read_user_by_id(
 ) -> UserResponse:
     """根据ID获取用户信息"""
     try:
-        user = await identity_access_service.get_user_by_id_use_case(user_id)
+        user = await identity_access_service.get_user_by_id(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -164,7 +164,7 @@ async def update_user(
     """
     try:
         # 检查当前用户是否有管理员权限
-        can_update = await identity_access_service.check_permission_use_case(
+        can_update = await identity_access_service.check_permission(
             str(current_user.id), "user:update"
         )
         if not can_update:
@@ -173,7 +173,7 @@ async def update_user(
                 detail="没有足够的权限执行此操作"
             )
         
-        user = await identity_access_service.update_user_use_case(
+        user = await identity_access_service.update_user(
             user_id=user_id,
             user_data=user_in
         )
@@ -198,7 +198,7 @@ async def read_roles(
     """
     try:
         # 检查当前用户是否有管理员权限
-        can_manage_roles = await identity_access_service.check_permission_use_case(
+        can_manage_roles = await identity_access_service.check_permission(
             str(current_user.id), "role:manage"
         )
         if not can_manage_roles:
@@ -207,7 +207,7 @@ async def read_roles(
                 detail="没有足够的权限执行此操作"
             )
         
-        roles = await identity_access_service.get_all_roles_use_case()
+        roles = await identity_access_service.get_all_roles()
         return roles
     except HTTPException:
         raise

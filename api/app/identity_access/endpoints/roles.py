@@ -24,7 +24,7 @@ async def create_role(
     """
     try:
         # 检查当前用户是否有管理员权限
-        can_manage_roles = await identity_access_service.check_permission_use_case(
+        can_manage_roles = await identity_access_service.check_permission(
             str(current_user.id), "role:manage"
         )
         if not can_manage_roles:
@@ -34,7 +34,7 @@ async def create_role(
             )
         
         # 创建新角色
-        role = await identity_access_service.create_role_use_case(
+        role = await identity_access_service.create_role(
             name=role_in.name, 
             description=role_in.description
         )
@@ -63,7 +63,7 @@ async def read_roles(
     需要登录
     """
     try:
-        roles = await identity_access_service.get_all_roles_use_case()
+        roles = await identity_access_service.get_all_roles()
         return roles
     except Exception as e:
         raise HTTPException(
@@ -84,7 +84,7 @@ async def read_role(
     """
     try:
         # 获取所有角色然后过滤
-        roles = await identity_access_service.get_all_roles_use_case()
+        roles = await identity_access_service.get_all_roles()
         role = next((r for r in roles if r.id == role_id), None)
         if not role:
             raise HTTPException(
@@ -114,7 +114,7 @@ async def delete_role(
     """
     try:
         # 检查当前用户是否有管理员权限
-        can_manage_roles = await identity_access_service.check_permission_use_case(
+        can_manage_roles = await identity_access_service.check_permission(
             str(current_user.id), "role:manage"
         )
         if not can_manage_roles:
@@ -124,7 +124,7 @@ async def delete_role(
             )
         
         # 获取角色信息
-        roles = await identity_access_service.get_all_roles_use_case()
+        roles = await identity_access_service.get_all_roles()
         role = next((r for r in roles if r.id == role_id), None)
         if not role:
             raise HTTPException(

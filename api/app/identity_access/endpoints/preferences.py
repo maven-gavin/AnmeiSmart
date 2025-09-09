@@ -25,7 +25,7 @@ async def get_my_profile(
     获取当前用户的个人中心完整信息
     """
     try:
-        return await identity_access_service.get_user_profile_use_case(str(current_user.id))
+        return await identity_access_service.get_user_profile(str(current_user.id))
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -47,11 +47,11 @@ async def get_my_preferences(
     获取当前用户的偏好设置
     """
     try:
-        preferences = await identity_access_app_service.get_user_preferences_use_case(str(current_user.id))
+        preferences = await identity_access_app_service.get_user_preferences(str(current_user.id))
         if not preferences:
             # 如果不存在偏好设置，创建默认值
             default_preferences = UserPreferencesCreate()
-            return await identity_access_app_service.create_user_preferences_use_case(
+            return await identity_access_app_service.create_user_preferences(
                 str(current_user.id), 
                 default_preferences
             )
@@ -78,7 +78,7 @@ async def update_my_preferences(
     更新当前用户的偏好设置
     """
     try:
-        return await identity_access_app_service.update_user_preferences_use_case(
+        return await identity_access_app_service.update_user_preferences(
             str(current_user.id),
             preferences_data
         )
@@ -102,7 +102,7 @@ async def get_my_default_role(
     获取当前用户的默认角色设置
     """
     try:
-        default_role = await identity_access_app_service.get_user_default_role_setting_use_case(str(current_user.id))
+        default_role = await identity_access_app_service.get_user_default_role_setting(str(current_user.id))
         if not default_role:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -128,7 +128,7 @@ async def set_my_default_role(
     设置当前用户的默认角色
     """
     try:
-        return await identity_access_app_service.set_user_default_role_use_case(
+        return await identity_access_app_service.set_user_default_role(
             str(current_user.id),
             default_role_data
         )
@@ -157,7 +157,7 @@ async def get_my_login_history(
         if limit > 50:  # 限制最大查询数量
             limit = 50
         
-        login_histories = await identity_access_app_service.get_user_login_history_use_case(
+        login_histories = await identity_access_app_service.get_user_login_history(
             str(current_user.id),
             limit=limit
         )
@@ -205,7 +205,7 @@ async def create_login_record(
             location=""  # 添加缺失的location参数
         )
         
-        success = await identity_access_app_service.create_login_history_use_case(login_data)
+        success = await identity_access_app_service.create_login_history(login_data)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -238,7 +238,7 @@ async def check_should_apply_default_role(
     检查是否应该应用默认角色（首次登录逻辑）
     """
     try:
-        default_role = await identity_access_app_service.should_apply_default_role_use_case(str(current_user.id))
+        default_role = await identity_access_app_service.should_apply_default_role(str(current_user.id))
         
         return {
             "should_apply": default_role is not None,
@@ -261,7 +261,7 @@ async def change_my_password(
     修改当前用户的密码
     """
     try:
-        success = await identity_access_app_service.change_password_use_case(
+        success = await identity_access_app_service.change_password(
             str(current_user.id),
             password_data
         )
@@ -294,7 +294,7 @@ async def get_user_profile(
     """
     try:
         # 检查权限：只有管理员可以查看其他用户的信息
-        can_view = await identity_access_app_service.check_permission_use_case(
+        can_view = await identity_access_app_service.check_permission(
             str(current_user.id), "user:view"
         )
         if not can_view and str(current_user.id) != str(user_id):
@@ -303,7 +303,7 @@ async def get_user_profile(
                 detail="权限不足"
             )
         
-        return await identity_access_app_service.get_user_profile_use_case(user_id)
+        return await identity_access_app_service.get_user_profile(user_id)
     except HTTPException:
         raise
     except ValueError as e:
@@ -330,7 +330,7 @@ async def get_user_login_history(
     """
     try:
         # 检查权限：只有管理员可以查看其他用户的登录历史
-        can_view = await identity_access_app_service.check_permission_use_case(
+        can_view = await identity_access_app_service.check_permission(
             str(current_user.id), "user:view"
         )
         if not can_view and str(current_user.id) != str(user_id):
@@ -342,7 +342,7 @@ async def get_user_login_history(
         if limit > 50:  # 限制最大查询数量
             limit = 50
         
-        login_histories = await identity_access_app_service.get_user_login_history_use_case(
+        login_histories = await identity_access_app_service.get_user_login_history(
             user_id,
             limit=limit
         )

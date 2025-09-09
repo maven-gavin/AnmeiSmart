@@ -34,7 +34,7 @@ async def login(
         user_agent = request.headers.get("user-agent", "")
         
         # 调用应用服务进行登录
-        token = await identity_access_service.login_use_case(
+        token = await identity_access_service.login(
             username_or_email=form_data.username,
             password=form_data.password,
             ip_address=ip_address,
@@ -76,7 +76,7 @@ async def register(
             user_in.roles = ["customer"]
         
         # 调用应用服务创建用户
-        user_response = await identity_access_service.create_user_use_case(user_in)
+        user_response = await identity_access_service.create_user(user_in)
 
         # 用户注册自动化流程：
         # 1、创建默认的会话，启用AI功能
@@ -118,7 +118,7 @@ async def refresh_token(
     """
     try:
         # 调用应用服务刷新令牌
-        token = await identity_access_service.refresh_token_use_case(refresh_token_request)
+        token = await identity_access_service.refresh_token(refresh_token_request)
         return token
         
     except ValueError as e:
@@ -145,7 +145,7 @@ async def read_users_me(
     返回当前已认证用户的详细信息
     """
     try:
-        user_response = await identity_access_service.get_user_by_id_use_case(str(current_user.id))
+        user_response = await identity_access_service.get_user_by_id(str(current_user.id))
         if not user_response:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -174,7 +174,7 @@ async def update_user_me(
     允许用户更新自己的信息
     """
     try:
-        user_response = await identity_access_service.update_user_use_case(
+        user_response = await identity_access_service.update_user(
             user_id=str(current_user.id),
             user_data=user_in
         )
@@ -202,7 +202,7 @@ async def get_roles(
     返回当前用户的所有角色
     """
     try:
-        user_roles = await identity_access_service.get_user_roles_use_case(str(current_user.id))
+        user_roles = await identity_access_service.get_user_roles(str(current_user.id))
         return user_roles
     except Exception as e:
         logger.error(f"获取用户角色失败: {str(e)}", exc_info=True)
@@ -224,7 +224,7 @@ async def switch_role(
     更改用户当前活跃角色，并返回新的访问令牌和刷新令牌
     """
     try:
-        token = await identity_access_service.switch_role_use_case(
+        token = await identity_access_service.switch_role(
             user_id=str(current_user.id),
             target_role=role_request.role
         )

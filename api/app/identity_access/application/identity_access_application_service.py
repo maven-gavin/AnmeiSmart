@@ -51,7 +51,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
         self.role_permission_domain_service = role_permission_domain_service
     
     # 用户管理用例
-    async def create_user_use_case(
+    async def create_user(
         self,
         user_data: UserCreate
     ) -> UserResponse:
@@ -77,7 +77,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"创建用户异常: {str(e)}", exc_info=True)
             raise
     
-    async def get_user_by_id_use_case(self, user_id: str) -> Optional[UserResponse]:
+    async def get_user_by_id(self, user_id: str) -> Optional[UserResponse]:
         """根据ID获取用户用例"""
         try:
             user = await self.user_repository.get_by_id(user_id)
@@ -93,7 +93,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"获取用户失败: {str(e)}", exc_info=True)
             raise
     
-    async def get_user_by_email_use_case(self, email: str) -> Optional[UserResponse]:
+    async def get_user_by_email(self, email: str) -> Optional[UserResponse]:
         """根据邮箱获取用户用例"""
         try:
             user = await self.user_repository.get_by_email(email)
@@ -106,7 +106,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"根据邮箱获取用户失败: {str(e)}", exc_info=True)
             raise
     
-    async def update_user_use_case(
+    async def update_user(
         self,
         user_id: str,
         user_data: UserUpdate
@@ -134,7 +134,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"更新用户异常: {str(e)}", exc_info=True)
             raise
     
-    async def delete_user_use_case(self, user_id: str) -> bool:
+    async def delete_user(self, user_id: str) -> bool:
         """删除用户用例"""
         try:
             return await self.user_repository.delete(user_id)
@@ -143,7 +143,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"删除用户失败: {str(e)}", exc_info=True)
             raise
     
-    async def get_users_list_use_case(
+    async def get_users_list(
         self,
         skip: int = 0,
         limit: int = 100,
@@ -159,7 +159,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             raise
     
     # 认证用例
-    async def login_use_case(
+    async def login(
         self,
         username_or_email: str,
         password: str,
@@ -201,7 +201,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"用户登录异常: {str(e)}", exc_info=True)
             raise
     
-    async def refresh_token_use_case(
+    async def refresh_token(
         self,
         refresh_token_request: RefreshTokenRequest
     ) -> Token:
@@ -228,7 +228,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"刷新令牌异常: {str(e)}", exc_info=True)
             raise
     
-    async def logout_use_case(self, token: str) -> bool:
+    async def logout(self, token: str) -> bool:
         """用户登出用例"""
         try:
             return await self.authentication_domain_service.revoke_token(token)
@@ -238,7 +238,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             raise
     
     # 权限管理用例
-    async def get_user_roles_use_case(self, user_id: str) -> List[str]:
+    async def get_user_roles(self, user_id: str) -> List[str]:
         """获取用户角色用例"""
         try:
             return await self.permission_domain_service.get_user_roles(user_id)
@@ -247,7 +247,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"获取用户角色失败: {str(e)}", exc_info=True)
             raise
     
-    async def switch_role_use_case(
+    async def switch_role(
         self,
         user_id: str,
         target_role: str
@@ -279,7 +279,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"切换角色异常: {str(e)}", exc_info=True)
             raise
     
-    async def check_permission_use_case(
+    async def check_permission(
         self,
         user_id: str,
         permission: str
@@ -293,7 +293,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             raise
     
     # 角色管理用例
-    async def get_all_roles_use_case(self) -> List[RoleResponse]:
+    async def get_all_roles(self) -> List[RoleResponse]:
         """获取所有角色用例"""
         try:
             roles = await self.role_repository.get_all()
@@ -303,7 +303,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"获取角色列表失败: {str(e)}", exc_info=True)
             raise
     
-    async def create_role_use_case(
+    async def create_role(
         self,
         name: str,
         description: Optional[str] = None
@@ -324,7 +324,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"创建角色异常: {str(e)}", exc_info=True)
             raise
     
-    async def assign_role_to_user_use_case(
+    async def assign_role_to_user(
         self,
         user_id: str,
         role_name: str
@@ -340,7 +340,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"分配角色异常: {str(e)}", exc_info=True)
             raise
     
-    async def remove_role_from_user_use_case(
+    async def remove_role_from_user(
         self,
         user_id: str,
         role_name: str
@@ -357,7 +357,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             raise
     
     # 登录历史用例
-    async def create_login_history_use_case(
+    async def create_login_history(
         self,
         login_data: LoginHistoryCreate
     ) -> bool:
@@ -380,7 +380,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"创建登录历史失败: {str(e)}", exc_info=True)
             raise
     
-    async def get_user_login_history_use_case(
+    async def get_user_login_history(
         self,
         user_id: str,
         limit: int = 10
@@ -457,7 +457,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             return None
     
     # 个人中心用例
-    async def get_user_profile_use_case(self, user_id: str) -> UserProfileInfo:
+    async def get_user_profile(self, user_id: str) -> UserProfileInfo:
         """获取用户完整个人中心信息用例"""
         try:
             # 获取用户基本信息
@@ -472,7 +472,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             default_role_setting = await self._get_user_default_role_setting(user_id)
             
             # 获取最近登录历史
-            recent_login_history = await self.get_user_login_history_use_case(user_id, limit=5)
+            recent_login_history = await self.get_user_login_history(user_id, limit=5)
             
             # 构建用户个人中心信息
             return UserProfileInfo(
@@ -508,7 +508,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"获取用户个人中心信息异常: {str(e)}", exc_info=True)
             raise
     
-    async def get_user_preferences_use_case(self, user_id: str) -> Optional[UserPreferencesInfo]:
+    async def get_user_preferences(self, user_id: str) -> Optional[UserPreferencesInfo]:
         """获取用户偏好设置用例"""
         try:
             return await self._get_user_preferences(user_id)
@@ -516,7 +516,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"获取用户偏好设置失败: {str(e)}", exc_info=True)
             raise
     
-    async def create_user_preferences_use_case(
+    async def create_user_preferences(
         self,
         user_id: str,
         preferences_data: UserPreferencesCreate
@@ -560,7 +560,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"创建用户偏好设置异常: {str(e)}", exc_info=True)
             raise
     
-    async def update_user_preferences_use_case(
+    async def update_user_preferences(
         self,
         user_id: str,
         preferences_data: UserPreferencesUpdate
@@ -606,7 +606,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"更新用户偏好设置异常: {str(e)}", exc_info=True)
             raise
     
-    async def get_user_default_role_setting_use_case(self, user_id: str) -> Optional[UserDefaultRoleInfo]:
+    async def get_user_default_role_setting(self, user_id: str) -> Optional[UserDefaultRoleInfo]:
         """获取用户默认角色设置用例"""
         try:
             return await self._get_user_default_role_setting(user_id)
@@ -614,7 +614,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"获取用户默认角色设置失败: {str(e)}", exc_info=True)
             raise
     
-    async def set_user_default_role_use_case(
+    async def set_user_default_role(
         self,
         user_id: str,
         default_role_data: UserDefaultRoleUpdate
@@ -665,7 +665,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"设置用户默认角色异常: {str(e)}", exc_info=True)
             raise
     
-    async def change_password_use_case(
+    async def change_password(
         self,
         user_id: str,
         password_data: ChangePasswordRequest
@@ -700,7 +700,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"修改用户密码异常: {str(e)}", exc_info=True)
             raise
     
-    async def should_apply_default_role_use_case(self, user_id: str) -> Optional[str]:
+    async def should_apply_default_role(self, user_id: str) -> Optional[str]:
         """检查是否应该应用默认角色用例"""
         try:
             # 延迟导入避免循环依赖
@@ -775,7 +775,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
     
     # ==================== 新的权限检查方法 ====================
     
-    async def check_user_permission_use_case(self, user_id: str, permission: str) -> bool:
+    async def check_user_permission(self, user_id: str, permission: str) -> bool:
         """检查用户权限用例"""
         try:
             # 优先使用新的权限服务
@@ -789,7 +789,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"检查用户权限失败: {str(e)}", exc_info=True)
             return False
     
-    async def check_user_role_use_case(self, user_id: str, role_name: str) -> bool:
+    async def check_user_role(self, user_id: str, role_name: str) -> bool:
         """检查用户角色用例"""
         try:
             # 优先使用新的权限服务
@@ -803,7 +803,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"检查用户角色失败: {str(e)}", exc_info=True)
             return False
     
-    async def get_user_permissions_use_case(self, user_id: str) -> List[str]:
+    async def get_user_permissions(self, user_id: str) -> List[str]:
         """获取用户权限列表用例"""
         try:
             # 优先使用新的权限服务
@@ -818,7 +818,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"获取用户权限列表失败: {str(e)}", exc_info=True)
             return []
     
-    async def get_user_roles_use_case(self, user_id: str) -> List[str]:
+    async def get_user_roles(self, user_id: str) -> List[str]:
         """获取用户角色列表用例"""
         try:
             # 优先使用新的权限服务
@@ -832,7 +832,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"获取用户角色列表失败: {str(e)}", exc_info=True)
             return []
     
-    async def is_user_admin_use_case(self, user_id: str) -> bool:
+    async def is_user_admin(self, user_id: str) -> bool:
         """检查用户是否为管理员用例"""
         try:
             # 优先使用新的权限服务
@@ -848,7 +848,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             logger.error(f"检查用户管理员权限失败: {str(e)}", exc_info=True)
             return False
     
-    async def get_user_permission_summary_use_case(self, user_id: str) -> Dict[str, Any]:
+    async def get_user_permission_summary(self, user_id: str) -> Dict[str, Any]:
         """获取用户权限摘要用例"""
         try:
             # 优先使用新的权限服务
