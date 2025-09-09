@@ -19,7 +19,7 @@ class SecurityApplicationService:
     def __init__(self, security_domain_service: SecurityDomainService):
         self.security_domain_service = security_domain_service
     
-    async def get_current_user_use_case(self, token: str) -> User:
+    async def get_current_user(self, token: str) -> User:
         """
         获取当前用户用例
         
@@ -55,7 +55,7 @@ class SecurityApplicationService:
                 detail="内部服务器错误"
             )
     
-    async def check_role_permission_use_case(
+    async def check_role_permission(
         self, 
         user: User, 
         required_roles: Optional[List[str]] = None
@@ -92,7 +92,7 @@ class SecurityApplicationService:
                 detail="内部服务器错误"
             )
     
-    async def get_current_admin_use_case(self, user: User) -> User:
+    async def get_current_admin(self, user: User) -> User:
         """
         获取当前管理员用户用例
         

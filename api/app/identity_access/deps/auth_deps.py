@@ -137,7 +137,7 @@ async def get_current_user(
     Raises:
         HTTPException: 如果认证失败或用户不存在
     """
-    return await security_app_service.get_current_user_use_case(token)
+    return await security_app_service.get_current_user(token)
 
 
 async def get_current_admin(

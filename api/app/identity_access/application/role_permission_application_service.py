@@ -25,7 +25,7 @@ class RolePermissionApplicationService:
     
     # ==================== 角色管理用例 ====================
     
-    async def create_role_use_case(
+    async def create_role(
         self,
         name: str,
         display_name: Optional[str] = None,
@@ -63,7 +63,7 @@ class RolePermissionApplicationService:
             logger.error(f"创建角色失败: {str(e)}", exc_info=True)
             raise
     
-    async def get_role_use_case(self, role_id: str) -> Optional[Dict[str, Any]]:
+    async def get_role(self, role_id: str) -> Optional[Dict[str, Any]]:
         """获取角色用例"""
         try:
             role = await self.role_permission_domain_service.get_role_by_id(role_id)
@@ -88,7 +88,7 @@ class RolePermissionApplicationService:
             logger.error(f"获取角色失败: {str(e)}", exc_info=True)
             raise
     
-    async def list_roles_use_case(self, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def list_roles(self, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """获取角色列表用例"""
         try:
             roles = await self.role_permission_domain_service.list_active_roles(tenant_id)
@@ -116,7 +116,7 @@ class RolePermissionApplicationService:
     
     # ==================== 权限管理用例 ====================
     
-    async def create_permission_use_case(
+    async def create_permission(
         self,
         name: str,
         display_name: Optional[str] = None,
@@ -170,7 +170,7 @@ class RolePermissionApplicationService:
             logger.error(f"创建权限失败: {str(e)}", exc_info=True)
             raise
     
-    async def get_permission_use_case(self, permission_id: str) -> Optional[Dict[str, Any]]:
+    async def get_permission(self, permission_id: str) -> Optional[Dict[str, Any]]:
         """获取权限用例"""
         try:
             permission = await self.role_permission_domain_service.get_permission_by_id(permission_id)
@@ -199,7 +199,7 @@ class RolePermissionApplicationService:
             logger.error(f"获取权限失败: {str(e)}", exc_info=True)
             raise
     
-    async def list_permissions_use_case(self, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def list_permissions(self, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """获取权限列表用例"""
         try:
             permissions = await self.role_permission_domain_service.list_active_permissions(tenant_id)
@@ -231,7 +231,7 @@ class RolePermissionApplicationService:
     
     # ==================== 角色权限关联用例 ====================
     
-    async def assign_permission_to_role_use_case(self, role_id: str, permission_id: str) -> bool:
+    async def assign_permission_to_role(self, role_id: str, permission_id: str) -> bool:
         """为角色分配权限用例"""
         try:
             return await self.role_permission_domain_service.assign_permission_to_role(role_id, permission_id)
@@ -239,7 +239,7 @@ class RolePermissionApplicationService:
             logger.error(f"为角色分配权限失败: {str(e)}", exc_info=True)
             raise
     
-    async def remove_permission_from_role_use_case(self, role_id: str, permission_id: str) -> bool:
+    async def remove_permission_from_role(self, role_id: str, permission_id: str) -> bool:
         """从角色移除权限用例"""
         try:
             return await self.role_permission_domain_service.remove_permission_from_role(role_id, permission_id)
@@ -247,7 +247,7 @@ class RolePermissionApplicationService:
             logger.error(f"从角色移除权限失败: {str(e)}", exc_info=True)
             raise
     
-    async def get_role_permissions_use_case(self, role_id: str) -> List[Dict[str, Any]]:
+    async def get_role_permissions(self, role_id: str) -> List[Dict[str, Any]]:
         """获取角色权限用例"""
         try:
             permissions = await self.role_permission_domain_service.get_role_permissions(role_id)
@@ -277,7 +277,7 @@ class RolePermissionApplicationService:
             logger.error(f"获取角色权限失败: {str(e)}", exc_info=True)
             raise
     
-    async def get_permission_roles_use_case(self, permission_id: str) -> List[Dict[str, Any]]:
+    async def get_permission_roles(self, permission_id: str) -> List[Dict[str, Any]]:
         """获取权限角色用例"""
         try:
             roles = await self.role_permission_domain_service.get_permission_roles(permission_id)
@@ -305,7 +305,7 @@ class RolePermissionApplicationService:
     
     # ==================== 用户权限检查用例 ====================
     
-    async def check_user_permission_use_case(self, user_id: str, permission_name: str) -> bool:
+    async def check_user_permission(self, user_id: str, permission_name: str) -> bool:
         """检查用户权限用例"""
         try:
             return await self.role_permission_domain_service.check_user_permission(user_id, permission_name)
@@ -313,7 +313,7 @@ class RolePermissionApplicationService:
             logger.error(f"检查用户权限失败: {str(e)}", exc_info=True)
             return False
     
-    async def check_user_role_use_case(self, user_id: str, role_name: str) -> bool:
+    async def check_user_role(self, user_id: str, role_name: str) -> bool:
         """检查用户角色用例"""
         try:
             return await self.role_permission_domain_service.check_user_role(user_id, role_name)
@@ -321,7 +321,7 @@ class RolePermissionApplicationService:
             logger.error(f"检查用户角色失败: {str(e)}", exc_info=True)
             return False
     
-    async def get_user_permissions_use_case(self, user_id: str) -> List[str]:
+    async def get_user_permissions(self, user_id: str) -> List[str]:
         """获取用户权限用例"""
         try:
             permissions = await self.role_permission_domain_service.get_user_permissions(user_id)
@@ -330,7 +330,7 @@ class RolePermissionApplicationService:
             logger.error(f"获取用户权限失败: {str(e)}", exc_info=True)
             return []
     
-    async def get_user_roles_use_case(self, user_id: str) -> List[str]:
+    async def get_user_roles(self, user_id: str) -> List[str]:
         """获取用户角色用例"""
         try:
             return await self.role_permission_domain_service.get_user_roles(user_id)
@@ -338,7 +338,7 @@ class RolePermissionApplicationService:
             logger.error(f"获取用户角色失败: {str(e)}", exc_info=True)
             return []
     
-    async def is_user_admin_use_case(self, user_id: str) -> bool:
+    async def is_user_admin(self, user_id: str) -> bool:
         """检查用户是否为管理员用例"""
         try:
             return await self.role_permission_domain_service.is_user_admin(user_id)
@@ -346,7 +346,7 @@ class RolePermissionApplicationService:
             logger.error(f"检查用户管理员权限失败: {str(e)}", exc_info=True)
             return False
     
-    async def get_user_permission_summary_use_case(self, user_id: str) -> Dict[str, Any]:
+    async def get_user_permission_summary(self, user_id: str) -> Dict[str, Any]:
         """获取用户权限摘要用例"""
         try:
             return await self.role_permission_domain_service.get_user_permission_summary(user_id)
