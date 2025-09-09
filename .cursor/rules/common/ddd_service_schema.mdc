@@ -109,14 +109,14 @@ class ChatApplicationService(IChatApplicationService):
         self.broadcasting_service = broadcasting_service
     
     # 会话管理用例
-    async def create_conversation_use_case(self, title: str, owner_id: str, conversation_type: str = "single") -> ConversationInfo:
+    async def create_conversation(self, title: str, owner_id: str, conversation_type: str = "single") -> ConversationInfo:
         """创建会话用例"""
         conversation = await self.conversation_domain_service.create_conversation(title, owner_id, conversation_type)
         saved_conversation = await self.conversation_repository.save(conversation)
         return ConversationConverter.to_response(saved_conversation)
     
     # 消息管理用例
-    async def send_message_use_case(self, conversation_id: str, content: Any, message_type: str, sender_id: str, sender_type: str) -> MessageInfo:
+    async def send_message(self, conversation_id: str, content: Any, message_type: str, sender_id: str, sender_type: str) -> MessageInfo:
         """发送消息用例"""
         # 验证会话访问权限
         if not await self.conversation_domain_service.verify_access(conversation_id, sender_id, sender_type):
@@ -217,7 +217,7 @@ async def create_conversation(
 ):
     """创建新会话 - 表现层只负责请求路由和响应格式化"""
     try:
-        conversation = await chat_app_service.create_conversation_use_case(
+        conversation = await chat_app_service.create_conversation(
             title=conversation_in.title,
             owner_id=str(current_user.id),
             conversation_type=conversation_in.conversation_type
@@ -241,7 +241,7 @@ async def create_conversation(
 
 ```python
 class ChatApplicationService(IChatApplicationService):
-    async def create_conversation_use_case(self, title: str, owner_id: str, conversation_type: str = "single") -> ConversationInfo:
+    async def create_conversation(self, title: str, owner_id: str, conversation_type: str = "single") -> ConversationInfo:
         """创建会话用例"""
         try:
             # 领域逻辑验证
@@ -399,7 +399,7 @@ async def websocket_endpoint(
             
             if message_type == "message":
                 # 处理用户消息
-                message = await {domain}_app_service.send_message_use_case(
+                message = await {domain}_app_service.send_message(
                     conversation_id=conversation_id,
                     content=data.get("content"),
                     message_type="text",
