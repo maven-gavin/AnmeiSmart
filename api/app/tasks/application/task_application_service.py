@@ -67,7 +67,8 @@ class TaskApplicationService:
                 return None
             
             # 权限检查
-            if user_role != "admin":
+            from app.identity_access.deps.permission_deps import is_user_admin
+            if not await is_user_admin(user):
                 if task.assigned_to != user_id and not (task.status == "pending" and not task.assigned_to):
                     return None
             
@@ -129,7 +130,8 @@ class TaskApplicationService:
                 return None
             
             # 权限检查
-            if user_role != "admin":
+            from app.identity_access.deps.permission_deps import is_user_admin
+            if not await is_user_admin(user):
                 if task.assigned_to != user_id:
                     return None
             

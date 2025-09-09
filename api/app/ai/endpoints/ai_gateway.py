@@ -273,7 +273,8 @@ async def reload_configuration(
     需要管理员权限。
     """
     # 检查管理员权限
-    if not any(role.name == "admin" for role in current_user.roles):
+    from app.identity_access.deps.permission_deps import is_user_admin
+    if not await is_user_admin(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="需要管理员权限"

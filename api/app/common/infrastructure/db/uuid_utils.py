@@ -26,6 +26,10 @@ def prefixed_uuid(prefix: str) -> str:
     
     return f"{prefix}_{uuid_part}"
 
+# 租户ID前缀生成函数
+def tenant_id() -> str:
+    """生成租户ID"""
+    return prefixed_uuid("ten")
 
 # 用户ID前缀生成函数
 def user_id() -> str:
@@ -37,6 +41,11 @@ def user_id() -> str:
 def role_id() -> str:
     """生成角色ID"""
     return prefixed_uuid("role")
+
+# 权限ID前缀生成函数
+def permission_id() -> str:
+    """生成权限ID"""
+    return prefixed_uuid("perm")
 
 
 # 会话ID前缀生成函数

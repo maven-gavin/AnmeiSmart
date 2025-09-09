@@ -138,4 +138,4 @@ class SecurityDomainService:
         Returns:
             bool: 如果用户是管理员则返回True
         """
-        return self.check_user_permissions(user, ["admin"])
+        return self.check_user_permissions(user, ["administrator"])

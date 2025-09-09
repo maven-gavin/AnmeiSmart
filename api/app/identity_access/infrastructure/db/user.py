@@ -1,10 +1,10 @@
-from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, Table, Text, JSON
+from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, Table, Text, JSON, Integer
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.common.infrastructure.db.base_model import BaseModel
 from app.common.infrastructure.db.base import Base
-from app.common.infrastructure.db.uuid_utils import user_id, role_id
+from app.common.infrastructure.db.uuid_utils import user_id, role_id, tenant_id, permission_id
 from app.identity_access.domain.enums import AdminLevel
 
 # 用户-角色关联表 (使用String类型的外键)
@@ -16,17 +16,72 @@ user_roles = Table(
     Column("assigned_at", DateTime(timezone=True), server_default=func.now(), comment="分配时间")
 )
 
+# 角色-权限关联表 (使用String类型的外键)
+role_permissions = Table(
+    "role_permissions",
+    Base.metadata,
+    Column("role_id", String(36), ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True, comment="角色ID"),
+    Column("permission_id", String(36), ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True, comment="权限ID"),
+)
+
+class Tenant(BaseModel):
+    """租户数据库模型，存储系统中所有租户信息"""
+    __tablename__ = "tenants"
+    __table_args__ = {"comment": "租户表，存储系统所有租户信息"}
+
+    id = Column(String(36), primary_key=True, default=tenant_id, comment="租户ID")
+    name = Column(String(50), unique=True, index=True, nullable=False, comment="租户名称")
+
+    is_active = Column(Boolean, default=True, comment="是否启用")
+    is_system = Column(Boolean, default=False, comment="是否系统租户")
+    is_admin = Column(Boolean, default=False, comment="是否管理员租户")
+    priority = Column(Integer, default=0, comment="租户优先级")
+
+    encrypted_pub_key = Column(String(255), nullable=True, comment="加密公钥")
+    contact_phone = Column(String(20), nullable=True, comment="负责人联系电话")
+    contact_email = Column(String(50), nullable=True, comment="负责人邮箱")
+    contact_name = Column(String(50), nullable=True, comment="负责人姓名")
+
+    # 租户关联的用户
+    users = relationship("User", back_populates="tenant")
+
 class Role(BaseModel):
     """角色数据库模型，存储系统中所有角色信息"""
     __tablename__ = "roles"
     __table_args__ = {"comment": "角色表，存储系统所有角色信息"}
 
     id = Column(String(36), primary_key=True, default=role_id, comment="角色ID")
-    name = Column(String, unique=True, index=True, nullable=False, comment="角色名称")
-    description = Column(String, nullable=True, comment="角色描述")
+    name = Column(String(50), unique=True, index=True, nullable=False, comment="角色名称")
+    dispaly_name = Column(String(50), nullable=True, comment="角色显示名称")
+    description = Column(String(255), nullable=True, comment="角色描述")
+    is_active = Column(Boolean, default=True, comment="是否启用")
+    is_system = Column(Boolean, default=False, comment="是否系统角色")
+    is_admin = Column(Boolean, default=False, comment="是否管理员角色")
+    priority = Column(Integer, default=0, comment="角色优先级")
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), comment="租户ID")
 
     # 角色关联的用户
     users = relationship("User", secondary="user_roles", back_populates="roles")
+    # 权限关联
+    permissions = relationship("Permission", secondary="role_permissions", back_populates="roles")
+
+class Permission(BaseModel):
+    """权限配置表，存储系统所有权限配置信息"""
+    __tablename__ = "permissions"
+    __table_args__ = {"comment": "权限配置表，存储系统所有权限配置信息"}
+    
+    id = Column(String(36), primary_key=True, default=permission_id, comment="权限ID")
+    name = Column(String(50), unique=True, index=True, nullable=False, comment="权限名称")
+    description = Column(String(255), nullable=True, comment="权限描述")
+    is_active = Column(Boolean, default=True, comment="是否启用")
+    is_system = Column(Boolean, default=False, comment="是否系统权限")
+    is_admin = Column(Boolean, default=False, comment="是否管理员权限")
+    priority = Column(Integer, default=0, comment="权限优先级")
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), comment="租户ID")
+
+    # 权限关联的角色
+    roles = relationship("Role", secondary="role_permissions", back_populates="permissions")
+
 
 class User(BaseModel):
     """用户基础数据库模型，存储所有类型用户共有的信息"""
@@ -34,6 +89,7 @@ class User(BaseModel):
     __table_args__ = {"comment": "用户表，存储所有用户基础信息"}
 
     id = Column(String(36), primary_key=True, default=user_id, comment="用户ID")
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), comment="租户ID")
     email = Column(String, unique=True, index=True, nullable=False, comment="邮箱")
     username = Column(String, unique=True, index=True, nullable=False, comment="用户名")
     hashed_password = Column(String, nullable=False, comment="加密密码")

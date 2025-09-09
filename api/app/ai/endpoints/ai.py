@@ -45,7 +45,7 @@ async def chat_with_ai(
         logger.info(f"用户 {current_user.id} 发起AI聊天: conversation_id={request.conversation_id}")
         
         # 获取用户角色
-        user_role = _get_user_role(current_user)
+        user_role = await _get_user_role(current_user)
         
         # 验证会话权限
         chat_service = ChatApplicationService(db)
@@ -252,8 +252,20 @@ async def get_available_models(
 
 # ============ 辅助函数 ============
 
-def _get_user_role(user: User) -> str:
+async def _get_user_role(user: User) -> str:
     """获取用户的当前角色"""
+    from app.identity_access.deps.permission_deps import get_identity_access_service
+    identity_service = get_identity_access_service()
+    
+    if identity_service:
+        try:
+            roles = await identity_service.get_user_roles_use_case(user.id)
+            if roles:
+                return roles[0]  # 返回第一个角色
+        except Exception:
+            pass
+    
+    # 回退到传统方式
     if hasattr(user, '_active_role') and user._active_role:
         return user._active_role
     elif user.roles:

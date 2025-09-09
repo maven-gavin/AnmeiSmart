@@ -306,7 +306,7 @@ async def update_user_extended_info(
                 setattr(operator, key, value)
         
     # 更新管理员信息
-    if "admin" in roles and administrator_info and (not user.administrator or force_update):
+    if "administrator" in roles and administrator_info and (not user.administrator or force_update):
         if not user.administrator:
             administrator = Administrator(user_id=user.id)
             db.add(administrator)

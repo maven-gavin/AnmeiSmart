@@ -21,6 +21,8 @@ from ..interfaces.repository_interfaces import IUserRepository, IRoleRepository,
 from ..interfaces.domain_service_interfaces import IUserDomainService, IAuthenticationDomainService, IPermissionDomainService
 from ..converters.user_converter import UserConverter
 from ..converters.role_converter import RoleConverter
+from ..domain.tenant_domain_service import TenantDomainService
+from ..domain.role_permission_domain_service import RolePermissionDomainService
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +37,9 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
         login_history_repository: ILoginHistoryRepository,
         user_domain_service: IUserDomainService,
         authentication_domain_service: IAuthenticationDomainService,
-        permission_domain_service: IPermissionDomainService
+        permission_domain_service: IPermissionDomainService,
+        tenant_domain_service: Optional[TenantDomainService] = None,
+        role_permission_domain_service: Optional[RolePermissionDomainService] = None
     ):
         self.user_repository = user_repository
         self.role_repository = role_repository
@@ -43,6 +47,8 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
         self.user_domain_service = user_domain_service
         self.authentication_domain_service = authentication_domain_service
         self.permission_domain_service = permission_domain_service
+        self.tenant_domain_service = tenant_domain_service
+        self.role_permission_domain_service = role_permission_domain_service
     
     # 用户管理用例
     async def create_user_use_case(
@@ -766,3 +772,107 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
         except Exception as e:
             logger.warning(f"获取用户默认角色设置失败: {str(e)}")
             return None
+    
+    # ==================== 新的权限检查方法 ====================
+    
+    async def check_user_permission_use_case(self, user_id: str, permission: str) -> bool:
+        """检查用户权限用例"""
+        try:
+            # 优先使用新的权限服务
+            if self.role_permission_domain_service:
+                return await self.role_permission_domain_service.check_user_permission(user_id, permission)
+            
+            # 回退到传统权限检查
+            return await self.permission_domain_service.check_user_permission(user_id, permission)
+            
+        except Exception as e:
+            logger.error(f"检查用户权限失败: {str(e)}", exc_info=True)
+            return False
+    
+    async def check_user_role_use_case(self, user_id: str, role_name: str) -> bool:
+        """检查用户角色用例"""
+        try:
+            # 优先使用新的权限服务
+            if self.role_permission_domain_service:
+                return await self.role_permission_domain_service.check_user_role(user_id, role_name)
+            
+            # 回退到传统角色检查
+            return await self.permission_domain_service.check_user_role(user_id, role_name)
+            
+        except Exception as e:
+            logger.error(f"检查用户角色失败: {str(e)}", exc_info=True)
+            return False
+    
+    async def get_user_permissions_use_case(self, user_id: str) -> List[str]:
+        """获取用户权限列表用例"""
+        try:
+            # 优先使用新的权限服务
+            if self.role_permission_domain_service:
+                permissions = await self.role_permission_domain_service.get_user_permissions(user_id)
+                return list(permissions)
+            
+            # 回退到传统权限获取
+            return await self.permission_domain_service.get_user_permissions(user_id)
+            
+        except Exception as e:
+            logger.error(f"获取用户权限列表失败: {str(e)}", exc_info=True)
+            return []
+    
+    async def get_user_roles_use_case(self, user_id: str) -> List[str]:
+        """获取用户角色列表用例"""
+        try:
+            # 优先使用新的权限服务
+            if self.role_permission_domain_service:
+                return await self.role_permission_domain_service.get_user_roles(user_id)
+            
+            # 回退到传统角色获取
+            return await self.permission_domain_service.get_user_roles(user_id)
+            
+        except Exception as e:
+            logger.error(f"获取用户角色列表失败: {str(e)}", exc_info=True)
+            return []
+    
+    async def is_user_admin_use_case(self, user_id: str) -> bool:
+        """检查用户是否为管理员用例"""
+        try:
+            # 优先使用新的权限服务
+            if self.role_permission_domain_service:
+                return await self.role_permission_domain_service.is_user_admin(user_id)
+            
+            # 回退到传统管理员检查
+            user_roles = await self.permission_domain_service.get_user_roles(user_id)
+            admin_roles = ["administrator", "operator"]
+            return any(role in admin_roles for role in user_roles)
+            
+        except Exception as e:
+            logger.error(f"检查用户管理员权限失败: {str(e)}", exc_info=True)
+            return False
+    
+    async def get_user_permission_summary_use_case(self, user_id: str) -> Dict[str, Any]:
+        """获取用户权限摘要用例"""
+        try:
+            # 优先使用新的权限服务
+            if self.role_permission_domain_service:
+                return await self.role_permission_domain_service.get_user_permission_summary(user_id)
+            
+            # 回退到传统权限摘要
+            user = await self.user_repository.get_by_id(user_id)
+            if not user:
+                return {}
+            
+            roles = await self.permission_domain_service.get_user_roles(user_id)
+            permissions = await self.permission_domain_service.get_user_permissions(user_id)
+            is_admin = await self.is_user_admin_use_case(user_id)
+            
+            return {
+                "user_id": user_id,
+                "username": user.username,
+                "roles": roles,
+                "permissions": permissions,
+                "is_admin": is_admin,
+                "tenant_id": getattr(user, 'tenant_id', None)
+            }
+            
+        except Exception as e:
+            logger.error(f"获取用户权限摘要失败: {str(e)}", exc_info=True)
+            return {}

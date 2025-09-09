@@ -317,7 +317,7 @@ class CustomerApplicationService:
         else:
             return 'customer'  # 默认角色
     
-    def check_permission(self, user: "User", required_roles: List[str]) -> bool:
+    async def check_permission(self, user: "User", required_roles: List[str]) -> bool:
         """检查用户权限"""
-        user_role = self.get_user_role(user)
-        return user_role in required_roles
+        from app.identity_access.deps.permission_deps import check_user_any_role
+        return await check_user_any_role(user, required_roles)

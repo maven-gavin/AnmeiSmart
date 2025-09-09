@@ -37,8 +37,11 @@ class User:
     updated_at: datetime = field(default_factory=datetime.utcnow)
     last_login_at: Optional[datetime] = None
     
-    # 角色集合
+    # 角色集合（支持数据库配置的角色）
     roles: Set[str] = field(default_factory=set)
+    
+    # 租户关联
+    tenant_id: Optional[str] = None
     
     def __post_init__(self):
         """后初始化验证"""
@@ -48,7 +51,7 @@ class User:
         if not self.username or not self.username.strip():
             raise ValueError("用户名不能为空")
         
-        # 确保有默认角色
+        # 确保有默认角色（如果没有指定角色）
         if not self.roles:
             self.roles = {RoleType.CUSTOMER.value}
     
@@ -60,7 +63,8 @@ class User:
         password: str,
         phone: Optional[str] = None,
         avatar: Optional[str] = None,
-        roles: Optional[List[str]] = None
+        roles: Optional[List[str]] = None,
+        tenant_id: Optional[str] = None
     ) -> "User":
         """创建用户 - 工厂方法"""
         # 验证输入
@@ -95,7 +99,8 @@ class User:
             password=password_obj,
             phone=phone,
             avatar=avatar,
-            roles=role_set
+            roles=role_set,
+            tenant_id=tenant_id
         )
     
     def update_profile(

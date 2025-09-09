@@ -14,9 +14,23 @@ from app.identity_access.infrastructure.db.user import User
 from app.identity_access.infrastructure.jwt_service import JWTService
 from app.identity_access.domain.security_domain_service import SecurityDomainService
 from app.identity_access.application.security_application_service import SecurityApplicationService
+from app.identity_access.domain.tenant_domain_service import TenantDomainService
+from app.identity_access.domain.role_permission_domain_service import RolePermissionDomainService
+from app.identity_access.application.tenant_application_service import TenantApplicationService
+from app.identity_access.application.role_permission_application_service import RolePermissionApplicationService
+from app.identity_access.application.identity_access_application_service import IdentityAccessApplicationService
 
 # 从用户依赖模块导入基础依赖
-from .user_deps import get_user_repository
+from .user_deps import (
+    get_user_repository, 
+    get_role_repository, 
+    get_login_history_repository,
+    get_tenant_repository,
+    get_permission_repository,
+    get_user_domain_service,
+    get_authentication_domain_service,
+    get_permission_domain_service
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +59,63 @@ def get_security_application_service(
 ) -> SecurityApplicationService:
     """获取安全应用服务实例"""
     return SecurityApplicationService(security_domain_service)
+
+
+# ==================== 新的权限服务依赖 ====================
+
+def get_tenant_domain_service(
+    tenant_repository = Depends(get_tenant_repository),
+    user_repository = Depends(get_user_repository)
+) -> TenantDomainService:
+    """获取租户领域服务实例"""
+    return TenantDomainService(tenant_repository, user_repository)
+
+
+def get_role_permission_domain_service(
+    role_repository = Depends(get_role_repository),
+    permission_repository = Depends(get_permission_repository),
+    user_repository = Depends(get_user_repository)
+) -> RolePermissionDomainService:
+    """获取角色权限领域服务实例"""
+    return RolePermissionDomainService(role_repository, permission_repository, user_repository)
+
+
+def get_tenant_application_service(
+    tenant_domain_service: TenantDomainService = Depends(get_tenant_domain_service)
+) -> TenantApplicationService:
+    """获取租户应用服务实例"""
+    return TenantApplicationService(tenant_domain_service)
+
+
+def get_role_permission_application_service(
+    role_permission_domain_service: RolePermissionDomainService = Depends(get_role_permission_domain_service)
+) -> RolePermissionApplicationService:
+    """获取角色权限应用服务实例"""
+    return RolePermissionApplicationService(role_permission_domain_service)
+
+
+def get_identity_access_application_service(
+    user_repository = Depends(get_user_repository),
+    role_repository = Depends(get_role_repository),
+    login_history_repository = Depends(get_login_history_repository),
+    user_domain_service = Depends(get_user_domain_service),
+    authentication_domain_service = Depends(get_authentication_domain_service),
+    permission_domain_service = Depends(get_permission_domain_service),
+    tenant_domain_service: Optional[TenantDomainService] = Depends(get_tenant_domain_service),
+    role_permission_domain_service: Optional[RolePermissionDomainService] = Depends(get_role_permission_domain_service)
+) -> IdentityAccessApplicationService:
+    """获取身份访问应用服务实例"""
+    from app.identity_access.application.identity_access_application_service import IdentityAccessApplicationService
+    return IdentityAccessApplicationService(
+        user_repository=user_repository,
+        role_repository=role_repository,
+        login_history_repository=login_history_repository,
+        user_domain_service=user_domain_service,
+        authentication_domain_service=authentication_domain_service,
+        permission_domain_service=permission_domain_service,
+        tenant_domain_service=tenant_domain_service,
+        role_permission_domain_service=role_permission_domain_service
+    )
 
 
 # ==================== 核心认证依赖 ====================

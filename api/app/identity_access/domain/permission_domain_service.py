@@ -2,20 +2,25 @@
 权限领域服务
 
 处理用户权限验证和角色管理相关的业务逻辑。
+支持新的数据库配置权限系统，同时保持向后兼容。
 """
 
-from typing import List, Set
+from typing import List, Set, Optional
 from datetime import datetime
+import logging
 
 from .entities.user import User
 from .value_objects.role_type import RoleType
+
+logger = logging.getLogger(__name__)
 
 
 class PermissionDomainService:
     """权限领域服务"""
     
-    def __init__(self, user_repository):
+    def __init__(self, user_repository, role_permission_service=None):
         self.user_repository = user_repository
+        self.role_permission_service = role_permission_service
     
     async def check_user_permission(
         self,
@@ -31,9 +36,12 @@ class PermissionDomainService:
         if not user.can_access_system():
             return False
         
-        # 获取用户所有角色的权限
-        user_permissions = await self._get_user_permissions(user)
+        # 优先使用新的权限服务
+        if self.role_permission_service:
+            return await self.role_permission_service.check_user_permission(user_id, permission)
         
+        # 回退到传统权限检查
+        user_permissions = await self._get_user_permissions(user)
         return permission in user_permissions
     
     async def check_user_role(self, user_id: str, role_name: str) -> bool:
@@ -42,6 +50,11 @@ class PermissionDomainService:
         if not user:
             return False
         
+        # 优先使用新的权限服务
+        if self.role_permission_service:
+            return await self.role_permission_service.check_user_role(user_id, role_name)
+        
+        # 回退到传统角色检查
         return user.has_role(role_name)
     
     async def get_user_permissions(self, user_id: str) -> List[str]:
@@ -50,6 +63,12 @@ class PermissionDomainService:
         if not user:
             return []
         
+        # 优先使用新的权限服务
+        if self.role_permission_service:
+            permissions = await self.role_permission_service.get_user_permissions(user_id)
+            return list(permissions)
+        
+        # 回退到传统权限获取
         user_permissions = await self._get_user_permissions(user)
         return list(user_permissions)
     
@@ -59,6 +78,11 @@ class PermissionDomainService:
         if not user:
             return []
         
+        # 优先使用新的权限服务
+        if self.role_permission_service:
+            return await self.role_permission_service.get_user_roles(user_id)
+        
+        # 回退到传统角色获取
         return list(user.roles)
     
     async def switch_user_role(

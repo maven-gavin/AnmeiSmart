@@ -70,7 +70,7 @@ class TaskRepository(ITaskRepository):
             query = self.db.query(PendingTask)
             
             # 根据用户角色筛选任务
-            if user_role == "admin":
+            if user_role == "administrator":
                 # 管理员可以看到所有任务
                 pass
             elif user_role == "consultant":

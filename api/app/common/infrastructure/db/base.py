@@ -78,7 +78,7 @@ def create_initial_roles(db: Session):
     from app.common.infrastructure.db.uuid_utils import role_id
     
     # 角色列表
-    roles = ["customer", "consultant", "doctor", "operator", "admin"]
+    roles = ["customer", "consultant", "doctor", "operator", "administrator"]
     
     # 检查并创建角色
     for role_name in roles:

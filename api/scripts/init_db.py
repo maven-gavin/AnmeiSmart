@@ -58,7 +58,7 @@ def create_initial_roles():
                 Role(id=role_id(), name="doctor", description="医生"),
                 Role(id=role_id(), name="consultant", description="顾问"),
                 Role(id=role_id(), name="operator", description="管理员"),
-                Role(id=role_id(), name="admin", description="系统管理员")
+                Role(id=role_id(), name="administrator", description="系统管理员")
             ]
             
             # 添加角色到数据库

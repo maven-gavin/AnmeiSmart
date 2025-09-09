@@ -3,7 +3,7 @@
  * 专注于用户身份验证、角色管理和会话控制
  */
 
-import { AuthUser, LoginCredentials, UserRole } from '@/types/auth';
+import { AuthUser, LoginCredentials, UserRole, UserPermissionSummary } from '@/types/auth';
 import { tokenManager } from './tokenManager';
 import { AppError, ErrorType, errorHandler } from './errors';
 import { apiClient } from './apiClient';
@@ -365,3 +365,147 @@ export const roleOptions = [
     icon: 'user',
   },
 ] as const;
+
+  // ==================== 权限相关方法 ====================
+
+  /**
+   * 获取用户权限摘要
+   */
+  async getUserPermissionSummary(userId?: string): Promise<UserPermissionSummary | null> {
+    try {
+      const targetUserId = userId || this.getCurrentUser()?.id;
+      if (!targetUserId) {
+        return null;
+      }
+
+      const response = await apiClient.get(`/api/v1/users/${targetUserId}/permissions/summary`);
+      return response.data;
+    } catch (error) {
+      console.error('获取用户权限摘要失败:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 检查用户是否有指定权限
+   */
+  async hasPermission(permission: string, userId?: string): Promise<boolean> {
+    try {
+      const targetUserId = userId || this.getCurrentUser()?.id;
+      if (!targetUserId) {
+        return false;
+      }
+
+      const response = await apiClient.get(`/api/v1/users/${targetUserId}/permissions/check`, {
+        params: { permission }
+      });
+      return response.data.has_permission;
+    } catch (error) {
+      console.error('权限检查失败:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 检查用户是否有指定角色
+   */
+  async hasRole(role: string, userId?: string): Promise<boolean> {
+    try {
+      const targetUserId = userId || this.getCurrentUser()?.id;
+      if (!targetUserId) {
+        return false;
+      }
+
+      const response = await apiClient.get(`/api/v1/users/${targetUserId}/roles/check`, {
+        params: { role }
+      });
+      return response.data.has_role;
+    } catch (error) {
+      console.error('角色检查失败:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 检查用户是否为管理员
+   */
+  async isAdmin(userId?: string): Promise<boolean> {
+    try {
+      const targetUserId = userId || this.getCurrentUser()?.id;
+      if (!targetUserId) {
+        return false;
+      }
+
+      const response = await apiClient.get(`/api/v1/users/${targetUserId}/admin/check`);
+      return response.data.is_admin;
+    } catch (error) {
+      console.error('管理员权限检查失败:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取用户权限列表
+   */
+  async getUserPermissions(userId?: string): Promise<string[]> {
+    try {
+      const targetUserId = userId || this.getCurrentUser()?.id;
+      if (!targetUserId) {
+        return [];
+      }
+
+      const response = await apiClient.get(`/api/v1/users/${targetUserId}/permissions`);
+      return response.data.permissions;
+    } catch (error) {
+      console.error('获取用户权限列表失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 获取用户角色列表
+   */
+  async getUserRoles(userId?: string): Promise<string[]> {
+    try {
+      const targetUserId = userId || this.getCurrentUser()?.id;
+      if (!targetUserId) {
+        return [];
+      }
+
+      const response = await apiClient.get(`/api/v1/users/${targetUserId}/roles`);
+      return response.data.roles;
+    } catch (error) {
+      console.error('获取用户角色列表失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 刷新用户权限信息
+   */
+  async refreshUserPermissions(): Promise<AuthUser | null> {
+    try {
+      const currentUser = this.getCurrentUser();
+      if (!currentUser) {
+        return null;
+      }
+
+      const permissionSummary = await this.getUserPermissionSummary();
+      if (permissionSummary) {
+        const updatedUser: AuthUser = {
+          ...currentUser,
+          permissions: permissionSummary.permissions,
+          isAdmin: permissionSummary.isAdmin,
+          tenantId: permissionSummary.tenantId
+        };
+
+        userStorage.setUser(updatedUser);
+        return updatedUser;
+      }
+
+      return currentUser;
+    } catch (error) {
+      console.error('刷新用户权限信息失败:', error);
+      return this.getCurrentUser();
+    }
+  }

@@ -44,12 +44,12 @@ def create_admin_user():
             logger.info(f"管理员账号 {admin_email} 已存在")
             return existing_user
         
-        # 检查admin角色是否存在
-        admin_role = db.query(Role).filter(Role.name == "admin").first()
+        # 检查administrator角色是否存在
+        admin_role = db.query(Role).filter(Role.name == "administrator").first()
         if not admin_role:
-            logger.info("创建admin角色")
+            logger.info("创建administrator角色")
             admin_role = Role(
-                name="admin",
+                name="administrator",
                 description="系统管理员角色"
             )
             db.add(admin_role)

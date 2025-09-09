@@ -418,8 +418,8 @@ class ChatApplicationService(IChatApplicationService):
         """创建系统事件消息用例"""
         try:
             # 1. 权限检查
-            user_role = self.get_user_role(sender)
-            if user_role not in ["admin", "system"]:
+            from app.identity_access.deps.permission_deps import is_user_admin
+            if not await is_user_admin(sender):
                 raise PermissionError("只有管理员可以创建系统事件消息")
 
             # 2. 使用领域服务创建系统事件消息
@@ -637,7 +637,8 @@ class ChatApplicationService(IChatApplicationService):
             return True
 
         # 管理员可以访问所有会话
-        if user_role in ["admin", "operator"]:
+        from app.identity_access.deps.permission_deps import is_user_admin
+        if await is_user_admin(user):
             return True
 
         # 其他情况需要检查参与者关系
