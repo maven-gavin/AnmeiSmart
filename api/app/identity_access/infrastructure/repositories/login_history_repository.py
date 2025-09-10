@@ -4,7 +4,7 @@
 实现登录历史数据访问的具体逻辑。
 """
 
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
 
@@ -19,7 +19,25 @@ class LoginHistoryRepository(ILoginHistoryRepository):
     def __init__(self, db: Session):
         self.db = db
     
-    async def create(self, login_history: LoginHistory) -> LoginHistory:
+    async def get_by_id(self, history_id: str) -> Optional[LoginHistory]:
+        """根据ID获取登录历史"""
+        login_history_model = self.db.query(LoginHistoryModel).filter(
+            LoginHistoryModel.id == history_id
+        ).first()
+        
+        if not login_history_model:
+            return None
+        
+        return LoginHistory.create(
+            user_id=login_history_model.user_id,
+            ip_address=login_history_model.ip_address,
+            user_agent=login_history_model.user_agent,
+            login_role=login_history_model.login_role,
+            location=login_history_model.location,
+            login_time=login_history_model.login_time
+        )
+    
+    async def save(self, login_history: LoginHistory) -> LoginHistory:
         """创建登录历史记录"""
         login_history_model = LoginHistoryModel(
             user_id=login_history.user_id,
@@ -98,3 +116,47 @@ class LoginHistoryRepository(ILoginHistoryRepository):
             )
             for history in login_histories
         ]
+    
+    async def list_by_user_id(self, user_id: str, limit: int = 100, offset: int = 0) -> List[LoginHistory]:
+        """获取用户的登录历史列表"""
+        login_histories = (
+            self.db.query(LoginHistoryModel)
+            .filter(LoginHistoryModel.user_id == user_id)
+            .order_by(LoginHistoryModel.login_time.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        
+        return [
+            LoginHistory.create(
+                user_id=history.user_id,
+                ip_address=history.ip_address,
+                user_agent=history.user_agent,
+                login_role=history.login_role,
+                location=history.location,
+                login_time=history.login_time
+            )
+            for history in login_histories
+        ]
+    
+    async def get_latest_by_user_id(self, user_id: str) -> Optional[LoginHistory]:
+        """获取用户最新的登录历史"""
+        login_history_model = (
+            self.db.query(LoginHistoryModel)
+            .filter(LoginHistoryModel.user_id == user_id)
+            .order_by(LoginHistoryModel.login_time.desc())
+            .first()
+        )
+        
+        if not login_history_model:
+            return None
+        
+        return LoginHistory.create(
+            user_id=login_history_model.user_id,
+            ip_address=login_history_model.ip_address,
+            user_agent=login_history_model.user_agent,
+            login_role=login_history_model.login_role,
+            location=login_history_model.location,
+            login_time=login_history_model.login_time
+        )

@@ -109,6 +109,14 @@ class UserRepository(IUserRepository):
         self.db.commit()
         return True
     
+    async def list_active(self, limit: int = 100, offset: int = 0) -> List[User]:
+        """获取活跃用户列表"""
+        users = self.db.query(UserModel).filter(
+            UserModel.is_active == True
+        ).offset(offset).limit(limit).all()
+        
+        return [self.user_converter.from_model(user) for user in users]
+
     async def get_multi(
         self,
         skip: int = 0,
@@ -138,13 +146,6 @@ class UserRepository(IUserRepository):
         
         return [self.user_converter.from_model(user) for user in users]
     
-    async def get_user_roles(self, user_id: str) -> List[str]:
-        """获取用户角色列表"""
-        user = self.db.query(UserModel).filter(UserModel.id == user_id).first()
-        if not user:
-            return []
-        
-        return [role.name for role in user.roles]
     
     async def assign_role(self, user_id: str, role_name: str) -> bool:
         """分配角色给用户"""
@@ -359,3 +360,33 @@ class UserRepository(IUserRepository):
         except Exception as e:
             self.db.rollback()
             raise Exception(f"更新用户偏好设置失败: {str(e)}")
+    
+    async def count_by_tenant_id(self, tenant_id: str) -> int:
+        """统计租户下的用户数量"""
+        return self.db.query(UserModel).filter(UserModel.tenant_id == tenant_id).count()
+    
+    async def get_user_roles(self, user_id: str) -> List[Role]:
+        """获取用户的角色列表"""
+        user_model = self.db.query(UserModel).filter(UserModel.id == user_id).first()
+        if not user_model:
+            return []
+        
+        # 通过关联表获取角色
+        db_roles = user_model.roles
+        return [self._role_to_entity(role) for role in db_roles]
+    
+    def _role_to_entity(self, db_role: RoleModel) -> Role:
+        """将角色数据库模型转换为领域实体"""
+        return Role(
+            id=db_role.id,
+            name=db_role.name,
+            display_name=db_role.display_name,
+            description=db_role.description,
+            is_active=db_role.is_active,
+            is_system=db_role.is_system,
+            is_admin=db_role.is_admin,
+            priority=db_role.priority,
+            tenant_id=db_role.tenant_id,
+            created_at=db_role.created_at,
+            updated_at=db_role.updated_at
+        )

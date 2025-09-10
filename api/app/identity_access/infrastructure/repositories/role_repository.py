@@ -7,9 +7,11 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
-from app.identity_access.infrastructure.db.user import Role as RoleModel
+from app.identity_access.infrastructure.db.user import Role as RoleModel, Permission
 from ...interfaces.repository_interfaces import IRoleRepository
 from ...interfaces.converter_interfaces import IRoleConverter
+from app.identity_access.domain.entities.role import Role as RoleEntity
+from app.identity_access.domain.entities.permission import Permission as PermissionEntity
 
 
 class RoleRepository(IRoleRepository):
@@ -91,3 +93,109 @@ class RoleRepository(IRoleRepository):
         
         role = Role.create(name=name, description=description)
         return await self.save(role)
+    
+    async def list_active(self, tenant_id: Optional[str] = None) -> List[RoleEntity]:
+        """获取活跃角色列表"""
+        query = self.db.query(RoleModel).filter(RoleModel.is_active == True)
+        
+        if tenant_id:
+            query = query.filter(RoleModel.tenant_id == tenant_id)
+        
+        db_roles = query.all()
+        return [self._to_entity(role) for role in db_roles]
+    
+    async def list_system_roles(self) -> List[RoleEntity]:
+        """获取系统角色列表"""
+        db_roles = self.db.query(RoleModel).filter(RoleModel.is_system == True).all()
+        return [self._to_entity(role) for role in db_roles]
+    
+    async def list_admin_roles(self) -> List[RoleEntity]:
+        """获取管理员角色列表"""
+        db_roles = self.db.query(RoleModel).filter(RoleModel.is_admin == True).all()
+        return [self._to_entity(role) for role in db_roles]
+    
+    async def assign_permission(self, role_id: str, permission_id: str) -> bool:
+        """为角色分配权限"""
+        try:
+            role = self.db.query(RoleModel).filter(RoleModel.id == role_id).first()
+            permission = self.db.query(Permission).filter(Permission.id == permission_id).first()
+            
+            if not role or not permission:
+                return False
+            
+            # 检查是否已经存在关联
+            if permission not in role.permissions:
+                role.permissions.append(permission)
+                self.db.commit()
+            
+            return True
+        except Exception:
+            self.db.rollback()
+            return False
+    
+    async def remove_permission(self, role_id: str, permission_id: str) -> bool:
+        """从角色移除权限"""
+        try:
+            role = self.db.query(RoleModel).filter(RoleModel.id == role_id).first()
+            permission = self.db.query(Permission).filter(Permission.id == permission_id).first()
+            
+            if not role or not permission:
+                return False
+            
+            # 移除关联
+            if permission in role.permissions:
+                role.permissions.remove(permission)
+                self.db.commit()
+            
+            return True
+        except Exception:
+            self.db.rollback()
+            return False
+    
+    async def get_permissions(self, role_id: str) -> List[PermissionEntity]:
+        """获取角色的权限列表"""
+        role = self.db.query(RoleModel).filter(RoleModel.id == role_id).first()
+        if not role:
+            return []
+        
+        permissions = role.permissions
+        return [self._permission_to_entity(permission) for permission in permissions]
+    
+    def _to_entity(self, db_role: RoleModel) -> RoleEntity:
+        """将数据库模型转换为领域实体"""
+        return RoleEntity(
+            id=db_role.id,
+            name=db_role.name,
+            display_name=db_role.display_name,
+            description=db_role.description,
+            is_active=db_role.is_active,
+            is_system=db_role.is_system,
+            is_admin=db_role.is_admin,
+            priority=db_role.priority,
+            tenant_id=db_role.tenant_id,
+            created_at=db_role.created_at,
+            updated_at=db_role.updated_at
+        )
+    
+    def _permission_to_entity(self, db_permission: Permission) -> PermissionEntity:
+        """将权限数据库模型转换为领域实体"""
+        from app.identity_access.domain.value_objects.permission_type import PermissionType
+        from app.identity_access.domain.value_objects.permission_scope import PermissionScope
+        
+        return PermissionEntity(
+            id=db_permission.id,
+            name=db_permission.name,
+            display_name=db_permission.display_name,
+            description=db_permission.description,
+            permission_type=PermissionType(db_permission.permission_type) if db_permission.permission_type else PermissionType.ACTION,
+            scope=PermissionScope(db_permission.scope) if db_permission.scope else PermissionScope.TENANT,
+            resource=db_permission.resource,
+            action=db_permission.action,
+            is_active=db_permission.is_active,
+            is_system=db_permission.is_system,
+            is_admin=db_permission.is_admin,
+            priority=db_permission.priority,
+            tenant_id=db_permission.tenant_id,
+            created_at=db_permission.created_at,
+            updated_at=db_permission.updated_at
+        )

@@ -110,8 +110,10 @@ class AuthService {
         id: userResponse.data.id.toString(),
         name: userResponse.data.username,
         email: userResponse.data.email,
-        roles: userResponse.data.roles || [],
-        currentRole: userResponse.data.active_role,
+        roles: (userResponse.data.roles || []).map((role: string) => 
+          role === 'administrator' ? 'admin' : role
+        ) as UserRole[],
+        currentRole: userResponse.data.active_role === 'administrator' ? 'admin' : userResponse.data.active_role,
       };
 
       // 存储用户信息
@@ -228,8 +230,10 @@ class AuthService {
     
     try {
       // 调用后端API切换角色并获取新令牌对 - 使用统一的apiClient
+      // 将前端的 'admin' 角色映射为后端的 'administrator'
+      const backendRole = role === 'admin' ? 'administrator' : role;
       const response = await apiClient.post<{ access_token: string; refresh_token: string; token_type: string }>('/auth/switch-role', {
-        role
+        role: backendRole
       });
       
       // 更新令牌对
@@ -325,46 +329,6 @@ class AuthService {
       return [];
     }
   }
-}
-
-// 导出单例实例
-export const authService = new AuthService();
-
-/**
- * 角色配置选项
- */
-export const roleOptions = [
-  {
-    id: 'consultant' as UserRole,
-    name: '顾问端',
-    path: '/consultant',
-    icon: 'chat',
-  },
-  {
-    id: 'doctor' as UserRole,
-    name: '医生端',
-    path: '/doctor',
-    icon: 'hospital',
-  },
-  {
-    id: 'operator' as UserRole,
-    name: '运营端',
-    path: '/operator',
-    icon: 'chart',
-  },
-  {
-    id: 'customer' as UserRole,
-    name: '客户端',
-    path: '/customer',
-    icon: 'user',
-  },
-  {
-    id: 'admin' as UserRole,
-    name: '管理员端',
-    path: '/admin',
-    icon: 'user',
-  },
-] as const;
 
   // ==================== 权限相关方法 ====================
 
@@ -509,3 +473,43 @@ export const roleOptions = [
       return this.getCurrentUser();
     }
   }
+}
+
+// 导出单例实例
+export const authService = new AuthService();
+
+/**
+ * 角色配置选项
+ */
+export const roleOptions = [
+  {
+    id: 'consultant' as UserRole,
+    name: '顾问端',
+    path: '/consultant',
+    icon: 'chat',
+  },
+  {
+    id: 'doctor' as UserRole,
+    name: '医生端',
+    path: '/doctor',
+    icon: 'hospital',
+  },
+  {
+    id: 'operator' as UserRole,
+    name: '运营端',
+    path: '/operator',
+    icon: 'chart',
+  },
+  {
+    id: 'customer' as UserRole,
+    name: '客户端',
+    path: '/customer',
+    icon: 'user',
+  },
+  {
+    id: 'admin' as UserRole,
+    name: '管理员端',
+    path: '/admin',
+    icon: 'user',
+  },
+] as const;

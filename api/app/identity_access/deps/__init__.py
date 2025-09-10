@@ -8,6 +8,9 @@
 from .user_deps import (
     get_user_repository,
     get_role_repository,
+    get_login_history_repository,
+    get_tenant_repository,
+    get_permission_repository,
     get_identity_access_application_service
 )
 
@@ -20,6 +23,10 @@ from .auth_deps import (
     get_jwt_service,
     get_security_domain_service,
     get_security_application_service,
+    get_tenant_domain_service,
+    get_role_permission_domain_service,
+    get_tenant_application_service,
+    get_role_permission_application_service,
     
     # 核心认证
     get_current_user,
@@ -46,6 +53,9 @@ __all__ = [
     # 用户相关依赖
     "get_user_repository",
     "get_role_repository",
+    "get_login_history_repository",
+    "get_tenant_repository",
+    "get_permission_repository",
     "get_identity_access_application_service",
     
     # OAuth2配置
@@ -55,6 +65,10 @@ __all__ = [
     "get_jwt_service",
     "get_security_domain_service",
     "get_security_application_service",
+    "get_tenant_domain_service",
+    "get_role_permission_domain_service",
+    "get_tenant_application_service",
+    "get_role_permission_application_service",
     
     # 核心认证
     "get_current_user",

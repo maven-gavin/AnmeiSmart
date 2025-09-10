@@ -4,10 +4,11 @@
 导出该领域的所有数据库模型，确保SQLAlchemy可以正确建立关系映射。
 """
 
-from .user import User, Role, Doctor, Consultant, Operator, Administrator
+from .user import User, Role, Doctor, Consultant, Operator, Administrator, Tenant, Permission, user_roles, role_permissions
 from .profile import UserPreferences, UserDefaultRole, LoginHistory
 
 __all__ = [
     "User", "Role", "Doctor", "Consultant", "Operator", "Administrator",
+    "Tenant", "Permission", "user_roles", "role_permissions",
     "UserPreferences", "UserDefaultRole", "LoginHistory"
 ]

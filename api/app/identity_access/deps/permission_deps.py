@@ -16,8 +16,6 @@ logger = logging.getLogger(__name__)
 
 def get_identity_access_service() -> IdentityAccessApplicationService:
     """获取身份访问应用服务依赖"""
-    # 这里需要从依赖注入容器获取服务实例
-    # 暂时返回None，实际使用时需要正确注入
     from .auth_deps import get_identity_access_application_service
     return get_identity_access_application_service()
 
@@ -28,16 +26,12 @@ async def check_user_permission(
     identity_service: IdentityAccessApplicationService = Depends(get_identity_access_service)
 ) -> bool:
     """检查用户是否有指定权限"""
-    if not identity_service:
-        logger.warning("身份访问服务未配置，使用传统权限检查")
-        # 回退到传统检查
-        return _check_legacy_permission(user, permission)
-    
     try:
         return await identity_service.check_user_permission_use_case(user.id, permission)
     except Exception as e:
         logger.error(f"权限检查失败: {str(e)}")
-        return False
+        # 回退到传统检查
+        return _check_legacy_permission(user, permission)
 
 
 async def check_user_role(
@@ -46,16 +40,12 @@ async def check_user_role(
     identity_service: IdentityAccessApplicationService = Depends(get_identity_access_service)
 ) -> bool:
     """检查用户是否有指定角色"""
-    if not identity_service:
-        logger.warning("身份访问服务未配置，使用传统角色检查")
-        # 回退到传统检查
-        return _check_legacy_role(user, role_name)
-    
     try:
         return await identity_service.check_user_role_use_case(user.id, role_name)
     except Exception as e:
         logger.error(f"角色检查失败: {str(e)}")
-        return False
+        # 回退到传统检查
+        return _check_legacy_role(user, role_name)
 
 
 async def check_user_any_role(
@@ -64,11 +54,6 @@ async def check_user_any_role(
     identity_service: IdentityAccessApplicationService = Depends(get_identity_access_service)
 ) -> bool:
     """检查用户是否有任意一个指定角色"""
-    if not identity_service:
-        logger.warning("身份访问服务未配置，使用传统角色检查")
-        # 回退到传统检查
-        return _check_legacy_any_role(user, role_names)
-    
     try:
         for role_name in role_names:
             if await identity_service.check_user_role_use_case(user.id, role_name):
@@ -76,7 +61,8 @@ async def check_user_any_role(
         return False
     except Exception as e:
         logger.error(f"角色检查失败: {str(e)}")
-        return False
+        # 回退到传统检查
+        return _check_legacy_any_role(user, role_names)
 
 
 async def check_user_any_permission(
@@ -85,11 +71,6 @@ async def check_user_any_permission(
     identity_service: IdentityAccessApplicationService = Depends(get_identity_access_service)
 ) -> bool:
     """检查用户是否有任意一个指定权限"""
-    if not identity_service:
-        logger.warning("身份访问服务未配置，使用传统权限检查")
-        # 回退到传统检查
-        return _check_legacy_any_permission(user, permissions)
-    
     try:
         for permission in permissions:
             if await identity_service.check_user_permission_use_case(user.id, permission):
@@ -97,7 +78,8 @@ async def check_user_any_permission(
         return False
     except Exception as e:
         logger.error(f"权限检查失败: {str(e)}")
-        return False
+        # 回退到传统检查
+        return _check_legacy_any_permission(user, permissions)
 
 
 async def is_user_admin(
@@ -105,16 +87,12 @@ async def is_user_admin(
     identity_service: IdentityAccessApplicationService = Depends(get_identity_access_service)
 ) -> bool:
     """检查用户是否为管理员"""
-    if not identity_service:
-        logger.warning("身份访问服务未配置，使用传统管理员检查")
-        # 回退到传统检查
-        return _check_legacy_admin(user)
-    
     try:
         return await identity_service.is_user_admin_use_case(user.id)
     except Exception as e:
         logger.error(f"管理员权限检查失败: {str(e)}")
-        return False
+        # 回退到传统检查
+        return _check_legacy_admin(user)
 
 
 # ==================== 权限装饰器 ====================

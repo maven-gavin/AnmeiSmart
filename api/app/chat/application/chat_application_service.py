@@ -249,7 +249,7 @@ class ChatApplicationService(IChatApplicationService):
             if not conversation:
                 raise ValueError(f"会话不存在: {conversation_id}")
 
-            if not self._verify_conversation_access(conversation, sender_id, sender_type):
+            if not await self._verify_conversation_access(conversation, sender_id, sender_type):
                 raise ValueError(f"会话不存在或无权访问: {conversation_id}")
 
             # 2. 确保content是字典格式
@@ -625,7 +625,7 @@ class ChatApplicationService(IChatApplicationService):
             logger.error(f"广播消息失败: {e}")
             # 不抛出异常，因为消息已经成功创建
 
-    def _verify_conversation_access(
+    async def _verify_conversation_access(
         self,
         conversation: Conversation,
         user_id: str,
@@ -638,7 +638,10 @@ class ChatApplicationService(IChatApplicationService):
 
         # 管理员可以访问所有会话
         from app.identity_access.deps.permission_deps import is_user_admin
-        if await is_user_admin(user):
+        # 需要获取用户对象，这里暂时使用传统方式
+        # TODO: 重构为异步权限检查
+        admin_roles = ["administrator", "operator"]
+        if user_role in admin_roles:
             return True
 
         # 其他情况需要检查参与者关系

@@ -157,7 +157,7 @@ async def get_current_admin(
     Raises:
         HTTPException: 如果用户不是管理员
     """
-    return await security_app_service.get_current_admin_use_case(current_user)
+    return await security_app_service.get_current_admin(current_user)
 
 
 # ==================== 权限检查工具函数 ====================

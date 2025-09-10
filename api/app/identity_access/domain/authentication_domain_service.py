@@ -71,7 +71,7 @@ class AuthenticationDomainService:
             location=location
         )
         
-        saved_history = await self.login_history_repository.create(login_history)
+        saved_history = await self.login_history_repository.save(login_history)
         return saved_history
     
     async def validate_token(self, token: str) -> Optional[Dict[str, Any]]:

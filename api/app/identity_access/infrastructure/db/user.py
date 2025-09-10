@@ -31,6 +31,10 @@ class Tenant(BaseModel):
 
     id = Column(String(36), primary_key=True, default=tenant_id, comment="租户ID")
     name = Column(String(50), unique=True, index=True, nullable=False, comment="租户名称")
+    display_name = Column(String(50), nullable=True, comment="租户显示名称")
+    description = Column(String(255), nullable=True, comment="租户描述")
+    tenant_type = Column(String(20), default="standard", comment="租户类型")
+    status = Column(String(20), default="active", comment="租户状态")
 
     is_active = Column(Boolean, default=True, comment="是否启用")
     is_system = Column(Boolean, default=False, comment="是否系统租户")
@@ -52,7 +56,7 @@ class Role(BaseModel):
 
     id = Column(String(36), primary_key=True, default=role_id, comment="角色ID")
     name = Column(String(50), unique=True, index=True, nullable=False, comment="角色名称")
-    dispaly_name = Column(String(50), nullable=True, comment="角色显示名称")
+    display_name = Column(String(50), nullable=True, comment="角色显示名称")
     description = Column(String(255), nullable=True, comment="角色描述")
     is_active = Column(Boolean, default=True, comment="是否启用")
     is_system = Column(Boolean, default=False, comment="是否系统角色")
@@ -72,7 +76,13 @@ class Permission(BaseModel):
     
     id = Column(String(36), primary_key=True, default=permission_id, comment="权限ID")
     name = Column(String(50), unique=True, index=True, nullable=False, comment="权限名称")
+    display_name = Column(String(50), nullable=True, comment="权限显示名称")
     description = Column(String(255), nullable=True, comment="权限描述")
+    permission_type = Column(String(20), default="action", comment="权限类型")
+    scope = Column(String(20), default="tenant", comment="权限范围")
+    resource = Column(String(50), nullable=True, comment="权限资源")
+    action = Column(String(50), nullable=True, comment="权限动作")
+    
     is_active = Column(Boolean, default=True, comment="是否启用")
     is_system = Column(Boolean, default=False, comment="是否系统权限")
     is_admin = Column(Boolean, default=False, comment="是否管理员权限")
@@ -96,6 +106,9 @@ class User(BaseModel):
     phone = Column(String, unique=True, index=True, nullable=True, comment="手机号")
     avatar = Column(String, nullable=True, comment="头像URL")
     is_active = Column(Boolean, default=True, comment="是否激活")
+    
+    # 租户关联
+    tenant = relationship("Tenant", back_populates="users")
     
     # 用户角色关联
     roles = relationship("Role", secondary="user_roles", back_populates="users")

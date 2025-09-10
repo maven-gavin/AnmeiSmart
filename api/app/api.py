@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.identity_access.endpoints import users,auth,roles,preferences
+from app.identity_access.endpoints import users,auth,roles,preferences,tenants,permissions,user_permissions
 from app.chat.endpoints import  chat
 from app.ai.endpoints import  ai, ai_gateway, agent_config
 from app.system.endpoints import  system
@@ -22,6 +22,15 @@ api_router.include_router(users.router, prefix="/users", tags=["users"])
 
 # 角色管理路由
 api_router.include_router(roles.router, prefix="/roles", tags=["roles"])
+
+# 租户管理路由
+api_router.include_router(tenants.router, prefix="/tenants", tags=["tenants"])
+
+# 权限管理路由
+api_router.include_router(permissions.router, prefix="/permissions", tags=["permissions"])
+
+# 用户权限检查路由
+api_router.include_router(user_permissions.router, prefix="/users", tags=["user-permissions"])
 
 # WebSocket连接路由 (注意：WebSocket端点不需要prefix)
 api_router.include_router(websocket.router, tags=["websocket"])
