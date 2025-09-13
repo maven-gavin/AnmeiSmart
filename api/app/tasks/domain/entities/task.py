@@ -1,7 +1,6 @@
 """
 任务聚合根实体
 """
-from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -9,45 +8,53 @@ from app.common.domain.entities.base_entity import BaseEntity, DomainEvent
 from app.tasks.domain.value_objects import TaskStatus, TaskPriority, TaskType
 
 
-@dataclass
 class Task(BaseEntity):
     """任务聚合根 - 管理任务的核心业务逻辑"""
     
-    # 任务基础信息
-    title: str
-    task_type: str
-    description: Optional[str] = None
-    
-    # 任务状态和优先级
-    status: str = field(default=TaskStatus.PENDING)
-    priority: str = field(default=TaskPriority.MEDIUM)
-    
-    # 任务分配
-    created_by: Optional[str] = None
-    assigned_to: Optional[str] = None
-    assigned_at: Optional[datetime] = None
-    
-    # 关联业务对象
-    related_object_type: Optional[str] = None
-    related_object_id: Optional[str] = None
-    
-    # 任务数据
-    task_data: Optional[Dict[str, Any]] = None
-    
-    # 时间信息
-    due_date: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    
-    # 处理结果
-    result: Optional[Dict[str, Any]] = None
-    notes: Optional[str] = None
-    
-    # 时间戳
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: datetime = field(default_factory=datetime.now)
-    
-    def __post_init__(self):
-        """初始化后验证"""
+    def __init__(
+        self,
+        id: str,
+        title: str,
+        task_type: str,
+        description: Optional[str] = None,
+        status: str = TaskStatus.PENDING,
+        priority: str = TaskPriority.MEDIUM,
+        created_by: Optional[str] = None,
+        assigned_to: Optional[str] = None,
+        assigned_at: Optional[datetime] = None,
+        related_object_type: Optional[str] = None,
+        related_object_id: Optional[str] = None,
+        task_data: Optional[Dict[str, Any]] = None,
+        due_date: Optional[datetime] = None,
+        completed_at: Optional[datetime] = None,
+        result: Optional[Dict[str, Any]] = None,
+        notes: Optional[str] = None,
+        created_at: Optional[datetime] = None,
+        updated_at: Optional[datetime] = None
+    ):
+        # 调用父类构造函数
+        super().__init__(id)
+        
+        # 设置属性
+        self.title = title
+        self.task_type = task_type
+        self.description = description
+        self.status = status
+        self.priority = priority
+        self.created_by = created_by
+        self.assigned_to = assigned_to
+        self.assigned_at = assigned_at
+        self.related_object_type = related_object_type
+        self.related_object_id = related_object_id
+        self.task_data = task_data
+        self.due_date = due_date
+        self.completed_at = completed_at
+        self.result = result
+        self.notes = notes
+        self.created_at = created_at or datetime.now()
+        self.updated_at = updated_at or datetime.now()
+        
+        # 验证实体状态
         self.validate()
     
     def validate(self) -> None:

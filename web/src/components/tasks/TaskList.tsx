@@ -12,10 +12,11 @@ import {
   CheckCircle,
   XCircle
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, isValid } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
-import type { PendingTask, TASK_TYPE_LABELS, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS } from '@/types/task';
+import type { PendingTask } from '@/types/task';
+import { TASK_TYPE_LABELS } from '@/types/task';
 
 interface TaskListProps {
   tasks: PendingTask[];
@@ -98,9 +99,30 @@ export default function TaskList({
     return TASK_TYPE_LABELS[taskType] || taskType;
   };
 
+  const formatDateSafely = (dateString: string | undefined) => {
+    if (!dateString) return '未知时间';
+    
+    const date = new Date(dateString);
+    if (!isValid(date)) return '无效时间';
+    
+    try {
+      return formatDistanceToNow(date, { 
+        addSuffix: true, 
+        locale: zhCN 
+      });
+    } catch (error) {
+      console.error('日期格式化错误:', error, '原始值:', dateString);
+      return '时间格式错误';
+    }
+  };
+
   const isOverdue = (dueDate?: string) => {
     if (!dueDate) return false;
-    return new Date(dueDate) < new Date();
+    
+    const date = new Date(dueDate);
+    if (!isValid(date)) return false;
+    
+    return date < new Date();
   };
 
   const canClaim = (task: PendingTask) => {
@@ -164,10 +186,7 @@ export default function TaskList({
                 <div className="flex items-center space-x-1">
                   <Calendar className="h-4 w-4" />
                   <span>
-                    创建于 {formatDistanceToNow(new Date(task.createdAt), { 
-                      addSuffix: true, 
-                      locale: zhCN 
-                    })}
+                    创建于 {formatDateSafely(task.createdAt)}
                   </span>
                 </div>
 
@@ -191,10 +210,7 @@ export default function TaskList({
                   }`}>
                     <Clock className="h-4 w-4" />
                     <span>
-                      截止: {formatDistanceToNow(new Date(task.dueDate), { 
-                        addSuffix: true, 
-                        locale: zhCN 
-                      })}
+                      截止: {formatDateSafely(task.dueDate)}
                       {isOverdue(task.dueDate) && (
                         <AlertCircle className="h-4 w-4 inline ml-1" />
                       )}

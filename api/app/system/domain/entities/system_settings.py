@@ -1,6 +1,5 @@
 from typing import Optional
 from datetime import datetime, timezone
-from dataclasses import dataclass, field
 from app.system.domain.value_objects.system_config import (
     SystemStatus, 
     MaintenanceMode, 
@@ -10,26 +9,32 @@ from app.system.domain.value_objects.system_config import (
 )
 from app.common.domain.entities.base_entity import BaseEntity, DomainEvent
 
-@dataclass(kw_only=True)
 class SystemSettings(BaseEntity):
     """系统设置聚合根"""
-    id: str
-    site_config: SiteConfiguration
-    ai_model_config: AIModelConfig
-    maintenance_mode: MaintenanceMode
-    user_registration_config: UserRegistrationConfig
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
-    def __post_init__(self):
+    def __init__(
+        self,
+        id: str,
+        site_config: SiteConfiguration,
+        ai_model_config: AIModelConfig,
+        maintenance_mode: MaintenanceMode,
+        user_registration_config: UserRegistrationConfig,
+        created_at: Optional[datetime] = None,
+        updated_at: Optional[datetime] = None
+    ):
         # 调用父类构造函数
-        super().__init__(self.id)
+        super().__init__(id)
+        
+        # 设置属性
+        self.site_config = site_config
+        self.ai_model_config = ai_model_config
+        self.maintenance_mode = maintenance_mode
+        self.user_registration_config = user_registration_config
+        self.created_at = created_at or datetime.now(timezone.utc)
+        self.updated_at = updated_at or datetime.now(timezone.utc)
         
         # 验证实体状态
         self.validate()
-        
-        # 更新修改时间
-        self.updated_at = datetime.now(timezone.utc)
     
     def validate(self) -> None:
         """验证实体状态 - 必须实现"""
