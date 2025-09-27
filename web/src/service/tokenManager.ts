@@ -5,7 +5,7 @@
 
 import { jwtUtils } from './jwt';
 import { AppError, ErrorType } from './errors';
-import { API_BASE_URL, AUTH_CONFIG } from '@/config';
+import { API_BASE_URL, AUTH_CONFIG, SMARTBRAIN_API_BASE_URL } from '@/config';
 
 // 检查是否在浏览器环境
 const isBrowser = typeof window !== 'undefined';
@@ -118,7 +118,7 @@ export class TokenManager {
   /**
    * 获取有效的访问令牌（如果过期会自动刷新）
    */
-  async getValidToken(): Promise<string | null> {
+  async getValidToken(isSmartBrainAPI?: boolean): Promise<string | null> {
     try {
       const token = this.getToken();
       
@@ -132,7 +132,7 @@ export class TokenManager {
       }
       
       // 令牌过期，尝试刷新
-      return await this.refreshToken();
+      return await this.refreshToken(isSmartBrainAPI);
     } catch (error) {
       console.error('获取有效令牌失败:', error);
       return null;
@@ -142,7 +142,7 @@ export class TokenManager {
   /**
    * 刷新令牌
    */
-  async refreshToken(): Promise<string> {
+  async refreshToken(isSmartBrainAPI?: boolean): Promise<string> {
     // 如果已经有刷新请求在进行中，等待其完成
     if (this.refreshPromise) {
       return this.refreshPromise;
@@ -154,7 +154,7 @@ export class TokenManager {
     }
 
     // 创建刷新请求
-    this.refreshPromise = this.performTokenRefresh(refreshToken);
+    this.refreshPromise = this.performTokenRefresh(refreshToken, isSmartBrainAPI);
 
     try {
       const newToken = await this.refreshPromise;
@@ -173,7 +173,7 @@ export class TokenManager {
   /**
    * 执行令牌刷新请求
    */
-  private async performTokenRefresh(refreshToken: string): Promise<string> {
+  private async performTokenRefresh(refreshToken: string, isSmartBrainAPI?: boolean): Promise<string> {
     const maxRetries = 3;
     const retryDelay = 1000; // 1秒
 
@@ -182,7 +182,7 @@ export class TokenManager {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
 
-        const response = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
+        const response = await fetch(`${isSmartBrainAPI ? SMARTBRAIN_API_BASE_URL : API_BASE_URL}/auth/refresh-token`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

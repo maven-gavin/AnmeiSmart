@@ -1,3 +1,5 @@
+import type { TransferMethod } from './smart-brain-app'
+
 export interface User {
   id: string;
   name: string;
@@ -249,3 +251,100 @@ export interface MessageUtils {
   // 兼容性检查
   isLegacyMessage(message: Message): boolean;
 } 
+
+
+// -----------------------------下面是SmartBrain系统的Chat相关类的定义-----------------------------
+export type AnnotationReply = {
+  id: string
+  task_id: string
+  answer: string
+  conversation_id: string
+  annotation_id: string
+  annotation_author_name: string
+}
+
+export type MessageEnd = {
+  id: string
+  metadata: Metadata
+  files?: FileResponse[]
+}
+
+export type Metadata = {
+  retriever_resources?: CitationItem[]
+  annotation_reply: {
+    id: string
+    account: {
+      id: string
+      name: string
+    }
+  }
+}
+
+export type CitationItem = {
+  content: string
+  data_source_type: string
+  dataset_name: string
+  dataset_id: string
+  document_id: string
+  document_name: string
+  hit_count: number
+  index_node_hash: string
+  segment_id: string
+  segment_position: number
+  score: number
+  word_count: number
+}
+
+export type FileResponse = {
+  related_id: string
+  extension: string
+  filename: string
+  size: number
+  mime_type: string
+  transfer_method: TransferMethod
+  type: string
+  url: string
+  upload_file_id: string
+  remote_url: string
+}
+export type MessageReplace = {
+  id: string
+  task_id: string
+  answer: string
+  conversation_id: string
+}
+export type ThoughtItem = {
+  id: string
+  tool: string // plugin or dataset. May has multi.
+  thought: string
+  tool_input: string
+  tool_labels?: { [key: string]: TypeWithI18N }
+  message_id: string
+  conversation_id: string
+  observation: string
+  position: number
+  files?: string[]
+  message_files?: FileEntity[]
+}
+export type TypeWithI18N<T = string> = {
+  en_US: T
+  zh_Hans: T
+  [key: string]: T
+}
+
+export type FileEntity = {
+  id: string
+  name: string
+  size: number
+  type: string
+  progress: number
+  transferMethod: TransferMethod
+  supportFileType: string
+  originalFile?: File
+  uploadedId?: string
+  base64Url?: string
+  url?: string
+  isRemote?: boolean
+}
+
+// --------------------------------------------------------

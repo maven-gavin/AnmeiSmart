@@ -143,3 +143,13 @@ export function getWebSocketDeviceConfig(deviceInfo: DeviceInfo) {
 export function formatDeviceInfo(deviceInfo: DeviceInfo): string {
   return `${deviceInfo.type.toUpperCase()} | ${deviceInfo.platform} | ${deviceInfo.screenWidth}x${deviceInfo.screenHeight} | ID: ${deviceInfo.deviceId.substring(0, 12)}...`;
 }
+
+
+export async function asyncRunSafe<T = any>(fn: Promise<T>): Promise<[Error] | [null, T]> {
+  try {
+    return [null, await fn]
+  }
+  catch (e: any) {
+    return [e || new Error('unknown error')]
+  }
+}
