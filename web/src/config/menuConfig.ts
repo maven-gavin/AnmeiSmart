@@ -19,6 +19,13 @@ export const menuConfig: MenuConfig = {
       roles: ['doctor','consultant', 'customer', 'admin', 'operator']
     },    
     {
+      id: 'agents-explore',
+      label: '智能体探索',
+      path: '/agents/explore',
+      icon: 'agent-icon',
+      roles: ['doctor','consultant', 'customer', 'admin', 'operator']
+    },       
+    {
       id: 'chat-consultant',
       label: '智能沟通',
       path: '/chat',
@@ -124,9 +131,9 @@ export const menuConfig: MenuConfig = {
       roles: ['admin']
     },
     {
-      id: 'agents',
+      id: 'agents-setup',
       label: '智能体配置',
-      path: '/agents',
+      path: '/agents/setup',
       icon: 'agent-icon',
       roles: ['admin']
     },

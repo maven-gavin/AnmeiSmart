@@ -2,7 +2,7 @@
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 // SmartBrain API Base URL
-export const SMARTBRAIN_API_BASE_URL = process.env.NEXT_PUBLIC_SMARTBRAIN_API_BASE_URL || 'http://localhost/api/v1';
+export const SMARTBRAIN_API_BASE_URL = process.env.NEXT_PUBLIC_SMARTBRAIN_API_BASE_URL || 'http://localhost/v1';
 
 // WebSocket URL - 单一配置源
 export const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/api/v1/ws';

@@ -86,6 +86,8 @@ class ConversationRepository(IConversationRepository):
         limit: int = 100
     ) -> List[Conversation]:
         """获取用户参与的会话列表"""
+        logger.info(f"仓储：获取用户会话列表 - user_id={user_id}, user_role={user_role}, skip={skip}, limit={limit}")
+        
         # 构建查询：获取用户参与的所有会话
         query = self.db.query(ConversationModel).options(
             joinedload(ConversationModel.owner),
@@ -116,7 +118,16 @@ class ConversationRepository(IConversationRepository):
             ConversationModel.updated_at.desc()
         ).offset(skip).limit(limit).all()
         
-        return [self._to_entity(conv) for conv in conversation_models]
+        logger.info(f"仓储：查询到 {len(conversation_models)} 个会话模型")
+        
+        entities = [self._to_entity(conv) for conv in conversation_models]
+        logger.info(f"仓储：转换为 {len(entities)} 个会话实体")
+        
+        # 打印每个会话的ID用于调试
+        for i, entity in enumerate(entities):
+            logger.info(f"会话 {i+1}: ID={entity.id}, 类型={type(entity.id)}")
+        
+        return entities
     
     async def exists_by_title_and_owner(self, title: str, owner_id: str) -> bool:
         """检查用户是否已有同名会话"""
@@ -262,13 +273,25 @@ class ConversationRepository(IConversationRepository):
     
     async def get_unread_counts(self, conversation_ids: List[str], user_id: str) -> Dict[str, int]:
         """批量获取用户在多个会话中的未读消息数"""
+        logger.info(f"仓储：开始获取未读数统计 - conversation_ids={conversation_ids}, user_id={user_id}")
+        logger.info(f"conversation_ids 类型: {type(conversation_ids)}")
+        
         if not conversation_ids:
+            logger.info("会话ID列表为空，返回空字典")
             return {}
         
         result = {}
-        for conv_id in conversation_ids:
-            result[conv_id] = await self.get_unread_count(conv_id, user_id)
+        for i, conv_id in enumerate(conversation_ids):
+            logger.info(f"处理第 {i+1} 个会话ID: {conv_id} (类型: {type(conv_id)})")
+            try:
+                unread_count = await self.get_unread_count(conv_id, user_id)
+                result[conv_id] = unread_count
+                logger.info(f"会话 {conv_id} 未读数: {unread_count}")
+            except Exception as e:
+                logger.error(f"获取会话 {conv_id} 未读数时出错: {e}", exc_info=True)
+                result[conv_id] = 0  # 出错时默认为0
         
+        logger.info(f"未读数统计完成: {result}")
         return result
     
     async def delete(self, conversation_id: str) -> bool:

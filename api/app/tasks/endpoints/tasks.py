@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from app.common.deps import get_db
-from app.identity_access.deps import get_current_user
+from app.identity_access.deps import get_current_user, get_user_primary_role
 from app.identity_access.infrastructure.db.user import User
 from app.tasks.schemas.task import (
     TaskResponse,
@@ -21,13 +21,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def get_user_role(user: User) -> str:
-    """获取用户角色"""
-    if hasattr(user, '_active_role') and user._active_role:
-        return user._active_role
-    elif user.roles:
-        return user.roles[0].name
-    return 'customer'
+# 移除本地定义的函数，使用公共方法 get_user_primary_role
 
 
 @router.get("/")
@@ -43,10 +37,14 @@ async def get_tasks(
 ):
     """获取待办任务列表 - 表现层只负责请求路由和响应格式化"""
     try:
+        logger.info(f"开始获取任务列表 - 用户ID: {current_user.id}, 请求参数: status={status}, task_type={task_type}, priority={priority}, search={search}, user_role={user_role}")
+        
         # 获取用户角色
-        actual_user_role = user_role or get_user_role(current_user)
+        actual_user_role = user_role or get_user_primary_role(current_user)
+        logger.info(f"确定用户角色: {actual_user_role}")
         
         # 调用应用服务用例
+        logger.info(f"调用应用服务获取任务列表")
         tasks = task_app_service.get_tasks_for_user_use_case(
             user_id=str(current_user.id),
             user_role=actual_user_role,
@@ -57,6 +55,7 @@ async def get_tasks(
             db=db
         )
         
+        logger.info(f"成功获取任务列表，共 {len(tasks)} 个任务")
         return {
             "success": True,
             "data": tasks,
@@ -65,10 +64,13 @@ async def get_tasks(
         
     except ValueError as e:
         # 业务逻辑错误 - 400 Bad Request
+        logger.error(f"获取任务列表业务逻辑错误: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         # 系统错误 - 500 Internal Server Error
         logger.error(f"获取任务列表失败: {e}")
+        import traceback
+        logger.error(f"详细错误堆栈: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="获取任务列表失败")
 
 
@@ -81,7 +83,7 @@ async def get_task(
 ):
     """获取任务详情 - 表现层只负责请求路由和响应格式化"""
     try:
-        user_role = get_user_role(current_user)
+        user_role = get_user_primary_role(current_user)
         
         # 调用应用服务用例
         task = task_app_service.get_task_by_id_use_case(
@@ -182,7 +184,7 @@ async def update_task(
 ):
     """更新任务状态 - 表现层只负责请求路由和响应格式化"""
     try:
-        user_role = get_user_role(current_user)
+        user_role = get_user_primary_role(current_user)
         
         # 调用应用服务用例
         task = task_app_service.update_task_status_use_case(

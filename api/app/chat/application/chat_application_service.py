@@ -44,12 +44,11 @@ class ChatApplicationService(IChatApplicationService):
 
     def get_user_role(self, user: User) -> str:
         """获取用户的当前角色"""
-        if hasattr(user, '_active_role') and user._active_role:
-            return user._active_role
-        elif user.roles:
-            return user.roles[0].name
-        else:
-            return 'customer'
+        from app.identity_access.deps.auth_deps import get_user_primary_role
+        logger.info(f"应用服务：获取用户角色 - user_id={user.id}")
+        role = get_user_primary_role(user)
+        logger.info(f"应用服务：获取到用户角色 = {role}")
+        return role
 
     # ============ 会话相关用例 ============
 
@@ -128,21 +127,32 @@ class ChatApplicationService(IChatApplicationService):
                 skip=skip,
                 limit=limit
             )
+            logger.info(f"获取到 {len(conversations)} 个会话")
 
             # 2. 获取最后消息和未读数
             conversation_ids = [str(conv.id) for conv in conversations]
+            logger.info(f"会话ID列表: {conversation_ids}")
+            logger.info(f"会话ID列表类型: {type(conversation_ids)}")
+            
             last_messages_with_senders = await self.conversation_repository.get_last_messages(conversation_ids)
+            logger.info(f"最后消息数据: {last_messages_with_senders}")
+            logger.info(f"最后消息数据类型: {type(last_messages_with_senders)}")
+            
             unread_counts = await self.conversation_repository.get_unread_counts(conversation_ids, user_id)
+            logger.info(f"未读数统计: {unread_counts}")
+            logger.info(f"未读数统计类型: {type(unread_counts)}")
 
             # 3. 转换为响应Schema列表
-            return ConversationConverter.to_list_response(
+            result = ConversationConverter.to_list_response(
                 conversations=conversations,
                 last_messages_with_senders=last_messages_with_senders,
                 unread_counts=unread_counts
             )
+            logger.info(f"转换结果: {len(result)} 个会话信息")
+            return result
 
         except Exception as e:
-            logger.error(f"获取会话列表失败: {e}")
+            logger.error(f"获取会话列表失败: {e}", exc_info=True)
             raise Exception("获取会话列表失败")
 
     async def get_conversations(self, user_id: str, user_role: str, skip: int = 0, limit: int = 100) -> List[ConversationInfo]:

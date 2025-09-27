@@ -17,8 +17,8 @@ class Task(BaseEntity):
         title: str,
         task_type: str,
         description: Optional[str] = None,
-        status: str = TaskStatus.PENDING,
-        priority: str = TaskPriority.MEDIUM,
+        status: str = TaskStatus.PENDING.value,
+        priority: str = TaskPriority.MEDIUM.value,
         created_by: Optional[str] = None,
         assigned_to: Optional[str] = None,
         assigned_at: Optional[datetime] = None,
@@ -59,23 +59,43 @@ class Task(BaseEntity):
     
     def validate(self) -> None:
         """验证实体状态 - 必须实现"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.debug(f"Task.validate开始验证任务: ID={self.id}, title={self.title}, type={self.task_type}, status={self.status}, priority={self.priority}")
+        
         if not self.title or not self.title.strip():
+            logger.error(f"任务标题验证失败: title={self.title}")
             raise ValueError("任务标题不能为空")
         
         if len(self.title.strip()) > 500:
+            logger.error(f"任务标题过长: length={len(self.title.strip())}")
             raise ValueError("任务标题过长，不能超过500字符")
         
         if self.description and len(self.description.strip()) > 2000:
+            logger.error(f"任务描述过长: length={len(self.description.strip())}")
             raise ValueError("任务描述过长，不能超过2000字符")
         
+        logger.debug(f"验证任务类型: {self.task_type}")
         if not TaskType.get_task_type_metadata(self.task_type):
+            logger.error(f"无效的任务类型: {self.task_type}")
             raise ValueError(f"无效的任务类型: {self.task_type}")
         
-        if self.status not in [status.value for status in TaskStatus]:
+        logger.debug(f"验证任务状态: {self.status}")
+        valid_statuses = TaskStatus.get_all_values()
+        logger.debug(f"有效状态列表: {valid_statuses}, 类型: {type(valid_statuses)}")
+        if self.status not in valid_statuses:
+            logger.error(f"无效的任务状态: {self.status}, 有效状态: {valid_statuses}")
             raise ValueError(f"无效的任务状态: {self.status}")
         
-        if self.priority not in [priority.value for priority in TaskPriority]:
+        logger.debug(f"验证任务优先级: {self.priority}")
+        valid_priorities = TaskPriority.get_all_values()
+        logger.debug(f"有效优先级列表: {valid_priorities}, 类型: {type(valid_priorities)}")
+        if self.priority not in valid_priorities:
+            logger.error(f"无效的任务优先级: {self.priority}, 有效优先级: {valid_priorities}")
             raise ValueError(f"无效的任务优先级: {self.priority}")
+        
+        logger.debug(f"Task.validate验证通过: ID={self.id}")
     
     @classmethod
     def create(cls, 
@@ -88,7 +108,7 @@ class Task(BaseEntity):
         
         # 获取任务类型元数据
         metadata = TaskType.get_task_type_metadata(task_type)
-        default_priority = kwargs.get('priority', metadata.get('default_priority', TaskPriority.MEDIUM))
+        default_priority = kwargs.pop('priority', metadata.get('default_priority', TaskPriority.MEDIUM.value))
         
         task = cls(
             id=task_id(),
@@ -234,7 +254,7 @@ class Task(BaseEntity):
     
     def update_priority(self, new_priority: str) -> None:
         """更新任务优先级"""
-        if new_priority not in [priority.value for priority in TaskPriority]:
+        if new_priority not in TaskPriority.get_all_values():
             raise ValueError(f"无效的任务优先级: {new_priority}")
         
         if new_priority == self.priority:

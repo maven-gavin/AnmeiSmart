@@ -67,14 +67,20 @@ class TaskRepository(ITaskRepository):
     def get_tasks_for_user(self, user_id: str, user_role: str, **filters) -> List[Task]:
         """获取用户相关任务"""
         try:
+            logger.info(f"仓储层开始获取任务 - user_id: {user_id}, user_role: {user_role}, filters: {filters}")
+            
             query = self.db.query(PendingTask)
+            logger.info(f"构建基础查询完成")
             
             # 根据用户角色筛选任务
+            logger.info(f"根据用户角色 {user_role} 筛选任务")
             if user_role == "administrator":
                 # 管理员可以看到所有任务
+                logger.info(f"管理员角色，可查看所有任务")
                 pass
             elif user_role == "consultant":
                 # 顾问可以看到：1. 分配给自己的任务 2. 新用户接待类任务
+                logger.info(f"顾问角色，筛选分配给自己的任务和顾问相关任务")
                 query = query.filter(
                     or_(
                         PendingTask.assigned_to == user_id,
@@ -86,6 +92,7 @@ class TaskRepository(ITaskRepository):
                 )
             elif user_role == "doctor":
                 # 医生可以看到：1. 分配给自己的任务 2. 医疗相关任务
+                logger.info(f"医生角色，筛选分配给自己的任务和医疗相关任务")
                 query = query.filter(
                     or_(
                         PendingTask.assigned_to == user_id,
@@ -97,6 +104,7 @@ class TaskRepository(ITaskRepository):
                 )
             elif user_role == "operator":
                 # 运营人员可以看到：1. 分配给自己的任务 2. 运营相关任务
+                logger.info(f"运营角色，筛选分配给自己的任务和运营相关任务")
                 query = query.filter(
                     or_(
                         PendingTask.assigned_to == user_id,
@@ -108,20 +116,25 @@ class TaskRepository(ITaskRepository):
                 )
             else:
                 # 其他角色只能看到分配给自己的任务
+                logger.info(f"其他角色 {user_role}，只能查看分配给自己的任务")
                 query = query.filter(PendingTask.assigned_to == user_id)
             
             # 应用其他筛选条件
             if filters.get('status'):
+                logger.info(f"应用状态筛选: {filters['status']}")
                 query = query.filter(PendingTask.status == filters['status'])
             
             if filters.get('task_type'):
+                logger.info(f"应用任务类型筛选: {filters['task_type']}")
                 query = query.filter(PendingTask.task_type == filters['task_type'])
             
             if filters.get('priority'):
+                logger.info(f"应用优先级筛选: {filters['priority']}")
                 query = query.filter(PendingTask.priority == filters['priority'])
             
             if filters.get('search'):
                 search_term = filters['search']
+                logger.info(f"应用搜索筛选: {search_term}")
                 query = query.filter(
                     or_(
                         PendingTask.title.contains(search_term),
@@ -130,16 +143,36 @@ class TaskRepository(ITaskRepository):
                 )
             
             # 排序
+            logger.info(f"执行查询并排序")
             tasks = query.order_by(
                 PendingTask.priority.desc(),
                 PendingTask.created_at.desc()
             ).all()
             
+            logger.info(f"查询到 {len(tasks)} 个任务记录")
+            
             # 转换为领域实体
-            return [TaskConverter.from_model(task) for task in tasks]
+            logger.info(f"开始转换 {len(tasks)} 个任务记录为领域实体")
+            domain_tasks = []
+            for i, task in enumerate(tasks):
+                try:
+                    logger.debug(f"转换第 {i+1} 个任务: ID={task.id}, type={task.task_type}, status={task.status}, priority={task.priority}")
+                    domain_task = TaskConverter.from_model(task)
+                    domain_tasks.append(domain_task)
+                    logger.debug(f"成功转换第 {i+1} 个任务")
+                except Exception as convert_error:
+                    logger.error(f"转换第 {i+1} 个任务失败: {convert_error}")
+                    import traceback
+                    logger.error(f"转换错误详细堆栈: {traceback.format_exc()}")
+                    raise
+            
+            logger.info(f"成功转换 {len(domain_tasks)} 个任务为领域实体")
+            return domain_tasks
             
         except Exception as e:
             logger.error(f"获取用户任务列表失败: {e}")
+            import traceback
+            logger.error(f"仓储层详细错误堆栈: {traceback.format_exc()}")
             raise
     
     def get_claimable_tasks(self, user_role: str) -> List[Task]:

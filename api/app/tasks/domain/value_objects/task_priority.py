@@ -15,7 +15,7 @@ class TaskPriority(str, Enum):
     @classmethod
     def get_priority_order(cls) -> List[str]:
         """获取优先级排序（从高到低）"""
-        return [cls.URGENT, cls.HIGH, cls.MEDIUM, cls.LOW]
+        return [cls.URGENT.value, cls.HIGH.value, cls.MEDIUM.value, cls.LOW.value]
     
     @classmethod
     def get_higher_priorities(cls, priority: str) -> List[str]:
@@ -26,6 +26,11 @@ class TaskPriority(str, Enum):
             return order[:current_index]
         except ValueError:
             return []
+    
+    @classmethod
+    def get_all_values(cls) -> List[str]:
+        """获取所有优先级值列表"""
+        return [e.value for e in cls]
     
     @classmethod
     def is_higher_than(cls, priority1: str, priority2: str) -> bool:

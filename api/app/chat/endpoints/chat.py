@@ -61,18 +61,25 @@ async def get_conversations(
     chat_app_service: ChatApplicationService = Depends(get_chat_application_service)
 ):
     """获取会话列表 - 表现层只负责请求路由和响应格式化"""
+    logger.info(f"端点：开始获取会话列表 - user_id={current_user.id}, skip={skip}, limit={limit}")
+    
     try:
+        logger.info(f"端点：获取用户角色")
         user_role = chat_app_service.get_user_role(current_user)
+        logger.info(f"端点：用户角色 = {user_role}")
+        
+        logger.info(f"端点：调用应用服务获取会话列表")
         conversations = await chat_app_service.get_conversations(
             user_id=str(current_user.id),
             user_role=user_role,
             skip=skip,
             limit=limit
         )
+        logger.info(f"端点：成功获取 {len(conversations)} 个会话")
         return conversations
         
     except Exception as e:
-        logger.error(f"获取会话列表失败: {e}")
+        logger.error(f"获取会话列表失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="获取会话列表失败")
 
 

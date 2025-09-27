@@ -164,16 +164,74 @@ async def get_current_admin(
 
 def get_user_roles(user: User) -> List[str]:
     """获取用户角色列表"""
-    roles = [role.name for role in user.roles]
+    logger.debug(f"get_user_roles开始获取用户角色 - user_id: {user.id}")
+    logger.debug(f"user.roles类型: {type(user.roles)}, 内容: {user.roles}")
+    
+    if not user.roles:
+        logger.debug(f"用户 {user.id} 没有角色")
+        return []
+    
+    # user.roles 是一个 set 对象，需要安全地处理
+    roles = []
+    for i, role in enumerate(user.roles):
+        try:
+            logger.debug(f"处理第 {i+1} 个角色: {role}, 类型: {type(role)}")
+            if hasattr(role, 'name'):
+                role_name = role.name
+                logger.debug(f"角色对象，名称: {role_name}")
+                roles.append(role_name)
+            else:
+                # 如果是字符串类型的角色
+                role_name = str(role)
+                logger.debug(f"字符串角色: {role_name}")
+                roles.append(role_name)
+        except Exception as e:
+            logger.error(f"处理第 {i+1} 个角色失败: {e}, 角色内容: {role}")
+            import traceback
+            logger.error(f"角色处理错误堆栈: {traceback.format_exc()}")
+            continue
+    
     logger.debug(f"用户 {user.id} 的角色: {roles}")
     return roles
 
 
+def get_user_primary_role(user: User) -> str:
+    """获取用户的主要角色（第一个角色）"""
+    logger.debug(f"get_user_primary_role开始获取用户主要角色 - user_id: {user.id}")
+    
+    # 优先使用活跃角色
+    if hasattr(user, '_active_role') and user._active_role:
+        logger.debug(f"用户 {user.id} 有活跃角色: {user._active_role}")
+        return user._active_role
+    
+    # 获取角色列表
+    logger.debug(f"用户 {user.id} 没有活跃角色，获取角色列表")
+    roles = get_user_roles(user)
+    if roles:
+        primary_role = roles[0]
+        logger.debug(f"用户 {user.id} 的主要角色: {primary_role}")
+        return primary_role
+    
+    # 默认角色
+    logger.debug(f"用户 {user.id} 没有角色，使用默认角色: customer")
+    return 'customer'
+
+
 def check_user_has_role(user: User, role_name: str) -> bool:
     """检查用户是否有指定角色"""
-    has_role = any(role.name == role_name for role in user.roles)
-    logger.debug(f"检查用户 {user.id} 是否有角色 {role_name}: {has_role}")
-    return has_role
+    logger.debug(f"check_user_has_role开始检查用户角色 - user_id: {user.id}, role_name: {role_name}")
+    
+    try:
+        # 安全地检查角色
+        user_roles = get_user_roles(user)
+        has_role = role_name in user_roles
+        logger.debug(f"检查用户 {user.id} 是否有角色 {role_name}: {has_role}, 用户角色: {user_roles}")
+        return has_role
+    except Exception as e:
+        logger.error(f"检查用户角色失败: {e}")
+        import traceback
+        logger.error(f"角色检查错误堆栈: {traceback.format_exc()}")
+        return False
 
 
 # ==================== 权限检查依赖函数 ====================

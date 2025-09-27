@@ -34,6 +34,7 @@ from .auth_deps import (
     
     # 权限检查工具
     get_user_roles,
+    get_user_primary_role,
     check_user_has_role,
     
     # 权限检查依赖
@@ -76,6 +77,7 @@ __all__ = [
     
     # 权限检查工具
     "get_user_roles",
+    "get_user_primary_role",
     "check_user_has_role",
     
     # 权限检查依赖

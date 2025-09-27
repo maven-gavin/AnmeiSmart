@@ -32,6 +32,8 @@ class TaskApplicationService:
                                    db: Optional[Session] = None) -> List[TaskResponse]:
         """获取用户任务列表用例"""
         try:
+            logger.info(f"应用服务开始处理获取任务列表请求 - user_id: {user_id}, user_role: {user_role}")
+            
             # 构建筛选条件
             filters = {}
             if status:
@@ -43,18 +45,29 @@ class TaskApplicationService:
             if search:
                 filters['search'] = search
             
+            logger.info(f"构建筛选条件: {filters}")
+            
             # 调用领域服务获取任务
+            logger.info(f"调用仓储层获取任务数据")
             tasks = self.task_domain_service.task_repository.get_tasks_for_user(
                 user_id=user_id,
                 user_role=user_role,
                 **filters
             )
             
+            logger.info(f"仓储层返回 {len(tasks)} 个任务实体")
+            
             # 转换为响应格式
-            return TaskConverter.to_list_response(tasks, db)
+            logger.info(f"开始转换任务实体为响应格式")
+            response_tasks = TaskConverter.to_list_response(tasks, db)
+            logger.info(f"成功转换为响应格式，共 {len(response_tasks)} 个任务")
+            
+            return response_tasks
             
         except Exception as e:
             logger.error(f"获取用户任务列表失败: {e}")
+            import traceback
+            logger.error(f"应用服务详细错误堆栈: {traceback.format_exc()}")
             raise
     
     def get_task_by_id_use_case(self, task_id: str, user_id: str, user_role: str, db: Optional[Session] = None) -> Optional[TaskResponse]:

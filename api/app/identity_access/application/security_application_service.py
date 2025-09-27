@@ -106,12 +106,20 @@ class SecurityApplicationService:
             HTTPException: 如果用户不是管理员
         """
         try:
+            logger.info(f"SecurityApplicationService.get_current_admin开始检查管理员权限 - user_id: {user.id}")
+            logger.debug(f"用户对象信息 - user_id: {user.id}, user.roles类型: {type(user.roles)}, user.roles内容: {user.roles}")
+            
             is_admin = self.security_domain_service.check_admin_permission(user)
+            logger.info(f"SecurityApplicationService.get_current_admin检查结果 - user_id: {user.id}, is_admin: {is_admin}")
+            
             if not is_admin:
+                logger.warning(f"用户 {user.id} 不是管理员，拒绝访问")
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="需要管理员权限",
                 )
+            
+            logger.info(f"用户 {user.id} 管理员权限检查通过")
             return user
         except HTTPException:
             # 重新抛出HTTP异常
@@ -119,6 +127,9 @@ class SecurityApplicationService:
         except Exception as e:
             # 系统错误 - 500 Internal Server Error
             logger.error(f"检查管理员权限失败: {e}")
+            logger.error(f"用户对象详细信息 - user_id: {getattr(user, 'id', 'N/A')}, user.roles: {getattr(user, 'roles', 'N/A')}")
+            import traceback
+            logger.error(f"管理员权限检查错误堆栈: {traceback.format_exc()}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="内部服务器错误"

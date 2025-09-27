@@ -23,7 +23,10 @@ def get_message_repository(db: Session = Depends(get_db)) -> MessageRepository:
 
 def get_conversation_repository(db: Session = Depends(get_db)) -> ConversationRepository:
     """获取会话仓储实例"""
-    return ConversationRepository(db)
+    logger.info(f"依赖注入：创建ConversationRepository，db类型: {type(db)}")
+    repo = ConversationRepository(db)
+    logger.info(f"依赖注入：ConversationRepository创建成功，类型: {type(repo)}")
+    return repo
 
 
 def get_conversation_domain_service(
@@ -48,23 +51,35 @@ async def get_chat_application_service(
     db: Session = Depends(get_db)
 ) -> ChatApplicationService:
     """获取聊天应用服务实例"""
+    logger.info("依赖注入：开始创建ChatApplicationService")
+    logger.info(f"conversation_repository类型: {type(conversation_repository)}")
+    logger.info(f"message_repository类型: {type(message_repository)}")
+    
     try:
+        logger.info("依赖注入：尝试获取广播服务")
         broadcasting_service = await get_broadcasting_service(db)
-        return ChatApplicationService(
+        logger.info(f"依赖注入：广播服务创建成功，类型: {type(broadcasting_service)}")
+        
+        service = ChatApplicationService(
             conversation_repository=conversation_repository,
             message_repository=message_repository,
             conversation_domain_service=conversation_domain_service,
             message_domain_service=message_domain_service,
             broadcasting_service=broadcasting_service
         )
+        logger.info("依赖注入：ChatApplicationService创建成功（含广播服务）")
+        return service
+        
     except Exception as e:
         logger.warning(f"创建广播服务失败，使用基础ChatApplicationService: {e}")
-        return ChatApplicationService(
+        service = ChatApplicationService(
             conversation_repository=conversation_repository,
             message_repository=message_repository,
             conversation_domain_service=conversation_domain_service,
             message_domain_service=message_domain_service
         )
+        logger.info("依赖注入：ChatApplicationService创建成功（无广播服务）")
+        return service
 
 __all__ = [
     "get_message_repository",

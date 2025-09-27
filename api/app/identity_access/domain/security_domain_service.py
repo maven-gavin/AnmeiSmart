@@ -98,6 +98,8 @@ class SecurityDomainService:
         Returns:
             bool: 如果用户有所需权限则返回True
         """
+        logger.debug(f"SecurityDomainService.check_user_permissions开始检查用户权限 - user_id: {user.id}, required_roles: {required_roles}")
+        
         # 如果未指定所需角色，允许任何已认证用户访问
         if not required_roles:
             logger.debug(f"未指定所需角色，允许用户 {user.id} 访问")
@@ -109,7 +111,27 @@ class SecurityDomainService:
         
         # 如果未设置活跃角色，使用用户的任何角色
         if not active_role:
-            user_roles = [role.name for role in user.roles]
+            logger.debug(f"用户 {user.id} 没有活跃角色，检查所有角色")
+            logger.debug(f"user.roles 类型: {type(user.roles)}, 内容: {user.roles}")
+            
+            # 安全地处理 user.roles，可能是字符串或对象
+            user_roles = []
+            for i, role in enumerate(user.roles):
+                try:
+                    logger.debug(f"处理第 {i+1} 个角色: {role}, 类型: {type(role)}")
+                    if hasattr(role, 'name'):
+                        role_name = role.name
+                        logger.debug(f"角色对象，名称: {role_name}")
+                    else:
+                        role_name = str(role)
+                        logger.debug(f"字符串角色: {role_name}")
+                    user_roles.append(role_name)
+                except Exception as e:
+                    logger.error(f"处理第 {i+1} 个角色失败: {e}, 角色内容: {role}")
+                    import traceback
+                    logger.error(f"角色处理错误堆栈: {traceback.format_exc()}")
+                    continue
+            
             logger.debug(f"用户 {user.id} 的所有角色: {user_roles}")
             
             # 检查用户是否拥有任何所需角色
@@ -138,4 +160,7 @@ class SecurityDomainService:
         Returns:
             bool: 如果用户是管理员则返回True
         """
-        return self.check_user_permissions(user, ["administrator"])
+        logger.debug(f"SecurityDomainService.check_admin_permission开始检查管理员权限 - user_id: {user.id}")
+        result = self.check_user_permissions(user, ["administrator"])
+        logger.debug(f"SecurityDomainService.check_admin_permission结果 - user_id: {user.id}, is_admin: {result}")
+        return result

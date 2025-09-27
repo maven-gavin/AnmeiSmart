@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Q
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.identity_access.deps import get_current_user
+from app.identity_access.deps import get_current_user, get_user_primary_role
 from app.common.infrastructure.db.base import get_db
 from app.identity_access.infrastructure.db.user import User
 from app.common.application.file_service import FileService
@@ -23,14 +23,7 @@ from app.common.schemas.file import (
 logger = logging.getLogger(__name__)
 
 
-def get_user_role(user: User) -> str:
-    """获取用户的当前角色"""
-    if hasattr(user, '_active_role') and user._active_role:
-        return user._active_role
-    elif user.roles:
-        return user.roles[0].name
-    else:
-        return 'customer'  # 默认角色
+# 移除本地定义的函数，使用公共方法 get_user_primary_role
 
 router = APIRouter()
 
@@ -80,7 +73,7 @@ async def upload_file(
         message_info = message_service.create_media_message(
             conversation_id=conversation_id,
             sender_id=current_user.id,
-            sender_type=get_user_role(current_user),
+            sender_type=get_user_primary_role(current_user),
             media_url=file_info_dict["file_url"],
             media_name=file_info_dict["file_name"],
             mime_type=file_info_dict["mime_type"],
@@ -503,7 +496,7 @@ async def complete_upload(
         message_info = message_service.create_media_message(
             conversation_id=request.conversation_id,
             sender_id=current_user.id,
-            sender_type=get_user_role(current_user),
+            sender_type=get_user_primary_role(current_user),
             media_url=file_info_dict["file_url"],
             media_name=file_info_dict["file_name"],
             mime_type=file_info_dict["mime_type"],
