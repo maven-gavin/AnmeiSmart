@@ -576,3 +576,69 @@ export const patch = <T>(url: string, options = {}, otherOptions?: IOtherOptions
 export const patchSmartBrain = <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
   return patch<T>(url, options, { ...otherOptions, isSmartBrainAPI: true })
 }
+
+// 包装函数，使返回格式兼容现有代码
+const wrapResponse = <T>(data: T): { data: T; ok: boolean; status: number } => ({
+  data,
+  ok: true,
+  status: 200
+});
+
+// 为了向后兼容，导出一个包含所有方法的对象
+export const apiClient = {
+  get: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
+    const result = await get<T>(url, options, otherOptions);
+    return wrapResponse(result);
+  },
+  post: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
+    const result = await post<T>(url, options, otherOptions);
+    return wrapResponse(result);
+  },
+  put: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
+    const result = await put<T>(url, options, otherOptions);
+    return wrapResponse(result);
+  },
+  patch: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
+    const result = await patch<T>(url, options, otherOptions);
+    return wrapResponse(result);
+  },
+  delete: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
+    const result = await del<T>(url, options, otherOptions);
+    return wrapResponse(result);
+  },
+  del: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
+    const result = await del<T>(url, options, otherOptions);
+    return wrapResponse(result);
+  },
+  // 包装upload方法以兼容现有调用方式
+  upload: async <T>(url: string, data: FormData, otherOptions?: IOtherOptions): Promise<{ data: T }> => {
+    const options = {
+      data,
+      xhr: new XMLHttpRequest()
+    };
+    const result = await upload(options, otherOptions?.isSmartBrainAPI, url);
+    return { data: result };
+  },
+  ssePost,
+  // SmartBrain API方法
+  getSmartBrain: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
+    const result = await getSmartBrain<T>(url, options, otherOptions);
+    return wrapResponse(result);
+  },
+  postSmartBrain: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
+    const result = await postSmartBrain<T>(url, options, otherOptions);
+    return wrapResponse(result);
+  },
+  putSmartBrain: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
+    const result = await putSmartBrain<T>(url, options, otherOptions);
+    return wrapResponse(result);
+  },
+  patchSmartBrain: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
+    const result = await patchSmartBrain<T>(url, options, otherOptions);
+    return wrapResponse(result);
+  },
+  delSmartBrain: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
+    const result = await delSmartBrain<T>(url, options, otherOptions);
+    return wrapResponse(result);
+  },
+}
