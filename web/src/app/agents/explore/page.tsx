@@ -6,12 +6,11 @@ import { useAuthContext } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
 import AppLayout from '@/components/layout/AppLayout';
 import { useAgentConfigs } from '@/hooks/useAgentConfigs';
-import { AgentConfig, AgentConfigCreate } from '@/service/agentConfigService';
+import { AgentConfig } from '@/service/agentConfigService';
+import { Bot, Globe, Plus, Settings } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 export default function AgentsPage() {
   const { user } = useAuthContext();
@@ -19,27 +18,10 @@ export default function AgentsPage() {
   const {
     configs: agentConfigs,
     isLoading,
-    createConfig,
-    deleteConfig,
-    testConnection
   } = useAgentConfigs();
 
   const [configs, setConfigs] = useState<AgentConfig[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [formLoading, setFormLoading] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  
-  // 表单字段
-  const [environment, setEnvironment] = useState('dev');
-  const [appId, setAppId] = useState('');
-  const [appName, setAppName] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [baseUrl, setBaseUrl] = useState('http://localhost/v1');
-  const [description, setDescription] = useState('');
-  const [timeoutSeconds, setTimeoutSeconds] = useState(30);
-  const [maxRetries, setMaxRetries] = useState(3);
-  const [enabled, setEnabled] = useState(true);
 
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
@@ -51,12 +33,6 @@ export default function AgentsPage() {
   const [searchStatus, setSearchStatus] = useState('all');
   const [allConfigs, setAllConfigs] = useState<AgentConfig[]>([]);
 
-  // 检查用户是否有管理员权限
-  useEffect(() => {
-    if (user && !user.roles.includes('admin')) {
-      router.push('/unauthorized');
-    }
-  }, [user, router]);
 
   // 同步数据
   useEffect(() => {
@@ -101,51 +77,6 @@ export default function AgentsPage() {
     setCurrentPage(1);
   };
 
-  // 创建配置
-  const handleCreateConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!appId.trim() || !appName.trim() || !apiKey.trim()) {
-      setFormError('应用ID、应用名称和API密钥不能为空');
-      return;
-    }
-    
-    setFormLoading(true);
-    setFormError(null);
-    
-    try {
-      const configData: AgentConfigCreate = {
-        environment,
-        appId: appId.trim(),
-        appName: appName.trim(),
-        apiKey: apiKey.trim(),
-        baseUrl,
-        description: description.trim() || undefined,
-        timeoutSeconds,
-        maxRetries,
-        enabled
-      };
-
-      await createConfig(configData);
-      
-      // 重置表单
-      setEnvironment('dev');
-      setAppId('');
-      setAppName('');
-      setApiKey('');
-      setBaseUrl('http://localhost/v1');
-      setDescription('');
-      setTimeoutSeconds(30);
-      setMaxRetries(3);
-      setEnabled(true);
-      setShowCreateForm(false);
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : '创建配置失败');
-      console.error('创建配置错误', err);
-    } finally {
-      setFormLoading(false);
-    }
-  };
 
   if (loading && configs.length === 0) {
     return (
@@ -181,28 +112,35 @@ export default function AgentsPage() {
   // 页码变更
   const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
 
+  // 添加到工作空间
+  const addToWorkspace = (config: AgentConfig) => {
+    toast.success(`已将 ${config.appName} 添加到工作空间`);
+  };
+
+  // 获取智能体类型
+  const getAgentType = (environment: string) => {
+    const types: Record<string, string> = {
+      dev: '开发环境',
+      test: '测试环境', 
+      prod: '生产环境'
+    };
+    return types[environment] || '未知类型';
+  };
+
   return (
     <AppLayout requiredRole={user?.currentRole}>
       <div className="container mx-auto px-4 py-6">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">Agent配置管理</h1>
-            <p className="text-gray-600 mt-1">管理Agent应用的配置信息</p>
+            <h1 className="text-2xl font-bold text-gray-800">Agent探索</h1>
           </div>
-          <Button 
-            onClick={() => setShowCreateForm(!showCreateForm)}
-            className="bg-orange-500 hover:bg-orange-600"
-          >
-            {showCreateForm ? '取消' : '添加配置'}
-          </Button>
         </div>
 
         {/* 组合查询区域 */}
         <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow">
-          <h2 className="mb-4 text-lg font-medium text-gray-800">组合查询</h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <span className="text-lg font-medium text-gray-800">组合查询:</span>
             <div>
-              <Label htmlFor="searchEnvironment" className="mb-2 block text-sm font-medium">环境</Label>
               <Select value={searchEnvironment} onValueChange={setSearchEnvironment}>
                 <SelectTrigger>
                   <SelectValue placeholder="所有环境" />
@@ -216,7 +154,6 @@ export default function AgentsPage() {
               </Select>
             </div>
             <div>
-              <Label htmlFor="searchAppName" className="mb-2 block text-sm font-medium">应用名称</Label>
               <Input
                 id="searchAppName"
                 value={searchAppName}
@@ -225,282 +162,100 @@ export default function AgentsPage() {
                 className="w-full"
               />
             </div>
-            <div>
-              <Label htmlFor="searchStatus" className="mb-2 block text-sm font-medium">状态</Label>
-              <Select value={searchStatus} onValueChange={setSearchStatus}>
-                <SelectTrigger>
-                  <SelectValue placeholder="所有状态" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">所有状态</SelectItem>
-                  <SelectItem value="enabled">启用</SelectItem>
-                  <SelectItem value="disabled">禁用</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={resetFilters}>
+                重置
+              </Button>
+              <Button className="bg-orange-500 hover:bg-orange-600" onClick={filterConfigs}>
+                查询
+              </Button>
             </div>
           </div>
-          <div className="mt-4 flex justify-end space-x-2">
-            <Button variant="outline" onClick={resetFilters}>
-              重置
-            </Button>
-            <Button className="bg-orange-500 hover:bg-orange-600" onClick={filterConfigs}>
-              查询
-            </Button>
-          </div>
+          
         </div>
 
-
-
-        {showCreateForm && (
-          <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow">
-            <h2 className="mb-4 text-lg font-medium text-gray-800">创建新配置</h2>
-            
-            {formError && (
-              <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-500">
-                {formError}
-              </div>
-            )}
-            
-            <form onSubmit={handleCreateConfig} className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="environment" className="mb-2 block text-sm font-medium text-gray-700">
-                    环境 *
-                  </Label>
-                  <Select value={environment} onValueChange={setEnvironment}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="dev">开发环境</SelectItem>
-                      <SelectItem value="test">测试环境</SelectItem>
-                      <SelectItem value="prod">生产环境</SelectItem>
-                    </SelectContent>
-                  </Select>
+        {/* 卡片网格布局 */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {currentConfigs.map((config) => (
+            <div
+              key={config.id}
+              className="group relative overflow-hidden rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all duration-200 hover:shadow-md hover:border-orange-300"
+            >
+              {/* 智能体图标和基本信息 */}
+              <div className="flex items-start space-x-4">
+                <div className="flex-shrink-0">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-orange-100">
+                    <Bot className="h-6 w-6 text-orange-600" />
+                  </div>
                 </div>
-                
-                <div>
-                  <Label htmlFor="appId" className="mb-2 block text-sm font-medium text-gray-700">
-                    应用ID *
-                  </Label>
-                  <Input
-                    id="appId"
-                    type="text"
-                    value={appId}
-                    onChange={(e) => setAppId(e.target.value)}
-                    disabled={formLoading}
-                    placeholder="例如: AGENT_CHAT_API_KEY"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="appName" className="mb-2 block text-sm font-medium text-gray-700">
-                    应用名称 *
-                  </Label>
-                  <Input
-                    id="appName"
-                    type="text"
-                    value={appName}
-                    onChange={(e) => setAppName(e.target.value)}
-                    disabled={formLoading}
-                    placeholder="例如: 通用聊天"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="baseUrl" className="mb-2 block text-sm font-medium text-gray-700">
-                    基础URL
-                  </Label>
-                  <Input
-                    id="baseUrl"
-                    type="text"
-                    value={baseUrl}
-                    onChange={(e) => setBaseUrl(e.target.value)}
-                    disabled={formLoading}
-                    placeholder="http://localhost/v1"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="timeoutSeconds" className="mb-2 block text-sm font-medium text-gray-700">
-                    超时时间(秒)
-                  </Label>
-                  <Input
-                    id="timeoutSeconds"
-                    type="number"
-                    value={timeoutSeconds}
-                    onChange={(e) => setTimeoutSeconds(parseInt(e.target.value) || 30)}
-                    disabled={formLoading}
-                    min="1"
-                    max="300"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="maxRetries" className="mb-2 block text-sm font-medium text-gray-700">
-                    最大重试次数
-                  </Label>
-                  <Input
-                    id="maxRetries"
-                    type="number"
-                    value={maxRetries}
-                    onChange={(e) => setMaxRetries(parseInt(e.target.value) || 3)}
-                    disabled={formLoading}
-                    min="0"
-                    max="10"
-                  />
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900 truncate">
+                    {config.appName}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {getAgentType(config.environment)}
+                  </p>
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="apiKey" className="mb-2 block text-sm font-medium text-gray-700">
-                  API密钥 *
-                </Label>
-                <Input
-                  id="apiKey"
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  disabled={formLoading}
-                  placeholder="输入API密钥"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="description" className="mb-2 block text-sm font-medium text-gray-700">
-                  描述
-                </Label>
-                <Textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  disabled={formLoading}
-                  rows={3}
-                  placeholder="可选: 配置的详细描述"
-                />
+              {/* 描述信息 */}
+              <div className="mt-4">
+                <p className="text-sm text-gray-500 overflow-hidden" style={{
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical'
+                }}>
+                  {config.description || '暂无描述信息'}
+                </p>
               </div>
 
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="enabled"
-                  checked={enabled}
-                  onCheckedChange={setEnabled}
-                  disabled={formLoading}
-                />
-                <Label htmlFor="enabled" className="text-sm font-medium text-gray-700">
-                  启用配置
-                </Label>
+              {/* 状态和环境标签 */}
+              <div className="mt-4 flex items-center justify-between">
+                <span className={`rounded-full ${getEnvironmentStyle(config.environment)} px-3 py-1 text-xs font-medium`}>
+                  {config.environment}
+                </span>
+                <span className={`rounded-full ${getStatusStyle(config.enabled)} px-3 py-1 text-xs font-medium`}>
+                  {config.enabled ? '启用' : '禁用'}
+                </span>
               </div>
-              
-              <div className="flex justify-end space-x-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowCreateForm(false);
-                    setFormError(null);
-                  }}
-                  disabled={formLoading}
-                >
-                  取消
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={formLoading}
-                  className="bg-orange-500 hover:bg-orange-600"
-                >
-                  {formLoading ? '创建中...' : '创建配置'}
-                </Button>
+
+              {/* 基础信息 */}
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center text-xs text-gray-500">
+                  <Settings className="mr-2 h-3 w-3" />
+                  <span className="truncate">ID: {config.appId}</span>
+                </div>
+                <div className="flex items-center text-xs text-gray-500">
+                  <Globe className="mr-2 h-3 w-3" />
+                  <span className="truncate">{config.baseUrl}</span>
+                </div>
               </div>
-            </form>
+
+              {/* 悬浮按钮 */}
+              <div className="absolute inset-x-0 bottom-0 transform translate-y-full transition-transform duration-200 group-hover:translate-y-0">
+                <div className="bg-gradient-to-t from-white via-white to-transparent p-4 pt-8">
+                  <Button
+                    onClick={() => addToWorkspace(config)}
+                    className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                    size="sm"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add to workspace
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 空状态 */}
+        {configs.length === 0 && (
+          <div className="text-center py-12">
+            <Bot className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">暂无智能体</h3>
+            <p className="mt-1 text-sm text-gray-500">暂无配置数据</p>
           </div>
         )}
-
-        <div className="overflow-hidden rounded-lg border border-gray-200 shadow">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  环境
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  应用名称
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  应用ID
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  基础URL
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  状态
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  操作
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
-              {currentConfigs.map((config) => (
-                <tr key={config.id} className="hover:bg-gray-50">
-                  <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">
-                    <span className={`rounded-full ${getEnvironmentStyle(config.environment)} px-3 py-1 text-sm font-medium`}>
-                      {config.environment}
-                    </span>
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-900">
-                    {config.appName}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                    {config.appId}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                    {config.baseUrl}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">
-                    <span className={`rounded-full ${getStatusStyle(config.enabled)} px-3 py-1 text-sm font-medium`}>
-                      {config.enabled ? '启用' : '禁用'}
-                    </span>
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm font-medium space-x-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => testConnection(config)}
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      测试连接
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-gray-600 hover:text-gray-800"
-                    >
-                      编辑
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => deleteConfig(config.id)}
-                      className="text-red-600 hover:text-red-800"
-                      disabled={config.enabled}
-                    >
-                      删除
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-              
-              {configs.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-sm text-gray-500">
-                    暂无配置数据
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
         
         {/* 分页组件 */}
         {configs.length > 0 && (
