@@ -21,7 +21,8 @@ class Conversation:
         message_count: int = 0,
         unread_count: int = 0,
         created_at: Optional[datetime] = None,
-        updated_at: Optional[datetime] = None
+        updated_at: Optional[datetime] = None,
+        extra_metadata: Optional[Dict[str, Any]] = None
     ):
         self._id = id
         self._title = title
@@ -38,6 +39,7 @@ class Conversation:
         self._last_message_at = None
         self._assigned_consultant_id = None
         self._is_ai_controlled = False
+        self._extra_metadata = extra_metadata or {}
         
         # 验证业务规则
         self._validate()
@@ -101,6 +103,10 @@ class Conversation:
     @property
     def is_ai_controlled(self) -> bool:
         return self._is_ai_controlled
+    
+    @property
+    def extra_metadata(self) -> Dict[str, Any]:
+        return self._extra_metadata
     
     def _validate(self) -> None:
         """验证业务规则"""
@@ -190,17 +196,24 @@ class Conversation:
         self._unread_count = 0
         self._updated_at = datetime.now()
     
+    def update_extra_metadata(self, metadata: Dict[str, Any]) -> None:
+        """更新附加元数据"""
+        self._extra_metadata = metadata or {}
+        self._updated_at = datetime.now()
+    
     @classmethod
     def create(
         cls,
         title: str,
         owner_id: str,
-        chat_mode: str = "single"
+        chat_mode: str = "single",
+        extra_metadata: Optional[Dict[str, Any]] = None
     ) -> "Conversation":
         """创建新会话"""
         return cls(
             id=conversation_id(),
             title=title,
             owner_id=owner_id,
-            chat_mode=chat_mode
+            chat_mode=chat_mode,
+            extra_metadata=extra_metadata
         )

@@ -35,7 +35,8 @@ class ConversationRepository(IConversationRepository):
             message_count=model.message_count,
             unread_count=model.unread_count,
             created_at=model.created_at,
-            updated_at=model.updated_at
+            updated_at=model.updated_at,
+            extra_metadata=model.extra_metadata
         )
     
     def _to_model(self, entity: Conversation) -> ConversationModel:
@@ -50,7 +51,8 @@ class ConversationRepository(IConversationRepository):
             message_count=entity.message_count,
             unread_count=entity.unread_count,
             created_at=entity.created_at,
-            updated_at=entity.updated_at
+            updated_at=entity.updated_at,
+            extra_metadata=entity.extra_metadata
         )
     
     async def save(self, conversation: Conversation) -> Conversation:
@@ -89,6 +91,8 @@ class ConversationRepository(IConversationRepository):
         logger.info(f"仓储：获取用户会话列表 - user_id={user_id}, user_role={user_role}, skip={skip}, limit={limit}")
         
         # 构建查询：获取用户参与的所有会话
+        # 使用 UNION ALL 而不是 UNION，避免 JSON 类型比较问题
+        # UNION ALL 不会去重，但对于会话查询来说，用户拥有的会话和参与的会话通常不会重复
         query = self.db.query(ConversationModel).options(
             joinedload(ConversationModel.owner),
             joinedload(ConversationModel.first_participant),
@@ -96,7 +100,7 @@ class ConversationRepository(IConversationRepository):
         ).filter(
             # 用户是会话所有者
             ConversationModel.owner_id == user_id
-        ).union(
+        ).union_all(
             # 或者用户是会话参与者
             self.db.query(ConversationModel).options(
                 joinedload(ConversationModel.owner),

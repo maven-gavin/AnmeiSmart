@@ -47,6 +47,9 @@ class Conversation(BaseModel):
     unread_count = Column(Integer, default=0, comment="未读消息数")
     last_message_at = Column(DateTime(timezone=True), nullable=True, comment="最后消息时间")
     
+    # 附加元数据
+    extra_metadata = Column(JSON, nullable=True, comment="附加元数据")
+    
     # 关联关系
     owner = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[owner_id], back_populates="owned_conversations")
     first_participant = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[first_participant_id])

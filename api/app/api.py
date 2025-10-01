@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from app.identity_access.endpoints import users,auth,roles,preferences,tenants,permissions,user_permissions
 from app.chat.endpoints import  chat
-from app.ai.endpoints import ai_gateway, agent_config
+from app.ai.endpoints import ai_gateway, agent_config, agent_chat
 from app.system.endpoints import  system
 from app.customer.endpoints import  customer
 from app.websocket.endpoints import  websocket
@@ -55,6 +55,9 @@ api_router.include_router(ai_gateway.router, prefix="/ai-gateway", tags=["ai-gat
 
 # Agent配置管理路由
 api_router.include_router(agent_config.router, prefix="/agent", tags=["agent-config"])
+
+# Agent对话路由
+api_router.include_router(agent_chat.router, prefix="/agent", tags=["agent-chat"])
 
 # MCP配置管理路由（管理员界面）
 api_router.include_router(mcp_config.router, prefix="/mcp/admin", tags=["mcp-admin"])

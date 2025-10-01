@@ -9,5 +9,6 @@ from .ai_deps import *
 __all__ = [
     "get_ai_service",
     "get_ai_gateway_service",
-    "get_agent_config_service"
+    "get_agent_config_service",
+    "get_agent_chat_service"
 ]

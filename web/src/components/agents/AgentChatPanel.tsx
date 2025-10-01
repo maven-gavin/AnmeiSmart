@@ -1,7 +1,11 @@
 import { memo } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Bot, MessageCircle } from 'lucide-react';
-import { AgentConfig } from '@/service/agentConfigService';
+import { ArrowLeft, Bot } from 'lucide-react';
+import type { AgentConfig } from '@/service/agentConfigService';
+import { useAgentChat } from '@/hooks/useAgentChat';
+import { MessageList } from './MessageList';
+import { MessageInput } from './MessageInput';
+import { EmptyState } from './EmptyState';
 
 interface AgentChatPanelProps {
   selectedAgent: AgentConfig;
@@ -12,6 +16,17 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
   selectedAgent, 
   onBack 
 }) => {
+  const {
+    messages,
+    isResponding,
+    isLoading,
+    sendMessage,
+    stopResponding,
+  } = useAgentChat({ 
+    agentConfig: selectedAgent,
+    onError: (error) => console.error('Chat error:', error)
+  });
+
   return (
     <div className="container mx-auto px-4 py-6">
       {/* 头部导航 */}
@@ -38,57 +53,26 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
         </div>
       </div>
 
-      {/* 聊天面板占位内容 */}
+      {/* 聊天面板 */}
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-        {/* 聊天消息区域 */}
-        <div className="flex h-[500px] flex-col">
+        <div className="flex h-[calc(100vh-220px)] flex-col">
           {/* 消息列表区域 */}
-          <div className="flex-1 p-6">
-            <div className="flex h-full items-center justify-center">
-              <div className="text-center">
-                <MessageCircle className="mx-auto h-16 w-16 text-gray-300" />
-                <h3 className="mt-4 text-lg font-medium text-gray-900">
-                  与 {selectedAgent.appName} 开始对话
-                </h3>
-                <p className="mt-2 text-sm text-gray-500">
-                  这里是聊天面板，功能正在开发中...
-                </p>
-                <div className="mt-4 rounded-lg bg-gray-50 p-4">
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Agent 信息:</h4>
-                  <div className="space-y-1 text-xs text-gray-600">
-                    <p><span className="font-medium">ID:</span> {selectedAgent.appId}</p>
-                    <p><span className="font-medium">环境:</span> {selectedAgent.environment}</p>
-                    <p><span className="font-medium">状态:</span> {selectedAgent.enabled ? '启用' : '禁用'}</p>
-                    <p><span className="font-medium">地址:</span> {selectedAgent.baseUrl}</p>
-                    {selectedAgent.description && (
-                      <p><span className="font-medium">描述:</span> {selectedAgent.description}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div className="flex-1 overflow-y-auto">
+            {messages.length === 0 && !isLoading ? (
+              <EmptyState agentConfig={selectedAgent} />
+            ) : (
+              <MessageList messages={messages} isLoading={isLoading} />
+            )}
           </div>
 
           {/* 输入区域 */}
-          <div className="border-t border-gray-200 p-4">
-            <div className="flex space-x-4">
-              <input
-                type="text"
-                placeholder="输入消息..."
-                className="flex-1 rounded-lg border border-gray-300 px-4 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-                disabled
-              />
-              <Button 
-                className="bg-orange-500 hover:bg-orange-600"
-                disabled
-              >
-                发送
-              </Button>
-            </div>
-            <p className="mt-2 text-xs text-gray-500">
-              聊天功能正在开发中，敬请期待...
-            </p>
-          </div>
+          <MessageInput
+            onSend={sendMessage}
+            disabled={isResponding}
+            isResponding={isResponding}
+            onStop={stopResponding}
+            placeholder={`向 ${selectedAgent.appName} 提问...`}
+          />
         </div>
       </div>
     </div>
