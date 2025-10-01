@@ -208,8 +208,6 @@ python .\scripts\seed_db.py
 此外，还有一些辅助脚本：
 
 - **setup.py**: 安装指南脚本
-- **configure_no_mongo.py**: 无MongoDB环境配置
-- **test_mongo.py**: 测试MongoDB连接
 
 ## 注意事项
 

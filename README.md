@@ -7,7 +7,7 @@
 ## 技术栈
 
 - 前端: Next.js, React, TypeScript, TailwindCSS
-- 后端: FastAPI, Python, PostgreSQL, MongoDB
+- 后端: FastAPI, Python, PostgreSQL
 - Tauri 2.0：支持桌面和移动端
 - Rust：Tauri后端逻辑
 - 响应式设计：适配不同屏幕尺寸

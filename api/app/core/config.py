@@ -22,8 +22,6 @@ class Settings(BaseSettings):
     
     # 数据库配置
     DATABASE_URL: str = "postgresql://postgres:difyai123456@localhost:5432/anmeismart"
-    MONGODB_URL: str = "mongodb://localhost:27017"
-    MONGODB_ENABLED: bool = True
     
     # Redis配置
     REDIS_URL: str = "redis://:difyai123456@localhost:6379"

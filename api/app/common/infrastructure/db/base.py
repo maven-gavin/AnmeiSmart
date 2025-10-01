@@ -2,8 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.orm.session import Session
 from sqlalchemy.pool import NullPool
-from typing import Generator, Any, Callable, TypeVar
-import importlib.util
+from typing import Generator, Callable, TypeVar, Any
 import logging
 from functools import wraps
 
@@ -116,22 +115,3 @@ def create_initial_system_settings(db: Session):
         logger.info("初始系统设置已创建")
     
     return system_settings
-
-# MongoDB配置 - 条件导入
-mongodb_client = None
-mongodb = None
-if settings.MONGODB_URL:
-    try:
-        if importlib.util.find_spec("motor"):
-            from motor.motor_asyncio import AsyncIOMotorClient
-            mongodb_client = AsyncIOMotorClient(settings.MONGODB_URL)
-            mongodb = mongodb_client.medical_beauty
-            logger.info("MongoDB连接成功")
-        else:
-            logger.warning("未安装MongoDB客户端依赖(motor)，MongoDB功能将不可用")
-    except Exception as e:
-        logger.error(f"MongoDB连接错误: {str(e)}")
-
-# MongoDB连接管理
-def get_mongodb() -> Any:
-    return mongodb 

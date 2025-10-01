@@ -44,7 +44,6 @@ def check_dependencies():
     
     required_packages = {
         "PostgreSQL": "psycopg2",
-        "MongoDB": "pymongo",
         "FastAPI": "fastapi",
         "Uvicorn": "uvicorn"
     }
@@ -74,7 +73,7 @@ def check_database_config():
     print_step(3, "检查数据库配置")
     
     # 检查环境变量或.env文件
-    required_vars = ["DATABASE_URL", "MONGODB_URL", "SECRET_KEY"]
+    required_vars = ["DATABASE_URL", "SECRET_KEY"]
     missing_vars = []
     
     for var in required_vars:
@@ -96,7 +95,6 @@ def check_database_config():
         
         print("\n请创建一个.env文件在项目根目录下，包含以下内容:")
         print("DATABASE_URL=postgresql://用户名:密码@localhost:5432/AnmeiSmart")
-        print("MONGODB_URL=mongodb://localhost:27017")
         print("SECRET_KEY=your_secret_key_here")
         return False
     
@@ -109,7 +107,7 @@ def check_database_connection():
     print("\n要检查数据库连接，请运行以下命令:")
     print("python scripts/setup_db.py")
     
-    print("\n该命令将尝试连接到PostgreSQL和MongoDB，并创建必要的数据库。")
+    print("\n该命令将尝试连接到PostgreSQL，并创建必要的数据库。")
     return True
 
 def initialize_database():

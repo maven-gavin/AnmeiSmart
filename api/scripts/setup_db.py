@@ -22,7 +22,6 @@ except Exception as e:
     print("示例环境变量设置:")
     print("-" * 50)
     print("DATABASE_URL=postgresql://postgres:difyai123456@localhost:5432/anmeismart")
-    print("MONGODB_URL=mongodb://localhost:27017")
     print("SECRET_KEY=your_secret_key_here")
     print("-" * 50)
     sys.exit(1)
@@ -74,18 +73,6 @@ def create_database():
         print(f"创建数据库时出错: {str(e)}")
         return False
 
-def setup_mongodb():
-    """设置MongoDB数据库"""
-    try:
-        # MongoDB通常不需要预先创建数据库
-        mongodb_url = settings.MONGODB_URL
-        print(f"MongoDB配置: {mongodb_url}")
-        print("MongoDB配置完成 - 数据库将在首次访问时自动创建")
-        return True
-    except Exception as e:
-        print(f"设置MongoDB时出错: {str(e)}")
-        return False
-
 def main():
     """主函数"""
     print("-" * 50)
@@ -95,13 +82,11 @@ def main():
     print("\n开始设置数据库...\n")
     
     postgres_ok = create_database()
-    mongodb_ok = setup_mongodb()
     
     print("\n数据库设置状态:")
     print(f"PostgreSQL: {'成功' if postgres_ok else '失败'}")
-    print(f"MongoDB: {'成功' if mongodb_ok else '失败'}")
     
-    if postgres_ok and mongodb_ok:
+    if postgres_ok:
         print("\n所有数据库设置完成！您可以继续使用以下命令初始化数据库表和测试数据:")
         print("python scripts/init_db.py")
     else:
