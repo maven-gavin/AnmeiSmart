@@ -122,12 +122,4 @@ export function HasAnyRole({ children, roles, fallback = null }: HasAnyRoleProps
   return hasAnyRole ? <>{children}</> : <>{fallback}</>;
 }
 
-// 导出所有组件
-export {
-  PermissionGuard,
-  HasPermission,
-  HasRole,
-  IsAdmin,
-  HasAnyPermission,
-  HasAnyRole
-};
+// 所有组件已通过单独的export function声明导出
