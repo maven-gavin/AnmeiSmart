@@ -214,7 +214,7 @@ async def get_roles(
 @router.post("/switch-role", response_model=Token)
 async def switch_role(
     *,
-    role_request: SwitchRoleRequest,
+    role_request: SwitchRoleRequest = Body(...),
     current_user: User = Depends(get_current_user),
     identity_access_service: IdentityAccessApplicationService = Depends(get_identity_access_application_service)
 ) -> Any:

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.common.deps import get_db
-from app.identity_access.deps import get_current_admin
+from app.identity_access.deps import get_current_admin, get_current_user
 from app.ai.schemas.ai import (
     AgentConfigCreate, AgentConfigUpdate, AgentConfigInfo, 
     AgentConfigResponse, AgentConfigListResponse
@@ -27,9 +27,9 @@ router = APIRouter()
 @router.get("/configs", response_model=AgentConfigListResponse)
 def get_agent_config_list(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_admin)
+    current_user = Depends(get_current_user)
 ):
-    """获取Agent配置列表"""
+    """获取Agent配置列表（所有用户可访问）"""
     try:
         configs = get_agent_configs(db)
         return AgentConfigListResponse(
@@ -48,9 +48,9 @@ def get_agent_config_list(
 def get_agent_config_detail(
     config_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_admin)
+    current_user = Depends(get_current_user)
 ):
-    """获取Agent配置详情"""
+    """获取Agent配置详情（所有用户可访问）"""
     try:
         config = get_agent_config(db, config_id)
         if not config:

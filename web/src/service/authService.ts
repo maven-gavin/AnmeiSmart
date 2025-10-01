@@ -6,7 +6,7 @@
 import { AuthUser, LoginCredentials, UserRole, UserPermissionSummary } from '@/types/auth';
 import { tokenManager } from './tokenManager';
 import { AppError, ErrorType, errorHandler } from './errors';
-import { apiClient, post } from './apiClient';
+import { apiClient } from './apiClient';
 import { API_BASE_URL, AUTH_CONFIG } from '@/config';
 // 移除未使用的导入
 // import { mockUsers } from './mockData';
@@ -157,11 +157,13 @@ class AuthService {
     try {
       // 调用注册接口
       const response = await apiClient.post<any>('/auth/register', {
-        email: registerData.email,
-        username: registerData.username,
-        phone: registerData.phone,
-        password: registerData.password,
-        roles: ['customer'] // 默认注册为客户角色
+        body: {
+          email: registerData.email,
+          username: registerData.username,
+          phone: registerData.phone,
+          password: registerData.password,
+          roles: ['customer'] // 默认注册为客户角色
+        }
       });
 
       if (!response.data) {
@@ -232,12 +234,16 @@ class AuthService {
       // 调用后端API切换角色并获取新令牌对 - 使用统一的apiClient
       // 将前端的 'admin' 角色映射为后端的 'administrator'
       const backendRole = role === 'admin' ? 'administrator' : role;
-      const response = await post<{ access_token: string; refresh_token: string; token_type: string }>('/auth/switch-role', {
+      const response = await apiClient.post<{ access_token: string; refresh_token: string; token_type: string }>('/auth/switch-role', {
         body: { role: backendRole }
       });
       
+      if (!response.data) {
+        throw new AppError(ErrorType.AUTHORIZATION, 500, '角色切换失败，服务器无响应');
+      }
+      
       // 更新令牌对
-      tokenManager.setTokens(response.access_token, response.refresh_token);
+      tokenManager.setTokens(response.data.access_token, response.data.refresh_token);
       
       // 更新用户信息
       const updatedUser: AuthUser = {
@@ -264,7 +270,7 @@ class AuthService {
         errorMessage = error.message;
       }
       
-      console.error('角色切换失败:', errorMessage, error);
+      console.error('角色切换失败:', errorMessage);
       
       throw new AppError(
         ErrorType.AUTHORIZATION,
