@@ -56,6 +56,7 @@ def create_agent_config(db: Session, config_data: AgentConfigCreate) -> AgentCon
         environment=config_data.environment,
         app_id=config_data.appId,
         app_name=config_data.appName,
+        agent_type=config_data.agentType,
         base_url=config_data.baseUrl,
         timeout_seconds=config_data.timeoutSeconds,
         max_retries=config_data.maxRetries,
@@ -99,6 +100,8 @@ def update_agent_config(db: Session, config_id: str, config_data: AgentConfigUpd
         config.app_id = update_data["appId"]
     if "appName" in update_data:
         config.app_name = update_data["appName"]
+    if "agentType" in update_data:
+        config.agent_type = update_data["agentType"]
     if "baseUrl" in update_data:
         config.base_url = update_data["baseUrl"]
     if "timeoutSeconds" in update_data:

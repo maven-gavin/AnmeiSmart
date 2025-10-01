@@ -11,6 +11,7 @@ export interface AgentConfig {
   environment: string;
   appId: string;
   appName: string;
+  agentType?: string;
   baseUrl: string;
   timeoutSeconds: number;
   maxRetries: number;
@@ -24,6 +25,7 @@ export interface AgentConfigCreate {
   environment: string;
   appId: string;
   appName: string;
+  agentType?: string;
   apiKey: string;
   baseUrl: string;
   timeoutSeconds: number;
@@ -36,6 +38,7 @@ export interface AgentConfigUpdate {
   environment?: string;
   appId?: string;
   appName?: string;
+  agentType?: string;
   apiKey?: string;
   baseUrl?: string;
   timeoutSeconds?: number;
@@ -98,7 +101,10 @@ export const getAgentConfig = async (configId: string): Promise<AgentConfig> => 
  */
 export const createAgentConfig = async (config: AgentConfigCreate): Promise<AgentConfig> => {
   try {
-    const response = await apiClient.post<AgentConfigResponse>('/agent/configs', config);
+    const response = await apiClient.post<AgentConfigResponse>(
+      '/agent/configs',
+      { body: config }
+    );
     return response.data.data;
   } catch (error) {
     console.error('创建Agent配置失败:', error);
@@ -117,7 +123,10 @@ export const updateAgentConfig = async (
   config: AgentConfigUpdate
 ): Promise<AgentConfig> => {
   try {
-    const response = await apiClient.put<AgentConfigResponse>(`/agent/configs/${configId}`, config);
+    const response = await apiClient.put<AgentConfigResponse>(
+      `/agent/configs/${configId}`, 
+      { body: config }
+    );
     return response.data.data;
   } catch (error) {
     console.error('更新Agent配置失败:', error);
@@ -146,7 +155,10 @@ export const deleteAgentConfig = async (configId: string): Promise<void> => {
  */
 export const testAgentConnection = async (config: AgentConfig): Promise<TestConnectionResult> => {
   try {
-    const response = await apiClient.post<TestConnectionResult>('/agent/test-connection', config);
+    const response = await apiClient.post<TestConnectionResult>(
+      '/agent/test-connection',
+      { body: config }
+    );
     return response.data;
   } catch (error) {
     console.error('测试Agent连接失败:', error);

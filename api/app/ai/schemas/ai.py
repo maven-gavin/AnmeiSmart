@@ -76,6 +76,7 @@ class AgentConfigCreate(BaseModel):
     environment: str = Field(..., description="环境名称（dev/test/prod）", min_length=1, max_length=100)
     appId: str = Field(..., description="应用ID", min_length=1, max_length=255)
     appName: str = Field(..., description="应用名称", min_length=1, max_length=255)
+    agentType: Optional[str] = Field(None, description="智能体类型（chat/agent/workflow）")
     apiKey: str = Field(..., description="API密钥", min_length=1)
     baseUrl: str = Field("http://localhost/v1", description="Agent API基础URL")
     timeoutSeconds: int = Field(30, description="请求超时时间（秒）", ge=1, le=300)
@@ -89,6 +90,7 @@ class AgentConfigUpdate(BaseModel):
     environment: Optional[str] = Field(None, description="环境名称（dev/test/prod）", min_length=1, max_length=100)
     appId: Optional[str] = Field(None, description="应用ID", min_length=1, max_length=255)
     appName: Optional[str] = Field(None, description="应用名称", min_length=1, max_length=255)
+    agentType: Optional[str] = Field(None, description="智能体类型（chat/agent/workflow）")
     apiKey: Optional[str] = Field(None, description="API密钥", min_length=1)
     baseUrl: Optional[str] = Field(None, description="Agent API基础URL")
     timeoutSeconds: Optional[int] = Field(None, description="请求超时时间（秒）", ge=1, le=300)
@@ -105,6 +107,7 @@ class AgentConfigInfo(BaseModel):
     environment: str = Field(..., description="环境名称")
     appId: str = Field(..., description="应用ID")
     appName: str = Field(..., description="应用名称")
+    agentType: Optional[str] = Field(None, description="智能体类型")
     baseUrl: str = Field(..., description="Agent API基础URL")
     timeoutSeconds: int = Field(30, description="请求超时时间（秒）")
     maxRetries: int = Field(3, description="最大重试次数")
@@ -121,6 +124,7 @@ class AgentConfigInfo(BaseModel):
             environment=model.environment,
             appId=model.app_id,
             appName=model.app_name,
+            agentType=model.agent_type,
             baseUrl=model.base_url,
             timeoutSeconds=model.timeout_seconds,
             maxRetries=model.max_retries,
