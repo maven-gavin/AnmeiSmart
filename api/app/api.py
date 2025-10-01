@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from app.identity_access.endpoints import users,auth,roles,preferences,tenants,permissions,user_permissions
 from app.chat.endpoints import  chat
-from app.ai.endpoints import  ai, ai_gateway, agent_config
+from app.ai.endpoints import ai_gateway, agent_config
 from app.system.endpoints import  system
 from app.customer.endpoints import  customer
 from app.websocket.endpoints import  websocket
@@ -43,9 +43,6 @@ api_router.include_router(consultation.router, prefix="/consultation", tags=["co
 
 # 文件上传路由
 api_router.include_router(files.router, prefix="/files", tags=["files"])
-
-# AI服务路由
-api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
 
 # 系统设置路由
 api_router.include_router(system.router, prefix="/system", tags=["system"])

@@ -19,7 +19,6 @@ from .gateway import (
     ProviderConfig, CacheConfig, RoutingStrategy
 )
 from .adapters.agent_adapter import AgentAdapter, AgentConnectionConfig, AgentAppConfig
-from .adapters.openai_adapter import OpenAIAdapter, OpenAIConfig
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -105,32 +104,6 @@ class AIGatewayService:
                 logger.info("Registered Agent provider")
         except Exception as e:
             logger.warning(f"Failed to register Agent provider: {e}")
-        
-        # 注册OpenAI服务作为备选
-        try:
-            openai_config = self._create_openai_config()
-            if openai_config:
-                openai_adapter = OpenAIAdapter(openai_config)
-                self.gateway.register_service(AIProvider.OPENAI, openai_adapter)
-                
-                # 注册OpenAI提供商配置
-                provider_config = ProviderConfig(
-                    provider=AIProvider.OPENAI,
-                    service_class=OpenAIAdapter,
-                    weight=1,
-                    scenarios=[
-                        AIScenario.GENERAL_CHAT,
-                        AIScenario.SENTIMENT_ANALYSIS,
-                        AIScenario.BEAUTY_PLAN,
-                        AIScenario.CONSULTATION_SUMMARY
-                    ],
-                    enabled=True,
-                    fallback_providers=[]
-                )
-                self.gateway.router.register_provider(provider_config)
-                logger.info("Registered OpenAI provider")
-        except Exception as e:
-            logger.warning(f"Failed to register OpenAI provider: {e}")
     
     def _create_agent_config(self) -> Optional[AgentConnectionConfig]:
         """创建Agent配置"""
@@ -193,26 +166,6 @@ class AIGatewayService:
             return None
         except Exception as e:
             logger.error(f"Failed to create Agent config: {e}")
-            return None
-    
-    def _create_openai_config(self) -> Optional[OpenAIConfig]:
-        """创建OpenAI配置"""
-        try:
-            api_key = getattr(self.settings, 'OPENAI_API_KEY', '')
-            if not api_key:
-                return None
-                
-            return OpenAIConfig(
-                api_key=api_key,
-                api_base=getattr(self.settings, 'OPENAI_API_BASE_URL', 'https://api.openai.com/v1'),
-                model=getattr(self.settings, 'OPENAI_MODEL', 'gpt-3.5-turbo'),
-                max_tokens=2000,
-                temperature=0.7,
-                timeout=30,
-                max_retries=3
-            )
-        except Exception as e:
-            logger.error(f"Failed to create OpenAI config: {e}")
             return None
     
     async def chat(self, message: str, user_id: str, session_id: str, 

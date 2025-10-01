@@ -60,17 +60,6 @@ class StandardConversationHistory(BaseModel):
     context: Optional[Dict[str, Any]] = Field(None, description="上下文信息")
 
 
-class AIServiceConfig(BaseModel):
-    """AI服务配置"""
-    provider: str = Field(..., description="提供商名称")
-    api_key: str = Field(..., description="API密钥")
-    api_base_url: str = Field(..., description="API基础URL")
-    model: Optional[str] = Field(None, description="模型名称")
-    temperature: Optional[float] = Field(0.7, description="温度系数")
-    max_tokens: Optional[int] = Field(2000, description="最大token数")
-    is_enabled: bool = Field(True, description="是否启用") 
-
-
 class AgentConfigCreate(BaseModel):
     """创建Agent配置的Schema"""
     environment: str = Field(..., description="环境名称（dev/test/prod）", min_length=1, max_length=100)
