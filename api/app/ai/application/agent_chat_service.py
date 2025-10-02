@@ -16,7 +16,8 @@ from app.ai.schemas.agent_chat import (
 )
 from app.chat.infrastructure.conversation_repository import ConversationRepository
 from app.chat.infrastructure.message_repository import MessageRepository
-from app.chat.infrastructure.db.chat import Conversation, Message
+from app.chat.domain.entities.conversation import Conversation  # 领域实体
+from app.chat.domain.entities.message import Message  # 领域实体
 from app.websocket.broadcasting_service import BroadcastingService
 
 logger = logging.getLogger(__name__)
@@ -67,12 +68,24 @@ class AgentChatApplicationService:
         dify_conversation_id: Optional[str] = None
         
         try:
+            logger.info("=" * 80)
+            logger.info(f"🚀 开始 Agent 对话")
+            logger.info(f"   agent_config_id: {agent_config_id}")
+            logger.info(f"   user_id: {user_id}")
+            logger.info(f"   message: {message[:100]}..." if len(message) > 100 else f"   message: {message}")
+            logger.info(f"   conversation_id: {conversation_id}")
+            
             # 1. 创建 Dify 客户端
+            logger.info("📝 步骤 1: 创建 Dify 客户端...")
             dify_client = self.dify_client_factory.create_client_from_db(
                 agent_config_id, self.db
             )
+            logger.info(f"✅ Dify 客户端创建成功")
+            logger.info(f"   base_url: {dify_client.base_url}")
+            logger.info(f"   api_key: {'*' * 20}...{dify_client.api_key[-8:] if len(dify_client.api_key) > 8 else '***'}")
             
             # 2. 获取或创建会话
+            logger.info("📝 步骤 2: 获取或创建会话...")
             if not conversation_id:
                 conversation = await self._create_conversation(
                     agent_config_id=agent_config_id,
@@ -80,35 +93,53 @@ class AgentChatApplicationService:
                     title="新对话"
                 )
                 conversation_id = conversation.id
+                logger.info(f"✅ 创建新会话: {conversation_id}")
             else:
                 conversation = await self.conversation_repo.get_by_id(conversation_id)
                 if not conversation:
                     raise ValueError(f"会话不存在: {conversation_id}")
+                logger.info(f"✅ 使用现有会话: {conversation_id}")
             
             # 3. 保存用户消息
-            user_message = Message(
-                id="",  # 由仓储生成
+            logger.info("📝 步骤 3: 保存用户消息...")
+            user_message = Message.create_text_message(
                 conversation_id=conversation_id,
-                content={"text": message},
-                type="text",
+                text=message,
                 sender_id=user_id,
-                sender_type="customer",
-                is_read=True,
-                timestamp=datetime.now()
+                sender_type="customer"
             )
             await self.message_repo.save(user_message)
+            logger.info(f"✅ 用户消息已保存: {user_message.id}")
             
             # 4. 调用 Dify Agent 流式对话
             user_identifier = f"user_{user_id}"
             
+            # 从会话元数据中获取 Dify conversation_id（如果存在）
+            dify_conv_id = None
+            if conversation.extra_metadata:
+                dify_conv_id = conversation.extra_metadata.get('dify_conversation_id')
+            
+            logger.info("📝 步骤 4: 调用 Dify API 流式对话...")
+            logger.info(f"   完整 URL: {dify_client.base_url}/chat-messages")
+            logger.info(f"   user_identifier: {user_identifier}")
+            logger.info(f"   dify_conversation_id: {dify_conv_id or '(新会话)'}")
+            
+            chunk_count = 0
             async for chunk in dify_client.stream_chat(
                 message=message,
                 user=user_identifier,
-                conversation_id=None,  # 让 Dify 管理自己的会话ID
+                conversation_id=dify_conv_id,  # 使用保存的 Dify conversation_id
                 inputs=inputs
             ):
+                chunk_count += 1
                 # 解析 SSE 事件
                 chunk_str = chunk.decode('utf-8') if isinstance(chunk, bytes) else chunk
+                
+                # 前几个 chunk 打印详细日志
+                if chunk_count <= 3:
+                    logger.info(f"📦 收到第 {chunk_count} 个 chunk: {chunk_str[:200]}...")
+                elif chunk_count % 10 == 0:
+                    logger.debug(f"📦 已收到 {chunk_count} 个 chunks...")
                 
                 # 直接转发给前端
                 yield chunk
@@ -138,18 +169,26 @@ class AgentChatApplicationService:
             
             # 5. 保存 AI 响应消息
             if ai_content_buffer:
-                ai_message = Message(
-                    id=ai_message_id or "",
+                ai_message = Message.create_text_message(
                     conversation_id=conversation_id,
-                    content={"text": ai_content_buffer},
-                    type="text",
-                    sender_id=None,
-                    sender_digital_human_id=None,
-                    sender_type="system",
-                    is_read=False,
-                    timestamp=datetime.now()
+                    text=ai_content_buffer,
+                    sender_type="system",  # AI 回复标记为系统消息
+                    extra_metadata={
+                        "dify_message_id": ai_message_id,
+                        "dify_conversation_id": dify_conversation_id,
+                        "agent_config_id": agent_config_id
+                    }
                 )
                 await self.message_repo.save(ai_message)
+                logger.info(f"✅ AI 消息已保存: {ai_message.id}")
+                
+                # 保存 Dify conversation_id 到会话元数据（用于后续多轮对话）
+                if dify_conversation_id and dify_conversation_id != dify_conv_id:
+                    if not conversation.extra_metadata:
+                        conversation.extra_metadata = {}
+                    conversation.extra_metadata['dify_conversation_id'] = dify_conversation_id
+                    await self.conversation_repo.save(conversation)
+                    logger.info(f"✅ 已保存 Dify conversation_id: {dify_conversation_id}")
                 
                 # 6. WebSocket 广播（如果配置了）
                 if self.broadcasting_service:
@@ -166,10 +205,17 @@ class AgentChatApplicationService:
                     except Exception as e:
                         logger.warning(f"WebSocket 广播失败: {e}")
             
-            logger.info(f"Agent 对话完成: conversation_id={conversation_id}")
+            logger.info(f"✅ Agent 对话完成")
+            logger.info(f"   conversation_id: {conversation_id}")
+            logger.info(f"   ai_message_id: {ai_message_id}")
+            logger.info(f"   内容长度: {len(ai_content_buffer)} 字符")
+            logger.info(f"   总 chunks: {chunk_count}")
+            logger.info("=" * 80)
             
         except Exception as e:
-            logger.error(f"Agent 对话失败: {e}", exc_info=True)
+            logger.error("=" * 80)
+            logger.error(f"❌ Agent 对话失败: {e}", exc_info=True)
+            logger.error("=" * 80)
             # 发送错误事件
             error_event = f'data: {{"event": "error", "message": "{str(e)}"}}\n\n'
             yield error_event.encode('utf-8')
@@ -244,7 +290,7 @@ class AgentChatApplicationService:
         # TODO: 实现完整的权限检查
         
         # 获取消息列表
-        messages = await self.message_repo.get_by_conversation_id(
+        messages = await self.message_repo.get_conversation_messages(
             conversation_id, limit=limit
         )
         

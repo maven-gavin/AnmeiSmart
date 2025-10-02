@@ -1,79 +1,163 @@
-import { memo } from 'react';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft, Bot } from 'lucide-react';
+'use client';
+
+import { memo, useState, useEffect } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Receipt } from 'lucide-react';
 import type { AgentConfig } from '@/service/agentConfigService';
 import { useAgentChat } from '@/hooks/useAgentChat';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { EmptyState } from './EmptyState';
+import { AgentSidebar } from './AgentSidebar';
+import { ConversationHistoryPanel } from './ConversationHistoryPanel';
 
 interface AgentChatPanelProps {
-  selectedAgent: AgentConfig;
-  onBack: () => void;
+  agents: AgentConfig[];
+  isLoadingAgents?: boolean;
 }
 
 export const AgentChatPanel = memo<AgentChatPanelProps>(({ 
-  selectedAgent, 
-  onBack 
+  agents,
+  isLoadingAgents = false,
 }) => {
-  const {
-    messages,
-    isResponding,
-    isLoading,
-    sendMessage,
-    stopResponding,
-  } = useAgentChat({ 
-    agentConfig: selectedAgent,
+  // 当前选中的智能体
+  const [selectedAgent, setSelectedAgent] = useState<AgentConfig | null>(null);
+
+  // 聊天 Hook - 始终调用，但传入 null 作为默认配置
+  const chatState = useAgentChat({ 
+    agentConfig: selectedAgent || { id: '', appName: '', environment: '', apiKey: '', apiUrl: '', description: '' } as AgentConfig,
     onError: (error) => console.error('Chat error:', error)
   });
 
+  // 选择智能体
+  const handleSelectAgent = (agent: AgentConfig) => {
+    setSelectedAgent(agent);
+  };
+
+  // 创建新对话
+  const handleCreateNewChat = () => {
+    if (chatState) {
+      chatState.switchConversation(null);
+    }
+  };
+
+  // 选择对话
+  const handleSelectConversation = (conversationId: string) => {
+    if (chatState) {
+      chatState.switchConversation(conversationId);
+    }
+  };
+
+  // 转换对话数据格式
+  const conversationsForPanel = selectedAgent && chatState ? chatState.conversations.map(conv => {
+    // 安全地创建日期对象
+    let lastMessageAt: Date;
+    try {
+      lastMessageAt = conv.updatedAt ? new Date(conv.updatedAt) : new Date();
+      // 检查日期是否有效
+      if (isNaN(lastMessageAt.getTime())) {
+        lastMessageAt = new Date();
+      }
+    } catch {
+      lastMessageAt = new Date();
+    }
+
+    return {
+      id: conv.id,
+      title: conv.title || '未命名对话',
+      agentId: selectedAgent.id,
+      lastMessageAt,
+      messageCount: conv.messageCount || 0,
+    };
+  }) : [];
+
   return (
-    <div className="container mx-auto px-4 py-6">
-      {/* 头部导航 */}
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onBack}
-            className="flex items-center space-x-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>返回探索</span>
-          </Button>
-          <div className="flex items-center space-x-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
-              <Bot className="h-5 w-5 text-orange-600" />
+    <div className="flex h-screen overflow-hidden bg-gray-50">
+      {/* 左侧：智能体列表 */}
+      <AgentSidebar
+        agents={agents}
+        selectedAgent={selectedAgent}
+        onSelectAgent={handleSelectAgent}
+        isLoading={isLoadingAgents}
+      />
+
+      {/* 中间：对话历史列表 */}
+      {selectedAgent && (
+        <ConversationHistoryPanel
+          agentName={selectedAgent.appName}
+          conversations={conversationsForPanel}
+          selectedConversationId={chatState.currentConversationId}
+          onSelectConversation={handleSelectConversation}
+          onCreateNewChat={handleCreateNewChat}
+          isLoading={chatState.isLoading}
+        />
+      )}
+
+      {/* 右侧：聊天区域 */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {selectedAgent ? (
+          <>
+            {/* 顶部标题栏 */}
+            <div className="flex h-14 items-center justify-between border-b border-gray-200 bg-white px-6">
+              <div className="flex items-center space-x-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-orange-100 to-orange-200">
+                  <Receipt className="h-5 w-5 text-orange-600" />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <h1 className="text-lg font-semibold text-gray-900">
+                    {selectedAgent.appName}
+                  </h1>
+                  <Badge 
+                    variant="secondary" 
+                    className="bg-gray-100 text-gray-600"
+                  >
+                    {selectedAgent.environment}
+                  </Badge>
+                </div>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-800">{selectedAgent.appName}</h1>
-              <p className="text-sm text-gray-600">{selectedAgent.environment}</p>
+
+            {/* 消息区域 */}
+            <div className="flex flex-1 flex-col overflow-hidden bg-white">
+              <div className="flex-1 overflow-y-auto">
+                {chatState.messages.length === 0 && !chatState.isLoading ? (
+                  <EmptyState agentConfig={selectedAgent} />
+                ) : (
+                  <MessageList 
+                    messages={chatState.messages} 
+                    isLoading={chatState.isLoading} 
+                  />
+                )}
+              </div>
+
+              {/* 输入区域 */}
+              <div className="border-t border-gray-200">
+                <MessageInput
+                  onSend={chatState.sendMessage}
+                  disabled={chatState.isResponding}
+                  isResponding={chatState.isResponding}
+                  onStop={chatState.stopResponding}
+                  placeholder={`向 ${selectedAgent.appName} 提问...`}
+                />
+              </div>
+            </div>
+          </>
+        ) : (
+          /* 未选择智能体时的空状态 */
+          <div className="flex h-full items-center justify-center">
+            <div className="text-center">
+              <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+                <Receipt className="h-8 w-8 text-gray-400" />
+              </div>
+              <h3 className="mb-2 text-lg font-semibold text-gray-900">
+                选择一个智能体开始
+              </h3>
+              <p className="text-sm text-gray-500">
+                从左侧列表中选择一个智能体，开始您的对话
+              </p>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* 聊天面板 */}
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="flex h-[calc(100vh-220px)] flex-col">
-          {/* 消息列表区域 */}
-          <div className="flex-1 overflow-y-auto">
-            {messages.length === 0 && !isLoading ? (
-              <EmptyState agentConfig={selectedAgent} />
-            ) : (
-              <MessageList messages={messages} isLoading={isLoading} />
-            )}
-          </div>
-
-          {/* 输入区域 */}
-          <MessageInput
-            onSend={sendMessage}
-            disabled={isResponding}
-            isResponding={isResponding}
-            onStop={stopResponding}
-            placeholder={`向 ${selectedAgent.appName} 提问...`}
-          />
-        </div>
+        )}
       </div>
     </div>
   );

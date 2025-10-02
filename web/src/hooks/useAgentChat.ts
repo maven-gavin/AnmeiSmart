@@ -26,8 +26,13 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
   
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // 检查 agentConfig 是否有效
+  const isValidAgent = agentConfig && agentConfig.id && agentConfig.id.trim() !== '';
+
   // 加载会话列表
   const loadConversations = useCallback(async () => {
+    if (!isValidAgent) return;
+    
     try {
       const list = await agentChatService.getAgentConversations(agentConfig.id);
       setConversations(list);
@@ -35,7 +40,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
       console.error('加载会话列表失败:', error);
       toast.error('加载会话列表失败');
     }
-  }, [agentConfig.id]);
+  }, [agentConfig.id, isValidAgent]);
 
   // 加载消息历史
   const loadMessages = useCallback(async (conversationId: string) => {
@@ -55,7 +60,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
 
   // 发送消息
   const sendMessage = useCallback(async (text: string) => {
-    if (!text.trim() || isResponding) return;
+    if (!text.trim() || isResponding || !isValidAgent) return;
 
     const questionId = `question-${Date.now()}`;
     const userMessage: AgentMessage = {
@@ -174,8 +179,14 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
           },
           onError: (error) => {
             setIsResponding(false);
-            toast.error(error || '发送消息失败');
-            onError?.(error);
+            
+            // 检查是否是用户主动停止（AbortError）
+            const isAborted = error === 'AbortError' || error?.name === 'AbortError';
+            
+            if (!isAborted) {
+              toast.error(error || '发送消息失败');
+              onError?.(error);
+            }
 
             // 移除占位消息
             setMessages(getMessages().filter(m => m.id !== placeholderAnswerId));
@@ -184,8 +195,14 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
       );
     } catch (error) {
       setIsResponding(false);
-      console.error('发送消息失败:', error);
-      toast.error('发送消息失败');
+      
+      // 检查是否是用户主动停止（AbortError）
+      const isAborted = error instanceof Error && error.name === 'AbortError';
+      
+      if (!isAborted) {
+        console.error('发送消息失败:', error);
+        toast.error('发送消息失败');
+      }
       
       // 移除占位消息
       setMessages(getMessages().filter(m => m.id !== placeholderAnswerId));
@@ -194,6 +211,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
     agentConfig.id,
     currentConversationId,
     isResponding,
+    isValidAgent,
     getMessages,
     setMessages,
     loadConversations,
@@ -212,6 +230,8 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
 
   // 创建新会话
   const createNewConversation = useCallback(async () => {
+    if (!isValidAgent) return;
+    
     try {
       const newConv = await agentChatService.createAgentConversation(agentConfig.id);
       setConversations([newConv, ...conversations]);
@@ -221,7 +241,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
       console.error('创建会话失败:', error);
       toast.error('创建会话失败');
     }
-  }, [agentConfig.id, conversations, switchConversation]);
+  }, [agentConfig.id, isValidAgent, conversations, switchConversation]);
 
   // 删除会话
   const deleteConversation = useCallback(async (conversationId: string) => {
@@ -244,15 +264,23 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
   // 停止响应
   const stopResponding = useCallback(() => {
     if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+      try {
+        abortControllerRef.current.abort();
+      } catch (error) {
+        // 忽略中止错误，这是预期的行为
+        console.log('请求已中止');
+      }
       setIsResponding(false);
+      abortControllerRef.current = null;
     }
   }, []);
 
   // 初始化
   useEffect(() => {
-    loadConversations();
-  }, [loadConversations]);
+    if (isValidAgent) {
+      loadConversations();
+    }
+  }, [loadConversations, isValidAgent]);
 
   return {
     // 状态

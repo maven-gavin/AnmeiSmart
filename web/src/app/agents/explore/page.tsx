@@ -10,7 +10,7 @@ import { useAgentView } from '@/hooks/useAgentView';
 import { AgentExplore } from '@/components/agents/AgentExplore';
 import { AgentChatPanel } from '@/components/agents/AgentChatPanel';
 import { LoadingSpinner } from '@/components/agents/LoadingSpinner';
-import { AgentConfig } from '@/service/agentConfigService';
+import type { AgentConfig } from '@/service/agentConfigService';
 import { toast } from 'react-hot-toast';
 
 export function AgentsPage() {
@@ -86,12 +86,10 @@ export function AgentsPage() {
           onPrevious={previousPage}
         />
       ) : (
-        selectedAgent && (
-          <AgentChatPanel
-            selectedAgent={selectedAgent}
-            onBack={switchToExplore}
-          />
-        )
+        <AgentChatPanel
+          agents={agentConfigs}
+          isLoadingAgents={isLoading}
+        />
       )}
     </AppLayout>
   );
