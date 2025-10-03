@@ -125,11 +125,12 @@ class AgentChatApplicationService:
             logger.info(f"   dify_conversation_id: {dify_conv_id or '(新会话)'}")
             
             chunk_count = 0
-            async for chunk in dify_client.stream_chat(
-                message=message,
+            async for chunk in dify_client.create_chat_message(
+                query=message,
                 user=user_identifier,
                 conversation_id=dify_conv_id,  # 使用保存的 Dify conversation_id
-                inputs=inputs
+                inputs=inputs,
+                response_mode="streaming"
             ):
                 chunk_count += 1
                 # 解析 SSE 事件
@@ -199,7 +200,7 @@ class AgentChatApplicationService:
                             data={
                                 "message_id": ai_message.id,
                                 "content": ai_content_buffer,
-                                "timestamp": ai_message.timestamp.isoformat()
+                                "timestamp": ai_message.created_at.isoformat()
                             }
                         )
                     except Exception as e:
@@ -301,7 +302,7 @@ class AgentChatApplicationService:
                 conversation_id=msg.conversation_id,
                 content=msg.content.get('text', '') if isinstance(msg.content, dict) else str(msg.content),
                 is_answer=(msg.sender_type == 'system'),
-                timestamp=msg.timestamp.isoformat(),
+                timestamp=msg.created_at.isoformat(),
                 agent_thoughts=None,  # TODO: 解析 agent_thoughts
                 files=None,
                 is_error=False

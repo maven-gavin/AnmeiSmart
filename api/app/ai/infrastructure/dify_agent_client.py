@@ -1,201 +1,696 @@
 """
 Dify Agent 客户端封装
-提供与 Dify Agent API 的统一通信接口
+基于官方 dify-client SDK 设计，使用 httpx 实现完全异步的 API 通信
 """
 
 import logging
 import json
-from typing import Optional, Dict, Any, AsyncIterator
+from typing import Optional, Dict, Any, AsyncIterator, List
 import httpx
-from sqlalchemy.orm import Session
 
 from app.ai.infrastructure.db.agent_config import AgentConfig as AgentConfigModel
 
 logger = logging.getLogger(__name__)
 
 
-class DifyAgentClient:
+class DifyClient:
     """
-    Dify Agent 客户端
-    封装与单个 Dify Agent 应用的通信
+    Dify 客户端基类
+    提供与 Dify API 的基础通信能力
     """
     
-    def __init__(self, api_key: str, base_url: str, app_id: Optional[str] = None):
+    def __init__(self, api_key: str, base_url: str = "https://api.dify.ai/v1"):
         """
-        初始化 Dify Agent 客户端
+        初始化 Dify 客户端
         
         Args:
             api_key: Dify API 密钥
-            base_url: Dify 基础 URL
-            app_id: Dify 应用 ID（可选）
+            base_url: Dify API 基础 URL
         """
         self.api_key = api_key
         self.base_url = base_url.rstrip('/')
-        self.app_id = app_id
         self.headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
-        logger.info(f"Dify Agent 客户端已初始化: {base_url}")
-        if app_id:
-            logger.info(f"   app_id: {app_id}")
     
-    async def stream_chat(
+    async def _send_request(
         self,
-        message: str,
-        user: str,
-        conversation_id: Optional[str] = None,
-        inputs: Optional[Dict[str, Any]] = None
-    ) -> AsyncIterator[bytes]:
+        method: str,
+        endpoint: str,
+        json_data: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        stream: bool = False
+    ) -> httpx.Response:
         """
-        流式对话
+        发送 HTTP 请求
         
         Args:
-            message: 用户消息
+            method: HTTP 方法 (GET, POST, DELETE 等)
+            endpoint: API 端点路径
+            json_data: JSON 请求体
+            params: URL 查询参数
+            stream: 是否流式响应
+        
+        Returns:
+            HTTP 响应对象
+        """
+        url = f"{self.base_url}{endpoint}"
+        timeout = 300.0 if stream else 30.0
+        
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.request(
+                method,
+                url,
+                headers=self.headers,
+                json=json_data,
+                params=params
+            )
+            response.raise_for_status()
+            return response
+    
+    async def _send_request_with_files(
+        self,
+        method: str,
+        endpoint: str,
+        data: Dict[str, Any],
+        files: Dict[str, Any]
+    ) -> httpx.Response:
+        """
+        发送带文件的 HTTP 请求
+        
+        Args:
+            method: HTTP 方法
+            endpoint: API 端点路径
+            data: 表单数据
+            files: 文件字典
+        
+        Returns:
+            HTTP 响应对象
+        """
+        url = f"{self.base_url}{endpoint}"
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.request(
+                method,
+                url,
+                headers=headers,
+                data=data,
+                files=files
+            )
+            response.raise_for_status()
+            return response
+    
+    async def message_feedback(
+        self,
+        message_id: str,
+        rating: str,
+        user: str
+    ) -> Dict[str, Any]:
+        """
+        提交消息反馈
+        
+        Args:
+            message_id: 消息ID
+            rating: 评分 ('like' 或 'dislike')
             user: 用户标识
-            conversation_id: 会话ID（可选）
-            inputs: 额外输入参数（可选）
+        
+        Returns:
+            反馈结果
+        """
+        data = {"rating": rating, "user": user}
+        response = await self._send_request(
+            "POST",
+            f"/messages/{message_id}/feedbacks",
+            json_data=data
+        )
+        return response.json()
+    
+    async def get_application_parameters(self, user: str) -> Dict[str, Any]:
+        """
+        获取应用参数
+        
+        Args:
+            user: 用户标识
+        
+        Returns:
+            应用参数数据
+        """
+        params = {"user": user}
+        response = await self._send_request("GET", "/parameters", params=params)
+        return response.json()
+    
+    async def file_upload(
+        self,
+        user: str,
+        files: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        上传文件
+        
+        Args:
+            user: 用户标识
+            files: 文件字典，格式 {'file': (filename, file_content, mime_type)}
+        
+        Returns:
+            上传结果，包含 upload_file_id
+        """
+        data = {"user": user}
+        response = await self._send_request_with_files(
+            "POST",
+            "/files/upload",
+            data=data,
+            files=files
+        )
+        return response.json()
+    
+    async def text_to_audio(
+        self,
+        text: str,
+        user: str,
+        streaming: bool = False
+    ) -> Dict[str, Any]:
+        """
+        文本转语音
+        
+        Args:
+            text: 文本内容
+            user: 用户标识
+            streaming: 是否流式返回
+        
+        Returns:
+            音频数据或流
+        """
+        data = {"text": text, "user": user, "streaming": streaming}
+        response = await self._send_request("POST", "/text-to-audio", json_data=data)
+        return response.json()
+    
+    async def get_meta(self, user: str) -> Dict[str, Any]:
+        """
+        获取应用元数据
+        
+        Args:
+            user: 用户标识
+        
+        Returns:
+            元数据信息
+        """
+        params = {"user": user}
+        response = await self._send_request("GET", "/meta", params=params)
+        return response.json()
+
+
+class CompletionClient(DifyClient):
+    """
+    Dify Completion 客户端
+    用于 Completion 类型的应用
+    """
+    
+    async def create_completion_message(
+        self,
+        inputs: Dict[str, Any],
+        response_mode: str,
+        user: str,
+        files: Optional[List[Dict[str, Any]]] = None
+    ) -> AsyncIterator[bytes]:
+        """
+        创建 Completion 消息
+        
+        Args:
+            inputs: 输入参数
+            response_mode: 响应模式 ('streaming' 或 'blocking')
+            user: 用户标识
+            files: 文件列表（可选）
+        
+        Yields:
+            SSE 格式的字节流（streaming 模式）
+        """
+        data = {
+            "inputs": inputs,
+            "response_mode": response_mode,
+            "user": user,
+            "files": files
+        }
+        
+        url = f"{self.base_url}/completion-messages"
+        stream = (response_mode == "streaming")
+        
+        try:
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                if stream:
+                    async with client.stream("POST", url, headers=self.headers, json=data) as response:
+                        response.raise_for_status()
+                        buffer = ""
+                        async for line in response.aiter_lines():
+                            if not line.strip():
+                                if buffer:
+                                    yield (buffer + "\n\n").encode('utf-8')
+                                    buffer = ""
+                            else:
+                                buffer = line
+                        if buffer:
+                            yield (buffer + "\n\n").encode('utf-8')
+                else:
+                    response = await client.post(url, headers=self.headers, json=data)
+                    response.raise_for_status()
+                    yield json.dumps(response.json()).encode('utf-8')
+                    
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Dify API 返回错误: status={e.response.status_code}")
+            error_message = f"data: {json.dumps({'event': 'error', 'status': e.response.status_code, 'message': str(e)})}\n\n"
+            yield error_message.encode('utf-8')
+        except Exception as e:
+            logger.error(f"请求失败: {str(e)}", exc_info=True)
+            error_message = f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+            yield error_message.encode('utf-8')
+
+
+class ChatClient(DifyClient):
+    """
+    Dify Chat 客户端
+    用于 Chat 类型的应用（Agent 对话）
+    """
+    
+    async def create_chat_message(
+        self,
+        query: str,
+        user: str,
+        inputs: Optional[Dict[str, Any]] = None,
+        response_mode: str = "streaming",
+        conversation_id: Optional[str] = None,
+        files: Optional[List[Dict[str, Any]]] = None
+    ) -> AsyncIterator[bytes]:
+        """
+        创建聊天消息（流式响应）
+        
+        Args:
+            query: 用户查询内容
+            user: 用户标识符
+            inputs: 输入参数，默认为空字典
+            response_mode: 响应模式，streaming（流式）或 blocking（阻塞）
+            conversation_id: 会话ID，用于多轮对话
+            files: 文件列表（用于视觉模型等场景）
         
         Yields:
             SSE 格式的字节流
         """
+        data = {
+            "inputs": inputs or {},
+            "query": query,
+            "user": user,
+            "response_mode": response_mode,
+            "files": files
+        }
+        
+        if conversation_id:
+            data["conversation_id"] = conversation_id
+        
+        url = f"{self.base_url}/chat-messages"
+        stream = (response_mode == "streaming")
+        
         try:
-            logger.info(f"开始流式对话: user={user}, conversation_id={conversation_id}")
-            
-            # 构建请求数据（完全符合 Dify API 规范）
-            data = {
-                "inputs": inputs or {},
-                "query": message,
-                "user": user,
-                "response_mode": "streaming"
-            }
-            
-            if conversation_id:
-                data["conversation_id"] = conversation_id
-            
-            # 完整的请求 URL
-            full_url = f"{self.base_url}/chat-messages"
-            
-            # 详细日志
-            logger.info(f"🌐 准备发送 HTTP 请求到 Dify:")
-            logger.info(f"   URL: {full_url}")
-            logger.info(f"   Method: POST")
-            logger.info(f"   Headers: Authorization=Bearer ***...{self.api_key[-8:]}")
-            logger.info(f"   Body: {json.dumps(data, ensure_ascii=False)[:500]}...")
-            
-            # 使用 httpx 进行流式请求
             async with httpx.AsyncClient(timeout=300.0) as client:
-                logger.info(f"🚀 开始发送请求...")
-                async with client.stream(
-                    "POST",
-                    full_url,
-                    headers=self.headers,
-                    json=data
-                ) as response:
-                    logger.info(f"📡 收到响应: status_code={response.status_code}")
+                if stream:
+                    async with client.stream("POST", url, headers=self.headers, json=data) as response:
+                        response.raise_for_status()
+                        buffer = ""
+                        async for line in response.aiter_lines():
+                            if not line.strip():
+                                if buffer:
+                                    yield (buffer + "\n\n").encode('utf-8')
+                                    buffer = ""
+                            else:
+                                buffer = line
+                        if buffer:
+                            yield (buffer + "\n\n").encode('utf-8')
+                else:
+                    response = await client.post(url, headers=self.headers, json=data)
                     response.raise_for_status()
-                    logger.info(f"✅ 响应状态正常，开始读取流式数据...")
-                    
-                    # 流式读取响应
-                    line_count = 0
-                    buffer = ""
-                    async for line in response.aiter_lines():
-                        line_count += 1
+                    yield json.dumps(response.json()).encode('utf-8')
                         
-                        # 调试日志：前几行详细输出
-                        if line_count <= 3:
-                            logger.info(f"📦 第 {line_count} 行原始数据: [{line}]")
-                        
-                        # SSE 事件以空行分隔
-                        if not line.strip():
-                            if buffer:
-                                # 完整的 SSE 事件：data: {...}\n\n
-                                yield (buffer + "\n\n").encode('utf-8')
-                                if line_count <= 3:
-                                    logger.info(f"✅ 发送 SSE 事件: {buffer[:200]}...")
-                                buffer = ""
-                        else:
-                            buffer = line
-                    
-                    # 处理最后一个事件（如果有）
-                    if buffer:
-                        yield (buffer + "\n\n").encode('utf-8')
-                    
-                    logger.info(f"✅ 流式读取完成，共 {line_count} 行")
-                
         except httpx.HTTPStatusError as e:
-            # HTTP 状态码错误（4xx, 5xx）
-            logger.error("=" * 80)
-            logger.error(f"❌ Dify API 返回错误状态码")
-            logger.error(f"   状态码: {e.response.status_code}")
-            logger.error(f"   URL: {e.request.url}")
-            logger.error(f"   请求方法: {e.request.method}")
-            try:
-                response_body = e.response.text
-                logger.error(f"   响应体: {response_body}")
-                # 尝试解析 JSON 错误信息
-                error_data = e.response.json()
-                logger.error(f"   错误详情: {json.dumps(error_data, ensure_ascii=False, indent=2)}")
-            except:
-                logger.error(f"   响应体（原始）: {e.response.content}")
-            logger.error("=" * 80)
-            
+            logger.error(f"Dify API 返回错误: status={e.response.status_code}")
             error_message = f"data: {json.dumps({'event': 'error', 'status': e.response.status_code, 'message': str(e)})}\n\n"
             yield error_message.encode('utf-8')
-            
-        except httpx.RequestError as e:
-            # 网络请求错误（连接失败、超时等）
-            logger.error("=" * 80)
-            logger.error(f"❌ Dify API 请求失败")
-            logger.error(f"   错误类型: {type(e).__name__}")
-            logger.error(f"   错误信息: {str(e)}")
-            logger.error(f"   URL: {e.request.url if hasattr(e, 'request') else 'N/A'}")
-            logger.error("=" * 80, exc_info=True)
-            
-            error_message = f"data: {json.dumps({'event': 'error', 'message': f'请求失败: {str(e)}'})}\n\n"
-            yield error_message.encode('utf-8')
-            
         except Exception as e:
-            # 其他未预期的错误
-            logger.error("=" * 80)
-            logger.error(f"❌ 流式对话发生未预期错误")
-            logger.error(f"   错误类型: {type(e).__name__}")
-            logger.error(f"   错误信息: {str(e)}")
-            logger.error("=" * 80, exc_info=True)
-            
+            logger.error(f"请求失败: {str(e)}", exc_info=True)
             error_message = f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
             yield error_message.encode('utf-8')
     
+    async def get_suggested(self, message_id: str, user: str) -> Dict[str, Any]:
+        """
+        获取建议问题
+        
+        Args:
+            message_id: 消息ID
+            user: 用户标识
+        
+        Returns:
+            建议问题列表
+        """
+        params = {"user": user}
+        response = await self._send_request(
+            "GET",
+            f"/messages/{message_id}/suggested",
+            params=params
+        )
+        return response.json()
+    
+    async def stop_message(self, task_id: str, user: str) -> Dict[str, Any]:
+        """
+        停止消息生成
+        
+        Args:
+            task_id: 任务ID
+            user: 用户标识
+        
+        Returns:
+            停止结果
+        """
+        data = {"user": user}
+        response = await self._send_request(
+            "POST",
+            f"/chat-messages/{task_id}/stop",
+            json_data=data
+        )
+        return response.json()
+    
+    async def get_conversations(
+        self,
+        user: str,
+        last_id: Optional[str] = None,
+        limit: Optional[int] = None,
+        pinned: Optional[bool] = None
+    ) -> Dict[str, Any]:
+        """
+        获取会话列表
+        
+        Args:
+            user: 用户标识符
+            last_id: 上次请求的最后一个会话ID，用于分页
+            limit: 返回数量限制
+            pinned: 是否只返回置顶会话
+        
+        Returns:
+            会话列表数据
+        """
+        params = {
+            "user": user,
+            "last_id": last_id,
+            "limit": limit,
+            "pinned": pinned
+        }
+        # 移除 None 值
+        params = {k: v for k, v in params.items() if v is not None}
+        
+        response = await self._send_request("GET", "/conversations", params=params)
+        return response.json()
+    
     async def get_conversation_messages(
+        self,
+        user: str,
+        conversation_id: Optional[str] = None,
+        first_id: Optional[str] = None,
+        limit: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        获取会话消息历史
+        
+        Args:
+            user: 用户标识符
+            conversation_id: 会话ID
+            first_id: 第一条消息ID，用于分页
+            limit: 返回数量限制
+        
+        Returns:
+            消息历史数据
+        """
+        params = {"user": user}
+        
+        if conversation_id:
+            params["conversation_id"] = conversation_id
+        if first_id:
+            params["first_id"] = first_id
+        if limit:
+            params["limit"] = limit
+        
+        response = await self._send_request("GET", "/messages", params=params)
+        return response.json()
+    
+    async def rename_conversation(
+        self,
+        conversation_id: str,
+        name: str,
+        user: str,
+        auto_generate: bool = False
+    ) -> Dict[str, Any]:
+        """
+        重命名会话
+        
+        Args:
+            conversation_id: 会话ID
+            name: 新名称
+            user: 用户标识符
+            auto_generate: 是否自动生成名称
+        
+        Returns:
+            更新后的会话数据
+        """
+        data = {"name": name, "auto_generate": auto_generate, "user": user}
+        response = await self._send_request(
+            "POST",
+            f"/conversations/{conversation_id}/name",
+            json_data=data
+        )
+        return response.json()
+    
+    async def delete_conversation(
         self,
         conversation_id: str,
         user: str
     ) -> Dict[str, Any]:
         """
-        获取会话消息历史
+        删除会话
         
         Args:
             conversation_id: 会话ID
             user: 用户标识
         
         Returns:
-            消息历史数据
+            删除结果
         """
+        data = {"user": user}
+        response = await self._send_request(
+            "DELETE",
+            f"/conversations/{conversation_id}",
+            json_data=data
+        )
+        return response.json()
+    
+    async def audio_to_text(
+        self,
+        audio_file: Any,
+        user: str
+    ) -> Dict[str, Any]:
+        """
+        语音转文字
+        
+        Args:
+            audio_file: 音频文件
+            user: 用户标识
+        
+        Returns:
+            转换后的文本
+        """
+        data = {"user": user}
+        files = {"audio_file": audio_file}
+        response = await self._send_request_with_files(
+            "POST",
+            "/audio-to-text",
+            data=data,
+            files=files
+        )
+        return response.json()
+
+
+class WorkflowClient(DifyClient):
+    """
+    Dify Workflow 客户端
+    用于 Workflow 类型的应用
+    """
+    
+    async def run(
+        self,
+        inputs: Dict[str, Any],
+        response_mode: str = "streaming",
+        user: str = "abc-123"
+    ) -> AsyncIterator[bytes]:
+        """
+        运行工作流
+        
+        Args:
+            inputs: 输入参数
+            response_mode: 响应模式
+            user: 用户标识
+        
+        Yields:
+            工作流执行结果
+        """
+        data = {"inputs": inputs, "response_mode": response_mode, "user": user}
+        url = f"{self.base_url}/workflows/run"
+        stream = (response_mode == "streaming")
+        
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    f"{self.base_url}/messages",
-                    headers=self.headers,
-                    params={
-                        "conversation_id": conversation_id,
-                        "user": user
-                    }
-                )
-                response.raise_for_status()
-                return response.json()
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                if stream:
+                    async with client.stream("POST", url, headers=self.headers, json=data) as response:
+                        response.raise_for_status()
+                        buffer = ""
+                        async for line in response.aiter_lines():
+                            if not line.strip():
+                                if buffer:
+                                    yield (buffer + "\n\n").encode('utf-8')
+                                    buffer = ""
+                            else:
+                                buffer = line
+                        if buffer:
+                            yield (buffer + "\n\n").encode('utf-8')
+                else:
+                    response = await client.post(url, headers=self.headers, json=data)
+                    response.raise_for_status()
+                    yield json.dumps(response.json()).encode('utf-8')
         except Exception as e:
-            logger.error(f"获取消息历史失败: {e}", exc_info=True)
-            raise
+            logger.error(f"工作流执行失败: {str(e)}", exc_info=True)
+            error_message = f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+            yield error_message.encode('utf-8')
+    
+    async def stop(self, task_id: str, user: str) -> Dict[str, Any]:
+        """
+        停止工作流执行
+        
+        Args:
+            task_id: 任务ID
+            user: 用户标识
+        
+        Returns:
+            停止结果
+        """
+        data = {"user": user}
+        response = await self._send_request(
+            "POST",
+            f"/workflows/tasks/{task_id}/stop",
+            json_data=data
+        )
+        return response.json()
+    
+    async def get_result(self, workflow_run_id: str) -> Dict[str, Any]:
+        """
+        获取工作流执行结果
+        
+        Args:
+            workflow_run_id: 工作流运行ID
+        
+        Returns:
+            执行结果
+        """
+        response = await self._send_request("GET", f"/workflows/run/{workflow_run_id}")
+        return response.json()
+
+
+class KnowledgeBaseClient(DifyClient):
+    """
+    Dify 知识库客户端
+    用于管理知识库和文档
+    """
+    
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str = "https://api.dify.ai/v1",
+        dataset_id: Optional[str] = None
+    ):
+        """
+        初始化知识库客户端
+        
+        Args:
+            api_key: API 密钥
+            base_url: API 基础 URL
+            dataset_id: 数据集ID（可选）
+        """
+        super().__init__(api_key=api_key, base_url=base_url)
+        self.dataset_id = dataset_id
+    
+    def _get_dataset_id(self) -> str:
+        """获取数据集ID，如果未设置则抛出异常"""
+        if self.dataset_id is None:
+            raise ValueError("dataset_id is not set")
+        return self.dataset_id
+    
+    async def create_dataset(self, name: str) -> Dict[str, Any]:
+        """创建数据集"""
+        response = await self._send_request("POST", "/datasets", json_data={"name": name})
+        return response.json()
+    
+    async def list_datasets(
+        self,
+        page: int = 1,
+        page_size: int = 20
+    ) -> Dict[str, Any]:
+        """列出数据集"""
+        response = await self._send_request("GET", f"/datasets?page={page}&limit={page_size}")
+        return response.json()
+    
+    async def delete_dataset(self) -> Dict[str, Any]:
+        """删除当前数据集"""
+        url = f"/datasets/{self._get_dataset_id()}"
+        response = await self._send_request("DELETE", url)
+        return response.json()
+    
+    async def create_document_by_text(
+        self,
+        name: str,
+        text: str,
+        extra_params: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """通过文本创建文档"""
+        data = {
+            "indexing_technique": "high_quality",
+            "process_rule": {"mode": "automatic"},
+            "name": name,
+            "text": text
+        }
+        if extra_params:
+            data.update(extra_params)
+        
+        url = f"/datasets/{self._get_dataset_id()}/document/create_by_text"
+        response = await self._send_request("POST", url, json_data=data)
+        return response.json()
+    
+    async def list_documents(
+        self,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        keyword: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """列出文档"""
+        params = {}
+        if page is not None:
+            params["page"] = page
+        if page_size is not None:
+            params["limit"] = page_size
+        if keyword is not None:
+            params["keyword"] = keyword
+        
+        url = f"/datasets/{self._get_dataset_id()}/documents"
+        response = await self._send_request("GET", url, params=params)
+        return response.json()
+    
+    async def delete_document(self, document_id: str) -> Dict[str, Any]:
+        """删除文档"""
+        url = f"/datasets/{self._get_dataset_id()}/documents/{document_id}"
+        response = await self._send_request("DELETE", url)
+        return response.json()
 
 
 class DifyAgentClientFactory:
@@ -204,35 +699,31 @@ class DifyAgentClientFactory:
     根据 Agent 配置创建客户端实例
     """
     
-    def create_client(
-        self,
-        agent_config: AgentConfigModel
-    ) -> DifyAgentClient:
+    @staticmethod
+    def create_client(agent_config: AgentConfigModel) -> ChatClient:
         """
-        创建 Dify Agent 客户端
+        创建 Dify Chat 客户端（用于 Agent 对话）
         
         Args:
             agent_config: Agent 配置模型
         
         Returns:
-            DifyAgentClient 实例
+            ChatClient 实例
+        
+        Raises:
+            ValueError: 配置缺少必要参数
         """
-        # 获取解密后的 API Key
         api_key = agent_config.api_key
         if not api_key:
             raise ValueError(f"Agent 配置缺少 API Key: {agent_config.id}")
         
-        return DifyAgentClient(
+        return ChatClient(
             api_key=api_key,
-            base_url=agent_config.base_url,
-            app_id=agent_config.app_id
+            base_url=agent_config.base_url
         )
     
-    def create_client_from_db(
-        self,
-        agent_config_id: str,
-        db: Session
-    ) -> DifyAgentClient:
+    @staticmethod
+    def create_client_from_db(agent_config_id: str, db) -> ChatClient:
         """
         从数据库加载配置并创建客户端
         
@@ -241,7 +732,10 @@ class DifyAgentClientFactory:
             db: 数据库会话
         
         Returns:
-            DifyAgentClient 实例
+            ChatClient 实例
+        
+        Raises:
+            ValueError: 配置不存在或未启用
         """
         agent_config = db.query(AgentConfigModel).filter(
             AgentConfigModel.id == agent_config_id,
@@ -251,5 +745,8 @@ class DifyAgentClientFactory:
         if not agent_config:
             raise ValueError(f"Agent 配置不存在或未启用: {agent_config_id}")
         
-        return self.create_client(agent_config)
+        return DifyAgentClientFactory.create_client(agent_config)
 
+
+# 类型别名，保持向后兼容
+DifyAgentClient = ChatClient
