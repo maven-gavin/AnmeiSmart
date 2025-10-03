@@ -58,7 +58,7 @@ class ConversationRepository(IConversationRepository):
     async def save(self, conversation: Conversation) -> Conversation:
         """保存会话"""
         conversation_model = self._to_model(conversation)
-        self.db.add(conversation_model)
+        conversation_model = self.db.merge(conversation_model)
         self.db.commit()
         self.db.refresh(conversation_model)
         

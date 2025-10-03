@@ -116,8 +116,10 @@ class AgentChatApplicationService:
             
             # 从会话元数据中获取 Dify conversation_id（如果存在）
             dify_conv_id = None
+            logger.info(f"   会话元数据: {conversation.extra_metadata}")
             if conversation.extra_metadata:
                 dify_conv_id = conversation.extra_metadata.get('dify_conversation_id')
+                logger.info(f"   从元数据获取到的 dify_conversation_id: {dify_conv_id}")
             
             logger.info("📝 步骤 4: 调用 Dify API 流式对话...")
             logger.info(f"   完整 URL: {dify_client.base_url}/chat-messages")
@@ -161,9 +163,8 @@ class AgentChatApplicationService:
                         # 记录 Dify 会话ID
                         if data.get('conversation_id') and not dify_conversation_id:
                             dify_conversation_id = data.get('conversation_id')
-                            # 发送我们的会话ID给前端
-                            custom_event = f'data: {{"event": "message", "conversation_id": "{conversation_id}", "message_id": "{ai_message_id or ""}"}}\n\n'
-                            yield custom_event.encode('utf-8')
+                            logger.info(f"   检测到 Dify conversation_id: {dify_conversation_id}")
+                            # 不再发送自定义事件，让前端直接处理 Dify 的标准 message 事件
                             
                     except json.JSONDecodeError:
                         pass
@@ -184,10 +185,15 @@ class AgentChatApplicationService:
                 logger.info(f"✅ AI 消息已保存: {ai_message.id}")
                 
                 # 保存 Dify conversation_id 到会话元数据（用于后续多轮对话）
+                logger.info(f"📝 检查是否需要保存 Dify conversation_id:")
+                logger.info(f"   dify_conversation_id: {dify_conversation_id}")
+                logger.info(f"   dify_conv_id (原值): {dify_conv_id}")
+                logger.info(f"   是否需要保存: {dify_conversation_id and dify_conversation_id != dify_conv_id}")
                 if dify_conversation_id and dify_conversation_id != dify_conv_id:
                     if not conversation.extra_metadata:
                         conversation.extra_metadata = {}
                     conversation.extra_metadata['dify_conversation_id'] = dify_conversation_id
+                    logger.info(f"   更新后的元数据: {conversation.extra_metadata}")
                     await self.conversation_repo.save(conversation)
                     logger.info(f"✅ 已保存 Dify conversation_id: {dify_conversation_id}")
                 
