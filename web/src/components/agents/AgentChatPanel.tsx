@@ -125,7 +125,13 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
                 ) : (
                   <MessageList 
                     messages={chatState.messages} 
-                    isLoading={chatState.isLoading} 
+                    isLoading={chatState.isLoading}
+                    agentConfigId={selectedAgent.id}
+                    onSelectQuestion={chatState.sendMessage}
+                    onFeedbackChange={(messageId, rating) => {
+                      // 更新本地消息的反馈状态
+                      console.log(`Message ${messageId} feedback: ${rating}`);
+                    }}
                   />
                 )}
               </div>

@@ -1,14 +1,23 @@
 import { useEffect, useRef } from 'react';
-import type { AgentMessage } from '@/types/agent-chat';
+import type { AgentMessage, FeedbackRating } from '@/types/agent-chat';
 import { UserMessage } from './UserMessage';
 import { AIMessage } from './AIMessage';
 
 interface MessageListProps {
   messages: AgentMessage[];
   isLoading?: boolean;
+  agentConfigId: string;
+  onSelectQuestion?: (question: string) => void;
+  onFeedbackChange?: (messageId: string, rating: FeedbackRating) => void;
 }
 
-export function MessageList({ messages, isLoading }: MessageListProps) {
+export function MessageList({ 
+  messages, 
+  isLoading, 
+  agentConfigId,
+  onSelectQuestion,
+  onFeedbackChange
+}: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 自动滚动到底部
@@ -31,7 +40,13 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
     <div className="space-y-6 p-6">
       {messages.map((message) => (
         message.isAnswer ? (
-          <AIMessage key={message.id} message={message} />
+          <AIMessage 
+            key={message.id} 
+            message={message} 
+            agentConfigId={agentConfigId}
+            onSelectQuestion={onSelectQuestion}
+            onFeedbackChange={onFeedbackChange}
+          />
         ) : (
           <UserMessage key={message.id} message={message} />
         )

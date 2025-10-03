@@ -23,6 +23,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [isResponding, setIsResponding] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -116,6 +117,10 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
               setCurrentConversationId(meta.conversationId);
               aiMessage.conversationId = meta.conversationId;
             }
+            // 保存 taskId 用于停止生成
+            if (meta.taskId) {
+              setCurrentTaskId(meta.taskId);
+            }
 
             // 追加内容
             aiMessage.content += chunk;
@@ -161,6 +166,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
           },
           onCompleted: (hasError) => {
             setIsResponding(false);
+            setCurrentTaskId(null);
             
             // 标记流式结束
             setMessages(
@@ -262,18 +268,32 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
   }, [conversations, currentConversationId, setMessages]);
 
   // 停止响应
-  const stopResponding = useCallback(() => {
+  const stopResponding = useCallback(async () => {
+    // 方式1: 使用 AbortController（客户端中止）
     if (abortControllerRef.current) {
       try {
         abortControllerRef.current.abort();
       } catch (error) {
-        // 忽略中止错误，这是预期的行为
         console.log('请求已中止');
       }
-      setIsResponding(false);
       abortControllerRef.current = null;
     }
-  }, []);
+    
+    // 方式2: 调用后端 API（服务端停止）
+    if (currentTaskId && isValidAgent) {
+      try {
+        const { stopMessageGeneration } = await import('@/service/agentChatService');
+        await stopMessageGeneration(agentConfig.id, currentTaskId);
+        toast.success('已停止生成');
+      } catch (error) {
+        console.error('停止生成失败:', error);
+        // 不显示错误提示，因为客户端已经中止了
+      }
+    }
+    
+    setIsResponding(false);
+    setCurrentTaskId(null);
+  }, [currentTaskId, agentConfig.id, isValidAgent]);
 
   // 初始化
   useEffect(() => {
@@ -289,6 +309,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
     currentConversationId,
     isResponding,
     isLoading,
+    currentTaskId,
     
     // 方法
     sendMessage,

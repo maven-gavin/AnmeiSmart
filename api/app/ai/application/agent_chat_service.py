@@ -379,4 +379,294 @@ class AgentChatApplicationService:
         )
         
         return await self.conversation_repo.save(conversation)
+    
+    # ========== 消息反馈功能 ==========
+    
+    async def message_feedback(
+        self,
+        agent_config_id: str,
+        message_id: str,
+        rating: str,
+        user_id: str
+    ) -> Dict[str, Any]:
+        """
+        提交消息反馈
+        
+        Args:
+            agent_config_id: Agent 配置ID
+            message_id: Dify 消息ID
+            rating: 评分 ('like' 或 'dislike')
+            user_id: 用户ID
+        
+        Returns:
+            反馈结果
+        """
+        logger.info(f"提交消息反馈: message_id={message_id}, rating={rating}")
+        
+        # 创建 Dify 客户端
+        dify_client = self.dify_client_factory.create_client_from_db(
+            agent_config_id, self.db
+        )
+        
+        # 调用 Dify API
+        user_identifier = f"user_{user_id}"
+        result = await dify_client.message_feedback(
+            message_id=message_id,
+            rating=rating,
+            user=user_identifier
+        )
+        
+        logger.info(f"消息反馈成功: {result}")
+        return result
+    
+    # ========== 建议问题功能 ==========
+    
+    async def get_suggested_questions(
+        self,
+        agent_config_id: str,
+        message_id: str,
+        user_id: str
+    ) -> List[str]:
+        """
+        获取建议问题
+        
+        Args:
+            agent_config_id: Agent 配置ID
+            message_id: Dify 消息ID
+            user_id: 用户ID
+        
+        Returns:
+            建议问题列表
+        """
+        logger.info(f"获取建议问题: message_id={message_id}")
+        
+        # 创建 Dify 客户端
+        dify_client = self.dify_client_factory.create_client_from_db(
+            agent_config_id, self.db
+        )
+        
+        # 调用 Dify API
+        user_identifier = f"user_{user_id}"
+        result = await dify_client.get_suggested(
+            message_id=message_id,
+            user=user_identifier
+        )
+        
+        # 提取建议问题列表
+        questions = result.get('data', [])
+        logger.info(f"获取到 {len(questions)} 个建议问题")
+        return questions
+    
+    # ========== 停止消息生成功能 ==========
+    
+    async def stop_message_generation(
+        self,
+        agent_config_id: str,
+        task_id: str,
+        user_id: str
+    ) -> Dict[str, Any]:
+        """
+        停止消息生成
+        
+        Args:
+            agent_config_id: Agent 配置ID
+            task_id: Dify 任务ID
+            user_id: 用户ID
+        
+        Returns:
+            停止结果
+        """
+        logger.info(f"停止消息生成: task_id={task_id}")
+        
+        # 创建 Dify 客户端
+        dify_client = self.dify_client_factory.create_client_from_db(
+            agent_config_id, self.db
+        )
+        
+        # 调用 Dify API
+        user_identifier = f"user_{user_id}"
+        result = await dify_client.stop_message(
+            task_id=task_id,
+            user=user_identifier
+        )
+        
+        logger.info(f"停止消息成功: {result}")
+        return result
+    
+    # ========== 语音转文字功能 ==========
+    
+    async def audio_to_text(
+        self,
+        agent_config_id: str,
+        audio_file: Any,
+        user_id: str
+    ) -> str:
+        """
+        语音转文字
+        
+        Args:
+            agent_config_id: Agent 配置ID
+            audio_file: 音频文件
+            user_id: 用户ID
+        
+        Returns:
+            转换后的文本
+        """
+        logger.info(f"语音转文字: 用户={user_id}")
+        
+        # 创建 Dify 客户端
+        dify_client = self.dify_client_factory.create_client_from_db(
+            agent_config_id, self.db
+        )
+        
+        # 调用 Dify API
+        user_identifier = f"user_{user_id}"
+        result = await dify_client.audio_to_text(
+            audio_file=audio_file,
+            user=user_identifier
+        )
+        
+        # 提取文本
+        text = result.get('text', '')
+        logger.info(f"语音转文字成功: {len(text)} 字符")
+        return text
+    
+    # ========== 文字转语音功能 ==========
+    
+    async def text_to_audio(
+        self,
+        agent_config_id: str,
+        text: str,
+        user_id: str,
+        streaming: bool = False
+    ) -> Dict[str, Any]:
+        """
+        文字转语音
+        
+        Args:
+            agent_config_id: Agent 配置ID
+            text: 文本内容
+            user_id: 用户ID
+            streaming: 是否流式返回
+        
+        Returns:
+            音频数据或流
+        """
+        logger.info(f"文字转语音: {len(text)} 字符")
+        
+        # 创建 Dify 客户端
+        dify_client = self.dify_client_factory.create_client_from_db(
+            agent_config_id, self.db
+        )
+        
+        # 调用 Dify API
+        user_identifier = f"user_{user_id}"
+        result = await dify_client.text_to_audio(
+            text=text,
+            user=user_identifier,
+            streaming=streaming
+        )
+        
+        logger.info(f"文字转语音成功")
+        return result
+    
+    # ========== 文件上传功能 ==========
+    
+    async def upload_file(
+        self,
+        agent_config_id: str,
+        file: Any,
+        user_id: str
+    ) -> Dict[str, Any]:
+        """
+        上传文件到 Dify
+        
+        Args:
+            agent_config_id: Agent 配置ID
+            file: 文件对象
+            user_id: 用户ID
+        
+        Returns:
+            上传结果，包含 upload_file_id
+        """
+        logger.info(f"上传文件: 用户={user_id}")
+        
+        # 创建 Dify 客户端
+        dify_client = self.dify_client_factory.create_client_from_db(
+            agent_config_id, self.db
+        )
+        
+        # 调用 Dify API
+        user_identifier = f"user_{user_id}"
+        result = await dify_client.file_upload(
+            user=user_identifier,
+            files=file
+        )
+        
+        logger.info(f"文件上传成功: {result}")
+        return result
+    
+    # ========== 应用配置功能 ==========
+    
+    async def get_application_parameters(
+        self,
+        agent_config_id: str,
+        user_id: str
+    ) -> Dict[str, Any]:
+        """
+        获取应用参数配置
+        
+        Args:
+            agent_config_id: Agent 配置ID
+            user_id: 用户ID
+        
+        Returns:
+            应用参数配置
+        """
+        logger.info(f"获取应用参数: agent_config_id={agent_config_id}, user_id={user_id}")
+        
+        # 创建 Dify 客户端
+        dify_client = self.dify_client_factory.create_client_from_db(
+            agent_config_id, self.db
+        )
+        
+        # 调用 Dify API
+        user_identifier = f"user_{user_id}"
+        result = await dify_client.get_application_parameters(
+            user=user_identifier
+        )
+        
+        logger.info(f"获取应用参数成功")
+        return result
+    
+    async def get_application_meta(
+        self,
+        agent_config_id: str,
+        user_id: str
+    ) -> Dict[str, Any]:
+        """
+        获取应用元数据
+        
+        Args:
+            agent_config_id: Agent 配置ID
+            user_id: 用户ID
+        
+        Returns:
+            应用元数据
+        """
+        logger.info(f"获取应用元数据: agent_config_id={agent_config_id}, user_id={user_id}")
+        
+        # 创建 Dify 客户端
+        dify_client = self.dify_client_factory.create_client_from_db(
+            agent_config_id, self.db
+        )
+        
+        # 调用 Dify API
+        user_identifier = f"user_{user_id}"
+        result = await dify_client.get_meta(
+            user=user_identifier
+        )
+        
+        logger.info(f"获取应用元数据成功")
+        return result
 

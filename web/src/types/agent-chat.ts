@@ -23,6 +23,14 @@ export interface AgentThought {
   position?: number;             // 思考步骤位置
 }
 
+// 消息反馈类型
+export type FeedbackRating = 'like' | 'dislike' | null;
+
+export interface MessageFeedback {
+  rating: FeedbackRating;
+  submittedAt?: string;
+}
+
 // 消息类型
 export interface AgentMessage {
   id: string;
@@ -36,6 +44,10 @@ export interface AgentMessage {
   files?: MessageFile[];          // 附带文件
   isError?: boolean;              // 是否错误消息
   isStreaming?: boolean;          // 是否正在流式输出
+  
+  // 新增：反馈和建议
+  feedback?: MessageFeedback;     // 消息反馈
+  suggestedQuestions?: string[];  // 建议问题（仅 AI 消息）
 }
 
 // 会话

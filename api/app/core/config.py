@@ -48,9 +48,6 @@ class Settings(BaseSettings):
     AI_MODEL: str = "default"
     AI_API_BASE_URL: str = "https://api.example.com"
     
-    
-    # Dify配置
-    DIFY_API_BASE_URL: str = "http://localhost/v1"
 
     # MCP 配置
     MCP_OAUTH_REDIRECT_URI: str = "http://localhost/console/api/workspaces/current/tool-provider/mcp/oauth/callback"

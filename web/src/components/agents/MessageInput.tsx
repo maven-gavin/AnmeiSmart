@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Send, StopCircle } from 'lucide-react';
+import { Send, StopCircle, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface MessageInputProps {
   onSend: (message: string) => void;
@@ -18,14 +19,21 @@ export function MessageInput({
   placeholder = '输入消息...'
 }: MessageInputProps) {
   const [input, setInput] = useState('');
+  const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const trimmed = input.trim();
-    if (!trimmed || disabled) return;
+    if (!trimmed || disabled || isResponding) return;
     
-    onSend(trimmed);
-    setInput('');
+    setIsSending(true);
+    try {
+      onSend(trimmed);
+      setInput('');
+    } finally {
+      // 短暂延迟后重置发送状态
+      setTimeout(() => setIsSending(false), 500);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -40,6 +48,13 @@ export function MessageInput({
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [input]);
+
+  // 清空输入时重置高度
+  useEffect(() => {
+    if (!input && textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
     }
   }, [input]);
 
@@ -68,19 +83,36 @@ export function MessageInput({
           <Button
             onClick={onStop}
             variant="outline"
-            className="flex items-center space-x-2"
+            className={cn(
+              "flex items-center space-x-2 border-red-300 text-red-600",
+              "hover:bg-red-50 hover:border-red-400",
+              "transition-all duration-200"
+            )}
           >
-            <StopCircle className="h-4 w-4" />
+            <StopCircle className="h-4 w-4 animate-pulse" />
             <span>停止</span>
           </Button>
         ) : (
           <Button
             onClick={handleSend}
-            disabled={disabled || !input.trim()}
-            className="bg-orange-500 hover:bg-orange-600 flex items-center space-x-2"
+            disabled={disabled || !input.trim() || isSending}
+            className={cn(
+              "flex items-center space-x-2 bg-orange-500 hover:bg-orange-600",
+              "disabled:bg-gray-300 disabled:cursor-not-allowed",
+              "transition-all duration-200"
+            )}
           >
-            <Send className="h-4 w-4" />
-            <span>发送</span>
+            {isSending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>发送中</span>
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4" />
+                <span>发送</span>
+              </>
+            )}
           </Button>
         )}
       </div>

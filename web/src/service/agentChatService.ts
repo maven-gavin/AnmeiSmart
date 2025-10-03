@@ -95,6 +95,58 @@ export const renameAgentConversation = async (
   );
 };
 
+/**
+ * 提交消息反馈
+ */
+export const submitMessageFeedback = async (
+  agentConfigId: string,
+  messageId: string,
+  rating: 'like' | 'dislike'
+): Promise<void> => {
+  await apiClient.post(
+    `/agent/${agentConfigId}/feedback`,
+    { body: { message_id: messageId, rating } }
+  );
+};
+
+/**
+ * 获取建议问题
+ */
+export const getSuggestedQuestions = async (
+  agentConfigId: string,
+  messageId: string
+): Promise<string[]> => {
+  const response = await apiClient.get<{ questions: string[] }>(
+    `/agent/${agentConfigId}/messages/${messageId}/suggested`
+  );
+  return response.data.questions;
+};
+
+/**
+ * 停止消息生成
+ */
+export const stopMessageGeneration = async (
+  agentConfigId: string,
+  taskId: string
+): Promise<void> => {
+  await apiClient.post(
+    `/agent/${agentConfigId}/stop`,
+    { body: { task_id: taskId } }
+  );
+};
+
+/**
+ * 获取应用参数
+ */
+export const getApplicationParameters = async (
+  agentConfigId: string
+): Promise<any> => {
+  const response = await apiClient.get(
+    `/agent/${agentConfigId}/parameters`
+  );
+  return response.data;
+};
+
 // 导出服务对象
 const agentChatService = {
   sendAgentMessage,
@@ -103,6 +155,10 @@ const agentChatService = {
   createAgentConversation,
   deleteAgentConversation,
   renameAgentConversation,
+  submitMessageFeedback,
+  getSuggestedQuestions,
+  stopMessageGeneration,
+  getApplicationParameters,
 };
 
 export default agentChatService;
