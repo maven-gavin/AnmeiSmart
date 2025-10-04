@@ -394,7 +394,7 @@ class AgentChatApplicationService:
         
         Args:
             agent_config_id: Agent 配置ID
-            message_id: Dify 消息ID
+            message_id: 我们系统的消息ID
             rating: 评分 ('like' 或 'dislike')
             user_id: 用户ID
         
@@ -403,15 +403,30 @@ class AgentChatApplicationService:
         """
         logger.info(f"提交消息反馈: message_id={message_id}, rating={rating}")
         
-        # 创建 Dify 客户端
+        # 1. 根据我们系统的 message_id 查找消息
+        message = await self.message_repo.get_by_id(message_id)
+        if not message:
+            raise ValueError(f"消息不存在: {message_id}")
+        
+        # 2. 从 extra_metadata 中获取 Dify 的原生 message_id
+        dify_message_id = None
+        if message.extra_metadata and isinstance(message.extra_metadata, dict):
+            dify_message_id = message.extra_metadata.get('dify_message_id')
+        
+        if not dify_message_id:
+            raise ValueError(f"消息缺少 Dify message_id: {message_id}")
+        
+        logger.info(f"找到 Dify message_id: {dify_message_id}")
+        
+        # 3. 创建 Dify 客户端
         dify_client = self.dify_client_factory.create_client_from_db(
             agent_config_id, self.db
         )
         
-        # 调用 Dify API
+        # 4. 调用 Dify API（使用 Dify 的原生 message_id）
         user_identifier = f"user_{user_id}"
         result = await dify_client.message_feedback(
-            message_id=message_id,
+            message_id=dify_message_id,  # 使用 Dify 的原生 message_id
             rating=rating,
             user=user_identifier
         )
@@ -434,7 +449,7 @@ class AgentChatApplicationService:
         
         Args:
             agent_config_id: Agent 配置ID
-            message_id: Dify 消息ID
+            message_id: 我们系统的消息ID
             user_id: 用户ID
         
         Returns:
@@ -443,13 +458,28 @@ class AgentChatApplicationService:
         logger.info(f"获取建议问题: message_id={message_id}")
         
         try:
-            # 1. 首先获取应用参数配置
+            # 1. 根据我们系统的 message_id 查找消息
+            message = await self.message_repo.get_by_id(message_id)
+            if not message:
+                raise ValueError(f"消息不存在: {message_id}")
+            
+            # 2. 从 extra_metadata 中获取 Dify 的原生 message_id
+            dify_message_id = None
+            if message.extra_metadata and isinstance(message.extra_metadata, dict):
+                dify_message_id = message.extra_metadata.get('dify_message_id')
+            
+            if not dify_message_id:
+                raise ValueError(f"消息缺少 Dify message_id: {message_id}")
+            
+            logger.info(f"找到 Dify message_id: {dify_message_id}")
+            
+            # 3. 首先获取应用参数配置
             app_params = await self.get_application_parameters(
                 agent_config_id=agent_config_id,
                 user_id=user_id
             )
             
-            # 2. 检查建议问题配置是否启用
+            # 4. 检查建议问题配置是否启用
             suggested_questions_config = app_params.get('suggested_questions_after_answer')
             if not suggested_questions_config:
                 logger.info("应用未启用建议问题功能，返回空列表")
@@ -463,15 +493,15 @@ class AgentChatApplicationService:
             
             logger.info("建议问题功能已启用，调用Dify API获取建议问题")
             
-            # 3. 创建 Dify 客户端
+            # 5. 创建 Dify 客户端
             dify_client = self.dify_client_factory.create_client_from_db(
                 agent_config_id, self.db
             )
             
-            # 4. 调用 Dify API 获取建议问题
+            # 6. 调用 Dify API 获取建议问题（使用 Dify 的原生 message_id）
             user_identifier = f"user_{user_id}"
             result = await dify_client.get_suggested(
-                message_id=message_id,
+                message_id=dify_message_id,  # 使用 Dify 的原生 message_id
                 user=user_identifier
             )
             
