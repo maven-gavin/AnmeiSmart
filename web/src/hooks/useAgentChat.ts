@@ -295,6 +295,22 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
     setCurrentTaskId(null);
   }, [currentTaskId, agentConfig.id, isValidAgent]);
 
+  // 智能体切换时重置状态
+  useEffect(() => {
+    // 清空当前消息列表
+    setMessages([]);
+    // 重置当前会话ID
+    setCurrentConversationId(null);
+    // 重置响应状态
+    setIsResponding(false);
+    setCurrentTaskId(null);
+    // 中止当前请求
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  }, [agentConfig.id, setMessages]);
+
   // 初始化
   useEffect(() => {
     if (isValidAgent) {
