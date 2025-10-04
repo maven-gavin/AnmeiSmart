@@ -343,8 +343,8 @@ class AgentChatApplicationService:
         
         # TODO: 验证用户权限
         
-        conversation.title = title
-        conversation.updated_at = datetime.now()
+        # 使用领域实体的方法更新标题
+        conversation.update_title(title)
         updated_conv = await self.conversation_repo.save(conversation)
         
         agent_config_id = updated_conv.extra_metadata.get('agent_config_id') if updated_conv.extra_metadata else ""

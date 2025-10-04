@@ -32,7 +32,17 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
 
   // 聊天 Hook - 始终调用，但传入 null 作为默认配置
   const chatState = useAgentChat({ 
-    agentConfig: selectedAgent || { id: '', appName: '', environment: '', apiKey: '', apiUrl: '', description: '' } as AgentConfig,
+    agentConfig: selectedAgent || {
+      id: '',
+      appName: '',
+      environment: '',
+      appId: '',
+      baseUrl: '',
+      timeoutSeconds: 30,
+      maxRetries: 3,
+      enabled: true,
+      description: ''
+    } as AgentConfig,
     onError: (error) => console.error('Chat error:', error)
   });
 
@@ -58,6 +68,14 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
   const handleSelectConversation = (conversationId: string) => {
     if (chatState) {
       chatState.switchConversation(conversationId);
+    }
+  };
+
+  // 更新对话标题
+  const handleConversationUpdate = (conversationId: string, title: string) => {
+    // 刷新对话列表以反映标题更新
+    if (chatState) {
+      chatState.loadConversations();
     }
   };
 
@@ -102,6 +120,7 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
           selectedConversationId={chatState.currentConversationId}
           onSelectConversation={handleSelectConversation}
           onCreateNewChat={handleCreateNewChat}
+          onConversationUpdate={handleConversationUpdate}
           isLoading={chatState.isLoading}
         />
       )}

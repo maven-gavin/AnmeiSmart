@@ -27,7 +27,7 @@ export function AIMessage({
       <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-orange-100">
         <Bot className="h-5 w-5 text-orange-600" />
       </div>
-      <div className="flex-1">
+      <div className="flex-1 max-w-[70%]">
         {/* Agent 思考过程 */}
         {message.agentThoughts && message.agentThoughts.length > 0 && (
           <AgentThinking thoughts={message.agentThoughts} />

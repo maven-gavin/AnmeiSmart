@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { Plus, MessageSquare, Calendar } from 'lucide-react';
+import { Plus, MessageSquare, Calendar, Edit2, Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import { renameAgentConversation } from '@/service/agentChatService';
+import { toast } from 'react-hot-toast';
 
 export interface AgentConversation {
   id: string;
@@ -20,6 +22,7 @@ interface ConversationHistoryPanelProps {
   selectedConversationId: string | null;
   onSelectConversation: (conversationId: string) => void;
   onCreateNewChat: () => void;
+  onConversationUpdate?: (conversationId: string, title: string) => void;
   isLoading?: boolean;
 }
 
@@ -29,8 +32,58 @@ export function ConversationHistoryPanel({
   selectedConversationId,
   onSelectConversation,
   onCreateNewChat,
+  onConversationUpdate,
   isLoading = false,
 }: ConversationHistoryPanelProps) {
+  // 标题编辑状态
+  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  // 开始编辑标题
+  const startEditTitle = (conversation: AgentConversation, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingTitleId(conversation.id);
+    setEditingTitle(conversation.title || '');
+    setTimeout(() => {
+      editInputRef.current?.focus();
+      editInputRef.current?.select();
+    }, 0);
+  };
+
+  // 保存标题
+  const saveTitle = async (conversationId: string) => {
+    if (!editingTitle.trim()) {
+      cancelEditTitle();
+      return;
+    }
+
+    try {
+      await renameAgentConversation(conversationId, editingTitle.trim());
+      onConversationUpdate?.(conversationId, editingTitle.trim());
+      setEditingTitleId(null);
+      setEditingTitle('');
+      toast.success('标题更新成功');
+    } catch (error) {
+      console.error('更新会话标题失败:', error);
+      toast.error('更新标题失败');
+    }
+  };
+
+  // 取消编辑
+  const cancelEditTitle = () => {
+    setEditingTitleId(null);
+    setEditingTitle('');
+  };
+
+  // 处理键盘事件
+  const handleKeyDown = (e: React.KeyboardEvent, conversationId: string) => {
+    if (e.key === 'Enter') {
+      saveTitle(conversationId);
+    } else if (e.key === 'Escape') {
+      cancelEditTitle();
+    }
+  };
   return (
     <div className="flex h-full w-80 flex-col border-r border-gray-200 bg-white">
       {/* Header with Agent Name */}
@@ -66,19 +119,73 @@ export function ConversationHistoryPanel({
               const isSelected = selectedConversationId === conversation.id;
               
               return (
-                <button
+                <div
                   key={conversation.id}
-                  onClick={() => onSelectConversation(conversation.id)}
                   className={cn(
-                    'w-full rounded-lg p-3 text-left transition-colors',
+                    'w-full rounded-lg p-3 transition-colors group',
                     isSelected
                       ? 'bg-blue-50 border border-blue-200'
                       : 'hover:bg-gray-50 border border-transparent'
                   )}
                 >
-                  <div className="mb-1 line-clamp-2 text-sm font-medium text-gray-900">
-                    {conversation.title}
+                  {/* 标题区域 */}
+                  <div className="mb-1 flex items-center justify-between">
+                    {editingTitleId === conversation.id ? (
+                      <div className="flex-1 flex items-center space-x-2">
+                        <input
+                          ref={editInputRef}
+                          type="text"
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          onBlur={() => saveTitle(conversation.id)}
+                          onKeyDown={(e) => handleKeyDown(e, conversation.id)}
+                          className="flex-1 text-sm font-medium bg-white border border-orange-300 rounded px-2 py-1 focus:outline-none focus:border-orange-500"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            saveTitle(conversation.id);
+                          }}
+                          className="h-6 w-6 p-0 text-green-600 hover:text-green-700"
+                        >
+                          <Check className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            cancelEditTitle();
+                          }}
+                          className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => onSelectConversation(conversation.id)}
+                          className="flex-1 text-left line-clamp-2 text-sm font-medium text-gray-900 hover:text-blue-600"
+                        >
+                          {conversation.title}
+                        </button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => startEditTitle(conversation, e)}
+                          className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Edit2 className="h-3 w-3" />
+                        </Button>
+                      </>
+                    )}
                   </div>
+                  
+                  {/* 元信息区域 */}
                   <div className="flex items-center space-x-2 text-xs text-gray-500">
                     <Calendar className="h-3 w-3" />
                     <span>
@@ -97,7 +204,7 @@ export function ConversationHistoryPanel({
                     <span>·</span>
                     <span>{conversation.messageCount} 条消息</span>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
