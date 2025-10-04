@@ -52,11 +52,23 @@ export const getAgentMessages = async (
   conversationId: string,
   limit: number = 50
 ): Promise<AgentMessage[]> => {
-  const response = await apiClient.get<AgentMessage[]>(
+  const response = await apiClient.get<any[]>(
     `/agent/conversations/${conversationId}/messages`,
     { params: { limit } }
   );
-  return response.data;
+  
+  // 转换后端字段名到前端字段名
+  return response.data.map(msg => ({
+    id: msg.id,
+    conversationId: msg.conversation_id,
+    content: msg.content,
+    isAnswer: msg.is_answer,  // 转换 is_answer -> isAnswer
+    timestamp: msg.timestamp,
+    agentThoughts: msg.agent_thoughts,
+    files: msg.files,
+    isError: msg.is_error,
+    feedback: msg.feedback
+  }));
 };
 
 /**
