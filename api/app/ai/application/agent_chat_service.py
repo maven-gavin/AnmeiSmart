@@ -430,6 +430,8 @@ class AgentChatApplicationService:
         """
         获取建议问题
         
+        先检查应用配置是否启用了建议问题功能，如果启用才调用建议问题API
+        
         Args:
             agent_config_id: Agent 配置ID
             message_id: Dify 消息ID
@@ -440,22 +442,49 @@ class AgentChatApplicationService:
         """
         logger.info(f"获取建议问题: message_id={message_id}")
         
-        # 创建 Dify 客户端
-        dify_client = self.dify_client_factory.create_client_from_db(
-            agent_config_id, self.db
-        )
-        
-        # 调用 Dify API
-        user_identifier = f"user_{user_id}"
-        result = await dify_client.get_suggested(
-            message_id=message_id,
-            user=user_identifier
-        )
-        
-        # 提取建议问题列表
-        questions = result.get('data', [])
-        logger.info(f"获取到 {len(questions)} 个建议问题")
-        return questions
+        try:
+            # 1. 首先获取应用参数配置
+            app_params = await self.get_application_parameters(
+                agent_config_id=agent_config_id,
+                user_id=user_id
+            )
+            
+            # 2. 检查建议问题配置是否启用
+            suggested_questions_config = app_params.get('suggested_questions_after_answer')
+            if not suggested_questions_config:
+                logger.info("应用未启用建议问题功能，返回空列表")
+                return []
+            
+            # 检查配置是否启用
+            is_enabled = suggested_questions_config.get('enabled', False)
+            if not is_enabled:
+                logger.info("建议问题功能已禁用，返回空列表")
+                return []
+            
+            logger.info("建议问题功能已启用，调用Dify API获取建议问题")
+            
+            # 3. 创建 Dify 客户端
+            dify_client = self.dify_client_factory.create_client_from_db(
+                agent_config_id, self.db
+            )
+            
+            # 4. 调用 Dify API 获取建议问题
+            user_identifier = f"user_{user_id}"
+            result = await dify_client.get_suggested(
+                message_id=message_id,
+                user=user_identifier
+            )
+            
+            # 5. 提取建议问题列表
+            questions = result.get('data', [])
+            logger.info(f"获取到 {len(questions)} 个建议问题")
+            return questions
+            
+        except Exception as e:
+            logger.warning(f"获取建议问题失败，返回空列表: {e}")
+            # 如果获取建议问题失败，返回空列表而不是抛出异常
+            # 这样不会影响主要的对话功能
+            return []
     
     # ========== 停止消息生成功能 ==========
     
