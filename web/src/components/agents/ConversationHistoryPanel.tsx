@@ -96,11 +96,11 @@ export function ConversationHistoryPanel({
         {/* Start New Chat Button */}
         <Button
           onClick={onCreateNewChat}
-          className="w-full bg-blue-600 hover:bg-blue-700"
+          className="w-full bg-orange-500 hover:bg-orange-600 text-white"
           size="sm"
         >
           <Plus className="mr-2 h-4 w-4" />
-          Start New chat
+          Start New Chat
         </Button>
       </div>
 
