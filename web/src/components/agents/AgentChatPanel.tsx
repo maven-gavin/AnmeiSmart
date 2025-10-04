@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useState, useEffect } from 'react';
+import { memo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Receipt } from 'lucide-react';
 import type { AgentConfig } from '@/service/agentConfigService';
@@ -14,14 +14,21 @@ import { ConversationHistoryPanel } from './ConversationHistoryPanel';
 interface AgentChatPanelProps {
   agents: AgentConfig[];
   isLoadingAgents?: boolean;
+  selectedAgent?: AgentConfig | null;
+  onSelectAgent?: (agent: AgentConfig) => void;
 }
 
 export const AgentChatPanel = memo<AgentChatPanelProps>(({ 
   agents,
   isLoadingAgents = false,
+  selectedAgent: externalSelectedAgent = null,
+  onSelectAgent: externalOnSelectAgent,
 }) => {
-  // 当前选中的智能体
-  const [selectedAgent, setSelectedAgent] = useState<AgentConfig | null>(null);
+  // 内部状态管理（当没有外部传入时使用）
+  const [internalSelectedAgent, setInternalSelectedAgent] = useState<AgentConfig | null>(null);
+  
+  // 使用外部传入的selectedAgent，如果没有则使用内部状态
+  const selectedAgent = externalSelectedAgent !== undefined ? externalSelectedAgent : internalSelectedAgent;
 
   // 聊天 Hook - 始终调用，但传入 null 作为默认配置
   const chatState = useAgentChat({ 
@@ -31,7 +38,13 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
 
   // 选择智能体
   const handleSelectAgent = (agent: AgentConfig) => {
-    setSelectedAgent(agent);
+    if (externalOnSelectAgent) {
+      // 如果有外部回调，使用外部回调
+      externalOnSelectAgent(agent);
+    } else {
+      // 否则使用内部状态
+      setInternalSelectedAgent(agent);
+    }
   };
 
   // 创建新对话

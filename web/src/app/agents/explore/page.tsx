@@ -89,6 +89,8 @@ export function AgentsPage() {
         <AgentChatPanel
           agents={agentConfigs}
           isLoadingAgents={isLoading}
+          selectedAgent={selectedAgent}
+          onSelectAgent={handleStartChat}
         />
       )}
     </AppLayout>
