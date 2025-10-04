@@ -38,19 +38,21 @@ export function MessageList({
 
   return (
     <div className="space-y-6 p-6">
-      {messages.map((message) => (
-        message.isAnswer ? (
+      {messages.map((message, index) => {
+        const isLastMessage = index === messages.length - 1;
+        return message.isAnswer ? (
           <AIMessage 
             key={message.id} 
             message={message} 
             agentConfigId={agentConfigId}
+            isLastMessage={isLastMessage}
             onSelectQuestion={onSelectQuestion}
             onFeedbackChange={onFeedbackChange}
           />
         ) : (
           <UserMessage key={message.id} message={message} />
-        )
-      ))}
+        );
+      })}
       <div ref={messagesEndRef} />
     </div>
   );

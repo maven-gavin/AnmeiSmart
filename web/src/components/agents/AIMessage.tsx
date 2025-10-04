@@ -9,6 +9,7 @@ import { cn } from '@/service/utils';
 interface AIMessageProps {
   message: AgentMessage;
   agentConfigId: string;
+  isLastMessage?: boolean;
   onSelectQuestion?: (question: string) => void;
   onFeedbackChange?: (messageId: string, rating: FeedbackRating) => void;
 }
@@ -16,6 +17,7 @@ interface AIMessageProps {
 export function AIMessage({ 
   message, 
   agentConfigId,
+  isLastMessage = false,
   onSelectQuestion,
   onFeedbackChange 
 }: AIMessageProps) {
@@ -87,8 +89,8 @@ export function AIMessage({
           )}
         </div>
 
-        {/* 建议问题 */}
-        {!message.isStreaming && !message.isError && message.content && onSelectQuestion && (
+        {/* 建议问题 - 只在最后一个消息时显示 */}
+        {isLastMessage && !message.isStreaming && !message.isError && message.content && onSelectQuestion && (
           <SuggestedQuestions
             messageId={message.id}
             agentConfigId={agentConfigId}
