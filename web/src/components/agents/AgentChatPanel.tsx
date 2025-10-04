@@ -153,7 +153,10 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
             <div className="flex flex-1 flex-col overflow-hidden bg-white">
               <div className="flex-1 overflow-y-auto">
                 {chatState.messages.length === 0 && !chatState.isLoading ? (
-                  <EmptyState agentConfig={selectedAgent} />
+                  <EmptyState 
+                    agentConfig={selectedAgent} 
+                    onSendMessage={chatState.sendMessage}
+                  />
                 ) : (
                   <MessageList 
                     messages={chatState.messages} 
