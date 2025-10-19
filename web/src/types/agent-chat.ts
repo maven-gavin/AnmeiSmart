@@ -96,3 +96,47 @@ export interface ApiResponse<T> {
   message?: string;
 }
 
+// 用户输入表单字段
+export interface UserInputFormField {
+  variable: string;              // 变量名
+  label: string;                 // 显示标签
+  type: 'text-input' | 'paragraph' | 'number' | 'select' | 'file' | 'file-list';
+  required: boolean;             // 是否必填
+  max_length?: number;           // 最大长度
+  default?: string | number;     // 默认值
+  options?: string[];            // select 类型的选项
+  hide?: boolean;                // 是否隐藏
+  description?: string;          // 字段描述
+}
+
+// 应用参数配置
+export interface ApplicationParameters {
+  opening_statement?: string;              // 开场白
+  suggested_questions?: string[];          // 建议问题
+  user_input_form?: UserInputFormField[];  // 对话前表单
+  speech_to_text?: {
+    enabled: boolean;
+  };
+  file_upload?: {
+    enabled: boolean;
+    allowed_file_types?: string[];         // 允许的文件类型
+    allowed_file_upload_methods?: string[]; // 上传方式
+    number_limits?: number;                // 数量限制
+  };
+  text_to_speech?: {
+    enabled: boolean;
+    voice?: string;
+    language?: string;
+  };
+  retriever_resource?: {
+    enabled: boolean;
+  };
+  annotation_reply?: {
+    enabled: boolean;
+  };
+  suggested_questions_after_answer?: {
+    enabled: boolean;
+  };
+  [key: string]: any;
+}
+

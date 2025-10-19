@@ -7,8 +7,8 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useGetState } from 'ahooks';
 import { produce } from 'immer';
 import type { AgentConfig } from '@/service/agentConfigService';
-import type { AgentMessage, AgentConversation, AgentThought } from '@/types/agent-chat';
-import agentChatService from '@/service/agentChatService';
+import type { AgentMessage, AgentConversation, AgentThought, ApplicationParameters } from '@/types/agent-chat';
+import agentChatService, { getApplicationParameters } from '@/service/agentChatService';
 import { toast } from 'react-hot-toast';
 
 export interface UseAgentChatOptions {
@@ -24,11 +24,28 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
   const [isResponding, setIsResponding] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  const [appConfig, setAppConfig] = useState<ApplicationParameters | null>(null);
   
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // 检查 agentConfig 是否有效
   const isValidAgent = agentConfig && agentConfig.id && agentConfig.id.trim() !== '';
+
+  // 加载应用配置
+  const loadAppConfig = useCallback(async () => {
+    if (!isValidAgent) {
+      setAppConfig(null);
+      return;
+    }
+    
+    try {
+      const config = await getApplicationParameters(agentConfig.id);
+      setAppConfig(config);
+    } catch (error) {
+      console.error('获取应用配置失败:', error);
+      setAppConfig(null);
+    }
+  }, [agentConfig.id, isValidAgent]);
 
   // 加载会话列表
   const loadConversations = useCallback(async () => {
@@ -187,7 +204,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
             setIsResponding(false);
             
             // 检查是否是用户主动停止（AbortError）
-            const isAborted = error === 'AbortError' || error?.name === 'AbortError';
+            const isAborted = error === 'AbortError' || (error && typeof error === 'object' && 'name' in error && (error as any).name === 'AbortError');
             
             if (!isAborted) {
               toast.error(error || '发送消息失败');
@@ -304,6 +321,8 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
     // 重置响应状态
     setIsResponding(false);
     setCurrentTaskId(null);
+    // 重置应用配置
+    setAppConfig(null);
     // 中止当前请求
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -315,8 +334,9 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
   useEffect(() => {
     if (isValidAgent) {
       loadConversations();
+      loadAppConfig();
     }
-  }, [loadConversations, isValidAgent]);
+  }, [loadConversations, loadAppConfig, isValidAgent]);
 
   return {
     // 状态
@@ -326,11 +346,13 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
     isResponding,
     isLoading,
     currentTaskId,
+    appConfig,
     
     // 方法
     sendMessage,
     loadMessages,
     loadConversations,
+    loadAppConfig,
     switchConversation,
     createNewConversation,
     deleteConversation,

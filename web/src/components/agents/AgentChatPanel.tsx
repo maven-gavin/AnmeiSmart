@@ -10,6 +10,7 @@ import { MessageInput } from './MessageInput';
 import { EmptyState } from './EmptyState';
 import { AgentSidebar } from './AgentSidebar';
 import { ConversationHistoryPanel } from './ConversationHistoryPanel';
+import { ApplicationParameters } from '@/types/agent-chat';
 
 interface AgentChatPanelProps {
   agents: AgentConfig[];
@@ -46,6 +47,9 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
     onError: (error) => console.error('Chat error:', error)
   });
 
+  // 从 chatState 中获取 appConfig
+  const { appConfig } = chatState;
+
   // 选择智能体
   const handleSelectAgent = (agent: AgentConfig) => {
     if (externalOnSelectAgent) {
@@ -59,24 +63,18 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
 
   // 创建新对话
   const handleCreateNewChat = () => {
-    if (chatState) {
-      chatState.switchConversation(null);
-    }
+    chatState.createNewConversation();
   };
 
   // 选择对话
   const handleSelectConversation = (conversationId: string) => {
-    if (chatState) {
-      chatState.switchConversation(conversationId);
-    }
+    chatState.switchConversation(conversationId);
   };
 
   // 更新对话标题
   const handleConversationUpdate = (conversationId: string, title: string) => {
     // 刷新对话列表以反映标题更新
-    if (chatState) {
-      chatState.loadConversations();
-    }
+    chatState.loadConversations();
   };
 
   // 转换对话数据格式
@@ -155,6 +153,7 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
                 {chatState.messages.length === 0 && !chatState.isLoading ? (
                   <EmptyState 
                     agentConfig={selectedAgent} 
+                    appConfig={appConfig || {} as ApplicationParameters}
                     onSendMessage={chatState.sendMessage}
                   />
                 ) : (
@@ -167,6 +166,7 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
                       // 更新本地消息的反馈状态
                       console.log(`Message ${messageId} feedback: ${rating}`);
                     }}
+                    config={appConfig}
                   />
                 )}
               </div>
@@ -179,6 +179,7 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
                   isResponding={chatState.isResponding}
                   onStop={chatState.stopResponding}
                   placeholder={`向 ${selectedAgent.appName} 提问...`}
+                  config={appConfig}
                 />
               </div>
             </div>

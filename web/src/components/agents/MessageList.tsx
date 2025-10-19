@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { AgentMessage, FeedbackRating } from '@/types/agent-chat';
+import type { AgentMessage, FeedbackRating, ApplicationParameters } from '@/types/agent-chat';
 import { UserMessage } from './UserMessage';
 import { AIMessage } from './AIMessage';
 
@@ -9,6 +9,7 @@ interface MessageListProps {
   agentConfigId: string;
   onSelectQuestion?: (question: string) => void;
   onFeedbackChange?: (messageId: string, rating: FeedbackRating) => void;
+  config?: ApplicationParameters | null;
 }
 
 export function MessageList({ 
@@ -16,7 +17,8 @@ export function MessageList({
   isLoading, 
   agentConfigId,
   onSelectQuestion,
-  onFeedbackChange
+  onFeedbackChange,
+  config
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -48,6 +50,7 @@ export function MessageList({
             isLastMessage={isLastMessage}
             onSelectQuestion={onSelectQuestion}
             onFeedbackChange={onFeedbackChange}
+            config={config}
           />
         ) : (
           <UserMessage key={message.id} message={message} />

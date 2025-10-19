@@ -1,44 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { MessageCircle } from 'lucide-react';
 import type { AgentConfig } from '@/service/agentConfigService';
-import { getApplicationParameters } from '@/service/agentChatService';
-
-interface ApplicationParameters {
-  opening_statement?: string;
-  suggested_questions?: string[];
-  [key: string]: any;
-}
+import { UserInputForm } from './UserInputForm';
+import type { ApplicationParameters } from '@/types/agent-chat';
 
 interface EmptyStateProps {
   agentConfig: AgentConfig;
-  onSendMessage?: (message: string) => void;
+  appConfig: ApplicationParameters;
+  onSendMessage?: (message: string, formData?: Record<string, any>) => void;
 }
 
-export function EmptyState({ agentConfig, onSendMessage }: EmptyStateProps) {
-  const [parameters, setParameters] = useState<ApplicationParameters | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchParameters = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await getApplicationParameters(agentConfig.id);
-        setParameters(data);
-      } catch (err) {
-        console.error('获取应用参数失败:', err);
-        setError('获取应用配置失败');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchParameters();
-  }, [agentConfig.id]);
-
+export function EmptyState({ agentConfig, appConfig, onSendMessage }: EmptyStateProps) {
   // 格式化开场白文本，支持编号列表等格式
   const formatOpeningStatement = (text: string) => {
     // 处理编号列表格式 (1. 2. 3.)
@@ -83,38 +56,58 @@ export function EmptyState({ agentConfig, onSendMessage }: EmptyStateProps) {
     }
   };
 
+  // 处理表单提交
+  const handleFormSubmit = (formData: Record<string, any>) => {
+    if (onSendMessage) {
+      // 如果有开场白，直接开始对话；否则发送表单数据
+      const message = appConfig?.opening_statement || '开始对话';
+      onSendMessage(message, formData);
+    }
+  };
+
+  // 检查是否有用户输入表单
+  const hasUserInputForm = appConfig?.user_input_form && appConfig.user_input_form.length > 0;
+
   // 如果有开场白，优先显示开场白
-  if (!loading && parameters?.opening_statement) {
+  if (appConfig?.opening_statement) { 
     return (
       <div className="flex h-full items-center justify-center p-6">
-        <div className="max-w-2xl w-full">
-          <div className="text-center mb-6">
+        <div className="max-w-2xl w-full space-y-6">
+          <div className="text-center">
             <MessageCircle className="mx-auto h-12 w-12 text-blue-500" />
             <h3 className="mt-3 text-lg font-medium text-gray-900">
               {agentConfig.appName}
             </h3>
           </div>
+
+          {/* 用户输入表单（如果有） */}
+          {hasUserInputForm && (
+            <UserInputForm
+              fields={appConfig.user_input_form!}
+              onSubmit={handleFormSubmit}
+            />
+          )}
           
           {/* 开场白消息气泡 */}
-          <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6 shadow-sm">
+          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
             <div className="flex items-start">
               <div className="flex-shrink-0">
                 <MessageCircle className="h-5 w-5 text-blue-500 mt-0.5" />
               </div>
               <div className="ml-3 flex-1">
                 <div className="text-sm text-gray-800 leading-relaxed">
-                  {formatOpeningStatement(parameters.opening_statement)}
+                  {formatOpeningStatement(appConfig.opening_statement)}
                 </div>
               </div>
             </div>
           </div>
 
           {/* 推荐问题 */}
-          {parameters.suggested_questions && parameters.suggested_questions.length > 0 && (
-            <div className="mb-6">
+          {appConfig.suggested_questions && appConfig.suggested_questions.length > 0 && (
+            <div>
               <h4 className="text-sm font-medium text-gray-700 mb-3">推荐问题：</h4>
               <div className="space-y-2">
-                {parameters.suggested_questions.map((question, index) => (
+                {appConfig.suggested_questions.map((question, index) => (
                   <button
                     key={index}
                     onClick={() => handleSuggestedQuestionClick(question)}
@@ -139,18 +132,7 @@ export function EmptyState({ agentConfig, onSendMessage }: EmptyStateProps) {
   return (
     <div className="flex h-full items-center justify-center">
       <div className="text-center">
-        {loading ? (
-          <>
-            <MessageCircle className="mx-auto h-16 w-16 text-gray-300 animate-pulse" />
-            <h3 className="mt-4 text-lg font-medium text-gray-900">
-              加载中...
-            </h3>
-            <p className="mt-2 text-sm text-gray-500">
-              正在获取应用配置
-            </p>
-          </>
-        ) : error ? (
-          <>
+          <div>
             <MessageCircle className="mx-auto h-16 w-16 text-gray-300" />
             <h3 className="mt-4 text-lg font-medium text-gray-900">
               与 {agentConfig.appName} 开始对话
@@ -158,21 +140,7 @@ export function EmptyState({ agentConfig, onSendMessage }: EmptyStateProps) {
             <p className="mt-2 text-sm text-gray-500">
               输入您的问题，AI 助手将为您提供帮助
             </p>
-            <p className="mt-2 text-xs text-red-500">
-              {error}
-            </p>
-          </>
-        ) : (
-          <>
-            <MessageCircle className="mx-auto h-16 w-16 text-gray-300" />
-            <h3 className="mt-4 text-lg font-medium text-gray-900">
-              与 {agentConfig.appName} 开始对话
-            </h3>
-            <p className="mt-2 text-sm text-gray-500">
-              输入您的问题，AI 助手将为您提供帮助
-            </p>
-          </>
-        )}
+          </div>
       </div>
     </div>
   );

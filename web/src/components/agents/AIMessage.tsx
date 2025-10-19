@@ -1,9 +1,11 @@
-import { Bot, Loader2 } from 'lucide-react';
-import type { AgentMessage, FeedbackRating } from '@/types/agent-chat';
+import { Bot } from 'lucide-react';
+import type { AgentMessage, FeedbackRating, ApplicationParameters } from '@/types/agent-chat';
 import { AgentThinking } from './AgentThinking';
 import { MessageFeedback } from './MessageFeedback';
 import { SuggestedQuestions } from './SuggestedQuestions';
 import { StreamMarkdown } from '@/components/base/StreamMarkdown';
+import { TextToSpeechButton } from './TextToSpeechButton';
+import { TypingIndicator } from './TypingIndicator';
 import { cn } from '@/service/utils';
 
 interface AIMessageProps {
@@ -12,6 +14,7 @@ interface AIMessageProps {
   isLastMessage?: boolean;
   onSelectQuestion?: (question: string) => void;
   onFeedbackChange?: (messageId: string, rating: FeedbackRating) => void;
+  config?: ApplicationParameters | null;  // 应用配置
 }
 
 export function AIMessage({ 
@@ -19,11 +22,15 @@ export function AIMessage({
   agentConfigId,
   isLastMessage = false,
   onSelectQuestion,
-  onFeedbackChange 
+  onFeedbackChange,
+  config
 }: AIMessageProps) {
   const handleFeedbackChange = (rating: FeedbackRating) => {
     onFeedbackChange?.(message.id, rating);
   };
+
+  // 判断是否启用 TTS
+  const enableTTS = config?.text_to_speech?.enabled ?? false;
   return (
     <div className="flex items-start space-x-3">
       <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-orange-100">
@@ -76,9 +83,19 @@ export function AIMessage({
             )}
           </div>
 
-          {/* 反馈按钮 - 悬浮在卡片右上角 */}
+          {/* 操作按钮 - 悬浮在卡片右上角 */}
           {!message.isStreaming && !message.isError && message.content && (
-            <div className="absolute -right-2 -top-2">
+            <div className="absolute -right-2 -top-2 flex items-center space-x-1">
+              {/* TTS 按钮 */}
+              {enableTTS && (
+                <TextToSpeechButton
+                  text={message.content}
+                  agentConfigId={agentConfigId}
+                  messageId={message.id}
+                />
+              )}
+              
+              {/* 反馈按钮 */}
               <MessageFeedback
                 messageId={message.id}
                 agentConfigId={agentConfigId}
