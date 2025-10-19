@@ -250,7 +250,7 @@ export function UserInputForm({ fields, onSubmit, onCancel }: UserInputFormProps
                 {isMultiple ? (
                   // 多文件显示
                   Array.isArray(currentFile) && currentFile.map((file: File, index: number) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div key={`${field.variable}-file-${index}-${file.name}-${file.size}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div className="flex items-center space-x-3">
                         {getFileIcon(file)}
                         <div>

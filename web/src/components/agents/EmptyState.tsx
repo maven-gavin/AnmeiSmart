@@ -20,11 +20,12 @@ export function EmptyState({ agentConfig, appConfig, onSendMessage }: EmptyState
     
     return lines.map((line, index) => {
       const trimmedLine = line.trim();
+      const lineKey = `line-${index}`;
       
       // 检查是否是编号列表项
       if (numberedListRegex.test(trimmedLine)) {
         return (
-          <div key={index} className="flex items-start mb-2">
+          <div key={lineKey} className="flex items-start mb-2">
             <span className="text-blue-600 font-medium mr-2 flex-shrink-0">
               {trimmedLine.match(/^\d+\./)?.[0]}
             </span>
@@ -38,14 +39,14 @@ export function EmptyState({ agentConfig, appConfig, onSendMessage }: EmptyState
       // 普通文本行
       if (trimmedLine) {
         return (
-          <p key={index} className="text-blue-800 leading-relaxed mb-2">
+          <p key={lineKey} className="text-blue-800 leading-relaxed mb-2">
             {trimmedLine}
           </p>
         );
       }
       
       // 空行
-      return <br key={index} />;
+      return <div key={lineKey} className="h-2" />;
     });
   };
 
@@ -116,7 +117,7 @@ export function EmptyState({ agentConfig, appConfig, onSendMessage }: EmptyState
               <div className="space-y-2">
                 {appConfig.suggested_questions!.map((question, index) => (
                   <button
-                    key={index}
+                    key={`question-${index}-${question.substring(0, 20)}`}
                     onClick={() => handleSuggestedQuestionClick(question)}
                     className="block w-full text-left text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-md transition-colors duration-200"
                   >
