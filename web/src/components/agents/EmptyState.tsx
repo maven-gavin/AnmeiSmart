@@ -65,11 +65,16 @@ export function EmptyState({ agentConfig, appConfig, onSendMessage }: EmptyState
     }
   };
 
-  // 检查是否有用户输入表单
+  // 检查各种配置
   const hasUserInputForm = appConfig?.user_input_form && appConfig.user_input_form.length > 0;
+  const hasOpeningStatement = appConfig?.opening_statement;
+  const hasSuggestedQuestions = appConfig?.suggested_questions && appConfig.suggested_questions.length > 0;
+  
+  // 检查是否有任何内容需要显示
+  const hasAnyContent = hasOpeningStatement || hasUserInputForm || hasSuggestedQuestions;
 
-  // 如果有开场白，优先显示开场白
-  if (appConfig?.opening_statement) { 
+  // 如果有任何内容，显示完整界面
+  if (hasAnyContent) {
     return (
       <div className="flex h-full items-center justify-center p-6">
         <div className="max-w-2xl w-full space-y-6">
@@ -88,26 +93,28 @@ export function EmptyState({ agentConfig, appConfig, onSendMessage }: EmptyState
             />
           )}
           
-          {/* 开场白消息气泡 */}
-          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <MessageCircle className="h-5 w-5 text-blue-500 mt-0.5" />
-              </div>
-              <div className="ml-3 flex-1">
-                <div className="text-sm text-gray-800 leading-relaxed">
-                  {formatOpeningStatement(appConfig.opening_statement)}
+          {/* 开场白消息气泡（如果有） */}
+          {hasOpeningStatement && (
+            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <MessageCircle className="h-5 w-5 text-blue-500 mt-0.5" />
+                </div>
+                <div className="ml-3 flex-1">
+                  <div className="text-sm text-gray-800 leading-relaxed">
+                    {formatOpeningStatement(appConfig.opening_statement!)}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* 推荐问题 */}
-          {appConfig.suggested_questions && appConfig.suggested_questions.length > 0 && (
+          {/* 推荐问题（如果有） */}
+          {hasSuggestedQuestions && (
             <div>
               <h4 className="text-sm font-medium text-gray-700 mb-3">推荐问题：</h4>
               <div className="space-y-2">
-                {appConfig.suggested_questions.map((question, index) => (
+                {appConfig.suggested_questions!.map((question, index) => (
                   <button
                     key={index}
                     onClick={() => handleSuggestedQuestionClick(question)}
@@ -128,7 +135,7 @@ export function EmptyState({ agentConfig, appConfig, onSendMessage }: EmptyState
     );
   }
 
-  // 默认显示状态
+  // 默认显示状态（当没有任何配置内容时）
   return (
     <div className="flex h-full items-center justify-center">
       <div className="text-center">
