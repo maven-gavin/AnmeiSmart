@@ -5,16 +5,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronDown, ChevronUp, Upload, X, File, Image as ImageIcon } from 'lucide-react';
+import { ChevronDown, ChevronUp, Upload, X, File, Image as ImageIcon, Loader2 } from 'lucide-react';
 import type { UserInputFormField } from '@/types/agent-chat';
+import { uploadAgentFile, uploadAgentFiles } from '@/service/agentFileService';
+import toast from 'react-hot-toast';
 
 interface UserInputFormProps {
   fields: UserInputFormField[];
+  agentConfigId: string;  // 新增：Agent配置ID，用于文件上传
   onSubmit: (values: Record<string, any>) => void;
   onCancel?: () => void;
 }
 
-export function UserInputForm({ fields, onSubmit, onCancel }: UserInputFormProps) {
+export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: UserInputFormProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [values, setValues] = useState<Record<string, any>>(() => {
     // 初始化默认值
@@ -27,6 +30,7 @@ export function UserInputForm({ fields, onSubmit, onCancel }: UserInputFormProps
     return initialValues;
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [uploading, setUploading] = useState(false);
 
   // 过滤隐藏字段
   const visibleFields = fields.filter(f => !f.hide);
@@ -83,9 +87,42 @@ export function UserInputForm({ fields, onSubmit, onCancel }: UserInputFormProps
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
-    if (validateForm()) {
-      onSubmit(values);
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+    
+    setUploading(true);
+    
+    try {
+      // 处理文件字段：上传文件到Dify并替换为文件ID
+      const finalValues: Record<string, any> = { ...values };
+      
+      for (const field of visibleFields) {
+        if (field.type === 'file' || field.type === 'file-list') {
+          const value = values[field.variable];
+          
+          if (value) {
+            if (field.type === 'file') {
+              // 单文件：上传并替换为Dify文件ID
+              const file = value as File;
+              const uploadResult = await uploadAgentFile(agentConfigId, file);
+              finalValues[field.variable] = uploadResult.id;
+            } else if (field.type === 'file-list') {
+              // 多文件：上传所有文件并替换为Dify文件ID数组
+              const files = value as File[];
+              const uploadResults = await uploadAgentFiles(agentConfigId, files);
+              finalValues[field.variable] = uploadResults.map(r => r.id);
+            }
+          }
+        }
+      }
+      
+      // 提交最终值（包含Dify文件ID）
+      onSubmit(finalValues);
+    } catch (error) {
+      console.error('文件上传失败:', error);
+      toast.error('文件上传失败，请重试');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -354,9 +391,17 @@ export function UserInputForm({ fields, onSubmit, onCancel }: UserInputFormProps
             )}
             <Button
               onClick={handleSubmit}
+              disabled={uploading}
               className="bg-orange-500 hover:bg-orange-600"
             >
-              开始聊天
+              {uploading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  上传中...
+                </>
+              ) : (
+                '开始聊天'
+              )}
             </Button>
           </div>
         </>

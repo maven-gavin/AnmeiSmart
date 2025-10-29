@@ -18,7 +18,8 @@ export const sendAgentMessage = async (
   agentConfigId: string,
   conversationId: string | null,
   message: string,
-  callbacks: SSECallbacks
+  callbacks: SSECallbacks,
+  inputs?: Record<string, any>
 ): Promise<void> => {
   return ssePost(
     `/agent/${agentConfigId}/chat`,
@@ -26,6 +27,7 @@ export const sendAgentMessage = async (
       body: {
         message,
         conversation_id: conversationId,
+        inputs: inputs || {},
         response_mode: 'streaming'
       }
     },

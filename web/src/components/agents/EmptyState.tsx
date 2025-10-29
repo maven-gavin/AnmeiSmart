@@ -90,6 +90,7 @@ export function EmptyState({ agentConfig, appConfig, onSendMessage }: EmptyState
           {hasUserInputForm && (
             <UserInputForm
               fields={appConfig.user_input_form!}
+              agentConfigId={agentConfig.id}
               onSubmit={handleFormSubmit}
             />
           )}

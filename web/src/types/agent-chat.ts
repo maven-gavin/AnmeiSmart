@@ -11,6 +11,15 @@ export interface MessageFile {
   size?: number;
 }
 
+// 文件上传响应（Dify）
+export interface FileUploadResult {
+  id: string;           // Dify的upload_file_id
+  name: string;         // 文件名
+  size: number;         // 文件大小（字节）
+  mime_type: string;    // MIME类型
+  created_at: string;   // 创建时间
+}
+
 // Agent 思考过程
 export interface AgentThought {
   id: string;

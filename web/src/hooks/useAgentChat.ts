@@ -77,7 +77,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
   }, [setMessages]);
 
   // 发送消息
-  const sendMessage = useCallback(async (text: string) => {
+  const sendMessage = useCallback(async (text: string, inputs?: Record<string, any>) => {
     if (!text.trim() || isResponding || !isValidAgent) return;
 
     const questionId = `question-${Date.now()}`;
@@ -214,7 +214,8 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
             // 移除占位消息
             setMessages(getMessages().filter(m => m.id !== placeholderAnswerId));
           },
-        }
+        },
+        inputs
       );
     } catch (error) {
       setIsResponding(false);
