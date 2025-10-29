@@ -5,7 +5,7 @@ from pydantic import ConfigDict
 
 class Settings(BaseSettings):
     """应用配置类"""
-    PROJECT_NAME: str = "安美智享智能医美服务系统"
+    PROJECT_NAME: str = "安美智享智能客服系统"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
     
@@ -67,6 +67,11 @@ class Settings(BaseSettings):
     AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT: int = 60
     AI_GATEWAY_DEFAULT_TIMEOUT: int = 30
     AI_GATEWAY_MAX_RETRIES: int = 3
+    
+    # Agent配置默认值
+    AGENT_DEFAULT_BASE_URL: str = "http://localhost/v1"
+    AGENT_DEFAULT_TIMEOUT: int = 30
+    AGENT_DEFAULT_MAX_RETRIES: int = 3
     
     # 通知服务配置
     NOTIFICATION_PROVIDER: str = "logging"  # logging, firebase, apns

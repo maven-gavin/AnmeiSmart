@@ -27,7 +27,6 @@ export function UserInputForm({ fields, onSubmit, onCancel }: UserInputFormProps
     return initialValues;
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [fileInputs, setFileInputs] = useState<Record<string, HTMLInputElement | null>>({});
 
   // 过滤隐藏字段
   const visibleFields = fields.filter(f => !f.hide);
@@ -222,11 +221,6 @@ export function UserInputForm({ fields, onSubmit, onCancel }: UserInputFormProps
             {/* 文件上传区域 */}
             <div className="relative">
               <input
-                ref={(el) => {
-                  if (el) {
-                    setFileInputs(prev => ({ ...prev, [field.variable]: el }));
-                  }
-                }}
                 type="file"
                 multiple={isMultiple}
                 onChange={(e) => handleFileUpload(field.variable, e.target.files)}

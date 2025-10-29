@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { AgentConfig } from '@/service/agentConfigService';
+import { SMARTBRAIN_API_BASE_URL, SMARTBRAIN_DEFAULT_TIMEOUT, SMARTBRAIN_DEFAULT_MAX_RETRIES } from '@/config';
 
 interface AgentConfigPanelProps {
   configs: AgentConfig[];
@@ -35,9 +36,9 @@ export default function AgentConfigPanel({
     appId: '',
     appName: '',
     apiKey: '',
-    baseUrl: 'http://localhost/v1',
-    timeoutSeconds: 30,
-    maxRetries: 3,
+    baseUrl: SMARTBRAIN_API_BASE_URL,
+    timeoutSeconds: SMARTBRAIN_DEFAULT_TIMEOUT,
+    maxRetries: SMARTBRAIN_DEFAULT_MAX_RETRIES,
     enabled: true,
     description: ''
   });
@@ -125,9 +126,9 @@ export default function AgentConfigPanel({
       appId: '',
       appName: '',
       apiKey: '',
-      baseUrl: 'http://localhost/v1',
-      timeoutSeconds: 30,
-      maxRetries: 3,
+      baseUrl: SMARTBRAIN_API_BASE_URL,
+      timeoutSeconds: SMARTBRAIN_DEFAULT_TIMEOUT,
+      maxRetries: SMARTBRAIN_DEFAULT_MAX_RETRIES,
       enabled: true,
       description: ''
     });
@@ -221,7 +222,7 @@ export default function AgentConfigPanel({
                   id="baseUrl"
                   value={newConfig.baseUrl}
                   onChange={(e) => setNewConfig(prev => ({ ...prev, baseUrl: e.target.value }))}
-                  placeholder="http://localhost/v1"
+                  placeholder={SMARTBRAIN_API_BASE_URL}
                 />
               </div>
               <div className="space-y-2">

@@ -30,6 +30,7 @@ import {
 import AppLayout from '@/components/layout/AppLayout';
 import { useAgentConfigs } from '@/hooks/useAgentConfigs';
 import { AgentConfig, AgentConfigCreate, AgentConfigUpdate } from '@/service/agentConfigService';
+import { SMARTBRAIN_API_BASE_URL, SMARTBRAIN_DEFAULT_TIMEOUT, SMARTBRAIN_DEFAULT_MAX_RETRIES } from '@/config';
 
 export default function AgentsPage() {
   const { user } = useAuthContext();
@@ -67,10 +68,10 @@ export default function AgentsPage() {
   const [appName, setAppName] = useState('');
   const [agentType, setAgentType] = useState('');
   const [apiKey, setApiKey] = useState('');
-  const [baseUrl, setBaseUrl] = useState('http://localhost/v1');
+  const [baseUrl, setBaseUrl] = useState(SMARTBRAIN_API_BASE_URL);
   const [description, setDescription] = useState('');
-  const [timeoutSeconds, setTimeoutSeconds] = useState(30);
-  const [maxRetries, setMaxRetries] = useState(3);
+  const [timeoutSeconds, setTimeoutSeconds] = useState(SMARTBRAIN_DEFAULT_TIMEOUT);
+  const [maxRetries, setMaxRetries] = useState(SMARTBRAIN_DEFAULT_MAX_RETRIES);
   const [enabled, setEnabled] = useState(true);
 
   // 分页状态
@@ -140,10 +141,10 @@ export default function AgentsPage() {
     setAppName('');
     setAgentType('');
     setApiKey('');
-    setBaseUrl('http://localhost/v1');
+    setBaseUrl(SMARTBRAIN_API_BASE_URL);
     setDescription('');
-    setTimeoutSeconds(30);
-    setMaxRetries(3);
+    setTimeoutSeconds(SMARTBRAIN_DEFAULT_TIMEOUT);
+    setMaxRetries(SMARTBRAIN_DEFAULT_MAX_RETRIES);
     setEnabled(true);
     setFormError(null);
   };
@@ -626,7 +627,7 @@ export default function AgentsPage() {
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
                     disabled={formLoading}
-                    placeholder="http://localhost/v1"
+                    placeholder={SMARTBRAIN_API_BASE_URL}
                   />
                 </div>
 
@@ -810,7 +811,7 @@ export default function AgentsPage() {
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
                     disabled={formLoading}
-                    placeholder="http://localhost/v1"
+                    placeholder={SMARTBRAIN_API_BASE_URL}
                   />
                 </div>
 

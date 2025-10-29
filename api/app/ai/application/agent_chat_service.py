@@ -695,6 +695,25 @@ class AgentChatApplicationService:
             user=user_identifier
         )
         
+        # 转换 user_input_form 结构
+        if "user_input_form" in result and isinstance(result["user_input_form"], list):
+            transformed_form = []
+            for item in result["user_input_form"]:
+                # Dify 返回的结构是: [{"field-type": {field_config}}]
+                # 需要转换为: [{field_config}]
+                if isinstance(item, dict):
+                    # 获取嵌套的字段配置
+                    for field_type_key, field_config in item.items():
+                        if isinstance(field_config, dict):
+                            transformed_form.append(field_config)
+                            break
+                else:
+                    # 如果已经是正确的结构，直接使用
+                    transformed_form.append(item)
+            
+            result["user_input_form"] = transformed_form
+            logger.info(f"转换后的 user_input_form: {transformed_form}")
+        
         logger.info(f"获取应用参数成功")
         return result
     

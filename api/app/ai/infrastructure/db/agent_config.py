@@ -4,6 +4,10 @@ from typing import Optional
 
 from app.common.infrastructure.db.base_model import BaseModel
 from app.common.infrastructure.db.uuid_utils import generate_agent_id
+from app.core.config import get_settings
+
+# 获取配置
+settings = get_settings()
 
 class AgentConfig(BaseModel):
     """Agent配置数据库模型，每个应用作为独立的配置记录"""
@@ -20,7 +24,7 @@ class AgentConfig(BaseModel):
     app_id = Column(String(255), nullable=False, comment="应用ID")
     app_name = Column(String(255), nullable=False, comment="应用名称")
     _encrypted_api_key = Column("api_key", Text, nullable=False, comment="API密钥（加密存储）")
-    base_url = Column(String(1024), nullable=False, default="http://localhost/v1", comment="Agent API基础URL")
+    base_url = Column(String(1024), nullable=False, default=lambda: settings.AGENT_DEFAULT_BASE_URL, comment="Agent API基础URL")
     timeout_seconds = Column(Integer, default=30, nullable=False, comment="请求超时时间（秒）")
     max_retries = Column(Integer, default=3, nullable=False, comment="最大重试次数")
     enabled = Column(Boolean, default=True, nullable=False, comment="是否启用配置")

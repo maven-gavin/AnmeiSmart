@@ -1,6 +1,10 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Literal
 from pydantic import BaseModel, Field, ConfigDict
+from app.core.config import get_settings
+
+# 获取配置
+settings = get_settings()
 
 
 class AIChatRequest(BaseModel):
@@ -67,9 +71,9 @@ class AgentConfigCreate(BaseModel):
     appName: str = Field(..., description="应用名称", min_length=1, max_length=255)
     agentType: Optional[str] = Field(None, description="智能体类型（chat/agent/workflow）")
     apiKey: str = Field(..., description="API密钥", min_length=1)
-    baseUrl: str = Field("http://localhost/v1", description="Agent API基础URL")
-    timeoutSeconds: int = Field(30, description="请求超时时间（秒）", ge=1, le=300)
-    maxRetries: int = Field(3, description="最大重试次数", ge=1, le=10)
+    baseUrl: str = Field(default_factory=lambda: settings.AGENT_DEFAULT_BASE_URL, description="Agent API基础URL")
+    timeoutSeconds: int = Field(default_factory=lambda: settings.AGENT_DEFAULT_TIMEOUT, description="请求超时时间（秒）", ge=1, le=300)
+    maxRetries: int = Field(default_factory=lambda: settings.AGENT_DEFAULT_MAX_RETRIES, description="最大重试次数", ge=1, le=10)
     enabled: bool = Field(True, description="是否启用配置")
     description: Optional[str] = Field(None, description="配置描述")
 

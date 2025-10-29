@@ -272,6 +272,7 @@ API 端点层 (agent_chat.py)
 应用服务层 (agent_chat_service.py)
 ├─ 业务逻辑编排
 ├─ 数据转换和验证
+│  └─ user_input_form 结构转换 ⭐
 └─ 事务管理
     ↓
 基础设施层 (dify_agent_client.py)
@@ -279,6 +280,70 @@ API 端点层 (agent_chat.py)
 ├─ 数据格式转换
 └─ 错误重试机制
 ```
+
+### 数据转换处理
+
+#### user_input_form 结构转换
+
+**问题**：Dify API 返回的 `user_input_form` 是嵌套结构，前端期望扁平结构。
+
+**Dify 返回的结构**：
+```json
+[
+  {
+    "file-list": {
+      "variable": "files",
+      "label": "文件列表",
+      "type": "file-list",
+      "required": true,
+      ...
+    }
+  }
+]
+```
+
+**前端期望的结构**：
+```json
+[
+  {
+    "variable": "files",
+    "label": "文件列表",
+    "type": "file-list",
+    "required": true,
+    ...
+  }
+]
+```
+
+**解决方案**：在 `agent_chat_service.py` 的 `get_application_parameters` 方法中添加转换逻辑，自动将嵌套结构展开为扁平结构。
+
+#### 前端无限循环问题修复
+
+**问题**：`UserInputForm` 组件在 `ref` 回调中调用 `setFileInputs`，导致无限循环渲染。
+
+**错误信息**：
+```
+Error: Maximum update depth exceeded. This can happen when a component 
+repeatedly calls setState inside componentWillUpdate or componentDidUpdate.
+```
+
+**问题代码**：
+```tsx
+const [fileInputs, setFileInputs] = useState<Record<string, HTMLInputElement | null>>({});
+
+<input
+  ref={(el) => {
+    if (el) {
+      setFileInputs(prev => ({ ...prev, [field.variable]: el }));
+    }
+  }}
+  // ...
+/>
+```
+
+**原因**：每次组件渲染时，ref 回调都会被调用，导致状态更新 → 重新渲染 → ref 回调 → 状态更新，形成无限循环。
+
+**解决方案**：移除不必要的 `fileInputs` 状态和 ref 回调，因为我们不需要在代码中手动访问这些 input 元素引用。
 
 ---
 
@@ -387,6 +452,30 @@ const customFields: UserInputFormField[] = [
 **URL**: `http://localhost:3000/agents/explore`
 
 所有功能都在主页面中正常工作，无需单独的测试页面。
+
+### 测试 user_input_form 修复
+
+**测试步骤**：
+
+1. 确保后端服务正在运行（根据内存，使用 `cd api && python run_dev.py` 在 venv 环境中）
+2. 确保前端服务正在运行（根据内存，在 `web` 目录运行 `npm run dev`）
+3. 访问 `http://localhost:3000/agents/explore`
+4. 选择"文章阅读助手"智能体
+5. 检查是否显示对话前输入表单
+6. 表单应该包含"文件列表"字段，类型为 file-list
+7. 尝试上传文件并提交表单
+
+**预期结果**：
+- ✅ 显示对话前输入表单
+- ✅ 表单包含文件上传字段
+- ✅ 可以选择多个文件
+- ✅ 提交表单后开始对话
+
+**后端日志验证**：
+查看后端日志应该看到：
+```
+转换后的 user_input_form: [{'variable': 'files', 'label': '文件列表', 'type': 'file-list', ...}]
+```
 
 ---
 
