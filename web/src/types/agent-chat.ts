@@ -116,6 +116,9 @@ export interface UserInputFormField {
   options?: string[];            // select 类型的选项
   hide?: boolean;                // 是否隐藏
   description?: string;          // 字段描述
+  allowed_file_upload_methods?: ('local_file' | 'remote_url')[];  // 文件上传方式
+  allowed_file_types?: string[]; // 允许的文件类型
+  allowed_file_extensions?: string[];  // 允许的文件扩展名
 }
 
 // 应用参数配置

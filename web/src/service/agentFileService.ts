@@ -16,15 +16,43 @@ export const uploadAgentFile = async (
   agentConfigId: string,
   file: File
 ): Promise<FileUploadResult> => {
-  const formData = new FormData();
-  formData.append('file', file);
-  
-  const response = await apiClient.upload<FileUploadResult>(
-    `/agent/${agentConfigId}/upload`,
-    formData
-  );
-  
-  return response.data;
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await apiClient.upload<FileUploadResult>(
+      `/agent/${agentConfigId}/upload`,
+      formData
+    );
+    
+    // 验证响应格式
+    if (!response || !response.data) {
+      throw new Error('上传响应格式错误');
+    }
+    
+    const result = response.data;
+    
+    // 验证必需字段
+    if (!result.id) {
+      throw new Error('上传响应缺少文件ID');
+    }
+    
+    return result;
+  } catch (error: any) {
+    console.error('文件上传详细错误:', {
+      message: error?.message,
+      status: error?.status,
+      statusText: error?.statusText,
+      response: error?.response,
+      error
+    });
+    
+    // 抛出更有意义的错误
+    if (error?.status) {
+      throw new Error(`上传失败 (${error.status}): ${error.statusText || '未知错误'}`);
+    }
+    throw new Error(error?.message || '文件上传失败');
+  }
 };
 
 /**

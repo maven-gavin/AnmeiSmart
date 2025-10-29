@@ -5,6 +5,7 @@ Agent 对话 API 端点
 
 import logging
 from typing import List
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session
@@ -349,12 +350,21 @@ async def upload_file(
         )
         
         # 转换响应格式
+        # Dify返回的created_at是Unix时间戳（整数），需要转换为ISO格式字符串
+        created_at_value = result.get('created_at')
+        if isinstance(created_at_value, int):
+            # 将Unix时间戳转换为ISO格式字符串
+            created_at_str = datetime.fromtimestamp(created_at_value).isoformat()
+        else:
+            # 如果已经是字符串或其他类型，保持原样
+            created_at_str = str(created_at_value) if created_at_value else ''
+        
         return FileUploadResponse(
             id=result.get('id', ''),
             name=result.get('name', file.filename),
             size=result.get('size', len(file_content)),
             mime_type=result.get('mime_type', file.content_type or ''),
-            created_at=result.get('created_at', '')
+            created_at=created_at_str
         )
     except ValueError as e:
         logger.error(f"文件上传参数错误: {e}")

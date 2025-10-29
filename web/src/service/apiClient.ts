@@ -320,7 +320,8 @@ export const upload = async (options: any, isSmartBrainAPI?: boolean, url?: stri
     xhr.responseType = 'json'
     xhr.onreadystatechange = function () {
       if (xhr.readyState === 4) {
-        if (xhr.status === 201)
+        // 接受 2xx 状态码
+        if (xhr.status >= 200 && xhr.status < 300)
           resolve(xhr.response)
         else
           reject(xhr)

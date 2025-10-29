@@ -257,8 +257,15 @@ class CompletionClient(DifyClient):
                     yield json.dumps(response.json()).encode('utf-8')
                     
         except httpx.HTTPStatusError as e:
-            logger.error(f"Dify API 返回错误: status={e.response.status_code}")
-            error_message = f"data: {json.dumps({'event': 'error', 'status': e.response.status_code, 'message': str(e)})}\n\n"
+            error_body = ""
+            error_json = {}
+            try:
+                error_body = e.response.text
+                error_json = e.response.json()
+            except:
+                pass
+            logger.error(f"Dify API 返回错误: status={e.response.status_code}, body={error_body}, json={error_json}")
+            error_message = f"data: {json.dumps({'event': 'error', 'status': e.response.status_code, 'message': str(e), 'detail': error_body, 'error_json': error_json})}\n\n"
             yield error_message.encode('utf-8')
         except Exception as e:
             logger.error(f"请求失败: {str(e)}", exc_info=True)
@@ -299,15 +306,24 @@ class ChatClient(DifyClient):
             "inputs": inputs or {},
             "query": query,
             "user": user,
-            "response_mode": response_mode,
-            "files": files
+            "response_mode": response_mode
         }
         
+        # 只在有值时添加可选字段
         if conversation_id:
             data["conversation_id"] = conversation_id
         
+        # files 参数用于独立的文件上传（非 user_input_form 定义的文件）
+        if files:
+            data["files"] = files
+        
         url = f"{self.base_url}/chat-messages"
         stream = (response_mode == "streaming")
+        
+        # 调试日志：打印发送给Dify的完整数据
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"📤 发送给 Dify 的数据: {data}")
         
         try:
             async with httpx.AsyncClient(timeout=300.0) as client:
@@ -330,8 +346,15 @@ class ChatClient(DifyClient):
                     yield json.dumps(response.json()).encode('utf-8')
                         
         except httpx.HTTPStatusError as e:
-            logger.error(f"Dify API 返回错误: status={e.response.status_code}")
-            error_message = f"data: {json.dumps({'event': 'error', 'status': e.response.status_code, 'message': str(e)})}\n\n"
+            error_body = ""
+            error_json = {}
+            try:
+                error_body = e.response.text
+                error_json = e.response.json()
+            except:
+                pass
+            logger.error(f"Dify API 返回错误: status={e.response.status_code}, body={error_body}, json={error_json}")
+            error_message = f"data: {json.dumps({'event': 'error', 'status': e.response.status_code, 'message': str(e), 'detail': error_body, 'error_json': error_json})}\n\n"
             yield error_message.encode('utf-8')
         except Exception as e:
             logger.error(f"请求失败: {str(e)}", exc_info=True)

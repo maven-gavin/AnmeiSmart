@@ -126,12 +126,42 @@ class AgentChatApplicationService:
             logger.info(f"   user_identifier: {user_identifier}")
             logger.info(f"   dify_conversation_id: {dify_conv_id or '(新会话)'}")
             
+            # 处理文件字段：将文件ID转换为 Dify 文件格式（保留在 inputs 中）
+            processed_inputs = {}
+            if inputs:
+                for key, value in inputs.items():
+                    # 如果字段名包含 'file' 并且有值，转换为 Dify 文件格式
+                    if 'file' in key.lower() and value:
+                        # 转换为 Dify 文件对象格式
+                        if isinstance(value, list):
+                            # 文件列表
+                            processed_inputs[key] = [
+                                {
+                                    "type": "document",
+                                    "transfer_method": "local_file",
+                                    "upload_file_id": file_id
+                                }
+                                for file_id in value
+                            ]
+                        else:
+                            # 单个文件
+                            processed_inputs[key] = {
+                                "type": "document",
+                                "transfer_method": "local_file",
+                                "upload_file_id": value
+                            }
+                    else:
+                        # 非文件字段，直接复制
+                        processed_inputs[key] = value
+            
+            logger.info(f"   处理后的 inputs: {processed_inputs}")
+            
             chunk_count = 0
             async for chunk in dify_client.create_chat_message(
                 query=message,
                 user=user_identifier,
                 conversation_id=dify_conv_id,  # 使用保存的 Dify conversation_id
-                inputs=inputs,
+                inputs=processed_inputs,
                 response_mode="streaming"
             ):
                 chunk_count += 1

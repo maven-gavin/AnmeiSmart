@@ -47,10 +47,30 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
       // 必填验证
       if (field.required) {
         if (field.type === 'file' || field.type === 'file-list') {
-          // 文件字段验证
+          // 文件字段验证（支持本地文件和远程URL）
           if (!value || (Array.isArray(value) && value.length === 0)) {
             newErrors[field.variable] = `${field.label} 是必填项`;
             return;
+          }
+          // URL格式验证（如果是remote_url方式）
+          const uploadMethods = field.allowed_file_upload_methods || ['local_file'];
+          const method = uploadMethods.length > 1 
+            ? values[`${field.variable}_method`] || 'local_file'
+            : uploadMethods[0];
+          if (method === 'remote_url') {
+            const urls = Array.isArray(value) ? value : [value];
+            const invalidUrls = urls.filter(url => {
+              try {
+                new URL(url);
+                return false;
+              } catch {
+                return true;
+              }
+            });
+            if (invalidUrls.length > 0) {
+              newErrors[field.variable] = '请输入有效的URL地址';
+              return;
+            }
           }
         } else {
           // 其他字段验证
@@ -99,28 +119,44 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
       for (const field of visibleFields) {
         if (field.type === 'file' || field.type === 'file-list') {
           const value = values[field.variable];
+          const uploadMethods = field.allowed_file_upload_methods || ['local_file'];
+          const method = uploadMethods.length > 1 
+            ? values[`${field.variable}_method`] || 'local_file'
+            : uploadMethods[0];
           
           if (value) {
-            if (field.type === 'file') {
-              // 单文件：上传并替换为Dify文件ID
-              const file = value as File;
-              const uploadResult = await uploadAgentFile(agentConfigId, file);
-              finalValues[field.variable] = uploadResult.id;
-            } else if (field.type === 'file-list') {
-              // 多文件：上传所有文件并替换为Dify文件ID数组
-              const files = value as File[];
-              const uploadResults = await uploadAgentFiles(agentConfigId, files);
-              finalValues[field.variable] = uploadResults.map(r => r.id);
+            if (method === 'local_file') {
+              // 本地文件上传到Dify
+              if (field.type === 'file') {
+                const file = value as File;
+                const uploadResult = await uploadAgentFile(agentConfigId, file);
+                finalValues[field.variable] = uploadResult.id;
+              } else if (field.type === 'file-list') {
+                const files = value as File[];
+                const uploadResults = await uploadAgentFiles(agentConfigId, files);
+                finalValues[field.variable] = uploadResults.map(r => r.id);
+              }
+            } else {
+              // 远程URL直接传递
+              finalValues[field.variable] = value;
             }
           }
         }
       }
       
+      // 清理内部状态字段（不传给后端）
+      Object.keys(finalValues).forEach(key => {
+        if (key.endsWith('_method')) {
+          delete finalValues[key];
+        }
+      });
+      
       // 提交最终值（包含Dify文件ID）
       onSubmit(finalValues);
-    } catch (error) {
+    } catch (error: any) {
       console.error('文件上传失败:', error);
-      toast.error('文件上传失败，请重试');
+      const errorMessage = error?.message || '文件上传失败，请重试';
+      toast.error(errorMessage);
     } finally {
       setUploading(false);
     }
@@ -252,31 +288,93 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
       case 'file-list':
         const currentFile = values[field.variable];
         const isMultiple = field.type === 'file-list';
+        const uploadMethods = field.allowed_file_upload_methods || ['local_file'];
+        const currentMethod = uploadMethods.length > 1 
+          ? (values[`${field.variable}_method`] || 'local_file')
+          : uploadMethods[0];
         
         return (
           <div className="space-y-3">
-            {/* 文件上传区域 */}
-            <div className="relative">
-              <input
-                type="file"
-                multiple={isMultiple}
-                onChange={(e) => handleFileUpload(field.variable, e.target.files)}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                accept={field.options?.join(',') || '*'}
-              />
-              <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center hover:border-gray-400 transition-colors">
-                <Upload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-                <p className="text-sm text-gray-600 mb-1">
-                  {isMultiple ? '点击或拖拽上传多个文件' : '点击或拖拽上传文件'}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {field.description || '支持所有文件类型'}
+            {/* 上传方式选择（如果支持多种方式） */}
+            {uploadMethods.length > 1 && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleValueChange(`${field.variable}_method`, 'local_file')}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                    currentMethod === 'local_file'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  本地上传
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleValueChange(`${field.variable}_method`, 'remote_url')}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                    currentMethod === 'remote_url'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  远程URL
+                </button>
+              </div>
+            )}
+
+            {/* 本地文件上传 */}
+            {currentMethod === 'local_file' && (
+              <div className="relative">
+                <input
+                  type="file"
+                  multiple={isMultiple}
+                  onChange={(e) => handleFileUpload(field.variable, e.target.files)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  accept={field.allowed_file_extensions?.map(ext => `.${ext}`).join(',') || '*'}
+                />
+                <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center hover:border-gray-400 transition-colors">
+                  <Upload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                  <p className="text-sm text-gray-600 mb-1">
+                    {isMultiple ? '点击或拖拽上传多个文件' : '点击或拖拽上传文件'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {field.description || '支持所有文件类型'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* 远程URL输入 */}
+            {currentMethod === 'remote_url' && (
+              <div>
+                {isMultiple ? (
+                  <Textarea
+                    value={Array.isArray(currentFile) ? currentFile.join('\n') : (currentFile || '')}
+                    onChange={(e) => {
+                      const urls = e.target.value.split('\n').filter(u => u.trim());
+                      handleValueChange(field.variable, urls);
+                    }}
+                    placeholder="每行输入一个文件URL"
+                    rows={4}
+                    className="w-full resize-none"
+                  />
+                ) : (
+                  <Input
+                    value={currentFile || ''}
+                    onChange={(e) => handleValueChange(field.variable, e.target.value)}
+                    placeholder="输入文件URL"
+                    className="w-full"
+                  />
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  支持的文件类型: {field.allowed_file_types?.join(', ') || '全部'}
                 </p>
               </div>
-            </div>
+            )}
 
-            {/* 已上传文件列表 */}
-            {currentFile && (
+            {/* 已上传文件列表（仅本地文件） */}
+            {currentMethod === 'local_file' && currentFile && (
               <div className="space-y-2">
                 {isMultiple ? (
                   // 多文件显示
