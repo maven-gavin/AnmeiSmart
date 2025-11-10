@@ -16,7 +16,7 @@ def _normalize_text(value: Optional[str]) -> Optional[str]:
     return stripped if stripped else None
 
 
-@dataclass
+@dataclass(kw_only=True)
 class CustomerEntity(BaseEntity):
     """客户聚合根 - 管理客户的核心业务逻辑"""
 
@@ -147,7 +147,7 @@ class CustomerEntity(BaseEntity):
         )
 
 
-@dataclass
+@dataclass(kw_only=True)
 class CustomerProfileEntity(BaseEntity):
     """客户档案实体 - 扩展客户信息"""
 

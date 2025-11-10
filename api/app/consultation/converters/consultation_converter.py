@@ -66,7 +66,7 @@ class ConsultationConverter:
         return update_data
     
     @staticmethod
-    def from_model(model) -> Consultation:
+    def from_model(model) -> ConsultationEntity:
         """从ORM模型转换为领域实体"""
         return ConsultationEntity(
             id=model.id,
