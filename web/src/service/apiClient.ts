@@ -28,7 +28,8 @@ import { ContentType, base, baseOptions } from './fetch'
 import { asyncRunSafe } from './utils'
 import { tokenManager } from './tokenManager'
 
-const basePath = ''
+// =============== 类型定义 ===============
+
 export type IOnDataMoreInfo = {
   conversationId?: string
   taskId?: string
@@ -65,21 +66,16 @@ export type IOnLoopNext = (workflowStarted: LoopNextResponse) => void
 export type IOnLoopFinished = (workflowFinished: LoopFinishedResponse) => void
 export type IOnAgentLog = (agentLog: AgentLogResponse) => void
 
-export type IOtherOptions = {
-  isSmartBrainAPI?: boolean
-  bodyStringify?: boolean
-  needAllResponseContent?: boolean
-  deleteContentType?: boolean
-  silent?: boolean
-  onData?: IOnData // for stream
+/**
+ * SSE流式响应处理器集合
+ */
+export interface StreamHandlers {
+  onData?: IOnData
+  onCompleted?: IOnCompleted
   onThought?: IOnThought
   onFile?: IOnFile
   onMessageEnd?: IOnMessageEnd
   onMessageReplace?: IOnMessageReplace
-  onError?: IOnError
-  onCompleted?: IOnCompleted // for stream
-  getAbortController?: (abortController: AbortController) => void
-
   onWorkflowStarted?: IOnWorkflowStarted
   onWorkflowFinished?: IOnWorkflowFinished
   onNodeStarted?: IOnNodeStarted
@@ -87,6 +83,9 @@ export type IOtherOptions = {
   onIterationStart?: IOnIterationStarted
   onIterationNext?: IOnIterationNext
   onIterationFinish?: IOnIterationFinished
+  onLoopStart?: IOnLoopStarted
+  onLoopNext?: IOnLoopNext
+  onLoopFinish?: IOnLoopFinished
   onNodeRetry?: IOnNodeRetry
   onParallelBranchStarted?: IOnParallelBranchStarted
   onParallelBranchFinished?: IOnParallelBranchFinished
@@ -94,249 +93,371 @@ export type IOtherOptions = {
   onTTSChunk?: IOnTTSChunk
   onTTSEnd?: IOnTTSEnd
   onTextReplace?: IOnTextReplace
-  onLoopStart?: IOnLoopStarted
-  onLoopNext?: IOnLoopNext
-  onLoopFinish?: IOnLoopFinished
   onAgentLog?: IOnAgentLog
 }
 
-function unicodeToChar(text: string) {
-  if (!text)
-    return ''
+export type IOtherOptions = StreamHandlers & {
+  isSmartBrainAPI?: boolean
+  bodyStringify?: boolean
+  needAllResponseContent?: boolean
+  deleteContentType?: boolean
+  silent?: boolean
+  onData?: IOnData // for stream
+  onError?: IOnError
+  getAbortController?: (abortController: AbortController) => void
+}
 
+/**
+ * SSE事件数据格式
+ */
+interface SSEEventData {
+  event?: string
+  status?: number
+  message?: string
+  code?: string
+  answer?: string
+  conversation_id?: string
+  task_id?: string
+  id?: string
+  message_id?: string
+  audio?: string
+  audio_type?: string
+  [key: string]: unknown
+}
+
+// =============== 工具函数 ===============
+
+/**
+ * Unicode转字符
+ */
+function unicodeToChar(text: string): string {
+  if (!text) return ''
   return text.replace(/\\u[0-9a-f]{4}/g, (_match, p1) => {
     return String.fromCharCode(Number.parseInt(p1, 16))
   })
 }
 
-function requiredWebSSOLogin(message?: string, code?: number) {
+/**
+ * 跳转到SSO登录页面
+ */
+function requiredWebSSOLogin(message?: string, code?: number): void {
   const params = new URLSearchParams()
   params.append('redirect_url', encodeURIComponent(`${globalThis.location.pathname}${globalThis.location.search}`))
-  if (message)
-    params.append('message', message)
-  if (code)
-    params.append('code', String(code))
+  if (message) params.append('message', message)
+  if (code) params.append('code', String(code))
   globalThis.location.href = `/login?${params.toString()}`
 }
 
-export function format(text: string) {
+/**
+ * 格式化文本（保留用于向后兼容）
+ * @deprecated 建议移动到工具模块
+ */
+export function format(text: string): string {
   let res = text.trim()
-  if (res.startsWith('\n'))
-    res = res.replace('\n', '')
-
+  if (res.startsWith('\n')) res = res.replace('\n', '')
   return res.replaceAll('\n', '<br/>').replaceAll('```', '')
 }
 
-const handleStream = (
-  response: Response,
-  onData: IOnData,
-  onCompleted?: IOnCompleted,
-  onThought?: IOnThought,
-  onMessageEnd?: IOnMessageEnd,
-  onMessageReplace?: IOnMessageReplace,
-  onFile?: IOnFile,
-  onWorkflowStarted?: IOnWorkflowStarted,
-  onWorkflowFinished?: IOnWorkflowFinished,
-  onNodeStarted?: IOnNodeStarted,
-  onNodeFinished?: IOnNodeFinished,
-  onIterationStart?: IOnIterationStarted,
-  onIterationNext?: IOnIterationNext,
-  onIterationFinish?: IOnIterationFinished,
-  onLoopStart?: IOnLoopStarted,
-  onLoopNext?: IOnLoopNext,
-  onLoopFinish?: IOnLoopFinished,
-  onNodeRetry?: IOnNodeRetry,
-  onParallelBranchStarted?: IOnParallelBranchStarted,
-  onParallelBranchFinished?: IOnParallelBranchFinished,
-  onTextChunk?: IOnTextChunk,
-  onTTSChunk?: IOnTTSChunk,
-  onTTSEnd?: IOnTTSEnd,
-  onTextReplace?: IOnTextReplace,
-  onAgentLog?: IOnAgentLog,
+/**
+ * 统一处理401认证错误
+ */
+async function handle401Error(
+  errResp: Response,
+  isSmartBrainAPI: boolean,
+  silent?: boolean
+): Promise<never> {
+  const [parseErr, errRespData] = await asyncRunSafe<ResponseError>(errResp.json())
+  const loginUrl = `${globalThis.location.origin}/login`
+  
+  if (parseErr) {
+    globalThis.location.href = loginUrl
+    return Promise.reject(errResp)
+  }
+
+  const { code, message } = errRespData
+
+  // SmartBrain API特殊处理
+  if (isSmartBrainAPI) {
+    if (code === 'web_app_access_denied') {
+      requiredWebSSOLogin(message, 403)
+      return Promise.reject(errResp)
+    }
+    if (code === 'web_sso_auth_required') {
+      tokenManager.clearTokens()
+      requiredWebSSOLogin()
+      return Promise.reject(errResp)
+    }
+    if (code === 'unauthorized') {
+      tokenManager.clearTokens()
+      globalThis.location.reload()
+      return Promise.reject(errResp)
+    }
+  }
+
+  // 通用SSO处理
+  if (code === 'web_app_access_denied') {
+    requiredWebSSOLogin(message, 403)
+    return Promise.reject(errResp)
+  }
+  if (code === 'web_sso_auth_required') {
+    tokenManager.clearTokens()
+    requiredWebSSOLogin()
+    return Promise.reject(errResp)
+  }
+  if (code === 'unauthorized_and_force_logout') {
+    tokenManager.clearTokens()
+    globalThis.location.reload()
+    return Promise.reject(errResp)
+  }
+
+  // 尝试刷新token
+  const [refreshErr] = await asyncRunSafe(tokenManager.refreshToken(isSmartBrainAPI))
+  if (refreshErr === null) {
+    // Token刷新成功，返回重试标记
+    return Promise.reject(new Error('RETRY_REQUEST'))
+  }
+
+  // Token刷新失败，跳转登录
+  if (globalThis.location.pathname !== '/login') {
+    globalThis.location.href = loginUrl
+    return Promise.reject(errResp)
+  }
+
+  if (!silent) {
+    toast.error(message || '认证失败，请重新登录')
+  }
+  globalThis.location.href = loginUrl
+  return Promise.reject(errResp)
+}
+
+// =============== SSE流式处理 ===============
+
+/**
+ * SSE事件处理器映射表
+ */
+const createEventHandlers = (
+  handlers: StreamHandlers & { onData: IOnData },
+  bufferObj: SSEEventData,
+  isFirstMessage: { current: boolean }
 ) => {
-  if (!response.ok)
+  return {
+    'message': () => {
+      handlers.onData(unicodeToChar(bufferObj.answer || ''), isFirstMessage.current, {
+        conversationId: bufferObj.conversation_id,
+        taskId: bufferObj.task_id,
+        messageId: bufferObj.id || '',
+      })
+      isFirstMessage.current = false
+    },
+    'agent_message': () => {
+      handlers.onData(unicodeToChar(bufferObj.answer || ''), isFirstMessage.current, {
+        conversationId: bufferObj.conversation_id,
+        taskId: bufferObj.task_id,
+        messageId: bufferObj.id || '',
+      })
+      isFirstMessage.current = false
+    },
+    'agent_thought': () => handlers.onThought?.(bufferObj as ThoughtItem),
+    'message_file': () => handlers.onFile?.(bufferObj as VisionFile),
+    'message_end': () => handlers.onMessageEnd?.(bufferObj as MessageEnd),
+    'message_replace': () => handlers.onMessageReplace?.(bufferObj as MessageReplace),
+    'workflow_started': () => handlers.onWorkflowStarted?.(bufferObj as WorkflowStartedResponse),
+    'workflow_finished': () => handlers.onWorkflowFinished?.(bufferObj as WorkflowFinishedResponse),
+    'node_started': () => handlers.onNodeStarted?.(bufferObj as NodeStartedResponse),
+    'node_finished': () => handlers.onNodeFinished?.(bufferObj as NodeFinishedResponse),
+    'iteration_started': () => handlers.onIterationStart?.(bufferObj as IterationStartedResponse),
+    'iteration_next': () => handlers.onIterationNext?.(bufferObj as IterationNextResponse),
+    'iteration_completed': () => handlers.onIterationFinish?.(bufferObj as IterationFinishedResponse),
+    'loop_started': () => handlers.onLoopStart?.(bufferObj as LoopStartedResponse),
+    'loop_next': () => handlers.onLoopNext?.(bufferObj as LoopNextResponse),
+    'loop_completed': () => handlers.onLoopFinish?.(bufferObj as LoopFinishedResponse),
+    'node_retry': () => handlers.onNodeRetry?.(bufferObj as NodeFinishedResponse),
+    'parallel_branch_started': () => handlers.onParallelBranchStarted?.(bufferObj as ParallelBranchStartedResponse),
+    'parallel_branch_finished': () => handlers.onParallelBranchFinished?.(bufferObj as ParallelBranchFinishedResponse),
+    'text_chunk': () => handlers.onTextChunk?.(bufferObj as TextChunkResponse),
+    'text_replace': () => handlers.onTextReplace?.(bufferObj as TextReplaceResponse),
+    'agent_log': () => handlers.onAgentLog?.(bufferObj as AgentLogResponse),
+    'tts_message': () => handlers.onTTSChunk?.(bufferObj.message_id || '', bufferObj.audio as string, bufferObj.audio_type as string),
+    'tts_message_end': () => handlers.onTTSEnd?.(bufferObj.message_id || '', bufferObj.audio as string),
+  }
+}
+
+/**
+ * 处理SSE流式响应
+ */
+function handleStream(response: Response, handlers: StreamHandlers & { onData: IOnData }): void {
+  if (!response.ok) {
     throw new Error('Network response was not ok')
+  }
 
   const reader = response.body?.getReader()
+  if (!reader) {
+    handlers.onCompleted?.(true, 'Response body is null')
+    return
+  }
+
   const decoder = new TextDecoder('utf-8')
   let buffer = ''
-  let bufferObj: Record<string, any>
-  let isFirstMessage = true
-  function read() {
+  let bufferObj: SSEEventData = {}
+  const isFirstMessage = { current: true }
+  const eventHandlers = createEventHandlers(handlers, bufferObj, isFirstMessage)
+
+  function read(): void {
     let hasError = false
-    reader?.read().then((result: any) => {
+    if (!reader) return
+    
+    reader.read().then((result) => {
       if (result.done) {
-        onCompleted && onCompleted()
+        handlers.onCompleted?.()
         return
       }
+
       buffer += decoder.decode(result.value, { stream: true })
       const lines = buffer.split('\n')
+
       try {
-        lines.forEach((message) => {
-          if (message.startsWith('data: ')) { // check if it starts with data:
-            try {
-              bufferObj = JSON.parse(message.substring(6)) as Record<string, any>// remove data: and parse as json
-            }
-            catch {
-              // mute handle message cut off
-              onData('', isFirstMessage, {
-                conversationId: bufferObj?.conversation_id,
-                messageId: bufferObj?.message_id,
-              })
-              return
-            }
-            if (bufferObj.status === 400 || !bufferObj.event) {
-              onData('', false, {
-                conversationId: undefined,
-                messageId: '',
-                errorMessage: bufferObj?.message,
-                errorCode: bufferObj?.code,
-              })
-              hasError = true
-              onCompleted?.(true, bufferObj?.message)
-              return
-            }
-            if (bufferObj.event === 'message' || bufferObj.event === 'agent_message') {
-              // can not use format here. Because message is splitted.
-              onData(unicodeToChar(bufferObj.answer), isFirstMessage, {
-                conversationId: bufferObj.conversation_id,
-                taskId: bufferObj.task_id,
-                messageId: bufferObj.id,
-              })
-              isFirstMessage = false
-            }
-            else if (bufferObj.event === 'agent_thought') {
-              onThought?.(bufferObj as ThoughtItem)
-            }
-            else if (bufferObj.event === 'message_file') {
-              onFile?.(bufferObj as VisionFile)
-            }
-            else if (bufferObj.event === 'message_end') {
-              onMessageEnd?.(bufferObj as MessageEnd)
-            }
-            else if (bufferObj.event === 'message_replace') {
-              onMessageReplace?.(bufferObj as MessageReplace)
-            }
-            else if (bufferObj.event === 'workflow_started') {
-              onWorkflowStarted?.(bufferObj as WorkflowStartedResponse)
-            }
-            else if (bufferObj.event === 'workflow_finished') {
-              onWorkflowFinished?.(bufferObj as WorkflowFinishedResponse)
-            }
-            else if (bufferObj.event === 'node_started') {
-              onNodeStarted?.(bufferObj as NodeStartedResponse)
-            }
-            else if (bufferObj.event === 'node_finished') {
-              onNodeFinished?.(bufferObj as NodeFinishedResponse)
-            }
-            else if (bufferObj.event === 'iteration_started') {
-              onIterationStart?.(bufferObj as IterationStartedResponse)
-            }
-            else if (bufferObj.event === 'iteration_next') {
-              onIterationNext?.(bufferObj as IterationNextResponse)
-            }
-            else if (bufferObj.event === 'iteration_completed') {
-              onIterationFinish?.(bufferObj as IterationFinishedResponse)
-            }
-            else if (bufferObj.event === 'loop_started') {
-              onLoopStart?.(bufferObj as LoopStartedResponse)
-            }
-            else if (bufferObj.event === 'loop_next') {
-              onLoopNext?.(bufferObj as LoopNextResponse)
-            }
-            else if (bufferObj.event === 'loop_completed') {
-              onLoopFinish?.(bufferObj as LoopFinishedResponse)
-            }
-            else if (bufferObj.event === 'node_retry') {
-              onNodeRetry?.(bufferObj as NodeFinishedResponse)
-            }
-            else if (bufferObj.event === 'parallel_branch_started') {
-              onParallelBranchStarted?.(bufferObj as ParallelBranchStartedResponse)
-            }
-            else if (bufferObj.event === 'parallel_branch_finished') {
-              onParallelBranchFinished?.(bufferObj as ParallelBranchFinishedResponse)
-            }
-            else if (bufferObj.event === 'text_chunk') {
-              onTextChunk?.(bufferObj as TextChunkResponse)
-            }
-            else if (bufferObj.event === 'text_replace') {
-              onTextReplace?.(bufferObj as TextReplaceResponse)
-            }
-            else if (bufferObj.event === 'agent_log') {
-              onAgentLog?.(bufferObj as AgentLogResponse)
-            }
-            else if (bufferObj.event === 'tts_message') {
-              onTTSChunk?.(bufferObj.message_id, bufferObj.audio, bufferObj.audio_type)
-            }
-            else if (bufferObj.event === 'tts_message_end') {
-              onTTSEnd?.(bufferObj.message_id, bufferObj.audio)
-            }
+        for (const message of lines) {
+          if (!message.startsWith('data: ')) continue
+
+          try {
+            bufferObj = JSON.parse(message.substring(6)) as SSEEventData
+          } catch {
+            // 处理消息截断情况
+            handlers.onData('', isFirstMessage.current, {
+              conversationId: bufferObj?.conversation_id,
+              messageId: bufferObj?.message_id || '',
+            })
+            continue
           }
-        })
-        buffer = lines[lines.length - 1]
-      }
-      catch (e) {
-        onData('', false, {
+
+          // 处理错误状态
+          if (bufferObj.status === 400 || !bufferObj.event) {
+            handlers.onData('', false, {
+              conversationId: undefined,
+              messageId: '',
+              errorMessage: bufferObj?.message,
+              errorCode: bufferObj?.code,
+            })
+            hasError = true
+            handlers.onCompleted?.(true, bufferObj?.message)
+            continue
+          }
+
+          // 使用映射表处理事件
+          const handler = eventHandlers[bufferObj.event as keyof typeof eventHandlers]
+          if (handler) {
+            handler()
+          }
+        }
+
+        buffer = lines[lines.length - 1] || ''
+      } catch (e) {
+        handlers.onData('', false, {
           conversationId: undefined,
           messageId: '',
-          errorMessage: `${e}`,
+          errorMessage: String(e),
         })
         hasError = true
-        onCompleted?.(true, e as string)
+        handlers.onCompleted?.(true, String(e))
         return
       }
-      if (!hasError)
+
+      if (!hasError) {
         read()
+      }
+    }).catch((error) => {
+      handlers.onData('', false, {
+        conversationId: undefined,
+        messageId: '',
+        errorMessage: String(error),
+      })
+      handlers.onCompleted?.(true, String(error))
     })
   }
+
   read()
 }
 
-const baseFetch = base
+// =============== 文件上传 ===============
 
-export const upload = async (options: any, isSmartBrainAPI?: boolean, url?: string, searchParams?: string): Promise<any> => {
+/**
+ * 上传选项
+ */
+interface UploadOptions {
+  xhr: XMLHttpRequest
+  method?: string
+  url?: string
+  headers?: Record<string, string>
+  data?: FormData | Blob | File
+  onprogress?: (event: ProgressEvent<EventTarget>) => void
+}
+
+/**
+ * 文件上传
+ */
+export const upload = async (
+  options: UploadOptions,
+  isSmartBrainAPI = false,
+  url?: string,
+  searchParams?: string
+): Promise<unknown> => {
   const urlPrefix = isSmartBrainAPI ? SMARTBRAIN_API_BASE_URL : API_BASE_URL
   const token = await tokenManager.getValidToken(isSmartBrainAPI)
-  const defaultOptions = {
+  
+  const defaultOptions: UploadOptions = {
+    xhr: options.xhr,
     method: 'POST',
     url: (url ? `${urlPrefix}${url}` : `${urlPrefix}/files/upload`) + (searchParams || ''),
     headers: {
       Authorization: `Bearer ${token}`,
     },
-    data: {},
+    data: options.data,
   }
-  options = {
+
+  const finalOptions = {
     ...defaultOptions,
     ...options,
     headers: { ...defaultOptions.headers, ...options.headers },
   }
+
   return new Promise((resolve, reject) => {
-    const xhr = options.xhr
-    xhr.open(options.method, options.url)
-    for (const key in options.headers)
-      xhr.setRequestHeader(key, options.headers[key])
+    const xhr = finalOptions.xhr
+    xhr.open(finalOptions.method || 'POST', finalOptions.url!)
+    
+    for (const key in finalOptions.headers) {
+      xhr.setRequestHeader(key, finalOptions.headers[key])
+    }
 
     xhr.withCredentials = true
     xhr.responseType = 'json'
     xhr.onreadystatechange = function () {
       if (xhr.readyState === 4) {
-        // 接受 2xx 状态码
-        if (xhr.status >= 200 && xhr.status < 300)
+        if (xhr.status >= 200 && xhr.status < 300) {
           resolve(xhr.response)
-        else
+        } else {
           reject(xhr)
+        }
       }
     }
-    xhr.upload.onprogress = options.onprogress
-    xhr.send(options.data)
+    
+    if (finalOptions.onprogress) {
+      xhr.upload.onprogress = finalOptions.onprogress
+    }
+    
+    xhr.send(finalOptions.data)
   })
 }
 
+// =============== SSE POST ===============
+
+/**
+ * SSE流式POST请求
+ */
 export const ssePost = async (
   url: string,
   fetchOptions: FetchOptionType,
   otherOptions: IOtherOptions,
-) => {
+): Promise<void> => {
   const {
     isSmartBrainAPI = false,
     onData,
@@ -366,8 +487,8 @@ export const ssePost = async (
     onLoopNext,
     onLoopFinish,
   } = otherOptions
-  const abortController = new AbortController()
 
+  const abortController = new AbortController()
   const token = await tokenManager.getValidToken(isSmartBrainAPI)
 
   const options = Object.assign({}, baseOptions, {
@@ -379,8 +500,9 @@ export const ssePost = async (
   } as RequestInit, fetchOptions)
 
   const contentType = (options.headers as Headers).get('Content-Type')
-  if (!contentType)
+  if (!contentType) {
     (options.headers as Headers).set('Content-Type', ContentType.json)
+  }
 
   getAbortController?.(abortController)
 
@@ -390,58 +512,62 @@ export const ssePost = async (
     : `${urlPrefix}${url.startsWith('/') ? url : `/${url}`}`
 
   const { body } = options
-  if (body)
+  if (body) {
     options.body = JSON.stringify(body)
-
+  }
 
   globalThis.fetch(urlWithPrefix, options as RequestInit)
     .then((res) => {
       if (!/^[23]\d{2}$/.test(String(res.status))) {
         if (res.status === 401) {
-          tokenManager.refreshToken(isSmartBrainAPI).then(() => {
-            ssePost(url, fetchOptions, otherOptions)
-          }).catch(() => {
-            res.json().then((data: any) => {
-              if (isSmartBrainAPI) {
-                if (data.code === 'web_app_access_denied')
-                  requiredWebSSOLogin(data.message, 403)
-
-                if (data.code === 'web_sso_auth_required') {
-                  tokenManager.clearTokens()
-                  requiredWebSSOLogin()
-                }
-
-                if (data.code === 'unauthorized') {
-                  tokenManager.clearTokens()
-                  globalThis.location.reload()
-                }
-              }
+          tokenManager.refreshToken(isSmartBrainAPI)
+            .then(() => {
+              ssePost(url, fetchOptions, otherOptions)
             })
-          })
-        }
-        else {
-          res.json().then((data) => {
+            .catch(() => {
+              res.json().then((data: ResponseError) => {
+                if (isSmartBrainAPI) {
+                  if (data.code === 'web_app_access_denied') {
+                    requiredWebSSOLogin(data.message, 403)
+                  } else if (data.code === 'web_sso_auth_required') {
+                    tokenManager.clearTokens()
+                    requiredWebSSOLogin()
+                  } else if (data.code === 'unauthorized') {
+                    tokenManager.clearTokens()
+                    globalThis.location.reload()
+                  }
+                }
+              })
+            })
+        } else {
+          res.json().then((data: { message?: string }) => {
             toast.error(data.message || 'Server Error')
           })
           onError?.('Server Error')
         }
         return
       }
-      return handleStream(res, (str: string, isFirstMessage: boolean, moreInfo: IOnDataMoreInfo) => {
-        if (moreInfo.errorMessage) {
-          onError?.(moreInfo.errorMessage, moreInfo.errorCode)
-          // TypeError: Cannot assign to read only property ... will happen in page leave, so it should be ignored.
-          if (moreInfo.errorMessage !== 'AbortError: The user aborted a request.' && !moreInfo.errorMessage.includes('TypeError: Cannot assign to read only property'))
-            toast.error(moreInfo.errorMessage)
-          return
-        }
-        onData?.(str, isFirstMessage, moreInfo)
-      },
+
+      const handlers: StreamHandlers & { onData: IOnData } = {
+        onData: (str: string, isFirstMessage: boolean, moreInfo: IOnDataMoreInfo) => {
+          if (moreInfo.errorMessage) {
+            onError?.(moreInfo.errorMessage, moreInfo.errorCode)
+            const errorMsg = moreInfo.errorMessage
+            if (
+              errorMsg !== 'AbortError: The user aborted a request.' &&
+              !errorMsg.includes('TypeError: Cannot assign to read only property')
+            ) {
+              toast.error(errorMsg)
+            }
+            return
+          }
+          onData?.(str, isFirstMessage, moreInfo)
+        },
         onCompleted,
         onThought,
+        onFile,
         onMessageEnd,
         onMessageReplace,
-        onFile,
         onWorkflowStarted,
         onWorkflowFinished,
         onNodeStarted,
@@ -460,186 +586,286 @@ export const ssePost = async (
         onTTSEnd,
         onTextReplace,
         onAgentLog,
-      )
-    }).catch((e) => {
-      if (e.toString() !== 'AbortError: The user aborted a request.' && !e.toString().errorMessage.includes('TypeError: Cannot assign to read only property'))
-        toast.error(e)
-      onError?.(e)
+      }
+
+      return handleStream(res, handlers)
+    })
+    .catch((e) => {
+      const errorStr = String(e)
+      if (
+        errorStr !== 'AbortError: The user aborted a request.' &&
+        !errorStr.includes('TypeError: Cannot assign to read only property')
+      ) {
+        toast.error(errorStr)
+      }
+      onError?.(errorStr)
     })
 }
 
-// base request
-export const request = async<T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
+// =============== 基础请求 ===============
+
+/**
+ * 基础请求函数
+ */
+export const request = async <T>(url: string, options: unknown = {}, otherOptions?: IOtherOptions): Promise<T> => {
   try {
     const otherOptionsForBaseFetch = otherOptions || {}
-    const [err, resp] = await asyncRunSafe<T>(baseFetch(url, options, otherOptionsForBaseFetch))
-    if (err === null)
+    const [err, resp] = await asyncRunSafe<T>(base(url, options as FetchOptionType, otherOptionsForBaseFetch))
+    
+    if (err === null) {
       return resp
+    }
+
     const errResp: Response = err as any
     if (errResp.status === 401) {
-      const [parseErr, errRespData] = await asyncRunSafe<ResponseError>(errResp.json())
-      const loginUrl = `${globalThis.location.origin}${basePath}/login`
-      if (parseErr) {
-        globalThis.location.href = loginUrl
-        return Promise.reject(err)
-      }
-      // special code
-      const { code, message } = errRespData
-      // webapp sso
-      if (code === 'web_app_access_denied') {
-        requiredWebSSOLogin(message, 403)
-        return Promise.reject(err)
-      }
-      if (code === 'web_sso_auth_required') {
-        tokenManager.clearTokens()
-        requiredWebSSOLogin()
-        return Promise.reject(err)
-      }
-      if (code === 'unauthorized_and_force_logout') {
-        tokenManager.clearTokens()
-        globalThis.location.reload()
-        return Promise.reject(err)
-      }
       const {
         isSmartBrainAPI = false,
         silent,
       } = otherOptionsForBaseFetch
-      if (isSmartBrainAPI && code === 'unauthorized') {
-        tokenManager.clearTokens()
-        globalThis.location.reload()
-        return Promise.reject(err)
-      }
 
-      // refresh token
-      const [refreshErr] = await asyncRunSafe(tokenManager.refreshToken(isSmartBrainAPI))
-      if (refreshErr === null)
-        return baseFetch<T>(url, options, otherOptionsForBaseFetch)
-      if (location.pathname !== `${basePath}/login`) {
-        globalThis.location.href = loginUrl
-        return Promise.reject(err)
+      try {
+        await handle401Error(errResp, isSmartBrainAPI, silent)
+      } catch (retryError) {
+        // 如果是重试标记，重新发起请求
+        if (retryError instanceof Error && retryError.message === 'RETRY_REQUEST') {
+          return base<T>(url, options as FetchOptionType, otherOptionsForBaseFetch)
+        }
+        throw retryError
       }
-      if (!silent) {
-        toast.error(message)
-        return Promise.reject(err)
-      }
-      globalThis.location.href = loginUrl
-      return Promise.reject(err)
     }
-    else {
-      return Promise.reject(err)
-    }
-  }
-  catch (error) {
+
+    return Promise.reject(err)
+  } catch (error) {
     console.error(error)
     return Promise.reject(error)
   }
 }
 
-// request methods
-export const get = <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-  return request<T>(url, Object.assign({}, options, { method: 'GET' }), otherOptions)
+// =============== HTTP方法 ===============
+
+/**
+ * GET请求
+ */
+export const get = <T>(url: string, options: unknown = {}, otherOptions?: IOtherOptions): Promise<T> => {
+  return request<T>(url, Object.assign({}, options as FetchOptionType, { method: 'GET' }), otherOptions)
 }
 
-// For public API
-export const getSmartBrain = <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-  return get<T>(url, options, { ...otherOptions, isSmartBrainAPI: true })
+/**
+ * POST请求
+ */
+export const post = <T>(url: string, options: unknown = {}, otherOptions?: IOtherOptions): Promise<T> => {
+  const normalizedOptions = normalizeBodyOptions(options)
+  return request<T>(url, Object.assign({}, normalizedOptions, { method: 'POST' }), otherOptions)
 }
 
-
-export const post = <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-  return request<T>(url, Object.assign({}, options, { method: 'POST' }), otherOptions)
+/**
+ * PUT请求
+ */
+export const put = <T>(url: string, options: unknown = {}, otherOptions?: IOtherOptions): Promise<T> => {
+  const normalizedOptions = normalizeBodyOptions(options)
+  return request<T>(url, Object.assign({}, normalizedOptions, { method: 'PUT' }), otherOptions)
 }
 
-export const postSmartBrain = <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-  return post<T>(url, options, { ...otherOptions, isSmartBrainAPI: true })
+/**
+ * DELETE请求
+ */
+export const del = <T>(url: string, options: unknown = {}, otherOptions?: IOtherOptions): Promise<T> => {
+  const normalizedOptions = normalizeBodyOptions(options)
+  return request<T>(url, Object.assign({}, normalizedOptions, { method: 'DELETE' }), otherOptions)
 }
 
-export const put = <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-  return request<T>(url, Object.assign({}, options, { method: 'PUT' }), otherOptions)
+/**
+ * PATCH请求
+ */
+export const patch = <T>(url: string, options: unknown = {}, otherOptions?: IOtherOptions): Promise<T> => {
+  const normalizedOptions = normalizeBodyOptions(options)
+  return request<T>(url, Object.assign({}, normalizedOptions, { method: 'PATCH' }), otherOptions)
 }
 
-export const putSmartBrain = <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-  return put<T>(url, options, { ...otherOptions, isSmartBrainAPI: true })
+// =============== SmartBrain API方法工厂 ===============
+
+/**
+ * 创建SmartBrain API方法
+ */
+function createSmartBrainMethod(
+  method: <U>(url: string, options?: unknown, otherOptions?: IOtherOptions) => Promise<U>
+) {
+  return <U>(url: string, options: unknown = {}, otherOptions?: IOtherOptions): Promise<U> => {
+    return method<U>(url, options, { ...otherOptions, isSmartBrainAPI: true })
+  }
 }
 
-export const del = <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-  return request<T>(url, Object.assign({}, options, { method: 'DELETE' }), otherOptions)
+export const getSmartBrain = createSmartBrainMethod(get)
+export const postSmartBrain = createSmartBrainMethod(post)
+export const putSmartBrain = createSmartBrainMethod(put)
+export const delSmartBrain = createSmartBrainMethod(del)
+export const patchSmartBrain = createSmartBrainMethod(patch)
+
+// =============== 请求选项标准化 ===============
+
+const FETCH_OPTION_KEYS = new Set([
+  'body',
+  'json',
+  'params',
+  'headers',
+  'signal',
+  'timeout',
+  'cache',
+  'credentials',
+  'mode',
+  'redirect',
+  'referrer',
+  'referrerPolicy',
+  'integrity',
+  'keepalive',
+  'window',
+  'hooks',
+  'searchParams',
+  'priority',
+  'duplex',
+  'throwHttpErrors',
+])
+
+/**
+ * 标准化请求体选项
+ */
+const normalizeBodyOptions = (options: unknown): FetchOptionType => {
+  if (!options || typeof options !== 'object' || Array.isArray(options)) {
+    return options as FetchOptionType
+  }
+
+  const optionEntries = Object.entries(options)
+  if (optionEntries.length === 0) {
+    return options as FetchOptionType
+  }
+
+  const hasExplicitBody =
+    'body' in (options as Record<string, unknown>) ||
+    'json' in (options as Record<string, unknown>) ||
+    'form' in (options as Record<string, unknown>)
+
+  if (hasExplicitBody) {
+    return options as FetchOptionType
+  }
+
+  const bodyPayload: Record<string, unknown> = {}
+  const normalizedOptions: Record<string, unknown> = {}
+
+  for (const [key, value] of optionEntries) {
+    if (FETCH_OPTION_KEYS.has(key) || key === 'method') {
+      normalizedOptions[key] = value
+    } else {
+      bodyPayload[key] = value
+    }
+  }
+
+  if (Object.keys(bodyPayload).length > 0) {
+    normalizedOptions.body = bodyPayload
+  }
+
+  return normalizedOptions as FetchOptionType
 }
 
-export const delSmartBrain = <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-  return del<T>(url, options, { ...otherOptions, isSmartBrainAPI: true })
+// =============== 响应处理 ===============
+
+/**
+ * API客户端错误
+ */
+export class ApiClientError extends Error {
+  code?: number
+  status?: number
+  responseData?: unknown
+
+  constructor(message: string, options?: { code?: number; status?: number; responseData?: unknown }) {
+    super(message)
+    this.name = 'ApiClientError'
+    this.code = options?.code
+    this.status = options?.status
+    this.responseData = options?.responseData
+  }
 }
 
-export const patch = <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-  return request<T>(url, Object.assign({}, options, { method: 'PATCH' }), otherOptions)
+/**
+ * API响应信封格式
+ */
+type ApiEnvelope<T> = {
+  code: number
+  message: string
+  data: T
+  timestamp?: string
 }
 
-export const patchSmartBrain = <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-  return patch<T>(url, options, { ...otherOptions, isSmartBrainAPI: true })
+/**
+ * 检查是否为API响应信封格式
+ */
+const isApiEnvelope = <T>(payload: unknown): payload is ApiEnvelope<T> => {
+  if (!payload || typeof payload !== 'object') return false
+  const maybe = payload as Record<string, unknown>
+  return typeof maybe.code === 'number' && typeof maybe.message === 'string' && 'data' in maybe
 }
 
-// 包装函数，使返回格式兼容现有代码
-const wrapResponse = <T>(data: T): { data: T; ok: boolean; status: number } => ({
-  data,
+/**
+ * 从响应中提取业务数据
+ */
+const extractResponseData = <T>(payload: unknown): T => {
+  if (isApiEnvelope<T>(payload)) {
+    if (payload.code === 0) {
+      return payload.data as T
+    }
+    throw new ApiClientError(payload.message || '请求失败', {
+      code: payload.code,
+      responseData: payload.data,
+    })
+  }
+  return payload as T
+}
+
+/**
+ * 包装响应数据
+ */
+const wrapResponse = <T>(raw: unknown): { data: T; ok: boolean; status: number } => ({
+  data: extractResponseData<T>(raw),
   ok: true,
-  status: 200
-});
+  status: 200,
+})
 
-// 为了向后兼容，导出一个包含所有方法的对象
+/**
+ * 创建API客户端方法
+ */
+function createApiMethod(
+  method: <U>(url: string, options?: unknown, otherOptions?: IOtherOptions) => Promise<U>
+) {
+  return async <U>(url: string, options: unknown = {}, otherOptions?: IOtherOptions) => {
+    const result = await method<U>(url, options, otherOptions)
+    return wrapResponse<U>(result)
+  }
+}
+
+// =============== API客户端对象 ===============
+
+/**
+ * API客户端
+ * 提供统一的HTTP请求接口，自动处理响应格式和错误
+ */
 export const apiClient = {
-  get: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-    const result = await get<T>(url, options, otherOptions);
-    return wrapResponse(result);
-  },
-  post: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-    const result = await post<T>(url, options, otherOptions);
-    return wrapResponse(result);
-  },
-  put: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-    const result = await put<T>(url, options, otherOptions);
-    return wrapResponse(result);
-  },
-  patch: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-    const result = await patch<T>(url, options, otherOptions);
-    return wrapResponse(result);
-  },
-  delete: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-    const result = await del<T>(url, options, otherOptions);
-    return wrapResponse(result);
-  },
-  del: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-    const result = await del<T>(url, options, otherOptions);
-    return wrapResponse(result);
-  },
-  // 包装upload方法以兼容现有调用方式
+  get: createApiMethod(get),
+  post: createApiMethod(post),
+  put: createApiMethod(put),
+  patch: createApiMethod(patch),
+  delete: createApiMethod(del),
+  del: createApiMethod(del),
   upload: async <T>(url: string, data: FormData, otherOptions?: IOtherOptions): Promise<{ data: T }> => {
-    const options = {
+    const options: UploadOptions = {
       data,
-      xhr: new XMLHttpRequest()
-    };
-    const result = await upload(options, otherOptions?.isSmartBrainAPI, url);
-    return { data: result };
+      xhr: new XMLHttpRequest(),
+    }
+    const result = await upload(options, otherOptions?.isSmartBrainAPI, url)
+    return { data: result as T }
   },
   ssePost,
-  // SmartBrain API方法
-  getSmartBrain: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-    const result = await getSmartBrain<T>(url, options, otherOptions);
-    return wrapResponse(result);
-  },
-  postSmartBrain: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-    const result = await postSmartBrain<T>(url, options, otherOptions);
-    return wrapResponse(result);
-  },
-  putSmartBrain: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-    const result = await putSmartBrain<T>(url, options, otherOptions);
-    return wrapResponse(result);
-  },
-  patchSmartBrain: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-    const result = await patchSmartBrain<T>(url, options, otherOptions);
-    return wrapResponse(result);
-  },
-  delSmartBrain: async <T>(url: string, options = {}, otherOptions?: IOtherOptions) => {
-    const result = await delSmartBrain<T>(url, options, otherOptions);
-    return wrapResponse(result);
-  },
+  getSmartBrain: createApiMethod(getSmartBrain),
+  postSmartBrain: createApiMethod(postSmartBrain),
+  putSmartBrain: createApiMethod(putSmartBrain),
+  patchSmartBrain: createApiMethod(patchSmartBrain),
+  delSmartBrain: createApiMethod(delSmartBrain),
 }

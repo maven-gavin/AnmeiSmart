@@ -9,6 +9,7 @@ from typing import Dict
 from datetime import datetime
 import logging
 
+from app.core.api import register_exception_handlers
 from app.core.config import get_settings
 from app.api import api_router
 from app.common.infrastructure.db.base import create_initial_roles, create_initial_system_settings
@@ -87,6 +88,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 注册统一异常处理
+register_exception_handlers(app)
 
 # 包含API路由
 app.include_router(api_router, prefix=settings.API_V1_STR)

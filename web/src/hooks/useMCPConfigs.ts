@@ -23,14 +23,10 @@ export function useMCPConfigs() {
     setIsLoading(true)
     setError(null)
     try {
-      const response = await mcpConfigService.getGroups()
-      if (response.success && response.data) {
-        setGroups(response.data)
-      } else {
-        setError(response.error || '获取分组列表失败')
-      }
+      const data = await mcpConfigService.getGroups()
+      setGroups(data)
     } catch (error: any) {
-      setError('获取分组列表失败')
+      setError(error.message || '获取分组列表失败')
       console.error('加载MCP分组失败:', error)
     } finally {
       setIsLoading(false)
@@ -41,16 +37,11 @@ export function useMCPConfigs() {
     setIsSubmitting(true)
     setError(null)
     try {
-      const response = await mcpConfigService.createGroup(groupData)
-      if (response.success) {
-        await loadGroups() // 重新加载分组列表
-        return true
-      } else {
-        setError(response.error || '创建分组失败')
-        return false
-      }
+      await mcpConfigService.createGroup(groupData)
+      await loadGroups() // 重新加载分组列表
+      return true
     } catch (error: any) {
-      setError('创建分组失败')
+      setError(error.message || '创建分组失败')
       console.error('创建MCP分组失败:', error)
       return false
     } finally {
@@ -62,16 +53,11 @@ export function useMCPConfigs() {
     setIsSubmitting(true)
     setError(null)
     try {
-      const response = await mcpConfigService.updateGroup(groupId, groupData)
-      if (response.success) {
-        await loadGroups() // 重新加载分组列表
-        return true
-      } else {
-        setError(response.error || '更新分组失败')
-        return false
-      }
+      await mcpConfigService.updateGroup(groupId, groupData)
+      await loadGroups() // 重新加载分组列表
+      return true
     } catch (error: any) {
-      setError('更新分组失败')
+      setError(error.message || '更新分组失败')
       console.error('更新MCP分组失败:', error)
       return false
     } finally {
@@ -83,16 +69,11 @@ export function useMCPConfigs() {
     setIsSubmitting(true)
     setError(null)
     try {
-      const response = await mcpConfigService.deleteGroup(groupId)
-      if (response.success) {
-        await loadGroups() // 重新加载分组列表
-        return true
-      } else {
-        setError(response.error || '删除分组失败')
-        return false
-      }
+      await mcpConfigService.deleteGroup(groupId)
+      await loadGroups() // 重新加载分组列表
+      return true
     } catch (error: any) {
-      setError('删除分组失败')
+      setError(error.message || '删除分组失败')
       console.error('删除MCP分组失败:', error)
       return false
     } finally {
@@ -103,15 +84,10 @@ export function useMCPConfigs() {
   const getGroupApiKey = useCallback(async (groupId: string): Promise<string | null> => {
     setError(null)
     try {
-      const response = await mcpConfigService.getGroupApiKey(groupId)
-      if (response.success && response.data) {
-        return response.data.api_key
-      } else {
-        setError(response.error || '获取API密钥失败')
-        return null
-      }
+      const data = await mcpConfigService.getGroupApiKey(groupId)
+      return data.api_key
     } catch (error: any) {
-      setError('获取API密钥失败')
+      setError(error.message || '获取API密钥失败')
       console.error('获取分组API密钥失败:', error)
       return null
     }
@@ -121,16 +97,11 @@ export function useMCPConfigs() {
     setIsSubmitting(true)
     setError(null)
     try {
-      const response = await mcpConfigService.regenerateApiKey(groupId)
-      if (response.success && response.data) {
-        await loadGroups() // 重新加载分组列表以更新API密钥
-        return response.data.api_key
-      } else {
-        setError(response.error || '重新生成API密钥失败')
-        return null
-      }
+      const data = await mcpConfigService.regenerateApiKey(groupId)
+      await loadGroups() // 重新加载分组列表以更新API密钥
+      return data.api_key
     } catch (error: any) {
-      setError('重新生成API密钥失败')
+      setError(error.message || '重新生成API密钥失败')
       console.error('重新生成API密钥失败:', error)
       return null
     } finally {
@@ -141,15 +112,10 @@ export function useMCPConfigs() {
   const getGroupServerUrl = useCallback(async (groupId: string): Promise<{ server_url: string; server_code: string } | null> => {
     setError(null)
     try {
-      const response = await mcpConfigService.getGroupServerUrl(groupId)
-      if (response.success && response.data) {
-        return response.data
-      } else {
-        setError(response.error || '获取MCP Server URL失败')
-        return null
-      }
+      const data = await mcpConfigService.getGroupServerUrl(groupId)
+      return data
     } catch (error: any) {
-      setError('获取MCP Server URL失败')
+      setError(error.message || '获取MCP Server URL失败')
       console.error('获取MCP Server URL失败:', error)
       return null
     }
@@ -161,14 +127,10 @@ export function useMCPConfigs() {
     setIsLoading(true)
     setError(null)
     try {
-      const response = await mcpConfigService.getTools(groupId)
-      if (response.success && response.data) {
-        setTools(response.data)
-      } else {
-        setError(response.error || '获取工具列表失败')
-      }
+      const data = await mcpConfigService.getTools(groupId)
+      setTools(data)
     } catch (error: any) {
-      setError('获取工具列表失败')
+      setError(error.message || '获取工具列表失败')
       console.error('加载MCP工具失败:', error)
     } finally {
       setIsLoading(false)
@@ -179,16 +141,11 @@ export function useMCPConfigs() {
     setIsSubmitting(true)
     setError(null)
     try {
-      const response = await mcpConfigService.updateTool(toolId, toolData)
-      if (response.success) {
-        await loadTools() // 重新加载工具列表
-        return true
-      } else {
-        setError(response.error || '更新工具失败')
-        return false
-      }
+      await mcpConfigService.updateTool(toolId, toolData)
+      await loadTools() // 重新加载工具列表
+      return true
     } catch (error: any) {
-      setError('更新工具失败')
+      setError(error.message || '更新工具失败')
       console.error('更新MCP工具失败:', error)
       return false
     } finally {
@@ -200,21 +157,13 @@ export function useMCPConfigs() {
     setIsSubmitting(true)
     setError(null)
     try {
-      const response = await mcpConfigService.refreshTools()
-      if (response.success) {
-        await loadTools() // 重新加载工具列表
-        // 如果有消息，可以在这里显示给用户
-        console.log('工具刷新结果:', response.message)
-        return true
-      } else {
-        setError(response.error || '刷新工具列表失败')
-        return false
-      }
+      await mcpConfigService.refreshTools()
+      await loadTools() // 重新加载工具列表
+      return true
     } catch (error: any) {
-      // 提供更友好的错误消息
       const friendlyMessage = error.message?.includes('网络连接失败') 
         ? 'MCP服务器连接失败，请检查服务器是否正常运行' 
-        : '刷新工具列表时遇到问题，请稍后重试'
+        : error.message || '刷新工具列表时遇到问题，请稍后重试'
       
       setError(friendlyMessage)
       console.error('刷新MCP工具列表失败:', error)
@@ -229,14 +178,10 @@ export function useMCPConfigs() {
   const loadServerStatus = useCallback(async () => {
     setError(null)
     try {
-      const response = await mcpConfigService.getMCPServerStatus()
-      if (response.success && response.data) {
-        setServerStatus(response.data)
-      } else {
-        setError(response.error || '获取服务器状态失败')
-      }
+      const data = await mcpConfigService.getMCPServerStatus()
+      setServerStatus(data)
     } catch (error: any) {
-      setError('获取服务器状态失败')
+      setError(error.message || '获取服务器状态失败')
       console.error('获取MCP服务器状态失败:', error)
     }
   }, [])

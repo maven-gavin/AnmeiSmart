@@ -7,8 +7,7 @@ import { apiClient, ssePost } from './apiClient';
 import type { 
   AgentMessage, 
   AgentConversation, 
-  SSECallbacks,
-  ApiResponse 
+  SSECallbacks
 } from '@/types/agent-chat';
 
 /**

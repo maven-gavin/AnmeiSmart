@@ -54,7 +54,7 @@ class PermissionService {
   async getRoles(tenantId?: string): Promise<Role[]> {
     const params = tenantId ? { tenant_id: tenantId } : {};
     const response = await apiClient.get<Role[]>('/roles', { params });
-    return response.data;
+    return response.data ?? [];
   }
 
   /**
@@ -62,7 +62,7 @@ class PermissionService {
    */
   async getRole(roleId: string): Promise<Role> {
     const response = await apiClient.get<Role>(`/roles/${roleId}`);
-    return response.data;
+    return response.data as Role;
   }
 
   /**
@@ -70,7 +70,7 @@ class PermissionService {
    */
   async createRole(role: Partial<Role>): Promise<Role> {
     const response = await apiClient.post<Role>('/roles', role);
-    return response.data;
+    return response.data as Role;
   }
 
   /**
@@ -78,14 +78,15 @@ class PermissionService {
    */
   async updateRole(roleId: string, role: Partial<Role>): Promise<Role> {
     const response = await apiClient.put<Role>(`/roles/${roleId}`, role);
-    return response.data;
+    return response.data as Role;
   }
 
   /**
    * 删除角色
    */
-  async deleteRole(roleId: string): Promise<void> {
-    await apiClient.delete<void>(`/roles/${roleId}`);
+  async deleteRole(roleId: string): Promise<boolean> {
+    const response = await apiClient.delete<boolean>(`/roles/${roleId}`);
+    return Boolean(response.data);
   }
 
   // ==================== 角色权限关联 ====================

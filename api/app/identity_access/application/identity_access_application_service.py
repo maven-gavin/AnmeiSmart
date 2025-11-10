@@ -312,8 +312,15 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
         """创建角色用例"""
         try:
             from ..domain.entities.role import RoleEntity
-            
-            roleEntity = RoleEntity.create(name=name, description=description)
+            normalized_name = name.strip()
+            if not normalized_name:
+                raise ValueError("角色名称不能为空")
+
+            name_exists = await self.role_repository.exists_by_name(normalized_name)
+            if name_exists:
+                raise ValueError("角色名称已存在")
+
+            roleEntity = RoleEntity.create(name=normalized_name, description=description)
             savedRoleEntity = await self.role_repository.save(roleEntity)
             
             return RoleConverter.to_response(savedRoleEntity)

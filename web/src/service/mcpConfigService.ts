@@ -55,14 +55,6 @@ export interface MCPToolUpdate {
   config_data?: Record<string, any>
 }
 
-export interface ApiResponse<T = any> {
-  success: boolean
-  data?: T
-  message?: string
-  error?: string
-  error_code?: string
-}
-
 export interface MCPServerStatus {
   status: string
   server: {
@@ -83,114 +75,56 @@ class MCPConfigService {
   /**
    * 获取MCP分组列表
    */
-  async getGroups(): Promise<ApiResponse<MCPGroup[]>> {
-    try {
-      const response = await apiClient.get('/mcp/admin/groups')
-      return (response.data as any) || { success: false, message: '获取分组列表失败' }
-    } catch (error: any) {
-      console.error('获取MCP分组列表失败:', error)
-      return {
-        success: false,
-        error: error.response?.data?.detail || error.message || '获取分组列表失败'
-      }
-    }
+  async getGroups(): Promise<MCPGroup[]> {
+    const response = await apiClient.get<MCPGroup[]>('/mcp/admin/groups')
+    return response.data
   }
 
   /**
    * 创建MCP分组
    */
-  async createGroup(groupData: MCPGroupCreate): Promise<ApiResponse<MCPGroup>> {
-    try {
-      const response = await apiClient.post('/mcp/admin/groups', groupData)
-      return (response.data as any) || { success: false, message: '创建分组失败' }
-    } catch (error: any) {
-      console.error('创建MCP分组失败:', error)
-      return {
-        success: false,
-        error: error.response?.data?.detail || error.message || '创建分组失败'
-      }
-    }
+  async createGroup(groupData: MCPGroupCreate): Promise<MCPGroup> {
+    const response = await apiClient.post<MCPGroup>('/mcp/admin/groups', { body: groupData })
+    return response.data
   }
 
   /**
    * 更新MCP分组
    */
-  async updateGroup(groupId: string, groupData: MCPGroupUpdate): Promise<ApiResponse<MCPGroup>> {
-    try {
-      const response = await apiClient.put(`/mcp/admin/groups/${groupId}`, groupData)
-      return (response.data as any) || { success: false, message: '更新分组失败' }
-    } catch (error: any) {
-      console.error('更新MCP分组失败:', error)
-      return {
-        success: false,
-        error: error.response?.data?.detail || error.message || '更新分组失败'
-      }
-    }
+  async updateGroup(groupId: string, groupData: MCPGroupUpdate): Promise<MCPGroup> {
+    const response = await apiClient.put<MCPGroup>(`/mcp/admin/groups/${groupId}`, { body: groupData })
+    return response.data
   }
 
   /**
    * 删除MCP分组
    */
-  async deleteGroup(groupId: string): Promise<ApiResponse> {
-    try {
-      const response = await apiClient.delete(`/mcp/admin/groups/${groupId}`)
-      return (response.data as any) || { success: false, message: '删除分组失败' }
-    } catch (error: any) {
-      console.error('删除MCP分组失败:', error)
-      return {
-        success: false,
-        error: error.response?.data?.detail || error.message || '删除分组失败'
-      }
-    }
+  async deleteGroup(groupId: string): Promise<void> {
+    await apiClient.delete(`/mcp/admin/groups/${groupId}`)
   }
 
   /**
    * 获取分组API密钥
    */
-  async getGroupApiKey(groupId: string): Promise<ApiResponse<{ api_key: string }>> {
-    try {
-      const response = await apiClient.get(`/mcp/admin/groups/${groupId}/api-key`)
-      return (response.data as any) || { success: false, message: '获取API密钥失败' }
-    } catch (error: any) {
-      console.error('获取分组API密钥失败:', error)
-      return {
-        success: false,
-        error: error.response?.data?.detail || error.message || '获取API密钥失败'
-      }
-    }
+  async getGroupApiKey(groupId: string): Promise<{ api_key: string }> {
+    const response = await apiClient.get<{ api_key: string }>(`/mcp/admin/groups/${groupId}/api-key`)
+    return response.data
   }
 
   /**
    * 重新生成分组API密钥
    */
-  async regenerateApiKey(groupId: string): Promise<ApiResponse<{ api_key: string }>> {
-    try {
-      const response = await apiClient.post(`/mcp/admin/groups/${groupId}/regenerate-key`)
-      return (response.data as any) || { success: false, message: '重新生成API密钥失败' }
-    } catch (error: any) {
-      console.error('重新生成API密钥失败:', error)
-      return {
-        success: false,
-        error: error.response?.data?.detail || error.message || '重新生成API密钥失败'
-      }
-    }
+  async regenerateApiKey(groupId: string): Promise<{ api_key: string }> {
+    const response = await apiClient.post<{ api_key: string }>(`/mcp/admin/groups/${groupId}/regenerate-key`)
+    return response.data
   }
 
   /**
    * 获取分组的完整MCP Server URL
    */
-  async getGroupServerUrl(groupId: string): Promise<ApiResponse<{ server_url: string; server_code: string }>> {
-    try {
-      const url = `/mcp/admin/groups/${groupId}/server-url`
-      const response = await apiClient.get(url)
-      return (response.data as any) || { success: false, message: '获取MCP Server URL失败' }
-    } catch (error: any) {
-      console.error('获取MCP Server URL失败:', error)
-      return {
-        success: false,
-        error: error.response?.data?.detail || error.message || '获取MCP Server URL失败'
-      }
-    }
+  async getGroupServerUrl(groupId: string): Promise<{ server_url: string; server_code: string }> {
+    const response = await apiClient.get<{ server_url: string; server_code: string }>(`/mcp/admin/groups/${groupId}/server-url`)
+    return response.data
   }
 
   // ========== MCP工具管理 ==========
@@ -198,50 +132,25 @@ class MCPConfigService {
   /**
    * 获取MCP工具列表
    */
-  async getTools(groupId?: string): Promise<ApiResponse<MCPTool[]>> {
-    try {
-      const url = groupId ? `/mcp/admin/tools?group_id=${groupId}` : '/mcp/admin/tools'
-      const response = await apiClient.get(url)
-      return (response.data as any) || { success: false, message: '获取工具列表失败' }
-    } catch (error: any) {
-      console.error('获取MCP工具列表失败:', error)
-      return {
-        success: false,
-        error: error.response?.data?.detail || error.message || '获取工具列表失败'
-      }
-    }
+  async getTools(groupId?: string): Promise<MCPTool[]> {
+    const url = groupId ? `/mcp/admin/tools?group_id=${groupId}` : '/mcp/admin/tools'
+    const response = await apiClient.get<MCPTool[]>(url)
+    return response.data
   }
 
   /**
    * 更新MCP工具配置
    */
-  async updateTool(toolId: string, toolData: MCPToolUpdate): Promise<ApiResponse<MCPTool>> {
-    try {
-      const response = await apiClient.put(`/mcp/admin/tools/${toolId}`, toolData)
-      return (response.data as any) || { success: false, message: '更新工具失败' }
-    } catch (error: any) {
-      console.error('更新MCP工具失败:', error)
-      return {
-        success: false,
-        error: error.response?.data?.detail || error.message || '更新工具失败'
-      }
-    }
+  async updateTool(toolId: string, toolData: MCPToolUpdate): Promise<MCPTool> {
+    const response = await apiClient.put<MCPTool>(`/mcp/admin/tools/${toolId}`, { body: toolData })
+    return response.data
   }
 
   /**
    * 刷新MCP工具列表
    */
-  async refreshTools(): Promise<ApiResponse> {
-    try {
-      const response = await apiClient.post('/mcp/admin/tools/refresh')
-      return (response.data as any) || { success: false, message: '刷新工具列表失败' }
-    } catch (error: any) {
-      console.error('刷新MCP工具列表失败:', error)
-      return {
-        success: false,
-        error: error.response?.data?.detail || error.message || '刷新工具列表失败'
-      }
-    }
+  async refreshTools(): Promise<void> {
+    await apiClient.post('/mcp/admin/tools/refresh')
   }
 
   // ========== MCP服务器状态 ==========
@@ -249,38 +158,22 @@ class MCPConfigService {
   /**
    * 获取MCP服务器状态
    */
-  async getMCPServerStatus(): Promise<ApiResponse<MCPServerStatus>> {
-    try {
-      const response = await apiClient.get('/mcp/admin/server/status')
-      return (response.data as any) || { success: false, message: '获取服务器状态失败' }
-    } catch (error: any) {
-      console.error('获取MCP服务器状态失败:', error)
-      return {
-        success: false,
-        error: error.response?.data?.detail || error.message || '获取服务器状态失败'
-      }
-    }
+  async getMCPServerStatus(): Promise<MCPServerStatus> {
+    const response = await apiClient.get<MCPServerStatus>('/mcp/admin/server/status')
+    return response.data
   }
 
   /**
    * 获取MCP调用日志
    */
-  async getMCPCallLogs(groupId?: string, limit: number = 50): Promise<ApiResponse<any[]>> {
-    try {
-      const params = new URLSearchParams()
-      if (groupId) params.append('group_id', groupId)
-      params.append('limit', limit.toString())
-      
-      const url = `/mcp/admin/call-logs?${params.toString()}`
-      const response = await apiClient.get(url)
-      return (response.data as any) || { success: false, message: '获取调用日志失败' }
-    } catch (error: any) {
-      console.error('获取MCP调用日志失败:', error)
-      return {
-        success: false,
-        error: error.response?.data?.detail || error.message || '获取调用日志失败'
-      }
-    }
+  async getMCPCallLogs(groupId?: string, limit: number = 50): Promise<any[]> {
+    const params = new URLSearchParams()
+    if (groupId) params.append('group_id', groupId)
+    params.append('limit', limit.toString())
+    
+    const url = `/mcp/admin/call-logs?${params.toString()}`
+    const response = await apiClient.get<any[]>(url)
+    return response.data
   }
 
   // ========== Agent配置生成 ==========
@@ -288,17 +181,9 @@ class MCPConfigService {
   /**
    * 生成Agent MCP配置
    */
-  async generateAgentConfig(): Promise<ApiResponse<Record<string, any>>> {
-    try {
-      const response = await apiClient.get('/mcp/admin/agent-config')
-      return (response.data as any) || { success: false, message: '生成Agent配置失败' }
-    } catch (error: any) {
-      console.error('生成Agent配置失败:', error)
-      return {
-        success: false,
-        error: error.response?.data?.detail || error.message || '生成Agent配置失败'
-      }
-    }
+  async generateAgentConfig(): Promise<Record<string, any>> {
+    const response = await apiClient.get<Record<string, any>>('/mcp/admin/agent-config')
+    return response.data
   }
 }
 

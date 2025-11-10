@@ -98,13 +98,6 @@ export interface SSECallbacks {
   getAbortController?: (controller: AbortController) => void;
 }
 
-// API 响应包装
-export interface ApiResponse<T> {
-  success: boolean;
-  data: T;
-  message?: string;
-}
-
 // 用户输入表单字段
 export interface UserInputFormField {
   variable: string;              // 变量名

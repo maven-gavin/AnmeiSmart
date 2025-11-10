@@ -50,6 +50,24 @@ class RoleEntity:
         
         if self.displayName is None:
             self.displayName = self.name
+        
+        if self.isActive is None:
+            self.isActive = True
+        
+        if self.isSystem is None:
+            self.isSystem = False
+        
+        if self.isAdmin is None:
+            self.isAdmin = False
+        
+        if self.priority is None:
+            self.priority = 0
+        
+        if self.createdAt is None:
+            self.createdAt = datetime.utcnow()
+        
+        if self.updatedAt is None:
+            self.updatedAt = datetime.utcnow()
     
     @classmethod
     def create(

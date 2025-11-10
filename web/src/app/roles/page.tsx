@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -32,7 +33,11 @@ type RoleItem = {
   name: string;
   description?: string | null;
   displayName?: string | null;
+  isActive?: boolean;
   isSystem?: boolean;
+  isAdmin?: boolean;
+  priority?: number | null;
+  tenantId?: string | null;
 };
 
 const normalizeRole = (role: any): RoleItem => {
@@ -41,14 +46,22 @@ const normalizeRole = (role: any): RoleItem => {
     id,
     name: role?.name ?? '',
     description: role?.description ?? null,
-    displayName: role?.displayName ?? '',
-    isSystem: role?.isSystem ?? false,
+    displayName: role?.displayName ?? role?.display_name ?? role?.name ?? '',
+    isActive: role?.isActive ?? role?.is_active ?? true,
+    isSystem: role?.isSystem ?? role?.is_system ?? false,
+    isAdmin: role?.isAdmin ?? role?.is_admin ?? false,
+    priority: typeof role?.priority === 'number' ? role.priority : Number(role?.priority ?? 0),
+    tenantId: role?.tenantId ?? role?.tenant_id ?? null,
   };
 };
 
 const resolveErrorMessage = (error: unknown, fallback: string): string => {
   if (error && typeof error === 'object' && 'response' in error) {
     const response = (error as { response?: { data?: any } }).response;
+    const apiMessage = response?.data?.message;
+    if (typeof apiMessage === 'string') {
+      return apiMessage;
+    }
     const detail = response?.data?.detail;
     if (typeof detail === 'string') {
       return detail;
@@ -69,8 +82,9 @@ export default function RolesPage() {
   const [roles, setRoles] = useState<RoleItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [roleName, setRoleName] = useState('');
+  const [roleDisplayName, setRoleDisplayName] = useState('');
   const [roleDescription, setRoleDescription] = useState('');
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -84,13 +98,38 @@ export default function RolesPage() {
   const [searchDescription, setSearchDescription] = useState('');
   const [allRoles, setAllRoles] = useState<RoleItem[]>([]);
   const [editingRole, setEditingRole] = useState<RoleItem | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', description: '' });
+  const [editForm, setEditForm] = useState({ name: '', displayName: '', description: '' });
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RoleItem | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  const createNameRef = useRef(roleName);
+
+  useEffect(() => {
+    createNameRef.current = roleName;
+  }, [roleName]);
+
+  function resetCreateForm() {
+    setRoleName('');
+    setRoleDisplayName('');
+    setRoleDescription('');
+    setFormError(null);
+  }
+
+  const handleCreateNameChange = (value: string) => {
+    const previousName = createNameRef.current.trim();
+    setRoleName(value);
+    setRoleDisplayName((prev) => {
+      const trimmedPrev = prev.trim();
+      if (!trimmedPrev || trimmedPrev === previousName) {
+        return value;
+      }
+      return prev;
+    });
+  };
 
   // 检查用户是否有管理员权限
   useEffect(() => {
@@ -181,16 +220,17 @@ export default function RolesPage() {
     setFormError(null);
     
     try {
+      const nextDisplayName = roleDisplayName.trim();
       await permissionService.createRole({
         name: roleName.trim(),
+        displayName: nextDisplayName || undefined,
         description: roleDescription.trim() || undefined
       });
       toast.success('角色创建成功');
       
       // 重置表单并刷新列表
-      setRoleName('');
-      setRoleDescription('');
-      setShowCreateForm(false);
+      resetCreateForm();
+      setIsCreateDialogOpen(false);
       fetchRoles();
     } catch (err) {
       const message = resolveErrorMessage(err, '创建角色失败');
@@ -206,6 +246,7 @@ export default function RolesPage() {
     setEditingRole(role);
     setEditForm({
       name: role.name,
+      displayName: role.displayName ?? role.name,
       description: role.description ?? ''
     });
     setEditError(null);
@@ -223,15 +264,21 @@ export default function RolesPage() {
       setEditError('角色名称不能为空');
       return;
     }
+    const nextDisplayName = editForm.displayName.trim();
 
     setEditLoading(true);
     setEditError(null);
 
     try {
-      await permissionService.updateRole(editingRole.id, {
-        name: nextName,
-        description: editForm.description.trim() || undefined
-      });
+      const payload: { name?: string; displayName?: string; description?: string } = {};
+
+      if (!editingRole.isSystem) {
+        payload.name = nextName;
+      }
+      payload.displayName = nextDisplayName || undefined;
+      payload.description = editForm.description.trim() || undefined;
+
+      await permissionService.updateRole(editingRole.id, payload);
       toast.success('角色更新成功');
       setIsEditDialogOpen(false);
       setEditingRole(null);
@@ -314,10 +361,13 @@ export default function RolesPage() {
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-800">角色管理</h1>
           <Button
-            onClick={() => setShowCreateForm(!showCreateForm)}
+            onClick={() => {
+              setFormError(null);
+              setIsCreateDialogOpen(true);
+            }}
             className="bg-orange-500 hover:bg-orange-600"
           >
-            {showCreateForm ? '取消' : '创建角色'}
+            创建角色
           </Button>
         </div>
 
@@ -374,77 +424,6 @@ export default function RolesPage() {
         {error && (
           <div className="mb-4 rounded-md bg-red-50 p-4 text-red-500">
             {error}
-          </div>
-        )}
-
-        {showCreateForm && (
-          <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow">
-            <h2 className="mb-4 text-lg font-medium text-gray-800">创建新角色</h2>
-
-            {formError && (
-              <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-500">
-                {formError}
-              </div>
-            )}
-
-            <form onSubmit={handleCreateRole} className="space-y-4">
-              <div>
-                <label
-                  htmlFor="createRoleName"
-                  className="mb-2 block text-sm font-medium text-gray-700"
-                >
-                  角色名称 *
-                </label>
-                <input
-                  id="createRoleName"
-                  type="text"
-                  value={roleName}
-                  onChange={(e) => setRoleName(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-orange-500 focus:outline-none"
-                  disabled={formLoading}
-                  placeholder="例如: editor, manager"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="createRoleDescription"
-                  className="mb-2 block text-sm font-medium text-gray-700"
-                >
-                  角色描述
-                </label>
-                <textarea
-                  id="createRoleDescription"
-                  value={roleDescription}
-                  onChange={(e) => setRoleDescription(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-orange-500 focus:outline-none"
-                  disabled={formLoading}
-                  rows={3}
-                  placeholder="可选: 角色的详细描述"
-                />
-              </div>
-
-              <div className="flex justify-end space-x-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowCreateForm(false);
-                    setFormError(null);
-                  }}
-                  disabled={formLoading}
-                >
-                  取消
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={formLoading}
-                  className="bg-orange-500 hover:bg-orange-600"
-                >
-                  {formLoading ? '创建中...' : '创建角色'}
-                </Button>
-              </div>
-            </form>
           </div>
         )}
 
@@ -569,6 +548,88 @@ export default function RolesPage() {
       </div>
 
       <Dialog
+        open={isCreateDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (formLoading) {
+              return;
+            }
+            setIsCreateDialogOpen(false);
+            resetCreateForm();
+            return;
+          }
+          setIsCreateDialogOpen(true);
+        }}
+      >
+        <DialogContent className="sm:max-w-md bg-white">
+          <DialogHeader>
+            <DialogTitle>创建角色</DialogTitle>
+          </DialogHeader>
+          {formError && (
+            <div className="rounded-md bg-red-50 p-3 text-sm text-red-500">
+              {formError}
+            </div>
+          )}
+          <form onSubmit={handleCreateRole} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="createRoleName">角色名称 *</Label>
+              <Input
+                id="createRoleName"
+                value={roleName}
+                onChange={(e) => handleCreateNameChange(e.target.value)}
+                disabled={formLoading}
+                placeholder="例如: editor, manager"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="createRoleDisplayName">显示名称</Label>
+              <Input
+                id="createRoleDisplayName"
+                value={roleDisplayName}
+                onChange={(e) => setRoleDisplayName(e.target.value)}
+                disabled={formLoading}
+                placeholder="用于界面展示的名称，默认与角色名称一致"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="createRoleDescription">角色描述</Label>
+              <Textarea
+                id="createRoleDescription"
+                value={roleDescription}
+                onChange={(e) => setRoleDescription(e.target.value)}
+                disabled={formLoading}
+                rows={3}
+                autoResize
+                placeholder="可选: 角色的详细描述"
+              />
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  if (formLoading) {
+                    return;
+                  }
+                  setIsCreateDialogOpen(false);
+                  resetCreateForm();
+                }}
+                disabled={formLoading}
+              >
+                取消
+              </Button>
+              <Button type="submit" disabled={formLoading} className="bg-orange-500 hover:bg-orange-600">
+                {formLoading ? '创建中...' : '创建角色'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
         open={isEditDialogOpen}
         onOpenChange={(open) => {
           if (!open) {
@@ -589,7 +650,7 @@ export default function RolesPage() {
           setIsEditDialogOpen(true);
         }}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-md bg-white">
           <DialogHeader>
             <DialogTitle>编辑角色</DialogTitle>
           </DialogHeader>
@@ -613,12 +674,21 @@ export default function RolesPage() {
               )}
             </div>
             <div>
+              <Label htmlFor="editRoleDisplayName">显示名称</Label>
+              <Input
+                id="editRoleDisplayName"
+                value={editForm.displayName}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, displayName: e.target.value }))}
+                disabled={editLoading}
+                placeholder="用于界面展示的名称"
+              />
+            </div>
+            <div>
               <Label htmlFor="editRoleDescription">角色描述</Label>
-              <textarea
+              <Textarea
                 id="editRoleDescription"
                 value={editForm.description}
                 onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-orange-500 focus:outline-none"
                 rows={3}
                 disabled={editLoading}
                 placeholder="可选: 角色的详细描述"
