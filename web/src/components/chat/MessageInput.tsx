@@ -12,7 +12,7 @@ import { useMediaUpload } from '@/hooks/useMediaUpload';
 import { type Message, type FileInfo, type MediaMessageContent, type TextMessageContent } from '@/types/chat';
 import { v4 as uuidv4 } from 'uuid';
 import { authService } from "@/service/authService";
-import { AppError, ErrorType } from '@/service/errors';
+import { ApiClientError, ErrorType } from '@/service/apiClient';
 import FileSelector from './FileSelector';
 import { MessageUtils } from '@/utils/messageUtils';
 import { apiClient } from '@/service/apiClient';
@@ -143,7 +143,10 @@ export default function MessageInput({
     try {
       const currentUser = authService.getCurrentUser();
       if (!currentUser) {
-        throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
+        throw new ApiClientError('用户未登录', {
+          status: 401,
+          type: ErrorType.AUTHENTICATION,
+        })
       }
       
       const userRole = currentUser.currentRole || 'customer';

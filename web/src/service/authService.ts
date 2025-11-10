@@ -5,7 +5,7 @@
 
 import { AuthUser, LoginCredentials, UserRole, UserPermissionSummary } from '@/types/auth';
 import { tokenManager } from './tokenManager';
-import { AppError, ErrorType, errorHandler } from './errors';
+import { ApiClientError, ErrorType, handleApiError } from './apiClient';
 import { apiClient } from './apiClient';
 import { API_BASE_URL, AUTH_CONFIG } from '@/config';
 // 移除未使用的导入
@@ -80,7 +80,11 @@ class AuthService {
       });
 
       if (!response.ok) {
-        throw await errorHandler.fromResponse(response);
+        const errorData = await response.json().catch(() => ({}))
+        throw new ApiClientError(
+          errorData.detail || errorData.message || '登录失败',
+          { status: response.status, type: ErrorType.AUTHENTICATION }
+        )
       }
 
       const tokenData = await response.json();
@@ -88,11 +92,17 @@ class AuthService {
       const refreshToken = tokenData.refresh_token;
 
       if (!accessToken) {
-        throw new AppError(ErrorType.AUTHENTICATION, 500, '服务器未返回访问令牌');
+        throw new ApiClientError('服务器未返回访问令牌', {
+          status: 500,
+          type: ErrorType.AUTHENTICATION,
+        })
       }
 
       if (!refreshToken) {
-        throw new AppError(ErrorType.AUTHENTICATION, 500, '服务器未返回刷新令牌');
+        throw new ApiClientError('服务器未返回刷新令牌', {
+          status: 500,
+          type: ErrorType.AUTHENTICATION,
+        })
       }
 
       // 存储令牌对（访问令牌和刷新令牌）
@@ -121,18 +131,15 @@ class AuthService {
 
       return { user: authUser, token: accessToken };
     } catch (error) {
-      console.error('登录失败:', error);
-      
-      if (error instanceof AppError) {
+      if (error instanceof ApiClientError) {
         throw error;
       }
       
-      throw new AppError(
-        ErrorType.AUTHENTICATION,
-        500,
-        '登录失败，请稍后重试',
-        error instanceof Error ? error.message : String(error)
-      );
+      throw new ApiClientError('登录失败，请稍后重试', {
+        status: 500,
+        type: ErrorType.AUTHENTICATION,
+        responseData: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 
@@ -167,7 +174,10 @@ class AuthService {
       });
 
       if (!response.data) {
-        throw new AppError(ErrorType.AUTHENTICATION, 500, '注册失败，服务器无响应');
+        throw new ApiClientError('注册失败，服务器无响应', {
+          status: 500,
+          type: ErrorType.AUTHENTICATION,
+        })
       }
 
       // 注册成功后自动登录
@@ -178,18 +188,15 @@ class AuthService {
 
       return loginResult;
     } catch (error) {
-      console.error('注册失败:', error);
-      
-      if (error instanceof AppError) {
+      if (error instanceof ApiClientError) {
         throw error;
       }
       
-      throw new AppError(
-        ErrorType.AUTHENTICATION,
-        500,
-        '注册失败，请稍后重试',
-        error instanceof Error ? error.message : String(error)
-      );
+      throw new ApiClientError('注册失败，请稍后重试', {
+        status: 500,
+        type: ErrorType.AUTHENTICATION,
+        responseData: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 
@@ -223,11 +230,17 @@ class AuthService {
     const currentUser = this.getCurrentUser();
     
     if (!currentUser) {
-      throw new AppError(ErrorType.AUTHENTICATION, 401, '用户未登录');
+      throw new ApiClientError('用户未登录', {
+        status: 401,
+        type: ErrorType.AUTHENTICATION,
+      })
     }
     
     if (!currentUser.roles.includes(role)) {
-      throw new AppError(ErrorType.AUTHORIZATION, 403, '用户没有该角色权限');
+      throw new ApiClientError('用户没有该角色权限', {
+        status: 403,
+        type: ErrorType.AUTHORIZATION,
+      })
     }
     
     try {
@@ -239,7 +252,10 @@ class AuthService {
       });
       
       if (!response.data) {
-        throw new AppError(ErrorType.AUTHORIZATION, 500, '角色切换失败，服务器无响应');
+        throw new ApiClientError('角色切换失败，服务器无响应', {
+          status: 500,
+          type: ErrorType.AUTHORIZATION,
+        })
       }
       
       // 更新令牌对
@@ -264,20 +280,17 @@ class AuthService {
         } catch {
           errorMessage = `HTTP ${error.status}: ${error.statusText}`;
         }
-      } else if (error instanceof AppError) {
+      } else if (error instanceof ApiClientError) {
         throw error;
       } else if (error instanceof Error) {
         errorMessage = error.message;
       }
       
-      console.error('角色切换失败:', errorMessage);
-      
-      throw new AppError(
-        ErrorType.AUTHORIZATION,
-        500,
-        errorMessage,
-        error instanceof Error ? error.message : String(error)
-      );
+      throw new ApiClientError(errorMessage, {
+        status: 500,
+        type: ErrorType.AUTHORIZATION,
+        responseData: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 
@@ -317,7 +330,12 @@ class AuthService {
    */
   handleUnauthorized(): void {
     this.logout();
-    errorHandler.redirectToLogin('会话已过期，请重新登录');
+    if (typeof window !== 'undefined') {
+      const currentPath = window.location.pathname;
+      const returnUrl = encodeURIComponent(currentPath);
+      const errorMsg = encodeURIComponent('会话已过期，请重新登录');
+      window.location.href = `/login?returnUrl=${returnUrl}&error=${errorMsg}`;
+    }
   }
 
   /**

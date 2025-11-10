@@ -4,7 +4,7 @@
  */
 
 import { jwtUtils } from './jwt';
-import { AppError, ErrorType } from './errors';
+import { ApiClientError, ErrorType } from './apiClient';
 import { API_BASE_URL, AUTH_CONFIG, SMARTBRAIN_API_BASE_URL } from '@/config';
 
 // 检查是否在浏览器环境
@@ -150,7 +150,10 @@ export class TokenManager {
 
     const refreshToken = this.getRefreshToken();
     if (!refreshToken) {
-      throw new AppError(ErrorType.AUTHENTICATION, 401, '没有可用的刷新令牌');
+      throw new ApiClientError('没有可用的刷新令牌', {
+        status: 401,
+        type: ErrorType.AUTHENTICATION,
+      })
     }
 
     // 创建刷新请求
@@ -207,7 +210,10 @@ export class TokenManager {
         const newRefreshToken = data.refresh_token;
 
         if (!newAccessToken || !jwtUtils.isValidFormat(newAccessToken)) {
-          throw new AppError(ErrorType.AUTHENTICATION, 500, '服务器返回无效访问令牌');
+          throw new ApiClientError('服务器返回无效访问令牌', {
+            status: 500,
+            type: ErrorType.AUTHENTICATION,
+          })
         }
 
         // 更新两个令牌
@@ -224,14 +230,14 @@ export class TokenManager {
 
         // 如果是最后一次尝试，抛出错误
         if (attempt === maxRetries) {
-          if (error instanceof AppError) {
+          if (error instanceof ApiClientError) {
             throw error;
           }
-          throw new AppError(
-            ErrorType.AUTHENTICATION,
-            500,
-            `令牌刷新失败: ${error instanceof Error ? error.message : String(error)}`
-          );
+          throw new ApiClientError('令牌刷新失败', {
+            status: 500,
+            type: ErrorType.AUTHENTICATION,
+            responseData: error instanceof Error ? error.message : String(error),
+          })
         }
 
         // 等待后重试
@@ -239,7 +245,10 @@ export class TokenManager {
       }
     }
 
-    throw new AppError(ErrorType.AUTHENTICATION, 500, '令牌刷新失败');
+    throw new ApiClientError('令牌刷新失败', {
+      status: 500,
+      type: ErrorType.AUTHENTICATION,
+    })
   }
 
   /**

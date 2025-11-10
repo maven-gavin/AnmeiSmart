@@ -4,7 +4,7 @@
  */
 
 import { apiClient } from './apiClient';
-import { AppError, ErrorType } from './errors';
+import { ApiClientError, ErrorType } from './apiClient';
 
 // 类型定义
 export interface UserPreferences {
@@ -85,7 +85,10 @@ class ProfileService {
       const response = await apiClient.get<UserProfile>(`${ProfileService.BASE_PATH}/me`);
       
       if (!response.data) {
-        throw new AppError(ErrorType.NETWORK, 500, '获取个人信息失败');
+        throw new ApiClientError('获取个人信息失败', {
+          status: 500,
+          type: ErrorType.NETWORK,
+        })
       }
       
       return response.data;
@@ -103,7 +106,10 @@ class ProfileService {
       const response = await apiClient.get<UserPreferences>(`${ProfileService.BASE_PATH}/preferences`);
       
       if (!response.data) {
-        throw new AppError(ErrorType.NETWORK, 500, '获取偏好设置失败');
+        throw new ApiClientError('获取偏好设置失败', {
+          status: 500,
+          type: ErrorType.NETWORK,
+        })
       }
       
       return response.data;
@@ -124,7 +130,10 @@ class ProfileService {
       );
       
       if (!response.data) {
-        throw new AppError(ErrorType.NETWORK, 500, '更新偏好设置失败');
+        throw new ApiClientError('更新偏好设置失败', {
+          status: 500,
+          type: ErrorType.NETWORK,
+        })
       }
       
       return response.data;
@@ -142,7 +151,7 @@ class ProfileService {
       const response = await apiClient.get<UserDefaultRole>(`${ProfileService.BASE_PATH}/default-role`);
       return response.data || null;
     } catch (error) {
-      if (error instanceof AppError && error.status === 404) {
+      if (error instanceof ApiClientError && error.status === 404) {
         return null; // 用户还没有设置默认角色
       }
       console.error('获取默认角色失败:', error);
@@ -161,7 +170,10 @@ class ProfileService {
       );
       
       if (!response.data) {
-        throw new AppError(ErrorType.NETWORK, 500, '设置默认角色失败');
+        throw new ApiClientError('设置默认角色失败', {
+          status: 500,
+          type: ErrorType.NETWORK,
+        })
       }
       
       return response.data;
@@ -198,7 +210,10 @@ class ProfileService {
       );
       
       if (!response.data) {
-        throw new AppError(ErrorType.NETWORK, 500, '创建登录记录失败');
+        throw new ApiClientError('创建登录记录失败', {
+          status: 500,
+          type: ErrorType.NETWORK,
+        })
       }
       
       return response.data;
@@ -232,7 +247,10 @@ class ProfileService {
       const response = await apiClient.get<BasicUserInfo>('/auth/me');
       
       if (!response.data) {
-        throw new AppError(ErrorType.NETWORK, 500, '获取用户基本信息失败');
+        throw new ApiClientError('获取用户基本信息失败', {
+          status: 500,
+          type: ErrorType.NETWORK,
+        })
       }
       
       return response.data;
@@ -250,7 +268,10 @@ class ProfileService {
       const response = await apiClient.put<BasicUserInfo>('/users/me', userInfo);
       
       if (!response.data) {
-        throw new AppError(ErrorType.NETWORK, 500, '更新用户基本信息失败');
+        throw new ApiClientError('更新用户基本信息失败', {
+          status: 500,
+          type: ErrorType.NETWORK,
+        })
       }
       
       return response.data;
@@ -271,7 +292,10 @@ class ProfileService {
       );
       
       if (!response.data) {
-        throw new AppError(ErrorType.NETWORK, 500, '修改密码失败');
+        throw new ApiClientError('修改密码失败', {
+          status: 500,
+          type: ErrorType.NETWORK,
+        })
       }
       
       return response.data;
@@ -284,16 +308,23 @@ class ProfileService {
   /**
    * 错误处理辅助方法
    */
-  private handleError(error: unknown, defaultMessage: string): AppError {
-    if (error instanceof AppError) {
+  private handleError(error: unknown, defaultMessage: string): ApiClientError {
+    if (error instanceof ApiClientError) {
       return error;
     }
     
     if (error instanceof Error) {
-      return new AppError(ErrorType.NETWORK, 500, defaultMessage, error.message);
+      return new ApiClientError(defaultMessage, {
+        status: 500,
+        type: ErrorType.NETWORK,
+        responseData: error.message,
+      })
     }
     
-    return new AppError(ErrorType.UNKNOWN, 500, defaultMessage);
+    return new ApiClientError(defaultMessage, {
+      status: 500,
+      type: ErrorType.UNKNOWN,
+    })
   }
 }
 

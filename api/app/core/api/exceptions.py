@@ -35,7 +35,7 @@ class BusinessException(AppException):
         message: str,
         *,
         code: int = ErrorCode.BUSINESS_ERROR,
-        status_code: int = status.HTTP_400_BAD_REQUEST,
+        status_code: int = status.HTTP_200_OK,
         details: Optional[Dict[str, Any]] = None,
     ) -> None:
         super().__init__(

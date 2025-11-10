@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -25,6 +26,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { permissionService } from '@/service/permissionService';
+import { handleApiError } from '@/service/apiClient';
 import toast from 'react-hot-toast';
 import AppLayout from '@/components/layout/AppLayout';
 
@@ -53,27 +55,6 @@ const normalizeRole = (role: any): RoleItem => {
     priority: typeof role?.priority === 'number' ? role.priority : Number(role?.priority ?? 0),
     tenantId: role?.tenantId ?? role?.tenant_id ?? null,
   };
-};
-
-const resolveErrorMessage = (error: unknown, fallback: string): string => {
-  if (error && typeof error === 'object' && 'response' in error) {
-    const response = (error as { response?: { data?: any } }).response;
-    const apiMessage = response?.data?.message;
-    if (typeof apiMessage === 'string') {
-      return apiMessage;
-    }
-    const detail = response?.data?.detail;
-    if (typeof detail === 'string') {
-      return detail;
-    }
-    if (typeof response?.data === 'string') {
-      return response.data;
-    }
-  }
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return fallback;
 };
 
 export default function RolesPage() {
@@ -148,10 +129,9 @@ export default function RolesPage() {
       setAllRoles(normalized);
       setRoles(normalized);
     } catch (err) {
-      const message = resolveErrorMessage(err, '获取角色列表失败');
+      // 使用统一的错误处理函数
+      const message = handleApiError(err, '获取角色列表失败');
       setError(message);
-      toast.error(message);
-      console.error('获取角色列表错误', err);
     } finally {
       setLoading(false);
     }
@@ -233,10 +213,11 @@ export default function RolesPage() {
       setIsCreateDialogOpen(false);
       fetchRoles();
     } catch (err) {
-      const message = resolveErrorMessage(err, '创建角色失败');
+      // 使用统一的错误处理函数
+      // 业务错误已经在 apiClient 中显示了 toast，这里只设置表单错误
+      // 系统错误会显示 toast 并打印控制台日志
+      const message = handleApiError(err, '创建角色失败');
       setFormError(message);
-      toast.error(message);
-      console.error('创建角色错误', err);
     } finally {
       setFormLoading(false);
     }
@@ -284,9 +265,9 @@ export default function RolesPage() {
       setEditingRole(null);
       fetchRoles();
     } catch (err) {
-      const message = resolveErrorMessage(err, '更新角色失败');
+      // 使用统一的错误处理函数
+      const message = handleApiError(err, '更新角色失败');
       setEditError(message);
-      toast.error(message);
     } finally {
       setEditLoading(false);
     }
@@ -310,8 +291,9 @@ export default function RolesPage() {
       setDeleteTarget(null);
       fetchRoles();
     } catch (err) {
-      const message = resolveErrorMessage(err, '删除角色失败');
-      toast.error(message);
+      // 使用统一的错误处理函数
+      const message = handleApiError(err, '删除角色失败');
+      // 删除操作不需要设置表单错误，只显示 toast（已在 handleApiError 中处理）
     } finally {
       setDeleteLoading(false);
     }
@@ -564,6 +546,9 @@ export default function RolesPage() {
         <DialogContent className="sm:max-w-md bg-white">
           <DialogHeader>
             <DialogTitle>创建角色</DialogTitle>
+            <DialogDescription>
+              创建一个新的角色，设置角色名称、显示名称和描述信息
+            </DialogDescription>
           </DialogHeader>
           {formError && (
             <div className="rounded-md bg-red-50 p-3 text-sm text-red-500">
@@ -653,6 +638,9 @@ export default function RolesPage() {
         <DialogContent className="sm:max-w-md bg-white">
           <DialogHeader>
             <DialogTitle>编辑角色</DialogTitle>
+            <DialogDescription>
+              修改角色的显示名称和描述信息
+            </DialogDescription>
           </DialogHeader>
           {editError && (
             <div className="rounded-md bg-red-50 p-3 text-sm text-red-500">

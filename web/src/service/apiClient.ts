@@ -616,6 +616,7 @@ export const request = async <T>(url: string, options: unknown = {}, otherOption
       return resp
     }
 
+    // 处理 401 认证错误
     const errResp: Response = err as any
     if (errResp.status === 401) {
       const {
@@ -634,8 +635,13 @@ export const request = async <T>(url: string, options: unknown = {}, otherOption
       }
     }
 
+    // 其他错误由 fetch.ts 中的 hook 处理（afterResponseErrorCode 和 beforeErrorToast）
     return Promise.reject(err)
   } catch (error) {
+    // 如果是 ApiClientError，直接抛出（已经显示过 toast）
+    if (error instanceof ApiClientError) {
+      throw error
+    }
     console.error(error)
     return Promise.reject(error)
   }
@@ -769,50 +775,308 @@ const normalizeBodyOptions = (options: unknown): FetchOptionType => {
 // =============== 响应处理 ===============
 
 /**
+ * 错误类型枚举（兼容旧的 ErrorType）
+ */
+export enum ErrorType {
+  AUTHENTICATION = 'AUTHENTICATION',
+  AUTHORIZATION = 'AUTHORIZATION',
+  NETWORK = 'NETWORK',
+  VALIDATION = 'VALIDATION',
+  SERVER = 'SERVER',
+  UNKNOWN = 'UNKNOWN',
+}
+
+/**
  * API客户端错误
+ * 统一的错误类，兼容旧的 AppError 功能
  */
 export class ApiClientError extends Error {
   code?: number
   status?: number
   responseData?: unknown
+  type?: ErrorType
+  timestamp: string
 
-  constructor(message: string, options?: { code?: number; status?: number; responseData?: unknown }) {
+  constructor(
+    message: string,
+    options?: {
+      code?: number
+      status?: number
+      responseData?: unknown
+      type?: ErrorType
+    }
+  ) {
     super(message)
     this.name = 'ApiClientError'
     this.code = options?.code
     this.status = options?.status
     this.responseData = options?.responseData
+    this.timestamp = new Date().toISOString()
+    // 延迟推断类型，避免在构造函数中调用实例方法
+    this.type = options?.type ?? this.inferErrorType()
+  }
+
+  /**
+   * 根据错误码和状态码推断错误类型
+   */
+  private inferErrorType(): ErrorType {
+    if (this.status === 401) {
+      return ErrorType.AUTHENTICATION
+    }
+    if (this.status === 403) {
+      return ErrorType.AUTHORIZATION
+    }
+    if (this.status === 422) {
+      return ErrorType.VALIDATION
+    }
+    if (this.status !== undefined && this.status >= 500) {
+      return ErrorType.SERVER
+    }
+    if (this.code !== undefined) {
+      if (this.code >= 50000) {
+        return ErrorType.SERVER
+      }
+      if (this.code >= 40000 && this.code < 50000) {
+        // 业务错误根据具体错误码判断类型
+        if (this.code === 40000) {
+          return ErrorType.VALIDATION
+        }
+        if (this.code === 40003) {
+          return ErrorType.AUTHORIZATION
+        }
+      }
+    }
+    return ErrorType.UNKNOWN
+  }
+
+  /**
+   * 判断是否是业务错误（40000-49999）
+   * 业务错误是预期的错误，比如验证失败、权限不足、资源不存在等
+   */
+  isBusinessError(): boolean {
+    if (this.code === undefined) return false
+    // 业务错误码范围：40000-49999
+    return this.code >= 40000 && this.code < 50000
+  }
+
+  /**
+   * 判断是否是系统错误（50000+）
+   * 系统错误是意外的错误，比如服务器内部错误、网络错误等
+   */
+  isSystemError(): boolean {
+    if (this.code === undefined) {
+      // 如果没有错误码，根据 HTTP 状态码判断
+      return this.status !== undefined && this.status >= 500
+    }
+    // 系统错误码范围：50000+
+    return this.code >= 50000
+  }
+
+  /**
+   * 转换为旧的 ApiError 格式（向后兼容）
+   */
+  toApiError(): {
+    type: ErrorType
+    status: number
+    message: string
+    detail?: string
+    timestamp: string
+  } {
+    return {
+      type: this.type ?? ErrorType.UNKNOWN,
+      status: this.status ?? 0,
+      message: this.message,
+      detail: typeof this.responseData === 'string' ? this.responseData : JSON.stringify(this.responseData),
+      timestamp: this.timestamp,
+    }
   }
 }
 
 /**
+ * 错误上报上下文
+ */
+export interface ErrorReportContext {
+  /** 用户 ID */
+  userId?: string
+  /** 请求路径 */
+  path?: string
+  /** 请求方法 */
+  method?: string
+  /** 页面 URL */
+  url?: string
+}
+
+/**
+ * 错误处理选项
+ */
+export interface HandleApiErrorOptions {
+  /**
+   * 是否在控制台打印错误（默认：仅系统错误打印）
+   */
+  logError?: boolean
+  /**
+   * 是否显示 toast 提示（默认：业务错误不显示，系统错误显示）
+   * 注意：业务错误的 toast 已经在 extractResponseData 中显示过了
+   */
+  showToast?: boolean
+  /**
+   * 是否上报错误（默认：仅系统错误上报）
+   */
+  reportError?: boolean
+  /**
+   * 错误上报上下文
+   */
+  reportContext?: ErrorReportContext
+  /**
+   * 自定义错误消息提取函数
+   */
+  getMessage?: (error: unknown) => string
+}
+
+/**
+ * 统一处理 API 错误
+ * 
+ * @param error 错误对象
+ * @param fallbackMessage 默认错误消息
+ * @param options 处理选项
+ * @returns 错误消息字符串
+ * 
+ * @example
+ * ```typescript
+ * try {
+ *   await apiClient.post('/roles', data)
+ *   toast.success('创建成功')
+ * } catch (err) {
+ *   const message = handleApiError(err, '创建失败')
+ *   setFormError(message)
+ * }
+ * ```
+ */
+export function handleApiError(
+  error: unknown,
+  fallbackMessage: string = '操作失败',
+  options: HandleApiErrorOptions = {}
+): string {
+  const { logError, showToast, getMessage } = options
+
+  // 提取错误消息
+  let errorMessage = fallbackMessage
+  if (getMessage) {
+    errorMessage = getMessage(error)
+  } else if (error instanceof ApiClientError) {
+    errorMessage = error.message
+  } else if (error instanceof Error) {
+    errorMessage = error.message
+  }
+
+  // 处理 ApiClientError
+  if (error instanceof ApiClientError) {
+    const isBusiness = error.isBusinessError()
+    const isSystem = error.isSystemError()
+
+    // 业务错误：已经在 extractResponseData 中显示了 toast，这里不再显示
+    // 也不打印控制台错误（因为这是预期的错误）
+    if (isBusiness) {
+      // 业务错误不打印控制台日志（除非明确指定）
+      if (logError === true) {
+        console.error('业务错误:', errorMessage, error)
+      }
+      // 业务错误不重复显示 toast（除非明确指定）
+      if (showToast === true) {
+        toast.error(errorMessage)
+      }
+      return errorMessage
+    }
+
+    // 系统错误：需要打印控制台日志（方便调试），可以显示 toast，需要上报
+    if (isSystem) {
+      // 系统错误默认打印控制台日志（除非明确指定不打印）
+      if (logError !== false) {
+        console.error('系统错误:', errorMessage, error)
+      }
+      // 系统错误默认显示 toast（除非明确指定不显示）
+      if (showToast !== false) {
+        toast.error(errorMessage)
+      }
+      // 上报系统错误（异步，不阻塞）
+      if (options.reportError !== false) {
+        import('./errorReporter').then(({ reportError }) => {
+          reportError(error, options.reportContext)
+        })
+      }
+      return errorMessage
+    }
+  }
+
+  // 其他错误（网络错误、未知错误等）：按系统错误处理
+  if (logError !== false) {
+    console.error('请求错误:', errorMessage, error)
+  }
+  if (showToast !== false) {
+    toast.error(errorMessage)
+  }
+  // 上报未知错误
+  if (options.reportError !== false) {
+    import('./errorReporter').then(({ reportError }) => {
+      reportError(error, options.reportContext)
+    })
+  }
+
+  return errorMessage
+}
+
+/**
  * API响应信封格式
+ * 
+ * 后端统一返回格式，错误响应可能没有 data 字段
  */
 type ApiEnvelope<T> = {
   code: number
   message: string
-  data: T
+  data?: T  // data 字段是可选的，错误响应可能没有
   timestamp?: string
 }
 
 /**
  * 检查是否为API响应信封格式
+ * 
+ * 后端统一返回格式：{code: number, message: string, data?: T, timestamp?: string}
+ * 错误响应可能没有 data 字段，所以只检查 code 和 message
  */
 const isApiEnvelope = <T>(payload: unknown): payload is ApiEnvelope<T> => {
   if (!payload || typeof payload !== 'object') return false
   const maybe = payload as Record<string, unknown>
-  return typeof maybe.code === 'number' && typeof maybe.message === 'string' && 'data' in maybe
+  // 只要包含 code 和 message 字段，就认为是 ApiEnvelope 格式
+  // data 字段是可选的（错误响应可能没有 data）
+  return typeof maybe.code === 'number' && typeof maybe.message === 'string'
 }
 
 /**
  * 从响应中提取业务数据
+ * 
+ * 处理统一的 ApiEnvelope 格式响应：
+ * - code === 0: 成功，返回 data
+ * - code !== 0: 业务错误，显示提示并抛出异常
  */
-const extractResponseData = <T>(payload: unknown): T => {
+const extractResponseData = <T>(payload: unknown, silent?: boolean): T => {
   if (isApiEnvelope<T>(payload)) {
     if (payload.code === 0) {
       return payload.data as T
     }
-    throw new ApiClientError(payload.message || '请求失败', {
+    // 业务错误：HTTP 200 但 code !== 0
+    // 根据错误码定义：
+    // - 40000: VALIDATION_ERROR (验证错误)
+    // - 40001: BUSINESS_ERROR (业务错误)
+    // - 40003: PERMISSION_DENIED (权限拒绝)
+    // - 40400: NOT_FOUND (未找到)
+    // - 50000: SYSTEM_ERROR (系统错误)
+    // - 50001: NETWORK_ERROR (网络错误)
+    const errorMessage = payload.message || '请求失败'
+    // 如果不是 silent 模式，自动显示错误提示
+    if (!silent) {
+      toast.error(errorMessage)
+    }
+    throw new ApiClientError(errorMessage, {
       code: payload.code,
       responseData: payload.data,
     })
@@ -823,8 +1087,8 @@ const extractResponseData = <T>(payload: unknown): T => {
 /**
  * 包装响应数据
  */
-const wrapResponse = <T>(raw: unknown): { data: T; ok: boolean; status: number } => ({
-  data: extractResponseData<T>(raw),
+const wrapResponse = <T>(raw: unknown, silent?: boolean): { data: T; ok: boolean; status: number } => ({
+  data: extractResponseData<T>(raw, silent),
   ok: true,
   status: 200,
 })
@@ -836,8 +1100,17 @@ function createApiMethod(
   method: <U>(url: string, options?: unknown, otherOptions?: IOtherOptions) => Promise<U>
 ) {
   return async <U>(url: string, options: unknown = {}, otherOptions?: IOtherOptions) => {
-    const result = await method<U>(url, options, otherOptions)
-    return wrapResponse<U>(result)
+    try {
+      const result = await method<U>(url, options, otherOptions)
+      return wrapResponse<U>(result, otherOptions?.silent)
+    } catch (error) {
+      // 如果是 ApiClientError，已经显示过 toast，直接重新抛出
+      if (error instanceof ApiClientError) {
+        throw error
+      }
+      // 其他错误继续抛出
+      throw error
+    }
   }
 }
 
@@ -855,12 +1128,21 @@ export const apiClient = {
   delete: createApiMethod(del),
   del: createApiMethod(del),
   upload: async <T>(url: string, data: FormData, otherOptions?: IOtherOptions): Promise<{ data: T }> => {
-    const options: UploadOptions = {
-      data,
-      xhr: new XMLHttpRequest(),
+    try {
+      const options: UploadOptions = {
+        data,
+        xhr: new XMLHttpRequest(),
+      }
+      const result = await upload(options, otherOptions?.isSmartBrainAPI, url)
+      return wrapResponse<T>(result, otherOptions?.silent)
+    } catch (error) {
+      // 如果是 ApiClientError，已经显示过 toast，直接重新抛出
+      if (error instanceof ApiClientError) {
+        throw error
+      }
+      // 其他错误继续抛出
+      throw error
     }
-    const result = await upload(options, otherOptions?.isSmartBrainAPI, url)
-    return { data: result as T }
   },
   ssePost,
   getSmartBrain: createApiMethod(getSmartBrain),

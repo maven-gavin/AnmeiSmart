@@ -5,7 +5,7 @@
  */
 
 import { authService } from "./authService";
-import { AppError, ErrorType } from './errors';
+import { ApiClientError, ErrorType } from './apiClient';
 
 // 导入重构后的模块
 import {
@@ -27,11 +27,17 @@ export async function saveMessage(message: Message): Promise<Message> {
   try {
     // 验证必要字段
     if (!message.conversationId) {
-      throw new AppError(ErrorType.VALIDATION, 400, '消息缺少会话ID');
+      throw new ApiClientError('消息缺少会话ID', {
+        status: 400,
+        type: ErrorType.VALIDATION,
+      })
     }
 
     if (!message.content) {
-      throw new AppError(ErrorType.VALIDATION, 400, '消息内容不能为空');
+      throw new ApiClientError('消息内容不能为空', {
+        status: 400,
+        type: ErrorType.VALIDATION,
+      })
     }
 
     // 调用API保存消息
@@ -47,13 +53,16 @@ export async function saveMessage(message: Message): Promise<Message> {
     console.error('保存消息失败:', error);
     
     // 如果是认证错误，抛出
-    if (error instanceof AppError && error.type === ErrorType.AUTHENTICATION) {
+    if (error instanceof ApiClientError && error.type === ErrorType.AUTHENTICATION) {
       throw error;
     }
     
     // 其他错误包装后抛出
     const errorMessage = error instanceof Error ? error.message : '保存消息失败';
-    throw new AppError(ErrorType.NETWORK, 500, errorMessage);
+    throw new ApiClientError(errorMessage, {
+      status: 500,
+      type: ErrorType.NETWORK,
+    })
   }
 }
 
@@ -114,7 +123,7 @@ export async function getConversationMessages(conversationId: string, forceRefre
     console.error('获取会话消息出错:', error);
     
     // 如果是认证错误，抛出异常
-    if (error instanceof AppError && error.type === ErrorType.AUTHENTICATION) {
+    if (error instanceof ApiClientError && error.type === ErrorType.AUTHENTICATION) {
       throw error;
     }
     
@@ -157,7 +166,7 @@ export async function getConversations(): Promise<Conversation[]> {
     console.error('获取会话列表出错:', error);
     
     // 如果是认证错误，抛出异常
-    if (error instanceof AppError && error.type === ErrorType.AUTHENTICATION) {
+    if (error instanceof ApiClientError && error.type === ErrorType.AUTHENTICATION) {
       throw error;
     }
     
@@ -351,7 +360,10 @@ export async function createConversation(customerId?: string): Promise<Conversat
   try {
     const userId = customerId || authService.getCurrentUserId();
     if (!userId) {
-      throw new AppError(ErrorType.AUTHENTICATION, 401, "用户ID不存在");
+      throw new ApiClientError("用户ID不存在", {
+        status: 401,
+        type: ErrorType.AUTHENTICATION,
+      })
     }
     
     const newConversation = await ChatApiService.createConversation(userId);
@@ -436,7 +448,10 @@ export async function getOrCreateConversation(): Promise<Conversation> {
       }
     }
     
-    throw lastError || new AppError(ErrorType.UNKNOWN, 500, "创建会话失败，请稍后再试");
+    throw lastError || new ApiClientError("创建会话失败，请稍后再试", {
+      status: 500,
+      type: ErrorType.UNKNOWN,
+    })
   } catch (error) {
     console.error("获取或创建会话失败:", error);
     throw error;

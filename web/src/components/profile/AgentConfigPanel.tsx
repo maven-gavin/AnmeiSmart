@@ -16,6 +16,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -251,6 +252,9 @@ export default function AgentConfigPanel({
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>添加智能体</DialogTitle>
+              <DialogDescription>
+                选择一个智能体并设置优先级，添加到当前配置中
+              </DialogDescription>
             </DialogHeader>
             
             <div className="space-y-4">

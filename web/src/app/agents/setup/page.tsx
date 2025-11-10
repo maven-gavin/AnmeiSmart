@@ -13,9 +13,10 @@ import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -547,6 +548,9 @@ export default function AgentsPage() {
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>创建Agent配置</DialogTitle>
+              <DialogDescription>
+                创建一个新的Agent配置，设置环境、API密钥和其他参数
+              </DialogDescription>
             </DialogHeader>
             
             {formError && (
@@ -731,6 +735,9 @@ export default function AgentsPage() {
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>编辑Agent配置</DialogTitle>
+              <DialogDescription>
+                修改Agent配置的参数和设置
+              </DialogDescription>
             </DialogHeader>
             
             {formError && (
@@ -916,6 +923,9 @@ export default function AgentsPage() {
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>配置详情</DialogTitle>
+              <DialogDescription>
+                查看Agent配置的详细信息
+              </DialogDescription>
             </DialogHeader>
             
             {viewingConfig && (

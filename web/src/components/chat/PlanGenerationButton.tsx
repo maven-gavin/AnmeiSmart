@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles, RefreshCw, Zap, Brain } from 'lucide-react';
 import PlanGenerationPanel from './PlanGenerationPanel';
@@ -98,6 +98,9 @@ export default function PlanGenerationButton({
                 </Badge>
               </div>
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              AI辅助方案生成工具，智能分析对话内容并生成个性化医美方案
+            </DialogDescription>
           </DialogHeader>
           
           {/* 可滚动的面板内容区域 */}
