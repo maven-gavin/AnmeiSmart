@@ -3,11 +3,12 @@
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -23,7 +24,7 @@ def _build_response(code: int, message: str, data: Any = None, status_code: int 
     payload = ApiResponse.failure(code=code, message=message, data=data)
     return JSONResponse(
         status_code=status_code,
-        content=payload.dict(exclude_none=True),
+        content=jsonable_encoder(payload.dict(exclude_none=True)),
     )
 
 

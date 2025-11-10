@@ -5,13 +5,12 @@
 from datetime import datetime
 from typing import Generic, Optional, TypeVar
 
-from pydantic import Field
-from pydantic.generics import GenericModel
+from pydantic import BaseModel, Field
 
 T = TypeVar("T")
 
 
-class ApiResponse(GenericModel, Generic[T]):
+class ApiResponse(BaseModel, Generic[T]):
     """
     标准API响应模型
 
