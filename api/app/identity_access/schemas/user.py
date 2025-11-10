@@ -1,6 +1,8 @@
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
+from typing import Optional, List, TYPE_CHECKING
+
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
+
 from app.identity_access.domain.enums import AdminLevel
 
 from app.customer.schemas.customer import CustomerBase
@@ -8,15 +10,29 @@ from app.customer.schemas.customer import CustomerBase
 class RoleBase(BaseModel):
     """角色基础模型"""
     name: str
+    display_name: Optional[str] = None
     description: Optional[str] = None
 
 class RoleCreate(RoleBase):
     """角色创建模型"""
     pass    
 
+class RoleUpdate(BaseModel):
+    """角色更新模型"""
+    name: Optional[str] = None
+    display_name: Optional[str] = None
+    description: Optional[str] = None
+
 class RoleResponse(RoleBase):
     """API响应中的角色模型"""
     id: str
+    is_active: bool = True
+    is_system: bool = False
+    is_admin: bool = False
+    priority: int = 0
+    tenant_id: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 class UserBase(BaseModel):
     """用户基础模型"""

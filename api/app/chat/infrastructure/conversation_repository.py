@@ -11,8 +11,8 @@ from datetime import datetime
 
 from app.chat.infrastructure.db.chat import Conversation as ConversationModel, Message as MessageModel, ConversationParticipant
 from app.chat.domain.interfaces import IConversationRepository
-from app.chat.domain.entities.conversation import Conversation
-from app.chat.domain.entities.message import Message
+from app.chat.domain.entities.conversation import ConversationEntity
+from app.chat.domain.entities.message import MessageEntity
 
 logger = logging.getLogger(__name__)
 
@@ -23,39 +23,49 @@ class ConversationRepository(IConversationRepository):
     def __init__(self, db: Session):
         self.db = db
     
-    def _to_entity(self, model: ConversationModel) -> Conversation:
+    def _to_entity(self, model: ConversationModel) -> ConversationEntity:
         """ORM模型转领域实体"""
-        return Conversation(
+        return ConversationEntity(
             id=str(model.id),
             title=model.title,
-            owner_id=str(model.owner_id),
-            chat_mode=model.chat_mode,
-            is_active=model.is_active,
-            is_archived=model.is_archived,
-            message_count=model.message_count,
-            unread_count=model.unread_count,
-            created_at=model.created_at,
-            updated_at=model.updated_at,
-            extra_metadata=model.extra_metadata
+            ownerId=str(model.owner_id),
+            chatMode=model.chat_mode,
+            isActive=model.is_active,
+            isArchived=model.is_archived,
+            messageCount=model.message_count,
+            unreadCount=model.unread_count,
+            createdAt=model.created_at,
+            updatedAt=model.updated_at,
+            isPinned=model.is_pinned,
+            pinnedAt=model.pinned_at,
+            lastMessageAt=model.last_message_at,
+            assignedConsultantId=str(model.assigned_consultant_id) if model.assigned_consultant_id else None,
+            isAiControlled=model.is_ai_controlled,
+            extraMetadata=model.extra_metadata or {}
         )
     
-    def _to_model(self, entity: Conversation) -> ConversationModel:
+    def _to_model(self, entity: ConversationEntity) -> ConversationModel:
         """领域实体转ORM模型"""
         return ConversationModel(
             id=entity.id,
             title=entity.title,
-            chat_mode=entity.chat_mode,
-            owner_id=entity.owner_id,
-            is_active=entity.is_active,
-            is_archived=entity.is_archived,
-            message_count=entity.message_count,
-            unread_count=entity.unread_count,
-            created_at=entity.created_at,
-            updated_at=entity.updated_at,
-            extra_metadata=entity.extra_metadata
+            chat_mode=entity.chatMode,
+            owner_id=entity.ownerId,
+            is_active=entity.isActive,
+            is_archived=entity.isArchived,
+            message_count=entity.messageCount,
+            unread_count=entity.unreadCount,
+            created_at=entity.createdAt,
+            updated_at=entity.updatedAt,
+            is_pinned=entity.isPinned,
+            pinned_at=entity.pinnedAt,
+            last_message_at=entity.lastMessageAt,
+            assigned_consultant_id=entity.assignedConsultantId,
+            is_ai_controlled=entity.isAiControlled,
+            extra_metadata=entity.extraMetadata
         )
     
-    async def save(self, conversation: Conversation) -> Conversation:
+    async def save(self, conversation: ConversationEntity) -> ConversationEntity:
         """保存会话"""
         conversation_model = self._to_model(conversation)
         conversation_model = self.db.merge(conversation_model)
@@ -63,12 +73,12 @@ class ConversationRepository(IConversationRepository):
         self.db.refresh(conversation_model)
         
         # 更新实体的时间戳
-        conversation._updated_at = conversation_model.updated_at
+        conversation.updatedAt = conversation_model.updated_at
         
         logger.info(f"会话保存成功: id={conversation.id}")
         return conversation
     
-    async def get_by_id(self, conversation_id: str) -> Optional[Conversation]:
+    async def get_by_id(self, conversation_id: str) -> Optional[ConversationEntity]:
         """根据ID获取会话"""
         conversation_model = self.db.query(ConversationModel).options(
             joinedload(ConversationModel.owner),
@@ -86,7 +96,7 @@ class ConversationRepository(IConversationRepository):
         user_role: str,
         skip: int = 0,
         limit: int = 100
-    ) -> List[Conversation]:
+    ) -> List[ConversationEntity]:
         """获取用户参与的会话列表"""
         logger.info(f"仓储：获取用户会话列表 - user_id={user_id}, user_role={user_role}, skip={skip}, limit={limit}")
         
@@ -143,7 +153,7 @@ class ConversationRepository(IConversationRepository):
             )
         ).first() is not None
     
-    async def get_last_message(self, conversation_id: str) -> Optional[Message]:
+    async def get_last_message(self, conversation_id: str) -> Optional[MessageEntity]:
         """获取会话的最后一条消息"""
         message_model = self.db.query(MessageModel).options(
             joinedload(MessageModel.sender),
@@ -156,24 +166,28 @@ class ConversationRepository(IConversationRepository):
             return None
         
         # 转换为领域实体
-        return Message(
+        return MessageEntity(
             id=str(message_model.id),
-            conversation_id=str(message_model.conversation_id),
+            conversationId=str(message_model.conversation_id),
             content=message_model.content,
-            message_type=message_model.type,
-            sender_id=str(message_model.sender_id) if message_model.sender_id else None,
-            sender_digital_human_id=str(message_model.sender_digital_human_id) if message_model.sender_digital_human_id else None,
-            sender_type=message_model.sender_type,
-            is_important=message_model.is_important,
-            reply_to_message_id=str(message_model.reply_to_message_id) if message_model.reply_to_message_id else None,
+            messageType=message_model.type,
+            senderId=str(message_model.sender_id) if message_model.sender_id else None,
+            senderDigitalHumanId=str(message_model.sender_digital_human_id) if message_model.sender_digital_human_id else None,
+            senderType=message_model.sender_type,
+            isImportant=message_model.is_important,
+            replyToMessageId=str(message_model.reply_to_message_id) if message_model.reply_to_message_id else None,
             reactions=message_model.reactions,
-            extra_metadata=message_model.extra_metadata,
-            requires_confirmation=message_model.requires_confirmation,
-            created_at=message_model.created_at,
-            updated_at=message_model.updated_at
+            extraMetadata=message_model.extra_metadata,
+            requiresConfirmation=message_model.requires_confirmation,
+            createdAt=message_model.created_at,
+            updatedAt=message_model.updated_at,
+            isRead=message_model.is_read,
+            isDeleted=message_model.is_deleted,
+            deletedAt=message_model.deleted_at,
+            deletedBy=message_model.deleted_by
         )
     
-    async def get_last_message_with_sender(self, conversation_id: str) -> tuple[Optional[Message], Optional[Any], Optional[Any]]:
+    async def get_last_message_with_sender(self, conversation_id: str) -> tuple[Optional[MessageEntity], Optional[Any], Optional[Any]]:
         """获取会话的最后一条消息及发送者信息"""
         message_model = self.db.query(MessageModel).options(
             joinedload(MessageModel.sender),
@@ -186,26 +200,30 @@ class ConversationRepository(IConversationRepository):
             return None, None, None
         
         # 转换为领域实体
-        message = Message(
+        message = MessageEntity(
             id=str(message_model.id),
-            conversation_id=str(message_model.conversation_id),
+            conversationId=str(message_model.conversation_id),
             content=message_model.content,
-            message_type=message_model.type,
-            sender_id=str(message_model.sender_id) if message_model.sender_id else None,
-            sender_digital_human_id=str(message_model.sender_digital_human_id) if message_model.sender_digital_human_id else None,
-            sender_type=message_model.sender_type,
-            is_important=message_model.is_important,
-            reply_to_message_id=str(message_model.reply_to_message_id) if message_model.reply_to_message_id else None,
+            messageType=message_model.type,
+            senderId=str(message_model.sender_id) if message_model.sender_id else None,
+            senderDigitalHumanId=str(message_model.sender_digital_human_id) if message_model.sender_digital_human_id else None,
+            senderType=message_model.sender_type,
+            isImportant=message_model.is_important,
+            replyToMessageId=str(message_model.reply_to_message_id) if message_model.reply_to_message_id else None,
             reactions=message_model.reactions,
-            extra_metadata=message_model.extra_metadata,
-            requires_confirmation=message_model.requires_confirmation,
-            created_at=message_model.created_at,
-            updated_at=message_model.updated_at
+            extraMetadata=message_model.extra_metadata,
+            requiresConfirmation=message_model.requires_confirmation,
+            createdAt=message_model.created_at,
+            updatedAt=message_model.updated_at,
+            isRead=message_model.is_read,
+            isDeleted=message_model.is_deleted,
+            deletedAt=message_model.deleted_at,
+            deletedBy=message_model.deleted_by
         )
         
         return message, message_model.sender, message_model.sender_digital_human
     
-    async def get_last_messages(self, conversation_ids: List[str]) -> Dict[str, tuple[Optional[Message], Optional[Any], Optional[Any]]]:
+    async def get_last_messages(self, conversation_ids: List[str]) -> Dict[str, tuple[Optional[MessageEntity], Optional[Any], Optional[Any]]]:
         """批量获取会话的最后消息及发送者信息"""
         if not conversation_ids:
             return {}
@@ -232,21 +250,25 @@ class ConversationRepository(IConversationRepository):
         
         result = {}
         for msg_model in message_models:
-            message = Message(
+            message = MessageEntity(
                 id=str(msg_model.id),
-                conversation_id=str(msg_model.conversation_id),
+                conversationId=str(msg_model.conversation_id),
                 content=msg_model.content,
-                message_type=msg_model.type,
-                sender_id=str(msg_model.sender_id) if msg_model.sender_id else None,
-                sender_digital_human_id=str(msg_model.sender_digital_human_id) if msg_model.sender_digital_human_id else None,
-                sender_type=msg_model.sender_type,
-                is_important=msg_model.is_important,
-                reply_to_message_id=str(msg_model.reply_to_message_id) if msg_model.reply_to_message_id else None,
+                messageType=msg_model.type,
+                senderId=str(msg_model.sender_id) if msg_model.sender_id else None,
+                senderDigitalHumanId=str(msg_model.sender_digital_human_id) if msg_model.sender_digital_human_id else None,
+                senderType=msg_model.sender_type,
+                isImportant=msg_model.is_important,
+                replyToMessageId=str(msg_model.reply_to_message_id) if msg_model.reply_to_message_id else None,
                 reactions=msg_model.reactions,
-                extra_metadata=msg_model.extra_metadata,
-                requires_confirmation=msg_model.requires_confirmation,
-                created_at=msg_model.created_at,
-                updated_at=msg_model.updated_at
+                extraMetadata=msg_model.extra_metadata,
+                requiresConfirmation=msg_model.requires_confirmation,
+                createdAt=msg_model.created_at,
+                updatedAt=msg_model.updated_at,
+                isRead=msg_model.is_read,
+                isDeleted=msg_model.is_deleted,
+                deletedAt=msg_model.deleted_at,
+                deletedBy=msg_model.deleted_by
             )
             result[str(msg_model.conversation_id)] = (message, msg_model.sender, msg_model.sender_digital_human)
         
@@ -316,8 +338,8 @@ class ConversationRepository(IConversationRepository):
         """更新会话消息数"""
         conversation = await self.get_by_id(conversation_id)
         if conversation:
-            conversation._message_count = count
-            conversation._updated_at = datetime.now()
+            conversation.message_count = count
+            conversation.updated_at = datetime.utcnow()
             conversation_model = self._to_model(conversation)
             self.db.merge(conversation_model)
             self.db.commit()
@@ -326,8 +348,8 @@ class ConversationRepository(IConversationRepository):
         """更新会话最后消息时间"""
         conversation = await self.get_by_id(conversation_id)
         if conversation:
-            conversation._last_message_at = timestamp
-            conversation._updated_at = datetime.now()
+            conversation.last_message_at = timestamp
+            conversation.updated_at = datetime.utcnow()
             conversation_model = self._to_model(conversation)
             self.db.merge(conversation_model)
             self.db.commit()

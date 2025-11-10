@@ -16,8 +16,8 @@ from app.ai.schemas.agent_chat import (
 )
 from app.chat.infrastructure.conversation_repository import ConversationRepository
 from app.chat.infrastructure.message_repository import MessageRepository
-from app.chat.domain.entities.conversation import Conversation  # 领域实体
-from app.chat.domain.entities.message import Message  # 领域实体
+from app.chat.domain.entities.conversation import ConversationEntity  # 领域实体
+from app.chat.domain.entities.message import MessageEntity  # 领域实体
 from app.websocket.broadcasting_service import BroadcastingService
 
 logger = logging.getLogger(__name__)
@@ -102,7 +102,7 @@ class AgentChatApplicationService:
             
             # 3. 保存用户消息
             logger.info("📝 步骤 3: 保存用户消息...")
-            user_message = Message.create_text_message(
+            user_message = MessageEntity.create_text_message(
                 conversation_id=conversation_id,
                 text=message,
                 sender_id=user_id,
@@ -201,7 +201,7 @@ class AgentChatApplicationService:
             
             # 5. 保存 AI 响应消息
             if ai_content_buffer:
-                ai_message = Message.create_text_message(
+                ai_message = MessageEntity.create_text_message(
                     conversation_id=conversation_id,
                     text=ai_content_buffer,
                     sender_type="system",  # AI 回复标记为系统消息
@@ -396,19 +396,19 @@ class AgentChatApplicationService:
         agent_config_id: str,
         user_id: str,
         title: str
-    ) -> Conversation:
+    ) -> ConversationEntity:
         """创建会话的内部方法"""
-        conversation = Conversation.create(
+        conversation_entity = ConversationEntity.create(
             title=title,
-            owner_id=user_id,
-            chat_mode="single",
-            extra_metadata={
+            ownerId=user_id,
+            chatMode="single",
+            extraMetadata={
                 "agent_config_id": agent_config_id,
                 "created_from": "agent_chat"
             }
         )
         
-        return await self.conversation_repo.save(conversation)
+        return await self.conversation_repo.save(conversation_entity)
     
     # ========== 消息反馈功能 ==========
     

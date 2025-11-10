@@ -9,7 +9,7 @@ from ..schemas.consultation import (
     ConsultationUpdate,
     ConsultationListResponse
 )
-from ..domain.entities.consultation import Consultation
+from ..domain.entities.consultation import ConsultationEntity
 from ..domain.value_objects.consultation_status import ConsultationStatus
 
 
@@ -17,21 +17,21 @@ class ConsultationConverter:
     """咨询数据转换器"""
     
     @staticmethod
-    def to_response(consultation: Consultation) -> ConsultationResponse:
+    def to_response(consultation: ConsultationEntity) -> ConsultationResponse:
         """转换咨询实体为响应格式"""
         return ConsultationResponse(
             id=consultation.id,
-            customer_id=consultation.customer_id,
-            consultant_id=consultation.consultant_id,
+            customer_id=consultation.customerId,
+            consultant_id=consultation.consultantId,
             status=consultation.status.value,
             title=consultation.title,
-            created_at=consultation.created_at,
-            updated_at=consultation.updated_at,
-            metadata=consultation.metadata
+            created_at=consultation.createdAt,
+            updated_at=consultation.updatedAt,
+            metadata=dict(consultation.metadata)
         )
     
     @staticmethod
-    def to_list_response(consultations: List[Consultation]) -> ConsultationListResponse:
+    def to_list_response(consultations: List[ConsultationEntity]) -> ConsultationListResponse:
         """转换咨询列表为响应格式"""
         consultation_responses = [
             ConsultationConverter.to_response(consultation) 
@@ -47,7 +47,7 @@ class ConsultationConverter:
     def from_create_request(request: ConsultationCreate) -> Dict[str, Any]:
         """从创建请求转换为领域对象参数"""
         return {
-            "customer_id": request.customer_id,
+            "customerId": request.customer_id,
             "title": request.title,
             "metadata": request.metadata or {}
         }
@@ -68,27 +68,27 @@ class ConsultationConverter:
     @staticmethod
     def from_model(model) -> Consultation:
         """从ORM模型转换为领域实体"""
-        return Consultation(
+        return ConsultationEntity(
             id=model.id,
-            customer_id=model.customer_id,
-            consultant_id=model.consultant_id,
+            customerId=model.customer_id,
+            consultantId=model.consultant_id,
             status=ConsultationStatus.from_string(model.status),
             title=model.title,
-            created_at=model.created_at,
-            updated_at=model.updated_at,
-            metadata=model.metadata or {}
+            createdAt=model.created_at,
+            updatedAt=model.updated_at,
+            _metadata=model.metadata or {}
         )
     
     @staticmethod
-    def to_model_dict(consultation: Consultation) -> Dict[str, Any]:
+    def to_model_dict(consultation: ConsultationEntity) -> Dict[str, Any]:
         """转换领域实体为ORM模型字典"""
         return {
             "id": consultation.id,
-            "customer_id": consultation.customer_id,
-            "consultant_id": consultation.consultant_id,
+            "customer_id": consultation.customerId,
+            "consultant_id": consultation.consultantId,
             "status": consultation.status.value,
             "title": consultation.title,
-            "created_at": consultation.created_at,
-            "updated_at": consultation.updated_at,
-            "metadata": consultation.metadata
+            "created_at": consultation.createdAt,
+            "updated_at": consultation.updatedAt,
+            "metadata": dict(consultation.metadata)
         }

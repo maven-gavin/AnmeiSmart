@@ -1,8 +1,7 @@
-from typing import Optional
 from app.system.interfaces.application_service_interfaces import ISystemApplicationService
 from app.system.interfaces.repository_interfaces import ISystemSettingsRepository
 from app.system.interfaces.domain_service_interfaces import ISystemDomainService
-from app.system.domain.entities.system_settings import SystemSettings
+from app.system.domain.entities.system_settings import SystemSettingsEntity
 from app.system.schemas.system import SystemSettingsResponse, SystemSettingsUpdate
 from app.common.infrastructure.db.uuid_utils import system_id
 import logging
@@ -65,31 +64,31 @@ class SystemApplicationService(ISystemApplicationService):
             update_data = SystemSettingsConverter.from_update_request(settings_update)
             
             # 更新站点配置
-            if 'site_name' in update_data or 'logo_url' in update_data:
-                current_settings.update_site_config(
-                    site_name=update_data.get('site_name'),
-                    logo_url=update_data.get('logo_url')
+            if 'siteName' in update_data or 'logoUrl' in update_data:
+                current_settings.updateSiteConfig(
+                    siteName=update_data.get('siteName'),
+                    logoUrl=update_data.get('logoUrl')
                 )
             
             # 更新AI模型配置
-            if 'default_model_id' in update_data:
-                if not self.system_domain_service.validate_ai_model_config(update_data['default_model_id']):
+            if 'defaultModelId' in update_data:
+                if not self.system_domain_service.validate_ai_model_config(update_data['defaultModelId']):
                     raise ValueError("AI模型配置无效")
-                current_settings.update_ai_model_config(update_data['default_model_id'])
+                current_settings.updateAiModelConfig(update_data['defaultModelId'])
             
             # 更新维护模式
-            if 'maintenance_mode' in update_data:
-                if update_data['maintenance_mode']:
+            if 'maintenanceMode' in update_data:
+                if update_data['maintenanceMode']:
                     if not self.system_domain_service.can_enable_maintenance_mode(current_settings):
                         raise ValueError("当前无法启用维护模式")
                 else:
                     if not self.system_domain_service.can_disable_maintenance_mode(current_settings):
                         raise ValueError("当前无法禁用维护模式")
-                current_settings.set_maintenance_mode(update_data['maintenance_mode'])
+                current_settings.setMaintenanceMode(update_data['maintenanceMode'])
             
             # 更新用户注册设置
-            if 'user_registration_enabled' in update_data:
-                current_settings.set_user_registration(update_data['user_registration_enabled'])
+            if 'userRegistrationEnabled' in update_data:
+                current_settings.setUserRegistration(update_data['userRegistrationEnabled'])
             
             # 验证更新后的设置
             if not self.system_domain_service.validate_system_settings(current_settings):
@@ -125,9 +124,9 @@ class SystemApplicationService(ISystemApplicationService):
             
             return {
                 "status": health_status,
-                "maintenance_mode": settings.is_maintenance_mode(),
-                "user_registration_enabled": settings.is_user_registration_enabled(),
-                "last_updated": settings.updated_at.isoformat()
+                "maintenance_mode": settings.isMaintenanceMode(),
+                "user_registration_enabled": settings.isUserRegistrationEnabled(),
+                "last_updated": settings.updatedAt.isoformat()
             }
             
         except Exception as e:
@@ -148,7 +147,7 @@ class SystemApplicationService(ISystemApplicationService):
             logger.error(f"通知AI服务配置变更失败: {e}")
             # 不抛出异常，避免影响主要业务流程
     
-    async def _handle_domain_events(self, settings: SystemSettings) -> None:
+    async def _handle_domain_events(self, settings: SystemSettingsEntity) -> None:
         """处理领域事件"""
         try:
             domain_events = settings.get_domain_events()

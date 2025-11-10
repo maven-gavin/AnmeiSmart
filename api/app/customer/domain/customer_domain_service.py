@@ -2,10 +2,9 @@
 客户领域服务 - 处理客户相关的领域逻辑
 """
 from typing import List, Optional, Dict, Any
-from datetime import datetime
 
-from app.customer.domain.entities.customer import Customer, CustomerProfile
-from app.customer.domain.value_objects.customer_status import CustomerStatus, CustomerPriority
+from app.customer.domain.entities.customer import CustomerEntity
+from app.customer.domain.value_objects.customer_status import CustomerPriority
 
 
 class CustomerDomainService:
@@ -161,31 +160,39 @@ class CustomerDomainService:
         tags = [tag.strip() for tag in tags_string.split(',') if tag.strip()]
         return list(set(tags))  # 去重
     
-    def should_update_customer(self, customer: Customer, update_data: Dict[str, Any]) -> bool:
+    def should_update_customer(self, customer: CustomerEntity, update_data: Dict[str, Any]) -> bool:
         """判断是否需要更新客户信息"""
         if not customer or not update_data:
             return False
         
         # 检查是否有实际变化
         for field, value in update_data.items():
-            if hasattr(customer, field):
-                current_value = getattr(customer, field)
+            camel_field = self._to_camel_case(field)
+            if hasattr(customer, camel_field):
+                current_value = getattr(customer, camel_field)
                 if current_value != value:
                     return True
         
         return False
     
-    def get_customer_summary(self, customer: Customer) -> Dict[str, Any]:
+    def get_customer_summary(self, customer: CustomerEntity) -> Dict[str, Any]:
         """获取客户摘要信息"""
         if not customer:
             return {}
         
         return {
             "id": customer.id,
-            "user_id": customer.user_id,
-            "has_medical_history": customer.has_medical_condition(),
-            "has_allergies": customer.has_allergies(),
+            "user_id": customer.userId,
+            "has_medical_history": customer.hasMedicalCondition(),
+            "has_allergies": customer.hasAllergies(),
             "priority": customer.priority.value,
             "tag_count": len(customer.tags),
-            "last_updated": customer.updated_at.isoformat() if customer.updated_at else None
+            "last_updated": customer.updatedAt.isoformat() if customer.updatedAt else None
         }
+
+    @staticmethod
+    def _to_camel_case(field_name: str) -> str:
+        parts = field_name.split('_')
+        if not parts:
+            return field_name
+        return parts[0] + ''.join(part.capitalize() for part in parts[1:])

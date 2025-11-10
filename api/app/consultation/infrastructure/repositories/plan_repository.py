@@ -5,7 +5,7 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 import logging
 
-from ...domain.entities.plan import Plan
+from ...domain.entities.plan import PlanEntity
 from ...converters.plan_converter import PlanConverter
 
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ class PlanRepository:
     def __init__(self, db: Session):
         self.db = db
     
-    async def save(self, plan: Plan) -> Plan:
+    async def save(self, plan: PlanEntity) -> PlanEntity:
         """保存方案"""
         try:
             # 转换为模型字典
@@ -32,7 +32,7 @@ class PlanRepository:
             logger.error(f"保存方案失败: {e}")
             raise
     
-    async def get_by_id(self, plan_id: str) -> Optional[Plan]:
+    async def get_by_id(self, plan_id: str) -> Optional[PlanEntity]:
         """根据ID获取方案"""
         try:
             # 这里应该实现实际的数据库查询
@@ -49,7 +49,7 @@ class PlanRepository:
         filters: Dict[str, Any],
         skip: int = 0,
         limit: int = 100
-    ) -> List[Plan]:
+    ) -> List[PlanEntity]:
         """根据条件查询方案列表"""
         try:
             # 这里应该实现实际的数据库查询

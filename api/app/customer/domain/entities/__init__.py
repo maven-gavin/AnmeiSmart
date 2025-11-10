@@ -2,9 +2,9 @@
 客户领域实体
 """
 
-from .customer import Customer, CustomerProfile
+from .customer import CustomerEntity, CustomerProfileEntity
 
 __all__ = [
-    "Customer",
-    "CustomerProfile"
+    "CustomerEntity",
+    "CustomerProfileEntity"
 ]

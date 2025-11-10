@@ -3,8 +3,8 @@
 负责领域实体与Schema之间的转换
 """
 from typing import List, Optional, Dict
-from app.chat.domain.entities.conversation import Conversation
-from app.chat.domain.entities.message import Message
+from app.chat.domain.entities.conversation import ConversationEntity
+from app.chat.domain.entities.message import MessageEntity
 from app.chat.schemas.chat import ConversationInfo
 from .message_converter import MessageConverter
 
@@ -13,7 +13,7 @@ class ConversationConverter:
     """会话转换器类"""
     
     @staticmethod
-    def to_response(conversation: Conversation, last_message: Optional[Message] = None, unread_count: int = 0, sender_user=None, sender_digital_human=None) -> Optional[ConversationInfo]:
+    def to_response(conversation: ConversationEntity, last_message: Optional[MessageEntity] = None, unread_count: int = 0, sender_user=None, sender_digital_human=None) -> Optional[ConversationInfo]:
         """将领域实体转换为响应Schema"""
         if not conversation:
             return None
@@ -41,7 +41,7 @@ class ConversationConverter:
         )
     
     @staticmethod
-    def to_list_response(conversations: List[Conversation], last_messages_with_senders: Optional[Dict[str, tuple]] = None, unread_counts: Optional[Dict[str, int]] = None) -> List[ConversationInfo]:
+    def to_list_response(conversations: List[ConversationEntity], last_messages_with_senders: Optional[Dict[str, tuple]] = None, unread_counts: Optional[Dict[str, int]] = None) -> List[ConversationInfo]:
         """将领域实体列表转换为响应Schema列表"""
         import logging
         logger = logging.getLogger(__name__)
@@ -92,22 +92,22 @@ class ConversationConverter:
         return result
     
     @staticmethod
-    def from_schema(conversation_info: ConversationInfo) -> Conversation:
+    def from_schema(conversation_info: ConversationInfo) -> ConversationEntity:
         """将Schema转换为领域实体（用于创建）"""
         from app.common.infrastructure.db.uuid_utils import conversation_id
         from datetime import datetime
         
-        return Conversation(
+        return ConversationEntity(
             id=conversation_id(),
             title=conversation_info.title,
-            chat_mode=getattr(conversation_info, 'chat_mode', 'single'),
-            owner_id=conversation_info.owner_id,
-            is_active=getattr(conversation_info, 'is_active', True),
-            is_archived=getattr(conversation_info, 'is_archived', False),
-            message_count=getattr(conversation_info, 'message_count', 0),
-            unread_count=getattr(conversation_info, 'unread_count', 0),
-            created_at=datetime.now(),
-            updated_at=datetime.now()
+            chatMode=getattr(conversation_info, 'chat_mode', 'single'),
+            ownerId=conversation_info.owner_id,
+            isActive=getattr(conversation_info, 'is_active', True),
+            isArchived=getattr(conversation_info, 'is_archived', False),
+            messageCount=getattr(conversation_info, 'message_count', 0),
+            unreadCount=getattr(conversation_info, 'unread_count', 0),
+            createdAt=datetime.now(),
+            updatedAt=datetime.now()
         )
 
 

@@ -7,7 +7,7 @@ from sqlalchemy import and_
 import logging
 
 # from app.db.models.consultation import Consultation as ConsultationModel
-from ...domain.entities.consultation import Consultation
+from ...domain.entities.consultation import ConsultationEntity
 from ...converters.consultation_converter import ConsultationConverter
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ class ConsultationRepository:
     def __init__(self, db: Session):
         self.db = db
     
-    async def save(self, consultation: Consultation) -> Consultation:
+    async def save(self, consultation: ConsultationEntity) -> ConsultationEntity:
         """保存咨询"""
         try:
             # 转换为模型字典
@@ -34,7 +34,7 @@ class ConsultationRepository:
             logger.error(f"保存咨询失败: {e}")
             raise
     
-    async def get_by_id(self, consultation_id: str) -> Optional[Consultation]:
+    async def get_by_id(self, consultation_id: str) -> Optional[ConsultationEntity]:
         """根据ID获取咨询"""
         try:
             # 这里应该实现实际的数据库查询
@@ -51,7 +51,7 @@ class ConsultationRepository:
         filters: Dict[str, Any],
         skip: int = 0,
         limit: int = 100
-    ) -> List[Consultation]:
+    ) -> List[ConsultationEntity]:
         """根据条件查询咨询列表"""
         try:
             # 这里应该实现实际的数据库查询

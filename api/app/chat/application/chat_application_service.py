@@ -16,8 +16,8 @@ from app.chat.domain.interfaces import (
     IConversationRepository, IMessageRepository, IChatApplicationService,
     IConversationDomainService, IMessageDomainService
 )
-from app.chat.domain.entities.conversation import Conversation
-from app.chat.domain.entities.message import Message
+from app.chat.domain.entities.conversation import ConversationEntity
+from app.chat.domain.entities.message import MessageEntity
 from app.chat.converters.conversation_converter import ConversationConverter
 from app.chat.converters.message_converter import MessageConverter
 from app.websocket.broadcasting_service import BroadcastingService
@@ -637,7 +637,7 @@ class ChatApplicationService(IChatApplicationService):
 
     async def _verify_conversation_access(
         self,
-        conversation: Conversation,
+        conversation: ConversationEntity,
         user_id: str,
         user_role: str
     ) -> bool:

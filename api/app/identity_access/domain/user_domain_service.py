@@ -6,7 +6,7 @@
 
 from typing import List, Optional, Dict, Any
 
-from .entities.user import User
+from .entities.user import UserEntity
 
 
 class UserDomainService:
@@ -28,7 +28,7 @@ class UserDomainService:
         phone: Optional[str] = None,
         avatar: Optional[str] = None,
         roles: Optional[List[str]] = None
-    ) -> User:
+    ) -> UserEntity:
         """创建用户 - 领域逻辑"""
         # 验证用户名唯一性
         if await self.user_repository.exists_by_username(username):
@@ -49,7 +49,7 @@ class UserDomainService:
                     raise ValueError(f"角色 '{role_name}' 不存在")
         
         # 创建用户
-        user = User.create(
+        userEntity = UserEntity.create(
             username=username,
             email=email,
             password=password,
@@ -59,44 +59,44 @@ class UserDomainService:
         )
         
         # 保存用户
-        saved_user = await self.user_repository.save(user)
-        return saved_user
+        saved_user_entity = await self.user_repository.save(userEntity)
+        return saved_user_entity
     
     async def update_user_profile(
         self,
         user_id: str,
         updates: Dict[str, Any]
-    ) -> User:
+    ) -> UserEntity:
         """更新用户资料 - 领域逻辑"""
         # 获取用户
-        user = await self.user_repository.get_by_id(user_id)
-        if not user:
+        userEntity = await self.user_repository.get_by_id(user_id)
+        if not userEntity:
             raise ValueError(f"用户不存在: {user_id}")
         
         # 验证用户名唯一性（如果要更新）
         if "username" in updates:
             new_username = updates["username"]
-            if new_username != user.username:
+            if new_username != userEntity.username:
                 if await self.user_repository.exists_by_username(new_username):
                     raise ValueError(f"用户名 '{new_username}' 已存在")
         
         # 验证手机号唯一性（如果要更新）
         if "phone" in updates:
             new_phone = updates["phone"]
-            if new_phone and new_phone != user.phone:
+            if new_phone and new_phone != userEntity.phone:
                 if await self.user_repository.exists_by_phone(new_phone):
                     raise ValueError(f"手机号 '{new_phone}' 已存在")
         
         # 更新用户资料
-        user.update_profile(
+        userEntity.update_profile(
             username=updates.get("username"),
             phone=updates.get("phone"),
             avatar=updates.get("avatar")
         )
         
         # 保存更新
-        updated_user = await self.user_repository.save(user)
-        return updated_user
+        updated_user_entity = await self.user_repository.save(userEntity)
+        return updated_user_entity
     
     async def change_password(
         self,
@@ -106,41 +106,41 @@ class UserDomainService:
     ) -> bool:
         """修改密码 - 领域逻辑"""
         # 获取用户
-        user = await self.user_repository.get_by_id(user_id)
-        if not user:
+        userEntity = await self.user_repository.get_by_id(user_id)
+        if not userEntity:
             raise ValueError(f"用户不存在: {user_id}")
         
         # 修改密码
-        user.change_password(old_password, new_password)
+        userEntity.change_password(old_password, new_password)
         
         # 保存更新
-        await self.user_repository.save(user)
+        await self.user_repository.save(userEntity)
         return True
     
     async def activate_user(self, user_id: str) -> bool:
         """激活用户"""
-        user = await self.user_repository.get_by_id(user_id)
-        if not user:
+        userEntity = await self.user_repository.get_by_id(user_id)
+        if not userEntity:
             raise ValueError(f"用户不存在: {user_id}")
         
-        user.activate()
-        await self.user_repository.save(user)
+        userEntity.activate()
+        await self.user_repository.save(userEntity)
         return True
     
     async def deactivate_user(self, user_id: str) -> bool:
         """停用用户"""
-        user = await self.user_repository.get_by_id(user_id)
-        if not user:
+        userEntity = await self.user_repository.get_by_id(user_id)
+        if not userEntity:
             raise ValueError(f"用户不存在: {user_id}")
         
-        user.deactivate()
-        await self.user_repository.save(user)
+        userEntity.deactivate()
+        await self.user_repository.save(userEntity)
         return True
     
     async def assign_roles(self, user_id: str, role_names: List[str]) -> bool:
         """分配角色给用户"""
-        user = await self.user_repository.get_by_id(user_id)
-        if not user:
+        userEntity = await self.user_repository.get_by_id(user_id)
+        if not userEntity:
             raise ValueError(f"用户不存在: {user_id}")
         
         # 验证角色有效性
@@ -150,24 +150,24 @@ class UserDomainService:
         
         # 分配角色
         for role_name in role_names:
-            user.add_role(role_name)
+            userEntity.add_role(role_name)
             await self.user_repository.assign_role(user_id, role_name)
         
         # 保存用户
-        await self.user_repository.save(user)
+        await self.user_repository.save(userEntity)
         return True
     
     async def remove_roles(self, user_id: str, role_names: List[str]) -> bool:
         """移除用户角色"""
-        user = await self.user_repository.get_by_id(user_id)
-        if not user:
+        userEntity = await self.user_repository.get_by_id(user_id)
+        if not userEntity:
             raise ValueError(f"用户不存在: {user_id}")
         
         # 移除角色
         for role_name in role_names:
-            user.remove_role(role_name)
+            userEntity.remove_role(role_name)
             await self.user_repository.remove_role(user_id, role_name)
         
         # 保存用户
-        await self.user_repository.save(user)
+        await self.user_repository.save(userEntity)
         return True

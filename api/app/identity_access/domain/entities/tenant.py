@@ -6,7 +6,7 @@
 
 import uuid
 from datetime import datetime
-from typing import Optional, List, Set
+from typing import Optional
 from dataclasses import dataclass, field
 
 from ..value_objects.tenant_status import TenantStatus
@@ -14,7 +14,7 @@ from ..value_objects.tenant_type import TenantType
 
 
 @dataclass
-class Tenant:
+class TenantEntity:
     """租户聚合根"""
     
     # 身份标识
@@ -22,29 +22,29 @@ class Tenant:
     
     # 基本信息
     name: str
-    display_name: Optional[str] = None
+    displayName: Optional[str] = None
     description: Optional[str] = None
     
     # 状态信息
     status: TenantStatus = TenantStatus.ACTIVE
-    tenant_type: TenantType = TenantType.STANDARD
+    tenantType: TenantType = TenantType.STANDARD
     
     # 优先级和系统标识
     priority: int = 0
-    is_system: bool = False
-    is_admin: bool = False
+    isSystem: bool = False
+    isAdmin: bool = False
     
     # 联系信息
-    contact_name: Optional[str] = None
-    contact_email: Optional[str] = None
-    contact_phone: Optional[str] = None
+    contactName: Optional[str] = None
+    contactEmail: Optional[str] = None
+    contactPhone: Optional[str] = None
     
     # 加密配置
-    encrypted_pub_key: Optional[str] = None
+    encryptedPubKey: Optional[str] = None
     
     # 时间戳
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    createdAt: datetime = field(default_factory=datetime.utcnow)
+    updatedAt: datetime = field(default_factory=datetime.utcnow)
     
     def __post_init__(self):
         """后初始化验证"""
@@ -56,43 +56,46 @@ class Tenant:
         
         if len(self.name) > 50:
             raise ValueError("租户名称长度不能超过50个字符")
+        
+        if self.displayName is None:
+            self.displayName = self.name
     
     @classmethod
     def create(
         cls,
         name: str,
-        display_name: Optional[str] = None,
+        displayName: Optional[str] = None,
         description: Optional[str] = None,
-        tenant_type: TenantType = TenantType.STANDARD,
-        contact_name: Optional[str] = None,
-        contact_email: Optional[str] = None,
-        contact_phone: Optional[str] = None
-    ) -> "Tenant":
+        tenantType: TenantType = TenantType.STANDARD,
+        contactName: Optional[str] = None,
+        contactEmail: Optional[str] = None,
+        contactPhone: Optional[str] = None
+    ) -> "TenantEntity":
         """创建新租户"""
         tenant_id = str(uuid.uuid4())
         
         return cls(
             id=tenant_id,
             name=name,
-            display_name=display_name or name,
+            displayName=displayName or name,
             description=description,
-            tenant_type=tenant_type,
-            contact_name=contact_name,
-            contact_email=contact_email,
-            contact_phone=contact_phone
+            tenantType=tenantType,
+            contactName=contactName,
+            contactEmail=contactEmail,
+            contactPhone=contactPhone
         )
     
     @classmethod
-    def create_system_tenant(cls) -> "Tenant":
+    def create_system_tenant(cls) -> "TenantEntity":
         """创建系统租户"""
         return cls(
             id="system-tenant",
             name="system",
-            display_name="系统租户",
+            displayName="系统租户",
             description="系统默认租户",
-            tenant_type=TenantType.SYSTEM,
-            is_system=True,
-            is_admin=True,
+            tenantType=TenantType.SYSTEM,
+            isSystem=True,
+            isAdmin=True,
             priority=1000
         )
     
@@ -102,43 +105,43 @@ class Tenant:
             raise ValueError("租户已经是激活状态")
         
         self.status = TenantStatus.ACTIVE
-        self.updated_at = datetime.utcnow()
+        self.updatedAt = datetime.utcnow()
     
     def deactivate(self) -> None:
         """停用租户"""
         if self.status == TenantStatus.INACTIVE:
             raise ValueError("租户已经是停用状态")
         
-        if self.is_system:
+        if self.isSystem:
             raise ValueError("系统租户不能被停用")
         
         self.status = TenantStatus.INACTIVE
-        self.updated_at = datetime.utcnow()
+        self.updatedAt = datetime.utcnow()
     
     def update_contact_info(
         self,
-        contact_name: Optional[str] = None,
-        contact_email: Optional[str] = None,
-        contact_phone: Optional[str] = None
+        contactName: Optional[str] = None,
+        contactEmail: Optional[str] = None,
+        contactPhone: Optional[str] = None
     ) -> None:
         """更新联系信息"""
-        if contact_name is not None:
-            self.contact_name = contact_name
-        if contact_email is not None:
-            self.contact_email = contact_email
-        if contact_phone is not None:
-            self.contact_phone = contact_phone
+        if contactName is not None:
+            self.contactName = contactName
+        if contactEmail is not None:
+            self.contactEmail = contactEmail
+        if contactPhone is not None:
+            self.contactPhone = contactPhone
         
-        self.updated_at = datetime.utcnow()
+        self.updatedAt = datetime.utcnow()
     
     def set_encrypted_pub_key(self, encrypted_key: str) -> None:
         """设置加密公钥"""
-        self.encrypted_pub_key = encrypted_key
-        self.updated_at = datetime.utcnow()
+        self.encryptedPubKey = encrypted_key
+        self.updatedAt = datetime.utcnow()
     
     def can_be_deleted(self) -> bool:
         """检查租户是否可以被删除"""
-        return not self.is_system
+        return not self.isSystem
     
     def is_active(self) -> bool:
         """检查租户是否激活"""
@@ -146,18 +149,30 @@ class Tenant:
     
     def is_admin_tenant(self) -> bool:
         """检查是否为管理员租户"""
-        return self.is_admin
+        return self.isAdmin
     
     def is_system_tenant(self) -> bool:
         """检查是否为系统租户"""
-        return self.is_system
+        return self.isSystem
     
     def get_effective_name(self) -> str:
         """获取有效显示名称"""
-        return self.display_name or self.name
+        return self.displayName or self.name
     
     def __str__(self) -> str:
-        return f"Tenant(id={self.id}, name={self.name}, status={self.status.value})"
+        return (
+            f"TenantEntity(id={self.id}, name={self.name}, displayName={self.displayName}, "
+            f"description={self.description}, status={self.status.value}, tenantType={self.tenantType.value}, "
+            f"priority={self.priority}, isSystem={self.isSystem}, isAdmin={self.isAdmin}, "
+            f"contactName={self.contactName}, contactEmail={self.contactEmail}, contactPhone={self.contactPhone}, "
+            f"encryptedPubKey={self.encryptedPubKey}, createdAt={self.createdAt}, updatedAt={self.updatedAt})"
+        )
     
     def __repr__(self) -> str:
-        return f"Tenant(id={self.id}, name={self.name}, type={self.tenant_type.value}, status={self.status.value})"
+        return (
+            f"TenantEntity(id={self.id}, name={self.name}, displayName={self.displayName}, "
+            f"description={self.description}, status={self.status.value}, tenantType={self.tenantType.value}, "
+            f"priority={self.priority}, isSystem={self.isSystem}, isAdmin={self.isAdmin}, "
+            f"contactName={self.contactName}, contactEmail={self.contactEmail}, contactPhone={self.contactPhone}, "
+            f"encryptedPubKey={self.encryptedPubKey}, createdAt={self.createdAt}, updatedAt={self.updatedAt})"
+        )

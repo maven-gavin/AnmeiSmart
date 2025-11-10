@@ -5,7 +5,7 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 import logging
 
-from ...domain.entities.consultant import Consultant
+from ...domain.entities.consultant import ConsultantEntity
 from ...converters.consultant_converter import ConsultantConverter
 
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ class ConsultantRepository:
     def __init__(self, db: Session):
         self.db = db
     
-    async def save(self, consultant: Consultant) -> Consultant:
+    async def save(self, consultant: ConsultantEntity) -> ConsultantEntity:
         """保存顾问"""
         try:
             # 转换为模型字典
@@ -32,7 +32,7 @@ class ConsultantRepository:
             logger.error(f"保存顾问失败: {e}")
             raise
     
-    async def get_by_id(self, consultant_id: str) -> Optional[Consultant]:
+    async def get_by_id(self, consultant_id: str) -> Optional[ConsultantEntity]:
         """根据ID获取顾问"""
         try:
             # 这里应该实现实际的数据库查询
@@ -49,7 +49,7 @@ class ConsultantRepository:
         filters: Dict[str, Any],
         skip: int = 0,
         limit: int = 100
-    ) -> List[Consultant]:
+    ) -> List[ConsultantEntity]:
         """根据条件查询顾问列表"""
         try:
             # 这里应该实现实际的数据库查询

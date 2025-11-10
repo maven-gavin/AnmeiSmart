@@ -5,7 +5,7 @@
 from typing import Optional, Dict, Any
 import logging
 
-from .entities.consultant import Consultant
+from .entities.consultant import ConsultantEntity
 
 logger = logging.getLogger(__name__)
 
@@ -47,18 +47,18 @@ class ConsultantDomainService:
     
     def can_handle_consultation(
         self,
-        consultant: Consultant,
+        consultant: ConsultantEntity,
         consultation_type: str
     ) -> bool:
         """检查顾问是否可以处理特定类型的咨询"""
-        if not consultant.is_active:
+        if not consultant.isActive:
             return False
         
         # 检查专业领域是否匹配
         supported_types = consultant.metadata.get("supported_consultation_types", [])
         return consultation_type in supported_types
     
-    def get_consultant_workload(self, consultant: Consultant) -> Dict[str, Any]:
+    def get_consultant_workload(self, consultant: ConsultantEntity) -> Dict[str, Any]:
         """获取顾问工作负载信息"""
         # 这里可以添加获取顾问当前工作负载的逻辑
         # 例如：正在处理的咨询数量、方案数量等
@@ -66,7 +66,7 @@ class ConsultantDomainService:
             "consultant_id": consultant.id,
             "name": consultant.name,
             "specialization": consultant.specialization,
-            "is_active": consultant.is_active,
+            "is_active": consultant.isActive,
             "workload": consultant.metadata.get("current_workload", 0)
         }
     
@@ -95,15 +95,15 @@ class ConsultantDomainService:
             if experience_years > 50:
                 raise ValueError("工作经验年数不能超过50年")
     
-    def get_consultant_summary(self, consultant: Consultant) -> Dict[str, Any]:
+    def get_consultant_summary(self, consultant: ConsultantEntity) -> Dict[str, Any]:
         """获取顾问摘要信息"""
         return {
             "id": consultant.id,
-            "user_id": consultant.user_id,
+            "user_id": consultant.userId,
             "name": consultant.name,
             "specialization": consultant.specialization,
-            "experience_years": consultant.experience_years,
-            "is_active": consultant.is_active,
-            "created_at": consultant.created_at,
-            "updated_at": consultant.updated_at
+            "experience_years": consultant.experienceYears,
+            "is_active": consultant.isActive,
+            "created_at": consultant.createdAt,
+            "updated_at": consultant.updatedAt
         }

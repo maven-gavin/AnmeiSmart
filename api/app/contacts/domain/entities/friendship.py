@@ -2,12 +2,11 @@
 好友关系聚合根
 Contact领域的核心聚合，管理好友关系的生命周期和业务规则
 """
-from typing import List, Optional, Set
-from datetime import datetime
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
-
-from app.contacts.domain.value_objects import FriendshipStatus, InteractionRecord
+from typing import Any, Dict, List, Optional, Set
+import uuid
 
 
 class FriendshipStatus(Enum):
@@ -20,547 +19,421 @@ class FriendshipStatus(Enum):
 
 
 @dataclass
-class InteractionRecord:
+class InteractionRecordEntity:
     """交互记录值对象"""
-    interaction_type: str
-    interaction_time: datetime
-    metadata: dict = field(default_factory=dict)
+    interactionType: str
+    interactionTime: datetime
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-class Friendship:
+@dataclass
+class FriendshipEntity:
     """好友关系聚合根"""
-    
-    def __init__(
-        self,
-        id: str,
-        user_id: str,
-        friend_id: str,
-        status: FriendshipStatus = FriendshipStatus.PENDING,
-        nickname: Optional[str] = None,
-        remark: Optional[str] = None,
-        is_starred: bool = False,
-        is_muted: bool = False,
-        is_pinned: bool = False,
-        is_blocked: bool = False,
-        verification_message: Optional[str] = None,
-        source: str = "manual",
-        created_at: Optional[datetime] = None,
-        updated_at: Optional[datetime] = None
-    ):
-        self._id = id
-        self._user_id = user_id
-        self._friend_id = friend_id
-        self._status = status
-        self._nickname = nickname
-        self._remark = remark
-        self._is_starred = is_starred
-        self._is_muted = is_muted
-        self._is_pinned = is_pinned
-        self._is_blocked = is_blocked
-        self._verification_message = verification_message
-        self._source = source
-        self._created_at = created_at or datetime.utcnow()
-        self._updated_at = updated_at or datetime.utcnow()
-        
-        # 聚合内部状态
-        self._tags: Set[str] = set()  # 标签ID集合
-        self._groups: Set[str] = set()  # 分组ID集合
-        self._interaction_count = 0
-        self._last_interaction_at: Optional[datetime] = None
-        self._interaction_records: List[InteractionRecord] = []
-        
-        # 领域事件
-        self._domain_events: List[object] = []
-    
-    # ============ 属性访问器 ============
-    
-    @property
-    def id(self) -> str:
-        return self._id
-    
-    @property
-    def user_id(self) -> str:
-        return self._user_id
-    
-    @property
-    def friend_id(self) -> str:
-        return self._friend_id
-    
-    @property
-    def status(self) -> FriendshipStatus:
-        return self._status
-    
-    @property
-    def nickname(self) -> Optional[str]:
-        return self._nickname
-    
-    @property
-    def remark(self) -> Optional[str]:
-        return self._remark
-    
-    @property
-    def is_starred(self) -> bool:
-        return self._is_starred
-    
-    @property
-    def is_muted(self) -> bool:
-        return self._is_muted
-    
-    @property
-    def is_pinned(self) -> bool:
-        return self._is_pinned
-    
-    @property
-    def is_blocked(self) -> bool:
-        return self._is_blocked
-    
-    @property
-    def verification_message(self) -> Optional[str]:
-        return self._verification_message
-    
-    @property
-    def source(self) -> str:
-        return self._source
-    
-    @property
-    def created_at(self) -> datetime:
-        return self._created_at
-    
-    @property
-    def updated_at(self) -> datetime:
-        return self._updated_at
-    
-    @property
-    def interaction_count(self) -> int:
-        return self._interaction_count
-    
-    @property
-    def last_interaction_at(self) -> Optional[datetime]:
-        return self._last_interaction_at
-    
+
+    id: str
+    userId: str
+    friendId: str
+    status: FriendshipStatus = FriendshipStatus.PENDING
+    nickname: Optional[str] = None
+    remark: Optional[str] = None
+    isStarred: bool = False
+    isMuted: bool = False
+    isPinned: bool = False
+    isBlocked: bool = False
+    verificationMessage: Optional[str] = None
+    source: str = "manual"
+    createdAt: datetime = field(default_factory=datetime.utcnow)
+    updatedAt: datetime = field(default_factory=datetime.utcnow)
+    interactionCount: int = 0
+    lastInteractionAt: Optional[datetime] = None
+    _tags: Set[str] = field(default_factory=set, repr=False)
+    _groups: Set[str] = field(default_factory=set, repr=False)
+    _interactionRecords: List[InteractionRecordEntity] = field(default_factory=list, repr=False)
+    _domainEvents: List[object] = field(default_factory=list, repr=False)
+
+    def __post_init__(self) -> None:
+        self._normalize()
+        self._validate()
+
+    def _normalize(self) -> None:
+        if self.nickname:
+            self.nickname = self.nickname.strip()
+        if self.verificationMessage:
+            self.verificationMessage = self.verificationMessage.strip() or None
+        if self.remark:
+            self.remark = self.remark.strip()
+
+    def _validate(self) -> None:
+        if not self.userId or not self.friendId:
+            raise ValueError("用户ID和好友ID不能为空")
+        if self.userId == self.friendId:
+            raise ValueError("不能与自己建立好友关系")
+        if self.nickname and len(self.nickname) > 100:
+            raise ValueError("昵称不能超过100个字符")
+        if self.remark and len(self.remark) > 500:
+            raise ValueError("备注不能超过500个字符")
+        if self.interactionCount < 0:
+            raise ValueError("交互次数不能为负数")
+
     @property
     def tags(self) -> Set[str]:
-        return self._tags.copy()
-    
+        return set(self._tags)
+
     @property
     def groups(self) -> Set[str]:
-        return self._groups.copy()
-    
+        return set(self._groups)
+
     @property
-    def interaction_records(self) -> List[InteractionRecord]:
-        return self._interaction_records.copy()
-    
+    def interactionRecords(self) -> List[InteractionRecordEntity]:
+        return [record for record in self._interactionRecords]
+
     @property
-    def domain_events(self) -> List[object]:
-        return self._domain_events.copy()
-    
-    # ============ 领域方法 ============
-    
-    def accept_friendship(self) -> None:
-        """接受好友请求"""
-        if self._status != FriendshipStatus.PENDING:
+    def domainEvents(self) -> List[object]:
+        return list(self._domainEvents)
+
+    def acceptFriendship(self) -> None:
+        if self.status != FriendshipStatus.PENDING:
             raise ValueError("只能接受待处理的好友请求")
-        
-        self._status = FriendshipStatus.ACCEPTED
-        self._updated_at = datetime.utcnow()
-        self._last_interaction_at = datetime.utcnow()
-        
-        # 发布领域事件
-        self._add_domain_event(FriendshipAcceptedEvent(
-            friendship_id=self._id,
-            user_id=self._user_id,
-            friend_id=self._friend_id
+        self.status = FriendshipStatus.ACCEPTED
+        self.updatedAt = datetime.utcnow()
+        self.lastInteractionAt = datetime.utcnow()
+        self.interactionCount = 0
+        self._addDomainEvent(FriendshipAcceptedEvent(
+            friendshipId=self.id,
+            userId=self.userId,
+            friendId=self.friendId
         ))
-    
-    def reject_friendship(self) -> None:
-        """拒绝好友请求"""
-        if self._status != FriendshipStatus.PENDING:
+
+    def rejectFriendship(self) -> None:
+        if self.status != FriendshipStatus.PENDING:
             raise ValueError("只能拒绝待处理的好友请求")
-        
-        self._status = FriendshipStatus.REJECTED
-        self._updated_at = datetime.utcnow()
-        
-        # 发布领域事件
-        self._add_domain_event(FriendshipRejectedEvent(
-            friendship_id=self._id,
-            user_id=self._user_id,
-            friend_id=self._friend_id
+        self.status = FriendshipStatus.REJECTED
+        self.updatedAt = datetime.utcnow()
+        self._addDomainEvent(FriendshipRejectedEvent(
+            friendshipId=self.id,
+            userId=self.userId,
+            friendId=self.friendId
         ))
-    
-    def block_friend(self) -> None:
-        """拉黑好友"""
-        if self._status == FriendshipStatus.BLOCKED:
+
+    def blockFriend(self) -> None:
+        if self.status == FriendshipStatus.BLOCKED:
             raise ValueError("好友已经被拉黑")
-        
-        self._status = FriendshipStatus.BLOCKED
-        self._is_blocked = True
-        self._updated_at = datetime.utcnow()
-        
-        # 发布领域事件
-        self._add_domain_event(FriendshipBlockedEvent(
-            friendship_id=self._id,
-            user_id=self._user_id,
-            friend_id=self._friend_id
+        self.status = FriendshipStatus.BLOCKED
+        self.isBlocked = True
+        self.updatedAt = datetime.utcnow()
+        self._addDomainEvent(FriendshipBlockedEvent(
+            friendshipId=self.id,
+            userId=self.userId,
+            friendId=self.friendId
         ))
-    
-    def unblock_friend(self) -> None:
-        """取消拉黑"""
-        if self._status != FriendshipStatus.BLOCKED:
+
+    def unblockFriend(self) -> None:
+        if self.status != FriendshipStatus.BLOCKED:
             raise ValueError("好友未被拉黑")
-        
-        self._status = FriendshipStatus.ACCEPTED
-        self._is_blocked = False
-        self._updated_at = datetime.utcnow()
-        
-        # 发布领域事件
-        self._add_domain_event(FriendshipUnblockedEvent(
-            friendship_id=self._id,
-            user_id=self._user_id,
-            friend_id=self._friend_id
+        self.status = FriendshipStatus.ACCEPTED
+        self.isBlocked = False
+        self.updatedAt = datetime.utcnow()
+        self._addDomainEvent(FriendshipUnblockedEvent(
+            friendshipId=self.id,
+            userId=self.userId,
+            friendId=self.friendId
         ))
-    
-    def delete_friendship(self) -> None:
-        """删除好友关系"""
-        self._status = FriendshipStatus.DELETED
-        self._updated_at = datetime.utcnow()
-        
-        # 发布领域事件
-        self._add_domain_event(FriendshipDeletedEvent(
-            friendship_id=self._id,
-            user_id=self._user_id,
-            friend_id=self._friend_id
+
+    def deleteFriendship(self) -> None:
+        self.status = FriendshipStatus.DELETED
+        self.updatedAt = datetime.utcnow()
+        self._addDomainEvent(FriendshipDeletedEvent(
+            friendshipId=self.id,
+            userId=self.userId,
+            friendId=self.friendId
         ))
-    
-    def update_nickname(self, nickname: Optional[str]) -> None:
-        """更新昵称"""
+
+    def updateNickname(self, nickname: Optional[str]) -> None:
         if nickname and len(nickname.strip()) > 100:
             raise ValueError("昵称不能超过100个字符")
-        
-        self._nickname = nickname.strip() if nickname else None
-        self._updated_at = datetime.utcnow()
-        
-        # 发布领域事件
-        self._add_domain_event(FriendshipNicknameUpdatedEvent(
-            friendship_id=self._id,
-            user_id=self._user_id,
-            friend_id=self._friend_id,
-            nickname=self._nickname
+        self.nickname = nickname.strip() if nickname else None
+        self.updatedAt = datetime.utcnow()
+        self._addDomainEvent(FriendshipNicknameUpdatedEvent(
+            friendshipId=self.id,
+            userId=self.userId,
+            friendId=self.friendId,
+            nickname=self.nickname
         ))
-    
-    def update_remark(self, remark: Optional[str]) -> None:
-        """更新备注"""
-        self._remark = remark
-        self._updated_at = datetime.utcnow()
-        
-        # 发布领域事件
-        self._add_domain_event(FriendshipRemarkUpdatedEvent(
-            friendship_id=self._id,
-            user_id=self._user_id,
-            friend_id=self._friend_id,
-            remark=self._remark
+
+    def updateRemark(self, remark: Optional[str]) -> None:
+        self.remark = remark.strip() if remark else None
+        self.updatedAt = datetime.utcnow()
+        self._addDomainEvent(FriendshipRemarkUpdatedEvent(
+            friendshipId=self.id,
+            userId=self.userId,
+            friendId=self.friendId,
+            remark=self.remark
         ))
-    
-    def toggle_star(self) -> None:
-        """切换星标状态"""
-        self._is_starred = not self._is_starred
-        self._updated_at = datetime.utcnow()
-        
-        # 发布领域事件
-        self._add_domain_event(FriendshipStarToggledEvent(
-            friendship_id=self._id,
-            user_id=self._user_id,
-            friend_id=self._friend_id,
-            is_starred=self._is_starred
+
+    def toggleStar(self) -> None:
+        self.isStarred = not self.isStarred
+        self.updatedAt = datetime.utcnow()
+        self._addDomainEvent(FriendshipStarToggledEvent(
+            friendshipId=self.id,
+            userId=self.userId,
+            friendId=self.friendId,
+            isStarred=self.isStarred
         ))
-    
-    def toggle_mute(self) -> None:
-        """切换免打扰状态"""
-        self._is_muted = not self._is_muted
-        self._updated_at = datetime.utcnow()
-        
-        # 发布领域事件
-        self._add_domain_event(FriendshipMuteToggledEvent(
-            friendship_id=self._id,
-            user_id=self._user_id,
-            friend_id=self._friend_id,
-            is_muted=self._is_muted
+
+    def toggleMute(self) -> None:
+        self.isMuted = not self.isMuted
+        self.updatedAt = datetime.utcnow()
+        self._addDomainEvent(FriendshipMuteToggledEvent(
+            friendshipId=self.id,
+            userId=self.userId,
+            friendId=self.friendId,
+            isMuted=self.isMuted
         ))
-    
-    def toggle_pin(self) -> None:
-        """切换置顶状态"""
-        self._is_pinned = not self._is_pinned
-        self._updated_at = datetime.utcnow()
-        
-        # 发布领域事件
-        self._add_domain_event(FriendshipPinToggledEvent(
-            friendship_id=self._id,
-            user_id=self._user_id,
-            friend_id=self._friend_id,
-            is_pinned=self._is_pinned
+
+    def togglePin(self) -> None:
+        self.isPinned = not self.isPinned
+        self.updatedAt = datetime.utcnow()
+        self._addDomainEvent(FriendshipPinToggledEvent(
+            friendshipId=self.id,
+            userId=self.userId,
+            friendId=self.friendId,
+            isPinned=self.isPinned
         ))
-    
-    def add_tag(self, tag_id: str) -> None:
-        """添加标签"""
-        if tag_id in self._tags:
+
+    def addTag(self, tagId: str) -> None:
+        if tagId in self._tags:
             raise ValueError("标签已存在")
-        
-        self._tags.add(tag_id)
-        self._updated_at = datetime.utcnow()
-        
-        # 发布领域事件
-        self._add_domain_event(FriendshipTagAddedEvent(
-            friendship_id=self._id,
-            user_id=self._user_id,
-            friend_id=self._friend_id,
-            tag_id=tag_id
+        self._tags.add(tagId)
+        self.updatedAt = datetime.utcnow()
+        self._addDomainEvent(FriendshipTagAddedEvent(
+            friendshipId=self.id,
+            userId=self.userId,
+            friendId=self.friendId,
+            tagId=tagId
         ))
-    
-    def remove_tag(self, tag_id: str) -> None:
-        """移除标签"""
-        if tag_id not in self._tags:
+
+    def removeTag(self, tagId: str) -> None:
+        if tagId not in self._tags:
             raise ValueError("标签不存在")
-        
-        self._tags.remove(tag_id)
-        self._updated_at = datetime.utcnow()
-        
-        # 发布领域事件
-        self._add_domain_event(FriendshipTagRemovedEvent(
-            friendship_id=self._id,
-            user_id=self._user_id,
-            friend_id=self._friend_id,
-            tag_id=tag_id
+        self._tags.remove(tagId)
+        self.updatedAt = datetime.utcnow()
+        self._addDomainEvent(FriendshipTagRemovedEvent(
+            friendshipId=self.id,
+            userId=self.userId,
+            friendId=self.friendId,
+            tagId=tagId
         ))
-    
-    def add_to_group(self, group_id: str) -> None:
-        """添加到分组"""
-        if group_id in self._groups:
+
+    def addToGroup(self, groupId: str) -> None:
+        if groupId in self._groups:
             raise ValueError("已在分组中")
-        
-        self._groups.add(group_id)
-        self._updated_at = datetime.utcnow()
-        
-        # 发布领域事件
-        self._add_domain_event(FriendshipGroupAddedEvent(
-            friendship_id=self._id,
-            user_id=self._user_id,
-            friend_id=self._friend_id,
-            group_id=group_id
+        self._groups.add(groupId)
+        self.updatedAt = datetime.utcnow()
+        self._addDomainEvent(FriendshipGroupAddedEvent(
+            friendshipId=self.id,
+            userId=self.userId,
+            friendId=self.friendId,
+            groupId=groupId
         ))
-    
-    def remove_from_group(self, group_id: str) -> None:
-        """从分组移除"""
-        if group_id not in self._groups:
+
+    def removeFromGroup(self, groupId: str) -> None:
+        if groupId not in self._groups:
             raise ValueError("不在分组中")
-        
-        self._groups.remove(group_id)
-        self._updated_at = datetime.utcnow()
-        
-        # 发布领域事件
-        self._add_domain_event(FriendshipGroupRemovedEvent(
-            friendship_id=self._id,
-            user_id=self._user_id,
-            friend_id=self._friend_id,
-            group_id=group_id
+        self._groups.remove(groupId)
+        self.updatedAt = datetime.utcnow()
+        self._addDomainEvent(FriendshipGroupRemovedEvent(
+            friendshipId=self.id,
+            userId=self.userId,
+            friendId=self.friendId,
+            groupId=groupId
         ))
-    
-    def record_interaction(self, interaction_type: str, metadata: Optional[dict] = None) -> None:
-        """记录交互"""
-        if self._status != FriendshipStatus.ACCEPTED:
+
+    def recordInteraction(self, interactionType: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+        if self.status != FriendshipStatus.ACCEPTED:
             raise ValueError("只能与已接受的好友记录交互")
-        
-        self._interaction_count += 1
-        self._last_interaction_at = datetime.utcnow()
-        self._updated_at = datetime.utcnow()
-        
-        # 创建交互记录
-        interaction_record = InteractionRecord(
-            interaction_type=interaction_type,
-            interaction_time=datetime.utcnow(),
-            metadata=metadata or {}
+        self.interactionCount += 1
+        self.lastInteractionAt = datetime.utcnow()
+        self.updatedAt = datetime.utcnow()
+        interaction_record = InteractionRecordEntity(
+            interactionType=interactionType,
+            interactionTime=datetime.utcnow(),
+            metadata=dict(metadata or {})
         )
-        self._interaction_records.append(interaction_record)
-        
-        # 发布领域事件
-        self._add_domain_event(FriendshipInteractionRecordedEvent(
-            friendship_id=self._id,
-            user_id=self._user_id,
-            friend_id=self._friend_id,
-            interaction_type=interaction_type,
-            interaction_count=self._interaction_count
+        self._interactionRecords.append(interaction_record)
+        self._addDomainEvent(FriendshipInteractionRecordedEvent(
+            friendshipId=self.id,
+            userId=self.userId,
+            friendId=self.friendId,
+            interactionType=interactionType,
+            interactionCount=self.interactionCount
         ))
-    
-    # ============ 业务规则验证 ============
-    
-    def can_interact(self) -> bool:
-        """检查是否可以交互"""
-        return self._status == FriendshipStatus.ACCEPTED and not self._is_blocked
-    
-    def is_active(self) -> bool:
-        """检查是否为活跃状态"""
-        return self._status == FriendshipStatus.ACCEPTED
-    
-    def is_pending(self) -> bool:
-        """检查是否为待处理状态"""
-        return self._status == FriendshipStatus.PENDING
-    
-    def is_blocked(self) -> bool:
-        """检查是否被拉黑"""
-        return self._status == FriendshipStatus.BLOCKED or self._is_blocked
-    
-    # ============ 工厂方法 ============
-    
+
+    def canInteract(self) -> bool:
+        return self.status == FriendshipStatus.ACCEPTED and not self.isBlocked
+
+    def isActive(self) -> bool:
+        return self.status == FriendshipStatus.ACCEPTED
+
+    def isPending(self) -> bool:
+        return self.status == FriendshipStatus.PENDING
+
+    def isBlockedState(self) -> bool:
+        return self.status == FriendshipStatus.BLOCKED or self.isBlocked
+
     @classmethod
     def create(
         cls,
-        user_id: str,
-        friend_id: str,
-        verification_message: Optional[str] = None,
+        userId: str,
+        friendId: str,
+        verificationMessage: Optional[str] = None,
         source: str = "manual"
-    ) -> "Friendship":
-        """创建好友关系"""
-        if user_id == friend_id:
-            raise ValueError("不能与自己建立好友关系")
-        
-        if not user_id or not friend_id:
-            raise ValueError("用户ID和好友ID不能为空")
-        
-        # 生成ID（实际实现中应该使用UUID生成器）
-        import uuid
+    ) -> "FriendshipEntity":
         friendship_id = str(uuid.uuid4())
-        
         return cls(
             id=friendship_id,
-            user_id=user_id,
-            friend_id=friend_id,
+            userId=userId,
+            friendId=friendId,
             status=FriendshipStatus.PENDING,
-            verification_message=verification_message,
+            verificationMessage=verificationMessage,
             source=source
         )
-    
-    # ============ 私有方法 ============
-    
-    def _add_domain_event(self, event: object) -> None:
-        """添加领域事件"""
-        self._domain_events.append(event)
-    
-    def clear_domain_events(self) -> None:
-        """清除领域事件"""
-        self._domain_events.clear()
 
+    def _addDomainEvent(self, event: object) -> None:
+        self._domainEvents.append(event)
 
-# ============ 领域事件定义 ============
+    def clearDomainEvents(self) -> None:
+        self._domainEvents.clear()
+
+    def __str__(self) -> str:
+        return (
+            f"FriendshipEntity(id={self.id}, userId={self.userId}, friendId={self.friendId}, "
+            f"status={self.status}, isStarred={self.isStarred}, isMuted={self.isMuted}, "
+            f"isPinned={self.isPinned}, isBlocked={self.isBlocked}, interactionCount={self.interactionCount})"
+        )
+
+    def __repr__(self) -> str:
+        return (
+            f"FriendshipEntity(id={self.id}, userId={self.userId}, friendId={self.friendId}, "
+            f"status={self.status}, nickname={self.nickname}, remark={self.remark}, "
+            f"isStarred={self.isStarred}, isMuted={self.isMuted}, isPinned={self.isPinned}, "
+            f"isBlocked={self.isBlocked}, tags={list(self.tags)}, groups={list(self.groups)}, "
+            f"interactionCount={self.interactionCount}, lastInteractionAt={self.lastInteractionAt}, "
+            f"domainEvents={self.domainEvents}, createdAt={self.createdAt}, updatedAt={self.updatedAt})"
+        )
+
 
 @dataclass
 class FriendshipAcceptedEvent:
-    friendship_id: str
-    user_id: str
-    friend_id: str
+    friendshipId: str
+    userId: str
+    friendId: str
 
 
 @dataclass
 class FriendshipRejectedEvent:
-    friendship_id: str
-    user_id: str
-    friend_id: str
+    friendshipId: str
+    userId: str
+    friendId: str
 
 
 @dataclass
 class FriendshipBlockedEvent:
-    friendship_id: str
-    user_id: str
-    friend_id: str
+    friendshipId: str
+    userId: str
+    friendId: str
 
 
 @dataclass
 class FriendshipUnblockedEvent:
-    friendship_id: str
-    user_id: str
-    friend_id: str
+    friendshipId: str
+    userId: str
+    friendId: str
 
 
 @dataclass
 class FriendshipDeletedEvent:
-    friendship_id: str
-    user_id: str
-    friend_id: str
+    friendshipId: str
+    userId: str
+    friendId: str
 
 
 @dataclass
 class FriendshipNicknameUpdatedEvent:
-    friendship_id: str
-    user_id: str
-    friend_id: str
+    friendshipId: str
+    userId: str
+    friendId: str
     nickname: Optional[str]
 
 
 @dataclass
 class FriendshipRemarkUpdatedEvent:
-    friendship_id: str
-    user_id: str
-    friend_id: str
+    friendshipId: str
+    userId: str
+    friendId: str
     remark: Optional[str]
 
 
 @dataclass
 class FriendshipStarToggledEvent:
-    friendship_id: str
-    user_id: str
-    friend_id: str
-    is_starred: bool
+    friendshipId: str
+    userId: str
+    friendId: str
+    isStarred: bool
 
 
 @dataclass
 class FriendshipMuteToggledEvent:
-    friendship_id: str
-    user_id: str
-    friend_id: str
-    is_muted: bool
+    friendshipId: str
+    userId: str
+    friendId: str
+    isMuted: bool
 
 
 @dataclass
 class FriendshipPinToggledEvent:
-    friendship_id: str
-    user_id: str
-    friend_id: str
-    is_pinned: bool
+    friendshipId: str
+    userId: str
+    friendId: str
+    isPinned: bool
 
 
 @dataclass
 class FriendshipTagAddedEvent:
-    friendship_id: str
-    user_id: str
-    friend_id: str
-    tag_id: str
+    friendshipId: str
+    userId: str
+    friendId: str
+    tagId: str
 
 
 @dataclass
 class FriendshipTagRemovedEvent:
-    friendship_id: str
-    user_id: str
-    friend_id: str
-    tag_id: str
+    friendshipId: str
+    userId: str
+    friendId: str
+    tagId: str
 
 
 @dataclass
 class FriendshipGroupAddedEvent:
-    friendship_id: str
-    user_id: str
-    friend_id: str
-    group_id: str
+    friendshipId: str
+    userId: str
+    friendId: str
+    groupId: str
 
 
 @dataclass
 class FriendshipGroupRemovedEvent:
-    friendship_id: str
-    user_id: str
-    friend_id: str
-    group_id: str
+    friendshipId: str
+    userId: str
+    friendId: str
+    groupId: str
 
 
 @dataclass
 class FriendshipInteractionRecordedEvent:
-    friendship_id: str
-    user_id: str
-    friend_id: str
-    interaction_type: str
-    interaction_count: int
+    friendshipId: str
+    userId: str
+    friendId: str
+    interactionType: str
+    interactionCount: int
+

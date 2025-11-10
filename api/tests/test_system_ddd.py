@@ -13,7 +13,7 @@ from app.system.domain.value_objects.system_config import (
     UserRegistrationConfig, 
     AIModelConfig
 )
-from app.system.domain.entities.system_settings import SystemSettings
+from app.system.domain.entities.system_settings import SystemSettingsEntity
 from app.system.domain.system_domain_service import SystemDomainService
 from app.system.domain.exceptions import (
     SystemSettingsValidationError,
@@ -65,57 +65,57 @@ class TestSystemSettingsEntity:
     
     def test_create_default_system_settings(self):
         """测试创建默认系统设置"""
-        settings = SystemSettings.create_default("test-id")
+        settings = SystemSettingsEntity.createDefault("test-id")
         assert settings.id == "test-id"
-        assert settings.site_config.site_name == "安美智能咨询系统"
-        assert settings.maintenance_mode == MaintenanceMode.DISABLED
-        assert settings.user_registration_config.enabled is True
+        assert settings.siteConfig.site_name == "安美智能咨询系统"
+        assert settings.maintenanceMode == MaintenanceMode.DISABLED
+        assert settings.userRegistrationConfig.enabled is True
     
     def test_system_status_property(self):
         """测试系统状态属性"""
-        settings = SystemSettings.create_default("test-id")
-        assert settings.system_status == SystemStatus.NORMAL
+        settings = SystemSettingsEntity.createDefault("test-id")
+        assert settings.systemStatus == SystemStatus.NORMAL
         
-        settings.set_maintenance_mode(True)
-        assert settings.system_status == SystemStatus.MAINTENANCE
+        settings.setMaintenanceMode(True)
+        assert settings.systemStatus == SystemStatus.MAINTENANCE
     
     def test_update_site_config(self):
         """测试更新站点配置"""
-        settings = SystemSettings.create_default("test-id")
-        original_updated_at = settings.updated_at
+        settings = SystemSettingsEntity.createDefault("test-id")
+        original_updated_at = settings.updatedAt
         
-        settings.update_site_config(site_name="新站点名称")
-        assert settings.site_config.site_name == "新站点名称"
-        assert settings.updated_at > original_updated_at
+        settings.updateSiteConfig(siteName="新站点名称")
+        assert settings.siteConfig.site_name == "新站点名称"
+        assert settings.updatedAt > original_updated_at
     
     def test_set_maintenance_mode(self):
         """测试设置维护模式"""
-        settings = SystemSettings.create_default("test-id")
-        assert not settings.is_maintenance_mode()
+        settings = SystemSettingsEntity.createDefault("test-id")
+        assert not settings.isMaintenanceMode()
         
-        settings.set_maintenance_mode(True)
-        assert settings.is_maintenance_mode()
+        settings.setMaintenanceMode(True)
+        assert settings.isMaintenanceMode()
         
-        settings.set_maintenance_mode(False)
-        assert not settings.is_maintenance_mode()
+        settings.setMaintenanceMode(False)
+        assert not settings.isMaintenanceMode()
     
     def test_set_user_registration(self):
         """测试设置用户注册开关"""
-        settings = SystemSettings.create_default("test-id")
-        assert settings.is_user_registration_enabled()
+        settings = SystemSettingsEntity.createDefault("test-id")
+        assert settings.isUserRegistrationEnabled()
         
-        settings.set_user_registration(False)
-        assert not settings.is_user_registration_enabled()
+        settings.setUserRegistration(False)
+        assert not settings.isUserRegistrationEnabled()
     
     def test_to_dict(self):
         """测试转换为字典"""
-        settings = SystemSettings.create_default("test-id")
-        data = settings.to_dict()
+        settings = SystemSettingsEntity.createDefault("test-id")
+        data = settings.toDict()
         
         assert data["id"] == "test-id"
-        assert data["site_name"] == "安美智能咨询系统"
-        assert data["maintenance_mode"] is False
-        assert data["user_registration_enabled"] is True
+        assert data["siteName"] == "安美智能咨询系统"
+        assert data["maintenanceMode"] is False
+        assert data["userRegistrationEnabled"] is True
 
 
 class TestSystemDomainService:
@@ -124,7 +124,7 @@ class TestSystemDomainService:
     def test_validate_system_settings(self):
         """测试验证系统设置"""
         service = SystemDomainService()
-        settings = SystemSettings.create_default("test-id")
+        settings = SystemSettingsEntity.createDefault("test-id")
         
         assert service.validate_system_settings(settings) is True
     
@@ -139,11 +139,11 @@ class TestSystemDomainService:
     def test_get_system_health_status(self):
         """测试获取系统健康状态"""
         service = SystemDomainService()
-        settings = SystemSettings.create_default("test-id")
+        settings = SystemSettingsEntity.createDefault("test-id")
         
         assert service.get_system_health_status(settings) == "healthy"
         
-        settings.set_maintenance_mode(True)
+        settings.setMaintenanceMode(True)
         assert service.get_system_health_status(settings) == "maintenance"
 
 

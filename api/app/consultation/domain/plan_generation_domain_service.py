@@ -5,7 +5,7 @@
 from typing import Optional, Dict, Any
 import logging
 
-from .entities.plan import Plan
+from .entities.plan import PlanEntity
 from .value_objects.plan_status import PlanStatus
 
 logger = logging.getLogger(__name__)
@@ -44,19 +44,19 @@ class PlanGenerationDomainService:
         if not content:
             raise ValueError("方案内容不能为空")
     
-    def can_start_generation(self, plan: Plan) -> bool:
+    def can_start_generation(self, plan: PlanEntity) -> bool:
         """检查是否可以开始生成"""
         return plan.status == PlanStatus.DRAFT
     
-    def can_complete_generation(self, plan: Plan) -> bool:
+    def can_complete_generation(self, plan: PlanEntity) -> bool:
         """检查是否可以完成生成"""
         return plan.status == PlanStatus.GENERATING
     
-    def can_approve_plan(self, plan: Plan) -> bool:
+    def can_approve_plan(self, plan: PlanEntity) -> bool:
         """检查是否可以批准方案"""
         return plan.status == PlanStatus.REVIEWING
     
-    def can_reject_plan(self, plan: Plan) -> bool:
+    def can_reject_plan(self, plan: PlanEntity) -> bool:
         """检查是否可以拒绝方案"""
         return plan.status == PlanStatus.REVIEWING
     
@@ -89,16 +89,16 @@ class PlanGenerationDomainService:
         
         return base_title
     
-    def get_plan_summary(self, plan: Plan) -> Dict[str, Any]:
+    def get_plan_summary(self, plan: PlanEntity) -> Dict[str, Any]:
         """获取方案摘要信息"""
         return {
             "id": plan.id,
             "title": plan.title,
             "status": plan.status.value,
-            "consultation_id": plan.consultation_id,
-            "customer_id": plan.customer_id,
-            "consultant_id": plan.consultant_id,
+            "consultation_id": plan.consultationId,
+            "customer_id": plan.customerId,
+            "consultant_id": plan.consultantId,
             "version": plan.version,
-            "created_at": plan.created_at,
-            "updated_at": plan.updated_at
+            "created_at": plan.createdAt,
+            "updated_at": plan.updatedAt
         }

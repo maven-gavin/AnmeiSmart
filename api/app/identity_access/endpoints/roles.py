@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.identity_access.schemas.user import RoleCreate, RoleResponse, UserResponse
+from app.identity_access.schemas.user import RoleCreate, RoleResponse, RoleUpdate
 from app.identity_access.infrastructure.db.user import Role, User
 from app.identity_access.deps import get_identity_access_application_service
 from app.identity_access.application import IdentityAccessApplicationService
@@ -98,6 +98,43 @@ async def read_role(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="获取角色失败"
+        )
+
+@router.put("/{role_id}", response_model=RoleResponse)
+async def update_role(
+    role_id: str,
+    role_in: RoleUpdate,
+    current_user: User = Depends(get_current_user),
+    identity_access_service: IdentityAccessApplicationService = Depends(get_identity_access_application_service)
+) -> RoleResponse:
+    """
+    更新角色信息
+    
+    需要管理员权限
+    """
+    try:
+        can_manage_roles = await identity_access_service.check_permission(
+            str(current_user.id), "role:manage"
+        )
+        if not can_manage_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="没有足够的权限执行此操作"
+            )
+
+        updated_role = await identity_access_service.update_role(role_id, role_in)
+        return updated_role
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="更新角色失败"
         )
 
 @router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT)

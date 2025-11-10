@@ -8,51 +8,51 @@ from app.common.domain.entities.base_entity import BaseEntity, DomainEvent
 from app.tasks.domain.value_objects import TaskStatus, TaskPriority, TaskType
 
 
-class Task(BaseEntity):
+class TaskEntity(BaseEntity):
     """任务聚合根 - 管理任务的核心业务逻辑"""
     
     def __init__(
         self,
         id: str,
         title: str,
-        task_type: str,
+        taskType: str,
         description: Optional[str] = None,
         status: str = TaskStatus.PENDING.value,
         priority: str = TaskPriority.MEDIUM.value,
-        created_by: Optional[str] = None,
-        assigned_to: Optional[str] = None,
-        assigned_at: Optional[datetime] = None,
-        related_object_type: Optional[str] = None,
-        related_object_id: Optional[str] = None,
-        task_data: Optional[Dict[str, Any]] = None,
-        due_date: Optional[datetime] = None,
-        completed_at: Optional[datetime] = None,
+        createdBy: Optional[str] = None,
+        assignedTo: Optional[str] = None,
+        assignedAt: Optional[datetime] = None,
+        relatedObjectType: Optional[str] = None,
+        relatedObjectId: Optional[str] = None,
+        taskData: Optional[Dict[str, Any]] = None,
+        dueDate: Optional[datetime] = None,
+        completedAt: Optional[datetime] = None,
         result: Optional[Dict[str, Any]] = None,
         notes: Optional[str] = None,
-        created_at: Optional[datetime] = None,
-        updated_at: Optional[datetime] = None
+        createdAt: Optional[datetime] = None,
+        updatedAt: Optional[datetime] = None,
     ):
         # 调用父类构造函数
         super().__init__(id)
         
         # 设置属性
         self.title = title
-        self.task_type = task_type
+        self.taskType = taskType
         self.description = description
         self.status = status
         self.priority = priority
-        self.created_by = created_by
-        self.assigned_to = assigned_to
-        self.assigned_at = assigned_at
-        self.related_object_type = related_object_type
-        self.related_object_id = related_object_id
-        self.task_data = task_data
-        self.due_date = due_date
-        self.completed_at = completed_at
+        self.createdBy = createdBy
+        self.assignedTo = assignedTo
+        self.assignedAt = assignedAt
+        self.relatedObjectType = relatedObjectType
+        self.relatedObjectId = relatedObjectId
+        self.taskData = taskData
+        self.dueDate = dueDate
+        self.completedAt = completedAt
         self.result = result
         self.notes = notes
-        self.created_at = created_at or datetime.now()
-        self.updated_at = updated_at or datetime.now()
+        self.createdAt = createdAt or datetime.now()
+        self.updatedAt = updatedAt or datetime.now()
         
         # 验证实体状态
         self.validate()
@@ -62,7 +62,7 @@ class Task(BaseEntity):
         import logging
         logger = logging.getLogger(__name__)
         
-        logger.debug(f"Task.validate开始验证任务: ID={self.id}, title={self.title}, type={self.task_type}, status={self.status}, priority={self.priority}")
+        logger.debug(f"TaskEntity.validate开始验证任务: ID={self.id}, title={self.title}, type={self.taskType}, status={self.status}, priority={self.priority}")
         
         if not self.title or not self.title.strip():
             logger.error(f"任务标题验证失败: title={self.title}")
@@ -76,10 +76,10 @@ class Task(BaseEntity):
             logger.error(f"任务描述过长: length={len(self.description.strip())}")
             raise ValueError("任务描述过长，不能超过2000字符")
         
-        logger.debug(f"验证任务类型: {self.task_type}")
-        if not TaskType.get_task_type_metadata(self.task_type):
-            logger.error(f"无效的任务类型: {self.task_type}")
-            raise ValueError(f"无效的任务类型: {self.task_type}")
+        logger.debug(f"验证任务类型: {self.taskType}")
+        if not TaskType.get_task_type_metadata(self.taskType):
+            logger.error(f"无效的任务类型: {self.taskType}")
+            raise ValueError(f"无效的任务类型: {self.taskType}")
         
         logger.debug(f"验证任务状态: {self.status}")
         valid_statuses = TaskStatus.get_all_values()
@@ -95,34 +95,56 @@ class Task(BaseEntity):
             logger.error(f"无效的任务优先级: {self.priority}, 有效优先级: {valid_priorities}")
             raise ValueError(f"无效的任务优先级: {self.priority}")
         
-        logger.debug(f"Task.validate验证通过: ID={self.id}")
+        logger.debug(f"TaskEntity.validate验证通过: ID={self.id}")
     
     @classmethod
-    def create(cls, 
-               title: str, 
-               task_type: str, 
-               created_by: Optional[str] = None,
-               **kwargs) -> "Task":
+    def create(
+        cls,
+        title: str,
+        taskType: str,
+        createdBy: Optional[str] = None,
+        **kwargs
+    ) -> "TaskEntity":
         """工厂方法 - 创建任务"""
         from app.common.infrastructure.db.uuid_utils import task_id
         
         # 获取任务类型元数据
-        metadata = TaskType.get_task_type_metadata(task_type)
+        metadata = TaskType.get_task_type_metadata(taskType)
         default_priority = kwargs.pop('priority', metadata.get('default_priority', TaskPriority.MEDIUM.value))
-        
+
+        field_map = {
+            "description": "description",
+            "priority": "priority",
+            "due_date": "dueDate",
+            "related_object_type": "relatedObjectType",
+            "related_object_id": "relatedObjectId",
+            "task_data": "taskData",
+            "assigned_to": "assignedTo",
+            "assigned_at": "assignedAt",
+            "completed_at": "completedAt",
+            "created_at": "createdAt",
+            "updated_at": "updatedAt",
+            "result": "result",
+            "notes": "notes",
+        }
+        normalized_kwargs = {}
+        for key, value in kwargs.items():
+            camel_key = field_map.get(key, key)
+            normalized_kwargs[camel_key] = value
+
         task = cls(
             id=task_id(),
             title=title.strip(),
-            task_type=task_type,
+            taskType=taskType,
             priority=default_priority,
-            created_by=created_by,
-            **kwargs
+            createdBy=createdBy,
+            **normalized_kwargs
         )
         
         task.validate()
         return task
     
-    def assign_to(self, user_id: str) -> None:
+    def assignTo(self, user_id: str) -> None:
         """分配任务给用户"""
         if not user_id:
             raise ValueError("用户ID不能为空")
@@ -130,20 +152,20 @@ class Task(BaseEntity):
         if self.status not in [TaskStatus.PENDING.value]:
             raise ValueError(f"只有待处理状态的任务可以被分配，当前状态: {self.status}")
         
-        old_assigned_to = self.assigned_to
-        self.assigned_to = user_id
-        self.assigned_at = datetime.now()
+        old_assigned_to = self.assignedTo
+        self.assignedTo = user_id
+        self.assignedAt = datetime.now()
         self.status = TaskStatus.ASSIGNED.value
-        self.updated_at = datetime.now()
+        self.updatedAt = datetime.now()
         
         # 添加领域事件
         self._add_domain_event(DomainEvent(
             event_type="task_assigned",
             aggregate_id=self.id,
             data={
-                "old_assigned_to": old_assigned_to,
-                "new_assigned_to": user_id,
-                "assigned_at": self.assigned_at.isoformat()
+                "oldAssignedTo": old_assigned_to,
+                "newAssignedTo": user_id,
+                "assignedAt": self.assignedAt.isoformat()
             }
         ))
     
@@ -155,44 +177,44 @@ class Task(BaseEntity):
         if self.status != TaskStatus.PENDING.value:
             raise ValueError(f"只有待处理状态的任务可以被认领，当前状态: {self.status}")
         
-        if self.assigned_to:
+        if self.assignedTo:
             raise ValueError("任务已被分配，无法认领")
         
-        self.assigned_to = user_id
-        self.assigned_at = datetime.now()
+        self.assignedTo = user_id
+        self.assignedAt = datetime.now()
         self.status = TaskStatus.ASSIGNED.value
-        self.updated_at = datetime.now()
+        self.updatedAt = datetime.now()
         
         # 添加领域事件
         self._add_domain_event(DomainEvent(
             event_type="task_claimed",
             aggregate_id=self.id,
             data={
-                "claimed_by": user_id,
-                "claimed_at": self.assigned_at.isoformat()
+                "claimedBy": user_id,
+                "claimedAt": self.assignedAt.isoformat()
             }
         ))
     
-    def start_progress(self) -> None:
+    def startProgress(self) -> None:
         """开始处理任务"""
         if self.status != TaskStatus.ASSIGNED.value:
             raise ValueError(f"只有已分配状态的任务可以开始处理，当前状态: {self.status}")
         
-        if not self.assigned_to:
+        if not self.assignedTo:
             raise ValueError("任务未分配，无法开始处理")
         
         old_status = self.status
         self.status = TaskStatus.IN_PROGRESS.value
-        self.updated_at = datetime.now()
+        self.updatedAt = datetime.now()
         
         # 添加领域事件
         self._add_domain_event(DomainEvent(
             event_type="task_started",
             aggregate_id=self.id,
             data={
-                "old_status": old_status,
-                "new_status": self.status,
-                "started_at": self.updated_at.isoformat()
+                "oldStatus": old_status,
+                "newStatus": self.status,
+                "startedAt": self.updatedAt.isoformat()
             }
         ))
     
@@ -201,13 +223,13 @@ class Task(BaseEntity):
         if self.status not in [TaskStatus.ASSIGNED.value, TaskStatus.IN_PROGRESS.value]:
             raise ValueError(f"只有已分配或处理中状态的任务可以完成，当前状态: {self.status}")
         
-        if not self.assigned_to:
+        if not self.assignedTo:
             raise ValueError("任务未分配，无法完成")
         
         old_status = self.status
         self.status = TaskStatus.COMPLETED.value
-        self.completed_at = datetime.now()
-        self.updated_at = datetime.now()
+        self.completedAt = datetime.now()
+        self.updatedAt = datetime.now()
         
         if result is not None:
             self.result = result
@@ -220,9 +242,9 @@ class Task(BaseEntity):
             event_type="task_completed",
             aggregate_id=self.id,
             data={
-                "old_status": old_status,
-                "new_status": self.status,
-                "completed_at": self.completed_at.isoformat(),
+                "oldStatus": old_status,
+                "newStatus": self.status,
+                "completedAt": self.completedAt.isoformat(),
                 "result": self.result,
                 "notes": self.notes
             }
@@ -235,7 +257,7 @@ class Task(BaseEntity):
         
         old_status = self.status
         self.status = TaskStatus.CANCELLED.value
-        self.updated_at = datetime.now()
+        self.updatedAt = datetime.now()
         
         if reason:
             self.notes = f"取消原因: {reason}"
@@ -245,14 +267,14 @@ class Task(BaseEntity):
             event_type="task_cancelled",
             aggregate_id=self.id,
             data={
-                "old_status": old_status,
-                "new_status": self.status,
-                "cancelled_at": self.updated_at.isoformat(),
+                "oldStatus": old_status,
+                "newStatus": self.status,
+                "cancelledAt": self.updatedAt.isoformat(),
                 "reason": reason
             }
         ))
     
-    def update_priority(self, new_priority: str) -> None:
+    def updatePriority(self, new_priority: str) -> None:
         """更新任务优先级"""
         if new_priority not in TaskPriority.get_all_values():
             raise ValueError(f"无效的任务优先级: {new_priority}")
@@ -262,20 +284,19 @@ class Task(BaseEntity):
         
         old_priority = self.priority
         self.priority = new_priority
-        self.updated_at = datetime.now()
+        self.updatedAt = datetime.now()
         
-        # 添加领域事件
         self._add_domain_event(DomainEvent(
             event_type="task_priority_updated",
             aggregate_id=self.id,
             data={
-                "old_priority": old_priority,
-                "new_priority": new_priority,
-                "updated_at": self.updated_at.isoformat()
+                "oldPriority": old_priority,
+                "newPriority": new_priority,
+                "updatedAt": self.updatedAt.isoformat()
             }
         ))
     
-    def update_details(self, title: Optional[str] = None, description: Optional[str] = None) -> None:
+    def updateDetails(self, title: Optional[str] = None, description: Optional[str] = None) -> None:
         """更新任务详情"""
         if title is not None:
             if not title.strip():
@@ -289,7 +310,7 @@ class Task(BaseEntity):
                 raise ValueError("任务描述过长，不能超过2000字符")
             self.description = description.strip() if description else None
         
-        self.updated_at = datetime.now()
+        self.updatedAt = datetime.now()
         
         # 添加领域事件
         self._add_domain_event(DomainEvent(
@@ -298,30 +319,45 @@ class Task(BaseEntity):
             data={
                 "title": self.title,
                 "description": self.description,
-                "updated_at": self.updated_at.isoformat()
+                "updatedAt": self.updatedAt.isoformat()
             }
         ))
     
-    def is_assignable(self) -> bool:
+    def isAssignable(self) -> bool:
         """检查任务是否可以被分配"""
-        return self.status == TaskStatus.PENDING.value and not self.assigned_to
+        return self.status == TaskStatus.PENDING.value and not self.assignedTo
     
-    def is_claimable(self) -> bool:
+    def isClaimable(self) -> bool:
         """检查任务是否可以被认领"""
-        return self.status == TaskStatus.PENDING.value and not self.assigned_to
+        return self.status == TaskStatus.PENDING.value and not self.assignedTo
     
-    def is_editable(self) -> bool:
+    def isEditable(self) -> bool:
         """检查任务是否可以被编辑"""
         return self.status not in [TaskStatus.COMPLETED.value, TaskStatus.CANCELLED.value]
     
-    def get_remaining_time(self) -> Optional[float]:
+    def getRemainingTime(self) -> Optional[float]:
         """获取剩余时间（小时）"""
-        if not self.due_date:
+        if not self.dueDate:
             return None
         
         now = datetime.now()
-        if now >= self.due_date:
+        if now >= self.dueDate:
             return 0.0
         
-        remaining = self.due_date - now
+        remaining = self.dueDate - now
         return remaining.total_seconds() / 3600  # 转换为小时
+
+    def __str__(self) -> str:
+        return (
+            f"TaskEntity(id={self.id}, title={self.title}, status={self.status}, "
+            f"priority={self.priority}, assignedTo={self.assignedTo})"
+        )
+
+    def __repr__(self) -> str:
+        return (
+            "TaskEntity("
+            f"id={self.id}, title={self.title}, taskType={self.taskType}, "
+            f"status={self.status}, priority={self.priority}, createdBy={self.createdBy}, "
+            f"assignedTo={self.assignedTo}, dueDate={self.dueDate}, "
+            f"completedAt={self.completedAt}, createdAt={self.createdAt}, updatedAt={self.updatedAt})"
+        )

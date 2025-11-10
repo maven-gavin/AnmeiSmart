@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 from app.identity_access.infrastructure.db.user import Role as RoleModel, Permission
 from ...interfaces.repository_interfaces import IRoleRepository
 from ...interfaces.converter_interfaces import IRoleConverter
-from app.identity_access.domain.entities.role import Role as RoleEntity
-from app.identity_access.domain.entities.permission import Permission as PermissionEntity
+from app.identity_access.domain.entities.role import RoleEntity
+from app.identity_access.domain.entities.permission import PermissionEntity
 
 
 class RoleRepository(IRoleRepository):
@@ -89,9 +89,7 @@ class RoleRepository(IRoleRepository):
             return existing_role
         
         # 创建新角色
-        from ...domain.entities.role import Role
-        
-        role = Role.create(name=name, description=description)
+        role = RoleEntity.create(name=name, description=description)
         return await self.save(role)
     
     async def list_active(self, tenant_id: Optional[str] = None) -> List[RoleEntity]:
@@ -166,15 +164,15 @@ class RoleRepository(IRoleRepository):
         return RoleEntity(
             id=db_role.id,
             name=db_role.name,
-            display_name=db_role.display_name,
+            displayName=db_role.display_name,
             description=db_role.description,
-            is_active=db_role.is_active,
-            is_system=db_role.is_system,
-            is_admin=db_role.is_admin,
+            isActive=db_role.is_active,
+            isSystem=db_role.is_system,
+            isAdmin=db_role.is_admin,
             priority=db_role.priority,
-            tenant_id=db_role.tenant_id,
-            created_at=db_role.created_at,
-            updated_at=db_role.updated_at
+            tenantId=db_role.tenant_id,
+            createdAt=db_role.created_at,
+            updatedAt=db_role.updated_at
         )
     
     def _permission_to_entity(self, db_permission: Permission) -> PermissionEntity:
@@ -185,17 +183,17 @@ class RoleRepository(IRoleRepository):
         return PermissionEntity(
             id=db_permission.id,
             name=db_permission.name,
-            display_name=db_permission.display_name,
+            displayName=db_permission.display_name,
             description=db_permission.description,
-            permission_type=PermissionType(db_permission.permission_type) if db_permission.permission_type else PermissionType.ACTION,
+            permissionType=PermissionType(db_permission.permission_type) if db_permission.permission_type else PermissionType.ACTION,
             scope=PermissionScope(db_permission.scope) if db_permission.scope else PermissionScope.TENANT,
             resource=db_permission.resource,
             action=db_permission.action,
-            is_active=db_permission.is_active,
-            is_system=db_permission.is_system,
-            is_admin=db_permission.is_admin,
+            isActive=db_permission.is_active,
+            isSystem=db_permission.is_system,
+            isAdmin=db_permission.is_admin,
             priority=db_permission.priority,
-            tenant_id=db_permission.tenant_id,
-            created_at=db_permission.created_at,
-            updated_at=db_permission.updated_at
+            tenantId=db_permission.tenant_id,
+            createdAt=db_permission.created_at,
+            updatedAt=db_permission.updated_at
         )

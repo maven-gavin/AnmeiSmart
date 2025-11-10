@@ -2,9 +2,8 @@
 客户数据转换器
 """
 from typing import List, Optional, Dict, Any
-from datetime import datetime
 
-from app.customer.domain.entities.customer import Customer
+from app.customer.domain.entities.customer import CustomerEntity
 from app.customer.schemas.customer import CustomerInfo, CustomerBase
 from app.identity_access.infrastructure.db.user import User
 
@@ -13,31 +12,31 @@ class CustomerConverter:
     """客户数据转换器"""
     
     @staticmethod
-    def to_response(customer: Customer, user: User) -> CustomerInfo:
+    def to_response(customer: CustomerEntity, user: User) -> CustomerInfo:
         """转换客户实体为API响应格式"""
         return CustomerInfo(
             id=customer.id,
-            user_id=customer.user_id,
+            user_id=customer.userId,
             username=user.username,
             email=user.email,
             phone=user.phone,
             avatar=user.avatar,
-            medical_history=customer.medical_history,
+            medical_history=customer.medicalHistory,
             allergies=customer.allergies,
             preferences=customer.preferences,
-            created_at=customer.created_at,
-            updated_at=customer.updated_at
+            created_at=customer.createdAt,
+            updated_at=customer.updatedAt
         )
     
     @staticmethod
-    def to_list_response(customers: List[Customer], users: List[User]) -> List[CustomerInfo]:
+    def to_list_response(customers: List[CustomerEntity], users: List[User]) -> List[CustomerInfo]:
         """转换客户列表为API响应格式"""
         # 创建用户ID到用户对象的映射
         user_map = {user.id: user for user in users}
         
         result = []
         for customer in customers:
-            user = user_map.get(customer.user_id)
+            user = user_map.get(customer.userId)
             if user:
                 result.append(CustomerConverter.to_response(customer, user))
         
@@ -70,35 +69,35 @@ class CustomerConverter:
         return update_data
     
     @staticmethod
-    def from_model(model) -> Customer:
+    def from_model(model) -> CustomerEntity:
         """从ORM模型转换为领域实体"""
-        from app.customer.domain.entities.customer import Customer
+        from app.customer.domain.entities.customer import CustomerEntity
         
-        return Customer(
+        return CustomerEntity(
             id=model.id,
-            user_id=model.user_id,
-            medical_history=model.medical_history,
+            userId=model.user_id,
+            medicalHistory=model.medical_history,
             allergies=model.allergies,
             preferences=model.preferences,
-            created_at=model.created_at,
-            updated_at=model.updated_at
+            createdAt=model.created_at,
+            updatedAt=model.updated_at
         )
     
     @staticmethod
-    def to_model_dict(customer: Customer) -> Dict[str, Any]:
+    def to_model_dict(customer: CustomerEntity) -> Dict[str, Any]:
         """转换领域实体为ORM模型字典"""
         return {
             "id": customer.id,
-            "user_id": customer.user_id,
-            "medical_history": customer.medical_history,
+            "user_id": customer.userId,
+            "medical_history": customer.medicalHistory,
             "allergies": customer.allergies,
             "preferences": customer.preferences,
-            "created_at": customer.created_at,
-            "updated_at": customer.updated_at
+            "created_at": customer.createdAt,
+            "updated_at": customer.updatedAt
         }
     
     @staticmethod
-    def to_customer_summary(customer: Customer, user: User, last_message: Optional[Dict] = None, unread_count: int = 0) -> Dict[str, Any]:
+    def to_customer_summary(customer: CustomerEntity, user: User, last_message: Optional[Dict] = None, unread_count: int = 0) -> Dict[str, Any]:
         """转换为客户摘要信息"""
         return {
             "id": customer.id,

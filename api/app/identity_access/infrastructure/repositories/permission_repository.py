@@ -10,8 +10,8 @@ from sqlalchemy import and_
 
 from app.identity_access.infrastructure.db.user import Permission, Role
 from app.identity_access.interfaces.repository_interfaces import IPermissionRepository
-from app.identity_access.domain.entities.permission import Permission as PermissionEntity
-from app.identity_access.domain.entities.role import Role as RoleEntity
+from app.identity_access.domain.entities.permission import PermissionEntity
+from app.identity_access.domain.entities.role import RoleEntity
 from app.identity_access.domain.value_objects.permission_type import PermissionType
 from app.identity_access.domain.value_objects.permission_scope import PermissionScope
 
@@ -95,19 +95,19 @@ class PermissionRepository(IPermissionRepository):
         return PermissionEntity(
             id=db_permission.id,
             name=db_permission.name,
-            display_name=db_permission.display_name,
+            displayName=db_permission.display_name,
             description=db_permission.description,
-            permission_type=PermissionType(db_permission.permission_type) if db_permission.permission_type else PermissionType.ACTION,
+            permissionType=PermissionType(db_permission.permission_type) if db_permission.permission_type else PermissionType.ACTION,
             scope=PermissionScope(db_permission.scope) if db_permission.scope else PermissionScope.TENANT,
             resource=db_permission.resource,
             action=db_permission.action,
-            is_active=db_permission.is_active,
-            is_system=db_permission.is_system,
-            is_admin=db_permission.is_admin,
+            isActive=db_permission.is_active,
+            isSystem=db_permission.is_system,
+            isAdmin=db_permission.is_admin,
             priority=db_permission.priority,
-            tenant_id=db_permission.tenant_id,
-            created_at=db_permission.created_at,
-            updated_at=db_permission.updated_at
+            tenantId=db_permission.tenant_id,
+            createdAt=db_permission.created_at,
+            updatedAt=db_permission.updated_at
         )
     
     def _to_db_model(self, permission: PermissionEntity) -> Permission:
@@ -115,50 +115,49 @@ class PermissionRepository(IPermissionRepository):
         return Permission(
             id=permission.id,
             name=permission.name,
-            display_name=permission.display_name,
+            display_name=permission.displayName,
             description=permission.description,
-            permission_type=permission.permission_type.value,
+            permission_type=permission.permissionType.value,
             scope=permission.scope.value,
             resource=permission.resource,
             action=permission.action,
-            is_active=permission.is_active,
-            is_system=permission.is_system,
-            is_admin=permission.is_admin,
+            is_active=permission.isActive,
+            is_system=permission.isSystem,
+            is_admin=permission.isAdmin,
             priority=permission.priority,
-            tenant_id=permission.tenant_id,
-            created_at=permission.created_at,
-            updated_at=permission.updated_at
+            tenant_id=permission.tenantId,
+            created_at=permission.createdAt,
+            updated_at=permission.updatedAt
         )
     
     def _update_db_model(self, db_permission: Permission, permission: PermissionEntity) -> None:
         """更新数据库模型"""
         db_permission.name = permission.name
-        db_permission.display_name = permission.display_name
+        db_permission.display_name = permission.displayName
         db_permission.description = permission.description
-        db_permission.permission_type = permission.permission_type.value
+        db_permission.permission_type = permission.permissionType.value
         db_permission.scope = permission.scope.value
         db_permission.resource = permission.resource
         db_permission.action = permission.action
-        db_permission.is_active = permission.is_active
-        db_permission.is_system = permission.is_system
-        db_permission.is_admin = permission.is_admin
+        db_permission.is_active = permission.isActive
+        db_permission.is_system = permission.isSystem
+        db_permission.is_admin = permission.isAdmin
         db_permission.priority = permission.priority
-        db_permission.tenant_id = permission.tenant_id
-        db_permission.updated_at = permission.updated_at
+        db_permission.tenant_id = permission.tenantId
+        db_permission.updated_at = permission.updatedAt
     
     def _role_to_entity(self, db_role: Role) -> RoleEntity:
         """将角色数据库模型转换为领域实体"""
-        from app.identity_access.domain.entities.role import Role as RoleEntity
         return RoleEntity(
             id=db_role.id,
             name=db_role.name,
-            display_name=db_role.display_name,
+            displayName=db_role.display_name,
             description=db_role.description,
-            is_active=db_role.is_active,
-            is_system=db_role.is_system,
-            is_admin=db_role.is_admin,
+            isActive=db_role.is_active,
+            isSystem=db_role.is_system,
+            isAdmin=db_role.is_admin,
             priority=db_role.priority,
-            tenant_id=db_role.tenant_id,
-            created_at=db_role.created_at,
-            updated_at=db_role.updated_at
+            tenantId=db_role.tenant_id,
+            createdAt=db_role.created_at,
+            updatedAt=db_role.updated_at
         )

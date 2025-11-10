@@ -5,8 +5,8 @@
 from .application.chat_application_service import ChatApplicationService
 
 # 导出领域层
-from .domain.entities.conversation import Conversation
-from .domain.entities.message import Message
+from .domain.entities.conversation import ConversationEntity
+from .domain.entities.message import MessageEntity
 from .domain.conversation_domain_service import ConversationDomainService
 from .domain.message_domain_service import MessageDomainService
 
@@ -24,8 +24,8 @@ __all__ = [
     "ChatApplicationService",
     
     # 领域层
-    "Conversation",
-    "Message",
+    "ConversationEntity",
+    "MessageEntity",
     "ConversationDomainService",
     "MessageDomainService",
     

@@ -2,9 +2,8 @@
 客户档案数据转换器
 """
 from typing import List, Optional, Dict, Any
-from datetime import datetime
 
-from app.customer.domain.entities.customer import CustomerProfile
+from app.customer.domain.entities.customer import CustomerProfileEntity
 from app.customer.schemas.customer import CustomerProfileInfo, CustomerProfileCreate, CustomerProfileUpdate
 from app.identity_access.infrastructure.db.user import User
 
@@ -13,7 +12,7 @@ class CustomerProfileConverter:
     """客户档案数据转换器"""
     
     @staticmethod
-    def to_response(profile: CustomerProfile, user: User) -> CustomerProfileInfo:
+    def to_response(profile: CustomerProfileEntity, user: User) -> CustomerProfileInfo:
         """转换客户档案实体为API响应格式"""
         from app.customer.schemas.customer import CustomerBasicInfo
         
@@ -23,24 +22,24 @@ class CustomerProfileConverter:
                 name=user.username,
                 phone=user.phone
             ),
-            medical_history=profile.medical_history,
+            medical_history=profile.medicalHistory,
             allergies=profile.allergies,
             preferences=profile.preferences,
-            tags=profile.get_tags_list(),
-            riskNotes=profile.risk_notes,
-            created_at=profile.created_at,
-            updated_at=profile.updated_at
+            tags=profile.getTagsList(),
+            riskNotes=profile.riskNotes,
+            created_at=profile.createdAt,
+            updated_at=profile.updatedAt
         )
     
     @staticmethod
-    def to_list_response(profiles: List[CustomerProfile], users: List[User]) -> List[CustomerProfileInfo]:
+    def to_list_response(profiles: List[CustomerProfileEntity], users: List[User]) -> List[CustomerProfileInfo]:
         """转换客户档案列表为API响应格式"""
         # 创建用户ID到用户对象的映射
         user_map = {user.id: user for user in users}
         
         result = []
         for profile in profiles:
-            user = user_map.get(profile.customer_id)
+            user = user_map.get(profile.customerId)
             if user:
                 result.append(CustomerProfileConverter.to_response(profile, user))
         
@@ -80,35 +79,35 @@ class CustomerProfileConverter:
         return update_data
     
     @staticmethod
-    def from_model(model) -> CustomerProfile:
+    def from_model(model) -> CustomerProfileEntity:
         """从ORM模型转换为领域实体"""
-        from app.customer.domain.entities.customer import CustomerProfile
+        from app.customer.domain.entities.customer import CustomerProfileEntity
         
-        return CustomerProfile(
+        return CustomerProfileEntity(
             id=model.id,
-            customer_id=model.customer_id,
-            medical_history=model.medical_history,
+            customerId=model.customer_id,
+            medicalHistory=model.medical_history,
             allergies=model.allergies,
             preferences=model.preferences,
             tags=model.tags,
-            risk_notes=model.risk_notes or [],
-            created_at=model.created_at,
-            updated_at=model.updated_at
+            riskNotes=model.risk_notes or [],
+            createdAt=model.created_at,
+            updatedAt=model.updated_at
         )
     
     @staticmethod
-    def to_model_dict(profile: CustomerProfile) -> Dict[str, Any]:
+    def to_model_dict(profile: CustomerProfileEntity) -> Dict[str, Any]:
         """转换领域实体为ORM模型字典"""
         return {
             "id": profile.id,
-            "customer_id": profile.customer_id,
-            "medical_history": profile.medical_history,
+            "customer_id": profile.customerId,
+            "medical_history": profile.medicalHistory,
             "allergies": profile.allergies,
             "preferences": profile.preferences,
             "tags": profile.tags,
-            "risk_notes": profile.risk_notes,
-            "created_at": profile.created_at,
-            "updated_at": profile.updated_at
+            "risk_notes": profile.riskNotes,
+            "created_at": profile.createdAt,
+            "updated_at": profile.updatedAt
         }
     
     @staticmethod

@@ -5,7 +5,7 @@ import logging
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-from app.customer.domain.entities.customer import Customer, CustomerProfile
+from app.customer.domain.entities.customer import CustomerEntity, CustomerProfileEntity
 from app.customer.domain.customer_domain_service import CustomerDomainService
 from app.customer.infrastructure.repositories.customer_repository import CustomerRepository
 from app.customer.infrastructure.repositories.customer_profile_repository import CustomerProfileRepository
@@ -95,9 +95,9 @@ class CustomerApplicationService:
                 raise ValueError("客户信息已存在")
             
             # 创建领域对象
-            customer = Customer.create(
-                user_id=user_id,
-                medical_history=customer_data.get('medical_history'),
+            customer = CustomerEntity.create(
+                userId=user_id,
+                medicalHistory=customer_data.get('medical_history'),
                 allergies=customer_data.get('allergies'),
                 preferences=customer_data.get('preferences')
             )
@@ -106,6 +106,7 @@ class CustomerApplicationService:
             saved_customer = await self.customer_repository.save(customer)
             
             # 获取用户信息
+            from app.identity_access.infrastructure.db.user import User
             user = self.customer_repository.db.query(User).filter(User.id == user_id).first()
             if not user:
                 raise ValueError("用户不存在")
@@ -139,18 +140,19 @@ class CustomerApplicationService:
             
             # 更新客户信息
             if 'medical_history' in update_data:
-                customer.update_medical_history(update_data['medical_history'])
+                customer.updateMedicalHistory(update_data['medical_history'])
             
             if 'allergies' in update_data:
-                customer.update_allergies(update_data['allergies'])
+                customer.updateAllergies(update_data['allergies'])
             
             if 'preferences' in update_data:
-                customer.update_preferences(update_data['preferences'])
+                customer.updatePreferences(update_data['preferences'])
             
             # 持久化
             updated_customer = await self.customer_repository.save(customer)
             
             # 获取用户信息
+            from app.identity_access.infrastructure.db.user import User
             user = self.customer_repository.db.query(User).filter(User.id == user_id).first()
             if not user:
                 raise ValueError("用户不存在")
@@ -211,9 +213,9 @@ class CustomerApplicationService:
             )
             
             # 创建领域对象
-            profile = CustomerProfile.create(
-                customer_id=customer_id,
-                medical_history=profile_data.medical_history,
+            profile = CustomerProfileEntity.create(
+                customerId=customer_id,
+                medicalHistory=profile_data.medical_history,
                 allergies=profile_data.allergies,
                 preferences=profile_data.preferences,
                 tags=profile_data.tags
@@ -223,6 +225,7 @@ class CustomerApplicationService:
             saved_profile = await self.customer_profile_repository.save(profile)
             
             # 获取用户信息
+            from app.identity_access.infrastructure.db.user import User
             user = self.customer_profile_repository.db.query(User).filter(User.id == customer_id).first()
             if not user:
                 raise ValueError("用户不存在")
@@ -275,25 +278,26 @@ class CustomerApplicationService:
             
             # 更新档案信息
             if profile_data.medical_history is not None:
-                profile.update_medical_history(profile_data.medical_history)
+                profile.updateMedicalHistory(profile_data.medical_history)
             
             if profile_data.allergies is not None:
-                profile.update_allergies(profile_data.allergies)
+                profile.updateAllergies(profile_data.allergies)
             
             if profile_data.preferences is not None:
-                profile.update_preferences(profile_data.preferences)
+                profile.updatePreferences(profile_data.preferences)
             
             if profile_data.tags is not None:
-                profile.update_tags(profile_data.tags)
+                profile.updateTags(profile_data.tags)
             
             if profile_data.risk_notes is not None:
-                profile.risk_notes = [note.model_dump() for note in profile_data.risk_notes]
-                profile.updated_at = datetime.now()
+                profile.riskNotes = [note.model_dump() for note in profile_data.risk_notes]
+                profile.updatedAt = datetime.now()
             
             # 持久化
             updated_profile = await self.customer_profile_repository.save(profile)
             
             # 获取用户信息
+            from app.identity_access.infrastructure.db.user import User
             user = self.customer_profile_repository.db.query(User).filter(User.id == customer_id).first()
             if not user:
                 raise ValueError("用户不存在")

@@ -8,7 +8,7 @@ import logging
 from typing import List, Optional, Callable, Any
 from fastapi import HTTPException, status, Depends
 
-from ..domain.entities.user import User
+from ..domain.entities.user import UserEntity
 from ..application.identity_access_application_service import IdentityAccessApplicationService
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ def get_identity_access_service() -> IdentityAccessApplicationService:
 
 
 async def check_user_permission(
-    user: User,
+    user: UserEntity,
     permission: str,
     identity_service: IdentityAccessApplicationService = Depends(get_identity_access_service)
 ) -> bool:
@@ -35,7 +35,7 @@ async def check_user_permission(
 
 
 async def check_user_role(
-    user: User,
+    user: UserEntity,
     role_name: str,
     identity_service: IdentityAccessApplicationService = Depends(get_identity_access_service)
 ) -> bool:
@@ -49,7 +49,7 @@ async def check_user_role(
 
 
 async def check_user_any_role(
-    user: User,
+    user: UserEntity,
     role_names: List[str],
     identity_service: IdentityAccessApplicationService = Depends(get_identity_access_service)
 ) -> bool:
@@ -66,7 +66,7 @@ async def check_user_any_role(
 
 
 async def check_user_any_permission(
-    user: User,
+    user: UserEntity,
     permissions: List[str],
     identity_service: IdentityAccessApplicationService = Depends(get_identity_access_service)
 ) -> bool:
@@ -83,7 +83,7 @@ async def check_user_any_permission(
 
 
 async def is_user_admin(
-    user: User,
+    user: UserEntity,
     identity_service: IdentityAccessApplicationService = Depends(get_identity_access_service)
 ) -> bool:
     """检查用户是否为管理员"""
@@ -104,13 +104,13 @@ def require_permission(permission: str):
             # 从参数中获取用户对象
             user = None
             for arg in args:
-                if isinstance(arg, User):
+                if isinstance(arg, UserEntity):
                     user = arg
                     break
             
             if not user:
                 for key, value in kwargs.items():
-                    if isinstance(value, User):
+                    if isinstance(value, UserEntity):
                         user = value
                         break
             
@@ -140,13 +140,13 @@ def require_role(role_name: str):
             # 从参数中获取用户对象
             user = None
             for arg in args:
-                if isinstance(arg, User):
+                if isinstance(arg, UserEntity):
                     user = arg
                     break
             
             if not user:
                 for key, value in kwargs.items():
-                    if isinstance(value, User):
+                    if isinstance(value, UserEntity):
                         user = value
                         break
             
@@ -176,13 +176,13 @@ def require_any_role(role_names: List[str]):
             # 从参数中获取用户对象
             user = None
             for arg in args:
-                if isinstance(arg, User):
+                if isinstance(arg, UserEntity):
                     user = arg
                     break
             
             if not user:
                 for key, value in kwargs.items():
-                    if isinstance(value, User):
+                    if isinstance(value, UserEntity):
                         user = value
                         break
             

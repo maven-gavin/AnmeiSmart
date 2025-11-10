@@ -8,10 +8,10 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-from ..domain.entities.user import User
-from ..domain.entities.role import Role
-from ..domain.entities.tenant import Tenant
-from ..domain.entities.permission import Permission
+from ..domain.entities.user import UserEntity
+from ..domain.entities.role import RoleEntity
+from ..domain.entities.tenant import TenantEntity
+from ..domain.entities.permission import PermissionEntity
 from ..domain.value_objects.login_history import LoginHistory
 from ..domain.value_objects.tenant_status import TenantStatus
 
@@ -20,22 +20,22 @@ class IUserRepository(ABC):
     """用户仓储接口"""
     
     @abstractmethod
-    async def get_by_id(self, user_id: str) -> Optional[User]:
+    async def get_by_id(self, user_id: str) -> Optional[UserEntity]:
         """根据ID获取用户"""
         pass
     
     @abstractmethod
-    async def get_by_email(self, email: str) -> Optional[User]:
+    async def get_by_email(self, email: str) -> Optional[UserEntity]:
         """根据邮箱获取用户"""
         pass
     
     @abstractmethod
-    async def get_by_username(self, username: str) -> Optional[User]:
+    async def get_by_username(self, username: str) -> Optional[UserEntity]:
         """根据用户名获取用户"""
         pass
     
     @abstractmethod
-    async def save(self, user: User) -> User:
+    async def save(self, user: UserEntity) -> UserEntity:
         """保存用户"""
         pass
     
@@ -45,7 +45,7 @@ class IUserRepository(ABC):
         pass
     
     @abstractmethod
-    async def list_active(self, limit: int = 100, offset: int = 0) -> List[User]:
+    async def list_active(self, limit: int = 100, offset: int = 0) -> List[UserEntity]:
         """获取活跃用户列表"""
         pass
     
@@ -55,7 +55,7 @@ class IUserRepository(ABC):
         pass
     
     @abstractmethod
-    async def get_user_roles(self, user_id: str) -> List[Role]:
+    async def get_user_roles(self, user_id: str) -> List[RoleEntity]:
         """获取用户的角色列表"""
         pass
     
@@ -69,17 +69,17 @@ class IRoleRepository(ABC):
     """角色仓储接口"""
     
     @abstractmethod
-    async def get_by_id(self, role_id: str) -> Optional[Role]:
+    async def get_by_id(self, role_id: str) -> Optional[RoleEntity]:
         """根据ID获取角色"""
         pass
     
     @abstractmethod
-    async def get_by_name(self, name: str) -> Optional[Role]:
+    async def get_by_name(self, name: str) -> Optional[RoleEntity]:
         """根据名称获取角色"""
         pass
     
     @abstractmethod
-    async def save(self, role: Role) -> Role:
+    async def save(self, role: RoleEntity) -> RoleEntity:
         """保存角色"""
         pass
     
@@ -89,17 +89,17 @@ class IRoleRepository(ABC):
         pass
     
     @abstractmethod
-    async def list_active(self, tenant_id: Optional[str] = None) -> List[Role]:
+    async def list_active(self, tenant_id: Optional[str] = None) -> List[RoleEntity]:
         """获取活跃角色列表"""
         pass
     
     @abstractmethod
-    async def list_system_roles(self) -> List[Role]:
+    async def list_system_roles(self) -> List[RoleEntity]:
         """获取系统角色列表"""
         pass
     
     @abstractmethod
-    async def list_admin_roles(self) -> List[Role]:
+    async def list_admin_roles(self) -> List[RoleEntity]:
         """获取管理员角色列表"""
         pass
     
@@ -114,7 +114,7 @@ class IRoleRepository(ABC):
         pass
     
     @abstractmethod
-    async def get_permissions(self, role_id: str) -> List[Permission]:
+    async def get_permissions(self, role_id: str) -> List[PermissionEntity]:
         """获取角色的权限列表"""
         pass
 
@@ -123,22 +123,22 @@ class ITenantRepository(ABC):
     """租户仓储接口"""
     
     @abstractmethod
-    async def get_by_id(self, tenant_id: str) -> Optional[Tenant]:
+    async def get_by_id(self, tenant_id: str) -> Optional[TenantEntity]:
         """根据ID获取租户"""
         pass
     
     @abstractmethod
-    async def get_by_name(self, name: str) -> Optional[Tenant]:
+    async def get_by_name(self, name: str) -> Optional[TenantEntity]:
         """根据名称获取租户"""
         pass
     
     @abstractmethod
-    async def get_system_tenant(self) -> Optional[Tenant]:
+    async def get_system_tenant(self) -> Optional[TenantEntity]:
         """获取系统租户"""
         pass
     
     @abstractmethod
-    async def save(self, tenant: Tenant) -> Tenant:
+    async def save(self, tenant: TenantEntity) -> TenantEntity:
         """保存租户"""
         pass
     
@@ -148,12 +148,12 @@ class ITenantRepository(ABC):
         pass
     
     @abstractmethod
-    async def list_by_status(self, status: TenantStatus) -> List[Tenant]:
+    async def list_by_status(self, status: TenantStatus) -> List[TenantEntity]:
         """根据状态获取租户列表"""
         pass
     
     @abstractmethod
-    async def list_active(self) -> List[Tenant]:
+    async def list_active(self) -> List[TenantEntity]:
         """获取活跃租户列表"""
         pass
 
@@ -162,17 +162,17 @@ class IPermissionRepository(ABC):
     """权限仓储接口"""
     
     @abstractmethod
-    async def get_by_id(self, permission_id: str) -> Optional[Permission]:
+    async def get_by_id(self, permission_id: str) -> Optional[PermissionEntity]:
         """根据ID获取权限"""
         pass
     
     @abstractmethod
-    async def get_by_name(self, name: str) -> Optional[Permission]:
+    async def get_by_name(self, name: str) -> Optional[PermissionEntity]:
         """根据名称获取权限"""
         pass
     
     @abstractmethod
-    async def save(self, permission: Permission) -> Permission:
+    async def save(self, permission: PermissionEntity) -> PermissionEntity:
         """保存权限"""
         pass
     
@@ -182,17 +182,17 @@ class IPermissionRepository(ABC):
         pass
     
     @abstractmethod
-    async def list_active(self, tenant_id: Optional[str] = None) -> List[Permission]:
+    async def list_active(self, tenant_id: Optional[str] = None) -> List[PermissionEntity]:
         """获取活跃权限列表"""
         pass
     
     @abstractmethod
-    async def list_system_permissions(self) -> List[Permission]:
+    async def list_system_permissions(self) -> List[PermissionEntity]:
         """获取系统权限列表"""
         pass
     
     @abstractmethod
-    async def get_roles(self, permission_id: str) -> List[Role]:
+    async def get_roles(self, permission_id: str) -> List[RoleEntity]:
         """获取拥有指定权限的角色列表"""
         pass
 

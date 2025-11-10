@@ -7,7 +7,7 @@
 from typing import Optional, List
 import logging
 
-from .entities.user import User
+from .entities.user import UserEntity
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class SecurityDomainService:
         self.user_repository = user_repository
         self.jwt_service = jwt_service
     
-    async def authenticate_user_by_token(self, token: str) -> Optional[User]:
+    async def authenticate_user_by_token(self, token: str) -> Optional[UserEntity]:
         """
         通过令牌认证用户 - 领域逻辑
         
@@ -39,18 +39,18 @@ class SecurityDomainService:
             return None
         
         # 从数据库获取用户
-        user = await self.user_repository.get_by_id(user_id)
-        if not user:
+        userEntity = await self.user_repository.get_by_id(user_id)
+        if not userEntity:
             return None
         
         # 设置活跃角色
         active_role = payload.get("role")
         if active_role:
-            self._set_user_active_role(user, active_role)
+            self._set_user_active_role(userEntity, active_role)
         
-        return user
+        return userEntity
     
-    def _set_user_active_role(self, user: User, role: str) -> None:
+    def _set_user_active_role(self, user: UserEntity, role: str) -> None:
         """
         设置用户活跃角色 - 领域逻辑
         
@@ -70,7 +70,7 @@ class SecurityDomainService:
         setattr(user, "_active_role", role)
         logger.debug(f"为用户 {user.id} 设置活跃角色: {role}")
     
-    def _user_has_role(self, user: User, role: str) -> bool:
+    def _user_has_role(self, user: UserEntity, role: str) -> bool:
         """
         检查用户是否拥有指定角色
         
@@ -87,7 +87,7 @@ class SecurityDomainService:
         user_roles = [role_obj.name if hasattr(role_obj, 'name') else role_obj for role_obj in user.roles]
         return role in user_roles
     
-    def check_user_permissions(self, user: User, required_roles: List[str]) -> bool:
+    def check_user_permissions(self, user: UserEntity, required_roles: List[str]) -> bool:
         """
         检查用户是否有所需的角色权限
         
@@ -150,7 +150,7 @@ class SecurityDomainService:
             logger.warning(f"用户 {user.id} 的活跃角色 {active_role} 不符合要求: {required_roles}")
             return False
     
-    def check_admin_permission(self, user: User) -> bool:
+    def check_admin_permission(self, user: UserEntity) -> bool:
         """
         检查用户是否具有管理员权限
         

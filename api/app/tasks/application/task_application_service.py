@@ -82,7 +82,7 @@ class TaskApplicationService:
             # 权限检查
             # TODO: 重构为异步权限检查
             if user_role != "administrator":
-                if task.assigned_to != user_id and not (task.status == "pending" and not task.assigned_to):
+                if task.assignedTo != user_id and not (task.status == "pending" and not task.assignedTo):
                     return None
             
             # 转换为响应格式
@@ -102,11 +102,11 @@ class TaskApplicationService:
                 created_by=user_id,
                 description=data.description,
                 priority=data.priority,
-                due_date=data.due_date,
-                related_object_type=data.related_object_type,
-                related_object_id=data.related_object_id,
-                task_data=data.task_data,
-                assigned_to=data.assigned_to
+                dueDate=data.due_date,
+                relatedObjectType=data.related_object_type,
+                relatedObjectId=data.related_object_id,
+                taskData=data.task_data,
+                assignedTo=data.assigned_to
             )
             
             # 转换为响应格式
@@ -145,7 +145,7 @@ class TaskApplicationService:
             # 权限检查
             # TODO: 重构为异步权限检查
             if user_role != "administrator":
-                if task.assigned_to != user_id:
+                if task.assignedTo != user_id:
                     return None
             
             # 根据更新内容调用相应的领域服务方法

@@ -9,7 +9,7 @@ from fastapi import HTTPException, status
 import logging
 
 from ..domain.security_domain_service import SecurityDomainService
-from ..domain.entities.user import User
+from ..domain.entities.user import UserEntity
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class SecurityApplicationService:
     def __init__(self, security_domain_service: SecurityDomainService):
         self.security_domain_service = security_domain_service
     
-    async def get_current_user(self, token: str) -> User:
+    async def get_current_user(self, token: str) -> UserEntity:
         """
         获取当前用户用例
         
@@ -33,14 +33,14 @@ class SecurityApplicationService:
             HTTPException: 如果认证失败或用户不存在
         """
         try:
-            user = await self.security_domain_service.authenticate_user_by_token(token)
-            if not user:
+            userEntity = await self.security_domain_service.authenticate_user_by_token(token)
+            if not userEntity:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="无法验证凭据",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
-            return user
+            return userEntity
         except ValueError as e:
             # 业务逻辑错误 - 403 Forbidden
             raise HTTPException(
@@ -57,9 +57,9 @@ class SecurityApplicationService:
     
     async def check_role_permission(
         self, 
-        user: User, 
+        user: UserEntity, 
         required_roles: Optional[List[str]] = None
-    ) -> User:
+    ) -> UserEntity:
         """
         检查用户角色权限用例
         
@@ -92,7 +92,7 @@ class SecurityApplicationService:
                 detail="内部服务器错误"
             )
     
-    async def get_current_admin(self, user: User) -> User:
+    async def get_current_admin(self, user: UserEntity) -> UserEntity:
         """
         获取当前管理员用户用例
         

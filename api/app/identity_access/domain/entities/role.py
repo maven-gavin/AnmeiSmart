@@ -7,13 +7,13 @@
 import uuid
 from datetime import datetime
 from dataclasses import dataclass, field
-from typing import Optional, Set, List
+from typing import Optional, Set
 
 from ..value_objects.role_type import RoleType
 
 
 @dataclass
-class Role:
+class RoleEntity:
     """角色实体"""
     
     # 身份标识
@@ -21,21 +21,21 @@ class Role:
     
     # 基本信息
     name: str
-    display_name: Optional[str] = None
+    displayName: Optional[str] = None
     description: Optional[str] = None
     
     # 状态信息
-    is_active: bool = True
-    is_system: bool = False
-    is_admin: bool = False
+    isActive: bool = True
+    isSystem: bool = False
+    isAdmin: bool = False
     
     # 优先级和租户关联
     priority: int = 0
-    tenant_id: Optional[str] = None
+    tenantId: Optional[str] = None
     
     # 时间戳
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    createdAt: datetime = field(default_factory=datetime.utcnow)
+    updatedAt: datetime = field(default_factory=datetime.utcnow)
     
     def __post_init__(self):
         """后初始化验证"""
@@ -47,99 +47,104 @@ class Role:
         
         if len(self.name) > 50:
             raise ValueError("角色名称长度不能超过50个字符")
+        
+        if self.displayName is None:
+            self.displayName = self.name
     
     @classmethod
     def create(
         cls,
         name: str,
-        display_name: Optional[str] = None,
+        displayName: Optional[str] = None,
         description: Optional[str] = None,
-        tenant_id: Optional[str] = None,
-        is_system: bool = False,
-        is_admin: bool = False
-    ) -> "Role":
+        tenantId: Optional[str] = None,
+        isSystem: bool = False,
+        isAdmin: bool = False,
+        priority: int = 0
+    ) -> "RoleEntity":
         """创建角色 - 工厂方法"""
         role_id = str(uuid.uuid4())
         
         return cls(
             id=role_id,
             name=name.strip(),
-            display_name=display_name or name,
+            displayName=displayName or name,
             description=description,
-            tenant_id=tenant_id,
-            is_system=is_system,
-            is_admin=is_admin
+            tenantId=tenantId,
+            isSystem=isSystem,
+            isAdmin=isAdmin,
+            priority=priority
         )
     
     @classmethod
     def create_system_role(
         cls,
         name: str,
-        display_name: Optional[str] = None,
+        displayName: Optional[str] = None,
         description: Optional[str] = None,
-        is_admin: bool = False
-    ) -> "Role":
+        isAdmin: bool = False
+    ) -> "RoleEntity":
         """创建系统角色"""
         return cls.create(
             name=name,
-            display_name=display_name,
+            displayName=displayName,
             description=description,
-            is_system=True,
-            is_admin=is_admin,
+            isSystem=True,
+            isAdmin=isAdmin,
             priority=1000
         )
     
     def activate(self) -> None:
         """激活角色"""
-        if self.is_active:
+        if self.isActive:
             raise ValueError("角色已经是激活状态")
         
-        self.is_active = True
-        self.updated_at = datetime.utcnow()
+        self.isActive = True
+        self.updatedAt = datetime.utcnow()
     
     def deactivate(self) -> None:
         """停用角色"""
-        if not self.is_active:
+        if not self.isActive:
             raise ValueError("角色已经是停用状态")
         
-        if self.is_system:
+        if self.isSystem:
             raise ValueError("系统角色不能被停用")
         
-        self.is_active = False
-        self.updated_at = datetime.utcnow()
+        self.isActive = False
+        self.updatedAt = datetime.utcnow()
     
     def update_info(
         self,
-        display_name: Optional[str] = None,
+        displayName: Optional[str] = None,
         description: Optional[str] = None
     ) -> None:
         """更新角色信息"""
-        if display_name is not None:
-            self.display_name = display_name
+        if displayName is not None:
+            self.displayName = displayName
         if description is not None:
             self.description = description
         
-        self.updated_at = datetime.utcnow()
+        self.updatedAt = datetime.utcnow()
     
     def can_be_deleted(self) -> bool:
         """检查角色是否可以被删除"""
-        return not self.is_system
+        return not self.isSystem
     
     def is_available(self) -> bool:
         """检查角色是否可用"""
-        return self.is_active
+        return self.isActive
     
     def is_system_role(self) -> bool:
         """检查是否为系统角色"""
-        return self.is_system
+        return self.isSystem
     
     def is_admin_role(self) -> bool:
         """检查是否为管理员角色"""
-        return self.is_admin
+        return self.isAdmin
     
     def get_effective_name(self) -> str:
         """获取有效显示名称"""
-        return self.display_name or self.name
+        return self.displayName or self.name
     
     def get_role_type(self) -> Optional[RoleType]:
         """获取角色类型枚举（如果存在）"""
@@ -160,7 +165,7 @@ class Role:
         return permission in self.get_legacy_permissions()
     
     def __str__(self) -> str:
-        return f"Role(id={self.id}, name={self.name}, active={self.is_active})"
+        return f"RoleEntity(id={self.id}, name={self.name}, displayName={self.displayName}, description={self.description}, isActive={self.isActive}, isSystem={self.isSystem}, isAdmin={self.isAdmin}, priority={self.priority}, tenantId={self.tenantId}, createdAt={self.createdAt}, updatedAt={self.updatedAt})"
     
     def __repr__(self) -> str:
-        return f"Role(id={self.id}, name={self.name}, system={self.is_system}, admin={self.is_admin})"
+        return f"RoleEntity(id={self.id}, name={self.name}, displayName={self.displayName}, description={self.description}, isActive={self.isActive}, isSystem={self.isSystem}, isAdmin={self.isAdmin}, priority={self.priority}, tenantId={self.tenantId}, createdAt={self.createdAt}, updatedAt={self.updatedAt})"

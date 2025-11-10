@@ -13,7 +13,7 @@ from ..schemas.consultation import (
     ConsultationUpdate,
     ConsultationListResponse
 )
-from ..domain.entities.consultation import Consultation
+from ..domain.entities.consultation import ConsultationEntity
 from ..domain.consultation_domain_service import ConsultationDomainService
 from ..infrastructure.repositories.consultation_repository import ConsultationRepository
 from ..converters.consultation_converter import ConsultationConverter
@@ -42,7 +42,7 @@ class ConsultationApplicationService:
             consultation_data = ConsultationConverter.from_create_request(request)
             
             # 创建咨询实体
-            consultation = Consultation.create(**consultation_data)
+            consultation = ConsultationEntity.create(**consultation_data)
             
             # 保存到仓储
             saved_consultation = await self.consultation_repository.save(consultation)
@@ -89,10 +89,10 @@ class ConsultationApplicationService:
             
             # 更新咨询
             if "title" in update_data:
-                consultation._title = update_data["title"]
+                consultation.updateTitle(update_data["title"])
             
             if "metadata" in update_data:
-                consultation.update_metadata(update_data["metadata"])
+                consultation.updateMetadata(update_data["metadata"])
             
             # 保存更新
             updated_consultation = await self.consultation_repository.save(consultation)
@@ -120,7 +120,7 @@ class ConsultationApplicationService:
                 return None
             
             # 分配顾问
-            consultation.assign_consultant(consultant_id)
+            consultation.assignConsultant(consultant_id)
             
             # 保存更新
             updated_consultation = await self.consultation_repository.save(consultation)
@@ -144,7 +144,7 @@ class ConsultationApplicationService:
                 return None
             
             # 完成咨询
-            consultation.complete_consultation()
+            consultation.completeConsultation()
             
             # 保存更新
             updated_consultation = await self.consultation_repository.save(consultation)
@@ -172,7 +172,7 @@ class ConsultationApplicationService:
                 return None
             
             # 取消咨询
-            consultation.cancel_consultation(reason)
+            consultation.cancelConsultation(reason)
             
             # 保存更新
             updated_consultation = await self.consultation_repository.save(consultation)

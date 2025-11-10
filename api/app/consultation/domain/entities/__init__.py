@@ -2,12 +2,12 @@
 实体层
 定义咨询领域中的聚合根和实体
 """
-from .consultation import Consultation
-from .plan import Plan
-from .consultant import Consultant
+from .consultation import ConsultationEntity
+from .plan import PlanEntity
+from .consultant import ConsultantEntity
 
 __all__ = [
-    "Consultation",
-    "Plan",
-    "Consultant"
+    "ConsultationEntity",
+    "PlanEntity",
+    "ConsultantEntity"
 ]

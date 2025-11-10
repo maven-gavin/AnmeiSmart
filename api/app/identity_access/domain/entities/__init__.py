@@ -4,10 +4,10 @@
 实体是有身份的对象，通过唯一标识符来区分。
 """
 
-from .user import User
-from .role import Role
+from .user import UserEntity
+from .role import RoleEntity
 
 __all__ = [
-    "User",
-    "Role"
+    "UserEntity",
+    "RoleEntity"
 ]

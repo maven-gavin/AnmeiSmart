@@ -7,7 +7,7 @@
 from typing import Optional, List
 import logging
 
-from .entities.tenant import Tenant
+from .entities.tenant import TenantEntity
 from .value_objects.tenant_status import TenantStatus
 from .value_objects.tenant_type import TenantType
 
@@ -30,7 +30,7 @@ class TenantDomainService:
         contact_name: Optional[str] = None,
         contact_email: Optional[str] = None,
         contact_phone: Optional[str] = None
-    ) -> Tenant:
+    ) -> TenantEntity:
         """创建新租户"""
         # 检查租户名称是否已存在
         existing_tenant = await self.tenant_repository.get_by_name(name)
@@ -38,48 +38,52 @@ class TenantDomainService:
             raise ValueError(f"租户名称 '{name}' 已存在")
         
         # 创建租户
-        tenant = Tenant.create(
+        tenantEntity = TenantEntity.create(
             name=name,
-            display_name=display_name,
+            displayName=display_name,
             description=description,
-            tenant_type=tenant_type,
-            contact_name=contact_name,
-            contact_email=contact_email,
-            contact_phone=contact_phone
+            tenantType=tenant_type,
+            contactName=contact_name,
+            contactEmail=contact_email,
+            contactPhone=contact_phone
         )
         
         # 保存租户
-        await self.tenant_repository.save(tenant)
-        logger.info(f"创建租户: {tenant.name} (ID: {tenant.id})")
+        await self.tenant_repository.save(tenantEntity)
+        logger.info(f"创建租户: {tenantEntity.name} (ID: {tenantEntity.id})")
         
-        return tenant
+        return tenantEntity
     
-    async def get_tenant_by_id(self, tenant_id: str) -> Optional[Tenant]:
+    async def get_tenant_by_id(self, tenant_id: str) -> Optional[TenantEntity]:
         """根据ID获取租户"""
         return await self.tenant_repository.get_by_id(tenant_id)
     
-    async def get_tenant_by_name(self, name: str) -> Optional[Tenant]:
+    async def get_tenant_by_name(self, name: str) -> Optional[TenantEntity]:
         """根据名称获取租户"""
         return await self.tenant_repository.get_by_name(name)
     
-    async def get_system_tenant(self) -> Optional[Tenant]:
+    async def get_system_tenant(self) -> Optional[TenantEntity]:
         """获取系统租户"""
         return await self.tenant_repository.get_system_tenant()
     
-    async def list_active_tenants(self) -> List[Tenant]:
+    async def list_active_tenants(self) -> List[TenantEntity]:
         """获取所有激活的租户"""
         return await self.tenant_repository.list_by_status(TenantStatus.ACTIVE)
     
+    async def list_by_status(self, status: TenantStatus) -> List[TenantEntity]:
+        """根据状态获取租户列表"""
+        return await self.tenant_repository.list_by_status(status)
+    
     async def activate_tenant(self, tenant_id: str) -> bool:
         """激活租户"""
-        tenant = await self.tenant_repository.get_by_id(tenant_id)
-        if not tenant:
+        tenantEntity = await self.tenant_repository.get_by_id(tenant_id)
+        if not tenantEntity:
             return False
         
         try:
-            tenant.activate()
-            await self.tenant_repository.save(tenant)
-            logger.info(f"激活租户: {tenant.name}")
+            tenantEntity.activate()
+            await self.tenant_repository.save(tenantEntity)
+            logger.info(f"激活租户: {tenantEntity.name}")
             return True
         except ValueError as e:
             logger.warning(f"激活租户失败: {e}")
@@ -87,14 +91,14 @@ class TenantDomainService:
     
     async def deactivate_tenant(self, tenant_id: str) -> bool:
         """停用租户"""
-        tenant = await self.tenant_repository.get_by_id(tenant_id)
-        if not tenant:
+        tenantEntity = await self.tenant_repository.get_by_id(tenant_id)
+        if not tenantEntity:
             return False
         
         try:
-            tenant.deactivate()
-            await self.tenant_repository.save(tenant)
-            logger.info(f"停用租户: {tenant.name}")
+            tenantEntity.deactivate()
+            await self.tenant_repository.save(tenantEntity)
+            logger.info(f"停用租户: {tenantEntity.name}")
             return True
         except ValueError as e:
             logger.warning(f"停用租户失败: {e}")
@@ -108,47 +112,47 @@ class TenantDomainService:
         contact_phone: Optional[str] = None
     ) -> bool:
         """更新租户联系信息"""
-        tenant = await self.tenant_repository.get_by_id(tenant_id)
-        if not tenant:
+        tenantEntity = await self.tenant_repository.get_by_id(tenant_id)
+        if not tenantEntity:
             return False
         
-        tenant.update_contact_info(contact_name, contact_email, contact_phone)
-        await self.tenant_repository.save(tenant)
-        logger.info(f"更新租户联系信息: {tenant.name}")
+        tenantEntity.update_contact_info(contact_name, contact_email, contact_phone)
+        await self.tenant_repository.save(tenantEntity)
+        logger.info(f"更新租户联系信息: {tenantEntity.name}")
         
         return True
     
     async def delete_tenant(self, tenant_id: str) -> bool:
         """删除租户"""
-        tenant = await self.tenant_repository.get_by_id(tenant_id)
-        if not tenant:
+        tenantEntity = await self.tenant_repository.get_by_id(tenant_id)
+        if not tenantEntity:
             return False
         
-        if not tenant.can_be_deleted():
+        if not tenantEntity.can_be_deleted():
             raise ValueError("系统租户不能被删除")
         
         # 检查是否有用户关联
         user_count = await self.user_repository.count_by_tenant_id(tenant_id)
         if user_count > 0:
-            raise ValueError(f"租户 '{tenant.name}' 下还有 {user_count} 个用户，无法删除")
+            raise ValueError(f"租户 '{tenantEntity.name}' 下还有 {user_count} 个用户，无法删除")
         
         await self.tenant_repository.delete(tenant_id)
-        logger.info(f"删除租户: {tenant.name}")
+        logger.info(f"删除租户: {tenantEntity.name}")
         
         return True
     
     async def get_tenant_statistics(self, tenant_id: str) -> dict:
         """获取租户统计信息"""
-        tenant = await self.tenant_repository.get_by_id(tenant_id)
-        if not tenant:
+        tenantEntity = await self.tenant_repository.get_by_id(tenant_id)
+        if not tenantEntity:
             return {}
         
         user_count = await self.user_repository.count_by_tenant_id(tenant_id)
         
         return {
             "tenant_id": tenant_id,
-            "tenant_name": tenant.name,
+            "tenant_name": tenantEntity.name,
             "user_count": user_count,
-            "status": tenant.status.value,
-            "created_at": tenant.created_at.isoformat()
+            "status": tenantEntity.status.value,
+            "created_at": tenantEntity.createdAt.isoformat()
         }

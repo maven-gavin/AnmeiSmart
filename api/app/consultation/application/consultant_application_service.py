@@ -11,7 +11,7 @@ from ..schemas.consultation import (
     ConsultantUpdate,
     ConsultantListResponse
 )
-from ..domain.entities.consultant import Consultant
+from ..domain.entities.consultant import ConsultantEntity
 from ..domain.consultant_domain_service import ConsultantDomainService
 from ..infrastructure.repositories.consultant_repository import ConsultantRepository
 from ..converters.consultant_converter import ConsultantConverter
@@ -37,7 +37,7 @@ class ConsultantApplicationService:
             consultant_data = ConsultantConverter.from_create_request(request)
             
             # 创建顾问实体
-            consultant = Consultant.create(**consultant_data)
+            consultant = ConsultantEntity.create(**consultant_data)
             
             # 保存到仓储
             saved_consultant = await self.consultant_repository.save(consultant)

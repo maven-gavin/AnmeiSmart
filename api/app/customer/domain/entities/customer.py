@@ -1,245 +1,257 @@
 """
 客户聚合根实体
 """
-from datetime import datetime
-from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from app.common.domain.entities.base_entity import BaseEntity
-from app.customer.domain.value_objects.customer_status import CustomerStatus, CustomerPriority
+from app.customer.domain.value_objects.customer_status import CustomerPriority
+
+
+def _normalize_text(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped if stripped else None
 
 
 @dataclass
-class Customer(BaseEntity):
+class CustomerEntity(BaseEntity):
     """客户聚合根 - 管理客户的核心业务逻辑"""
-    
-    user_id: str
-    medical_history: Optional[str] = None
+
+    id: str
+    userId: str
+    medicalHistory: Optional[str] = None
     allergies: Optional[str] = None
     preferences: Optional[str] = None
     age: Optional[int] = None
     gender: Optional[str] = None
     priority: CustomerPriority = CustomerPriority.MEDIUM
     tags: List[str] = field(default_factory=list)
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: datetime = field(default_factory=datetime.now)
-    
-    def __post_init__(self):
-        """初始化后验证"""
-        if not self.user_id:
-            raise ValueError("用户ID不能为空")
-        
-        if self.age is not None and (self.age < 0 or self.age > 150):
-            raise ValueError("年龄必须在0-150之间")
-        
-        if self.gender and self.gender not in ['male', 'female', 'other']:
-            raise ValueError("性别值无效")
-    
-    def update_medical_history(self, medical_history: str) -> None:
-        """更新病史信息"""
-        if medical_history and len(medical_history.strip()) > 1000:
+    createdAt: datetime = field(default_factory=datetime.now)
+    updatedAt: datetime = field(default_factory=datetime.now)
+
+    def __post_init__(self) -> None:
+        super().__init__(self.id)
+        self._normalize()
+        self.validate()
+
+    def _normalize(self) -> None:
+        self.medicalHistory = _normalize_text(self.medicalHistory)
+        self.allergies = _normalize_text(self.allergies)
+        self.preferences = _normalize_text(self.preferences)
+        self.gender = _normalize_text(self.gender)
+        self.tags = [tag.strip() for tag in self.tags if tag and tag.strip()]
+
+    def updateMedicalHistory(self, medicalHistory: Optional[str]) -> None:
+        if medicalHistory and len(medicalHistory.strip()) > 1000:
             raise ValueError("病史信息过长，不能超过1000字符")
-        
-        self.medical_history = medical_history.strip() if medical_history else None
-        self.updated_at = datetime.now()
-    
-    def update_allergies(self, allergies: str) -> None:
-        """更新过敏史信息"""
+        self.medicalHistory = _normalize_text(medicalHistory)
+        self.updatedAt = datetime.now()
+
+    def updateAllergies(self, allergies: Optional[str]) -> None:
         if allergies and len(allergies.strip()) > 500:
             raise ValueError("过敏史信息过长，不能超过500字符")
-        
-        self.allergies = allergies.strip() if allergies else None
-        self.updated_at = datetime.now()
-    
-    def update_preferences(self, preferences: str) -> None:
-        """更新偏好信息"""
+        self.allergies = _normalize_text(allergies)
+        self.updatedAt = datetime.now()
+
+    def updatePreferences(self, preferences: Optional[str]) -> None:
         if preferences and len(preferences.strip()) > 500:
             raise ValueError("偏好信息过长，不能超过500字符")
-        
-        self.preferences = preferences.strip() if preferences else None
-        self.updated_at = datetime.now()
-    
-    def update_demographics(self, age: Optional[int] = None, gender: Optional[str] = None) -> None:
-        """更新人口统计学信息"""
+        self.preferences = _normalize_text(preferences)
+        self.updatedAt = datetime.now()
+
+    def updateDemographics(self, age: Optional[int] = None, gender: Optional[str] = None) -> None:
         if age is not None:
             if age < 0 or age > 150:
                 raise ValueError("年龄必须在0-150之间")
             self.age = age
-        
+
         if gender is not None:
-            if gender not in ['male', 'female', 'other']:
+            normalized_gender = _normalize_text(gender)
+            if normalized_gender and normalized_gender not in ["male", "female", "other"]:
                 raise ValueError("性别值无效")
-            self.gender = gender
-        
-        self.updated_at = datetime.now()
-    
-    def set_priority(self, priority: CustomerPriority) -> None:
-        """设置客户优先级"""
+            self.gender = normalized_gender
+
+        self.updatedAt = datetime.now()
+
+    def setPriority(self, priority: CustomerPriority) -> None:
         self.priority = priority
-        self.updated_at = datetime.now()
-    
-    def add_tag(self, tag: str) -> None:
-        """添加客户标签"""
+        self.updatedAt = datetime.now()
+
+    def addTag(self, tag: str) -> None:
         if not tag or not tag.strip():
             raise ValueError("标签不能为空")
-        
-        if tag.strip() not in self.tags:
-            self.tags.append(tag.strip())
-            self.updated_at = datetime.now()
-    
-    def remove_tag(self, tag: str) -> None:
-        """移除客户标签"""
+        normalized = tag.strip()
+        if normalized not in self.tags:
+            self.tags.append(normalized)
+            self.updatedAt = datetime.now()
+
+    def removeTag(self, tag: str) -> None:
         if tag in self.tags:
             self.tags.remove(tag)
-            self.updated_at = datetime.now()
-    
-    def has_medical_condition(self) -> bool:
-        """检查是否有病史"""
-        return bool(self.medical_history and self.medical_history.strip())
-    
-    def has_allergies(self) -> bool:
-        """检查是否有过敏史"""
-        return bool(self.allergies and self.allergies.strip())
-    
+            self.updatedAt = datetime.now()
+
+    def hasMedicalCondition(self) -> bool:
+        return bool(self.medicalHistory)
+
+    def hasAllergies(self) -> bool:
+        return bool(self.allergies)
+
     def validate(self) -> None:
-        """验证实体状态"""
-        if not self.user_id:
+        if not self.userId:
             raise ValueError("用户ID不能为空")
-        
         if self.age is not None and (self.age < 0 or self.age > 150):
             raise ValueError("年龄必须在0-150之间")
-        
-        if self.gender and self.gender not in ['male', 'female', 'other']:
+        if self.gender and self.gender not in ["male", "female", "other"]:
             raise ValueError("性别值无效")
-    
+
     @classmethod
     def create(
         cls,
-        user_id: str,
-        medical_history: Optional[str] = None,
+        userId: str,
+        medicalHistory: Optional[str] = None,
         allergies: Optional[str] = None,
         preferences: Optional[str] = None,
         age: Optional[int] = None,
-        gender: Optional[str] = None
-    ) -> "Customer":
-        """创建客户聚合根"""
+        gender: Optional[str] = None,
+        priority: CustomerPriority = CustomerPriority.MEDIUM,
+        tags: Optional[List[str]] = None,
+    ) -> "CustomerEntity":
         from app.common.infrastructure.db.uuid_utils import customer_id
-        
-        customer = cls(
+
+        return cls(
             id=customer_id(),
-            user_id=user_id,
-            medical_history=medical_history,
+            userId=userId,
+            medicalHistory=medicalHistory,
             allergies=allergies,
             preferences=preferences,
             age=age,
-            gender=gender
+            gender=gender,
+            priority=priority,
+            tags=tags or [],
         )
-        
-        customer.validate()
-        return customer
+
+    def __str__(self) -> str:
+        return (
+            f"CustomerEntity(id={self.id}, userId={self.userId}, priority={self.priority}, "
+            f"age={self.age}, gender={self.gender}, tags={self.tags})"
+        )
+
+    def __repr__(self) -> str:
+        return (
+            f"CustomerEntity(id={self.id}, userId={self.userId}, medicalHistory={self.medicalHistory}, "
+            f"allergies={self.allergies}, preferences={self.preferences}, age={self.age}, gender={self.gender}, "
+            f"priority={self.priority}, tags={self.tags}, createdAt={self.createdAt}, updatedAt={self.updatedAt})"
+        )
 
 
 @dataclass
-class CustomerProfile(BaseEntity):
+class CustomerProfileEntity(BaseEntity):
     """客户档案实体 - 扩展客户信息"""
-    
-    customer_id: str
-    medical_history: Optional[str] = None
+
+    id: str
+    customerId: str
+    medicalHistory: Optional[str] = None
     allergies: Optional[str] = None
     preferences: Optional[str] = None
     tags: Optional[str] = None
-    risk_notes: List[Dict[str, Any]] = field(default_factory=list)
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: datetime = field(default_factory=datetime.now)
-    
-    def __post_init__(self):
-        """初始化后验证"""
-        if not self.customer_id:
-            raise ValueError("客户ID不能为空")
-    
-    def update_medical_history(self, medical_history: str) -> None:
-        """更新病史信息"""
-        if medical_history and len(medical_history.strip()) > 1000:
+    riskNotes: List[Dict[str, Any]] = field(default_factory=list)
+    createdAt: datetime = field(default_factory=datetime.now)
+    updatedAt: datetime = field(default_factory=datetime.now)
+
+    def __post_init__(self) -> None:
+        super().__init__(self.id)
+        self._normalize()
+        self.validate()
+
+    def _normalize(self) -> None:
+        self.medicalHistory = _normalize_text(self.medicalHistory)
+        self.allergies = _normalize_text(self.allergies)
+        self.preferences = _normalize_text(self.preferences)
+        self.tags = _normalize_text(self.tags)
+
+    def updateMedicalHistory(self, medicalHistory: Optional[str]) -> None:
+        if medicalHistory and len(medicalHistory.strip()) > 1000:
             raise ValueError("病史信息过长，不能超过1000字符")
-        
-        self.medical_history = medical_history.strip() if medical_history else None
-        self.updated_at = datetime.now()
-    
-    def update_allergies(self, allergies: str) -> None:
-        """更新过敏史信息"""
+        self.medicalHistory = _normalize_text(medicalHistory)
+        self.updatedAt = datetime.now()
+
+    def updateAllergies(self, allergies: Optional[str]) -> None:
         if allergies and len(allergies.strip()) > 500:
             raise ValueError("过敏史信息过长，不能超过500字符")
-        
-        self.allergies = allergies.strip() if allergies else None
-        self.updated_at = datetime.now()
-    
-    def update_preferences(self, preferences: str) -> None:
-        """更新偏好信息"""
+        self.allergies = _normalize_text(allergies)
+        self.updatedAt = datetime.now()
+
+    def updatePreferences(self, preferences: Optional[str]) -> None:
         if preferences and len(preferences.strip()) > 500:
             raise ValueError("偏好信息过长，不能超过500字符")
-        
-        self.preferences = preferences.strip() if preferences else None
-        self.updated_at = datetime.now()
-    
-    def update_tags(self, tags: str) -> None:
-        """更新标签信息"""
+        self.preferences = _normalize_text(preferences)
+        self.updatedAt = datetime.now()
+
+    def updateTags(self, tags: Optional[str]) -> None:
         if tags and len(tags.strip()) > 200:
             raise ValueError("标签信息过长，不能超过200字符")
-        
-        self.tags = tags.strip() if tags else None
-        self.updated_at = datetime.now()
-    
-    def add_risk_note(self, risk_note: Dict[str, Any]) -> None:
-        """添加风险提示"""
-        required_fields = ['type', 'description', 'level']
+        self.tags = _normalize_text(tags)
+        self.updatedAt = datetime.now()
+
+    def addRiskNote(self, riskNote: Dict[str, Any]) -> None:
+        required_fields = ["type", "description", "level"]
         for field in required_fields:
-            if field not in risk_note:
+            if field not in riskNote:
                 raise ValueError(f"风险提示缺少必要字段: {field}")
-        
-        if risk_note['level'] not in ['high', 'medium', 'low']:
+        if riskNote["level"] not in ["high", "medium", "low"]:
             raise ValueError("风险级别必须是 high、medium 或 low")
-        
-        self.risk_notes.append(risk_note)
-        self.updated_at = datetime.now()
-    
-    def remove_risk_note(self, note_index: int) -> None:
-        """移除风险提示"""
-        if 0 <= note_index < len(self.risk_notes):
-            self.risk_notes.pop(note_index)
-            self.updated_at = datetime.now()
-    
-    def get_tags_list(self) -> List[str]:
-        """获取标签列表"""
+        self.riskNotes.append(riskNote)
+        self.updatedAt = datetime.now()
+
+    def removeRiskNote(self, noteIndex: int) -> None:
+        if 0 <= noteIndex < len(self.riskNotes):
+            self.riskNotes.pop(noteIndex)
+            self.updatedAt = datetime.now()
+
+    def getTagsList(self) -> List[str]:
         if not self.tags:
             return []
-        return [tag.strip() for tag in self.tags.split(',') if tag.strip()]
-    
+        return [tag.strip() for tag in self.tags.split(",") if tag.strip()]
+
     def validate(self) -> None:
-        """验证实体状态"""
-        if not self.customer_id:
+        if not self.customerId:
             raise ValueError("客户ID不能为空")
-    
+
     @classmethod
     def create(
         cls,
-        customer_id: str,
-        medical_history: Optional[str] = None,
+        customerId: str,
+        medicalHistory: Optional[str] = None,
         allergies: Optional[str] = None,
         preferences: Optional[str] = None,
-        tags: Optional[str] = None
-    ) -> "CustomerProfile":
-        """创建客户档案"""
+        tags: Optional[str] = None,
+        riskNotes: Optional[List[Dict[str, Any]]] = None,
+    ) -> "CustomerProfileEntity":
         from app.common.infrastructure.db.uuid_utils import profile_id
-        
-        profile = cls(
+
+        return cls(
             id=profile_id(),
-            customer_id=customer_id,
-            medical_history=medical_history,
+            customerId=customerId,
+            medicalHistory=medicalHistory,
             allergies=allergies,
             preferences=preferences,
-            tags=tags
+            tags=tags,
+            riskNotes=riskNotes or [],
         )
-        
-        profile.validate()
-        return profile
+
+    def __str__(self) -> str:
+        return (
+            f"CustomerProfileEntity(id={self.id}, customerId={self.customerId}, "
+            f"medicalHistory={self.medicalHistory}, allergies={self.allergies})"
+        )
+
+    def __repr__(self) -> str:
+        return (
+            f"CustomerProfileEntity(id={self.id}, customerId={self.customerId}, medicalHistory={self.medicalHistory}, "
+            f"allergies={self.allergies}, preferences={self.preferences}, tags={self.tags}, "
+            f"riskNotes={self.riskNotes}, createdAt={self.createdAt}, updatedAt={self.updatedAt})"
+        )
 

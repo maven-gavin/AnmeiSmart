@@ -6,6 +6,7 @@ from typing import List, Optional, Set
 from datetime import datetime
 from enum import Enum
 from dataclasses import dataclass
+import uuid
 
 
 class GroupType(Enum):
@@ -24,50 +25,50 @@ class GroupMemberRole(Enum):
 
 
 @dataclass
-class GroupMember:
+class GroupMemberEntity:
     """分组成员值对象"""
-    friendship_id: str
+    friendshipId: str
     role: GroupMemberRole
-    joined_at: datetime
+    joinedAt: datetime
 
 
-class ContactGroup:
+class ContactGroupEntity:
     """联系人分组实体"""
     
     def __init__(
         self,
         id: str,
-        user_id: str,
+        userId: str,
         name: str,
         description: Optional[str] = None,
         color: str = "#3B82F6",
         icon: Optional[str] = None,
-        group_type: GroupType = GroupType.PERSONAL,
-        member_count: int = 0,
-        is_visible: bool = True,
-        display_order: int = 0,
-        created_at: Optional[datetime] = None,
-        updated_at: Optional[datetime] = None
+        groupType: GroupType = GroupType.PERSONAL,
+        memberCount: int = 0,
+        isVisible: bool = True,
+        displayOrder: int = 0,
+        createdAt: Optional[datetime] = None,
+        updatedAt: Optional[datetime] = None
     ):
         self._id = id
-        self._user_id = user_id
+        self._userId = userId
         self._name = name
         self._description = description
         self._color = color
         self._icon = icon
-        self._group_type = group_type
-        self._member_count = member_count
-        self._is_visible = is_visible
-        self._display_order = display_order
-        self._created_at = created_at or datetime.utcnow()
-        self._updated_at = updated_at or datetime.utcnow()
+        self._groupType = groupType
+        self._memberCount = memberCount
+        self._isVisible = isVisible
+        self._displayOrder = displayOrder
+        self._createdAt = createdAt or datetime.utcnow()
+        self._updatedAt = updatedAt or datetime.utcnow()
         
         # 聚合内部状态
         self._members: Set[str] = set()  # 好友关系ID集合
-        self._member_details: List[GroupMember] = []  # 成员详细信息
+        self._memberDetails: List[GroupMemberEntity] = []  # 成员详细信息
         
         # 领域事件
-        self._domain_events = []
+        self._domainEvents: List[object] = []
     
     # ============ 属性访问器 ============
     
@@ -76,8 +77,8 @@ class ContactGroup:
         return self._id
     
     @property
-    def user_id(self) -> str:
-        return self._user_id
+    def userId(self) -> str:
+        return self._userId
     
     @property
     def name(self) -> str:
@@ -96,44 +97,44 @@ class ContactGroup:
         return self._icon
     
     @property
-    def group_type(self) -> GroupType:
-        return self._group_type
+    def groupType(self) -> GroupType:
+        return self._groupType
     
     @property
-    def member_count(self) -> int:
-        return self._member_count
+    def memberCount(self) -> int:
+        return self._memberCount
     
     @property
-    def is_visible(self) -> bool:
-        return self._is_visible
+    def isVisible(self) -> bool:
+        return self._isVisible
     
     @property
-    def display_order(self) -> int:
-        return self._display_order
+    def displayOrder(self) -> int:
+        return self._displayOrder
     
     @property
-    def created_at(self) -> datetime:
-        return self._created_at
+    def createdAt(self) -> datetime:
+        return self._createdAt
     
     @property
-    def updated_at(self) -> datetime:
-        return self._updated_at
+    def updatedAt(self) -> datetime:
+        return self._updatedAt
     
     @property
     def members(self) -> Set[str]:
-        return self._members.copy()
+        return set(self._members)
     
     @property
-    def member_details(self) -> List[GroupMember]:
-        return self._member_details.copy()
+    def memberDetails(self) -> List[GroupMemberEntity]:
+        return [member for member in self._memberDetails]
     
     @property
-    def domain_events(self) -> list:
-        return self._domain_events.copy()
+    def domainEvents(self) -> List[object]:
+        return list(self._domainEvents)
     
     # ============ 领域方法 ============
     
-    def update_name(self, name: str) -> None:
+    def updateName(self, name: str) -> None:
         """更新分组名称"""
         if not name or not name.strip():
             raise ValueError("分组名称不能为空")
@@ -141,205 +142,206 @@ class ContactGroup:
         if len(name.strip()) > 100:
             raise ValueError("分组名称不能超过100个字符")
         
+        old_name = self._name
         self._name = name.strip()
-        self._updated_at = datetime.utcnow()
+        self._updatedAt = datetime.utcnow()
         
         # 发布领域事件
-        self._add_domain_event(ContactGroupNameUpdatedEvent(
-            group_id=self._id,
-            user_id=self._user_id,
-            old_name=self._name,
-            new_name=name
+        self._addDomainEvent(ContactGroupNameUpdatedEvent(
+            groupId=self._id,
+            userId=self._userId,
+            oldName=old_name,
+            newName=self._name
         ))
     
-    def update_description(self, description: Optional[str]) -> None:
+    def updateDescription(self, description: Optional[str]) -> None:
         """更新分组描述"""
         if description and len(description) > 500:
             raise ValueError("分组描述不能超过500个字符")
         
         self._description = description
-        self._updated_at = datetime.utcnow()
+        self._updatedAt = datetime.utcnow()
         
         # 发布领域事件
-        self._add_domain_event(ContactGroupDescriptionUpdatedEvent(
-            group_id=self._id,
-            user_id=self._user_id,
+        self._addDomainEvent(ContactGroupDescriptionUpdatedEvent(
+            groupId=self._id,
+            userId=self._userId,
             description=description
         ))
     
-    def update_color(self, color: str) -> None:
+    def updateColor(self, color: str) -> None:
         """更新分组颜色"""
-        if not self._is_valid_color(color):
+        if not self._isValidColor(color):
             raise ValueError("无效的颜色格式")
         
         self._color = color
-        self._updated_at = datetime.utcnow()
+        self._updatedAt = datetime.utcnow()
         
         # 发布领域事件
-        self._add_domain_event(ContactGroupColorUpdatedEvent(
-            group_id=self._id,
-            user_id=self._user_id,
+        self._addDomainEvent(ContactGroupColorUpdatedEvent(
+            groupId=self._id,
+            userId=self._userId,
             color=color
         ))
     
-    def update_icon(self, icon: Optional[str]) -> None:
+    def updateIcon(self, icon: Optional[str]) -> None:
         """更新分组图标"""
         if icon and len(icon) > 50:
             raise ValueError("图标名称不能超过50个字符")
         
         self._icon = icon
-        self._updated_at = datetime.utcnow()
+        self._updatedAt = datetime.utcnow()
         
         # 发布领域事件
-        self._add_domain_event(ContactGroupIconUpdatedEvent(
-            group_id=self._id,
-            user_id=self._user_id,
+        self._addDomainEvent(ContactGroupIconUpdatedEvent(
+            groupId=self._id,
+            userId=self._userId,
             icon=icon
         ))
     
-    def update_group_type(self, group_type: GroupType) -> None:
+    def updateGroupType(self, groupType: GroupType) -> None:
         """更新分组类型"""
-        self._group_type = group_type
-        self._updated_at = datetime.utcnow()
+        self._groupType = groupType
+        self._updatedAt = datetime.utcnow()
         
         # 发布领域事件
-        self._add_domain_event(ContactGroupTypeUpdatedEvent(
-            group_id=self._id,
-            user_id=self._user_id,
-            group_type=group_type.value
+        self._addDomainEvent(ContactGroupTypeUpdatedEvent(
+            groupId=self._id,
+            userId=self._userId,
+            groupType=groupType.value
         ))
     
-    def update_display_order(self, display_order: int) -> None:
+    def updateDisplayOrder(self, displayOrder: int) -> None:
         """更新显示顺序"""
-        if display_order < 0:
+        if displayOrder < 0:
             raise ValueError("显示顺序不能为负数")
         
-        self._display_order = display_order
-        self._updated_at = datetime.utcnow()
+        self._displayOrder = displayOrder
+        self._updatedAt = datetime.utcnow()
         
         # 发布领域事件
-        self._add_domain_event(ContactGroupDisplayOrderUpdatedEvent(
-            group_id=self._id,
-            user_id=self._user_id,
-            display_order=display_order
+        self._addDomainEvent(ContactGroupDisplayOrderUpdatedEvent(
+            groupId=self._id,
+            userId=self._userId,
+            displayOrder=displayOrder
         ))
     
-    def toggle_visibility(self) -> None:
+    def toggleVisibility(self) -> None:
         """切换可见性"""
-        self._is_visible = not self._is_visible
-        self._updated_at = datetime.utcnow()
+        self._isVisible = not self._isVisible
+        self._updatedAt = datetime.utcnow()
         
         # 发布领域事件
-        self._add_domain_event(ContactGroupVisibilityToggledEvent(
-            group_id=self._id,
-            user_id=self._user_id,
-            is_visible=self._is_visible
+        self._addDomainEvent(ContactGroupVisibilityToggledEvent(
+            groupId=self._id,
+            userId=self._userId,
+            isVisible=self._isVisible
         ))
     
-    def add_member(self, friendship_id: str, role: GroupMemberRole = GroupMemberRole.MEMBER) -> None:
+    def addMember(self, friendshipId: str, role: GroupMemberRole = GroupMemberRole.MEMBER) -> None:
         """添加成员"""
-        if friendship_id in self._members:
+        if friendshipId in self._members:
             raise ValueError("成员已存在")
         
-        self._members.add(friendship_id)
-        self._member_count += 1
+        self._members.add(friendshipId)
+        self._memberCount += 1
         
         # 添加成员详细信息
-        member_detail = GroupMember(
-            friendship_id=friendship_id,
+        member_detail = GroupMemberEntity(
+            friendshipId=friendshipId,
             role=role,
-            joined_at=datetime.utcnow()
+            joinedAt=datetime.utcnow()
         )
-        self._member_details.append(member_detail)
+        self._memberDetails.append(member_detail)
         
-        self._updated_at = datetime.utcnow()
+        self._updatedAt = datetime.utcnow()
         
         # 发布领域事件
-        self._add_domain_event(ContactGroupMemberAddedEvent(
-            group_id=self._id,
-            user_id=self._user_id,
-            friendship_id=friendship_id,
+        self._addDomainEvent(ContactGroupMemberAddedEvent(
+            groupId=self._id,
+            userId=self._userId,
+            friendshipId=friendshipId,
             role=role.value
         ))
     
-    def remove_member(self, friendship_id: str) -> None:
+    def removeMember(self, friendshipId: str) -> None:
         """移除成员"""
-        if friendship_id not in self._members:
+        if friendshipId not in self._members:
             raise ValueError("成员不存在")
         
-        self._members.remove(friendship_id)
-        self._member_count -= 1
+        self._members.remove(friendshipId)
+        self._memberCount -= 1
         
         # 移除成员详细信息
-        self._member_details = [
-            member for member in self._member_details 
-            if member.friendship_id != friendship_id
+        self._memberDetails = [
+            member for member in self._memberDetails
+            if member.friendshipId != friendshipId
         ]
         
-        self._updated_at = datetime.utcnow()
+        self._updatedAt = datetime.utcnow()
         
         # 发布领域事件
-        self._add_domain_event(ContactGroupMemberRemovedEvent(
-            group_id=self._id,
-            user_id=self._user_id,
-            friendship_id=friendship_id
+        self._addDomainEvent(ContactGroupMemberRemovedEvent(
+            groupId=self._id,
+            userId=self._userId,
+            friendshipId=friendshipId
         ))
     
-    def update_member_role(self, friendship_id: str, role: GroupMemberRole) -> None:
+    def updateMemberRole(self, friendshipId: str, role: GroupMemberRole) -> None:
         """更新成员角色"""
-        if friendship_id not in self._members:
+        if friendshipId not in self._members:
             raise ValueError("成员不存在")
         
         # 更新成员详细信息中的角色
-        for member in self._member_details:
-            if member.friendship_id == friendship_id:
+        for member in self._memberDetails:
+            if member.friendshipId == friendshipId:
                 member.role = role
                 break
         
-        self._updated_at = datetime.utcnow()
+        self._updatedAt = datetime.utcnow()
         
         # 发布领域事件
-        self._add_domain_event(ContactGroupMemberRoleUpdatedEvent(
-            group_id=self._id,
-            user_id=self._user_id,
-            friendship_id=friendship_id,
+        self._addDomainEvent(ContactGroupMemberRoleUpdatedEvent(
+            groupId=self._id,
+            userId=self._userId,
+            friendshipId=friendshipId,
             role=role.value
         ))
     
-    def get_member_role(self, friendship_id: str) -> Optional[GroupMemberRole]:
+    def getMemberRole(self, friendshipId: str) -> Optional[GroupMemberRole]:
         """获取成员角色"""
-        for member in self._member_details:
-            if member.friendship_id == friendship_id:
+        for member in self._memberDetails:
+            if member.friendshipId == friendshipId:
                 return member.role
         return None
     
-    def is_member(self, friendship_id: str) -> bool:
+    def isMember(self, friendshipId: str) -> bool:
         """检查是否为成员"""
-        return friendship_id in self._members
+        return friendshipId in self._members
     
-    def can_be_deleted(self) -> bool:
+    def canBeDeleted(self) -> bool:
         """检查是否可以删除"""
-        return self._member_count == 0
+        return self._memberCount == 0
     
-    def is_available(self) -> bool:
+    def isAvailable(self) -> bool:
         """检查是否可用"""
-        return self._is_visible
+        return self._isVisible
     
     # ============ 工厂方法 ============
     
     @classmethod
     def create(
         cls,
-        user_id: str,
+        userId: str,
         name: str,
         description: Optional[str] = None,
         color: str = "#3B82F6",
         icon: Optional[str] = None,
-        group_type: GroupType = GroupType.PERSONAL,
-        display_order: int = 0
-    ) -> "ContactGroup":
+        groupType: GroupType = GroupType.PERSONAL,
+        displayOrder: int = 0
+    ) -> "ContactGroupEntity":
         """创建联系人分组"""
-        if not user_id:
+        if not userId:
             raise ValueError("用户ID不能为空")
         
         if not name or not name.strip():
@@ -348,111 +350,125 @@ class ContactGroup:
         if len(name.strip()) > 100:
             raise ValueError("分组名称不能超过100个字符")
         
-        if not cls._is_valid_color(color):
+        if not cls._isValidColor(color):
             raise ValueError("无效的颜色格式")
         
-        # 生成ID（实际实现中应该使用UUID生成器）
-        import uuid
         group_id = str(uuid.uuid4())
         
         return cls(
             id=group_id,
-            user_id=user_id,
+            userId=userId,
             name=name.strip(),
             description=description,
             color=color,
             icon=icon,
-            group_type=group_type,
-            display_order=display_order
+            groupType=groupType,
+            displayOrder=displayOrder
         )
     
     # ============ 私有方法 ============
     
     @staticmethod
-    def _is_valid_color(color: str) -> bool:
+    def _isValidColor(color: str) -> bool:
         """验证颜色格式"""
         import re
         return bool(re.match(r"^#[0-9A-Fa-f]{6}$", color))
     
-    def _add_domain_event(self, event: object) -> None:
+    def _addDomainEvent(self, event: object) -> None:
         """添加领域事件"""
-        self._domain_events.append(event)
+        self._domainEvents.append(event)
     
-    def clear_domain_events(self) -> None:
+    def clearDomainEvents(self) -> None:
         """清除领域事件"""
-        self._domain_events.clear()
+        self._domainEvents.clear()
+    
+    def __str__(self) -> str:
+        return (
+            f"ContactGroupEntity(id={self.id}, userId={self.userId}, name={self.name}, "
+            f"groupType={self.groupType}, memberCount={self.memberCount}, isVisible={self.isVisible}, "
+            f"displayOrder={self.displayOrder}, createdAt={self.createdAt}, updatedAt={self.updatedAt})"
+        )
+    
+    def __repr__(self) -> str:
+        return (
+            f"ContactGroupEntity(id={self.id}, userId={self.userId}, name={self.name}, "
+            f"description={self.description}, color={self.color}, icon={self.icon}, "
+            f"groupType={self.groupType}, memberCount={self.memberCount}, members={list(self.members)}, "
+            f"isVisible={self.isVisible}, displayOrder={self.displayOrder}, "
+            f"domainEvents={self.domainEvents}, createdAt={self.createdAt}, updatedAt={self.updatedAt})"
+        )
 
 
 # ============ 领域事件定义 ============
 
 @dataclass
 class ContactGroupNameUpdatedEvent:
-    group_id: str
-    user_id: str
-    old_name: str
-    new_name: str
+    groupId: str
+    userId: str
+    oldName: str
+    newName: str
 
 
 @dataclass
 class ContactGroupDescriptionUpdatedEvent:
-    group_id: str
-    user_id: str
+    groupId: str
+    userId: str
     description: Optional[str]
 
 
 @dataclass
 class ContactGroupColorUpdatedEvent:
-    group_id: str
-    user_id: str
+    groupId: str
+    userId: str
     color: str
 
 
 @dataclass
 class ContactGroupIconUpdatedEvent:
-    group_id: str
-    user_id: str
+    groupId: str
+    userId: str
     icon: Optional[str]
 
 
 @dataclass
 class ContactGroupTypeUpdatedEvent:
-    group_id: str
-    user_id: str
-    group_type: str
+    groupId: str
+    userId: str
+    groupType: str
 
 
 @dataclass
 class ContactGroupDisplayOrderUpdatedEvent:
-    group_id: str
-    user_id: str
-    display_order: int
+    groupId: str
+    userId: str
+    displayOrder: int
 
 
 @dataclass
 class ContactGroupVisibilityToggledEvent:
-    group_id: str
-    user_id: str
-    is_visible: bool
+    groupId: str
+    userId: str
+    isVisible: bool
 
 
 @dataclass
 class ContactGroupMemberAddedEvent:
-    group_id: str
-    user_id: str
-    friendship_id: str
+    groupId: str
+    userId: str
+    friendshipId: str
     role: str
 
 
 @dataclass
 class ContactGroupMemberRemovedEvent:
-    group_id: str
-    user_id: str
-    friendship_id: str
+    groupId: str
+    userId: str
+    friendshipId: str
 
 
 @dataclass
 class ContactGroupMemberRoleUpdatedEvent:
-    group_id: str
-    user_id: str
-    friendship_id: str
+    groupId: str
+    userId: str
+    friendshipId: str
     role: str

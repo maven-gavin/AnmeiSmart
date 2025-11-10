@@ -4,8 +4,8 @@ Contact领域层
 from .contact_domain_service import ContactDomainService
 from .interfaces import IContactRepository, IContactApplicationService, IContactDomainService
 from .entities import (
-    Friendship, ContactTag, ContactGroup,
-    FriendshipStatus, TagCategory, GroupType, GroupMemberRole, GroupMember, InteractionRecord
+    FriendshipEntity, ContactTagEntity, ContactGroupEntity,
+    FriendshipStatus, TagCategory, GroupType, GroupMemberRole, GroupMemberEntity, InteractionRecordEntity
 )
 from .value_objects import (
     Color, Nickname, TagName, GroupName, Description, Icon, DisplayOrder,
@@ -21,17 +21,17 @@ __all__ = [
     "IContactDomainService",
     
     # 聚合根和实体
-    "Friendship",
-    "ContactTag", 
-    "ContactGroup",
+    "FriendshipEntity",
+    "ContactTagEntity", 
+    "ContactGroupEntity",
     
     # 值对象
     "FriendshipStatus",
     "TagCategory",
     "GroupType",
     "GroupMemberRole", 
-    "GroupMember",
-    "InteractionRecord",
+    "GroupMemberEntity",
+    "InteractionRecordEntity",
     "Color",
     "Nickname",
     "TagName",

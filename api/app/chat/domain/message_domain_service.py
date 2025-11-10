@@ -8,7 +8,7 @@ from datetime import datetime
 import logging
 
 from app.chat.domain.interfaces import IMessageRepository, IMessageDomainService
-from app.chat.domain.entities.message import Message
+from app.chat.domain.entities.message import MessageEntity
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class MessageDomainService(IMessageDomainService):
         text: str,
         sender_id: str,
         sender_type: str
-    ) -> Message:
+    ) -> MessageEntity:
         """创建文本消息 - 领域逻辑"""
         logger.info(f"领域服务：创建文本消息 - conversation_id={conversation_id}, sender_id={sender_id}")
         
@@ -40,7 +40,7 @@ class MessageDomainService(IMessageDomainService):
             raise ValueError("发送者ID不能为空")
         
         # 使用领域实体的工厂方法创建文本消息
-        message = Message.create_text_message(
+        message = MessageEntity.create_text_message(
             conversation_id=conversation_id,
             text=text.strip(),
             sender_id=sender_id,
@@ -66,7 +66,7 @@ class MessageDomainService(IMessageDomainService):
         sender_id: str,
         sender_type: str,
         text: Optional[str] = None
-    ) -> Message:
+    ) -> MessageEntity:
         """创建媒体消息 - 领域逻辑"""
         logger.info(f"领域服务：创建媒体消息 - conversation_id={conversation_id}, sender_id={sender_id}")
         
@@ -87,7 +87,7 @@ class MessageDomainService(IMessageDomainService):
             raise ValueError("发送者ID不能为空")
         
         # 使用领域实体的工厂方法创建媒体消息
-        message = Message.create_media_message(
+        message = MessageEntity.create_media_message(
             conversation_id=conversation_id,
             media_url=media_url,
             media_name=media_name,
@@ -113,7 +113,7 @@ class MessageDomainService(IMessageDomainService):
         conversation_id: str,
         event_type: str,
         event_data: Dict[str, Any]
-    ) -> Message:
+    ) -> MessageEntity:
         """创建系统消息 - 领域逻辑"""
         logger.info(f"领域服务：创建系统消息 - conversation_id={conversation_id}, event_type={event_type}")
         
@@ -125,7 +125,7 @@ class MessageDomainService(IMessageDomainService):
             raise ValueError("事件类型不能为空")
         
         # 使用领域实体的工厂方法创建系统消息
-        message = Message.create_system_event_message(
+        message = MessageEntity.create_system_event_message(
             conversation_id=conversation_id,
             event_type=event_type,
             status="sent",
@@ -149,7 +149,7 @@ class MessageDomainService(IMessageDomainService):
         data: Dict[str, Any],
         sender_id: str,
         sender_type: str
-    ) -> Message:
+    ) -> MessageEntity:
         """创建结构化消息 - 领域逻辑"""
         logger.info(f"领域服务：创建结构化消息 - conversation_id={conversation_id}, card_type={card_type}")
         
@@ -177,16 +177,16 @@ class MessageDomainService(IMessageDomainService):
         }
         
         # 创建消息
-        message = Message(
+        message = MessageEntity(
             id="",  # 由仓储生成
-            conversation_id=conversation_id,
+            conversationId=conversation_id,
             content=content,
-            message_type="structured",
-            sender_id=sender_id,
-            sender_type=sender_type,
-            is_important=False,
-            reply_to_message_id=None,
-            extra_metadata={}
+            messageType="structured",
+            senderId=sender_id,
+            senderType=sender_type,
+            isImportant=False,
+            replyToMessageId=None,
+            extraMetadata={}
         )
         
         # 发布领域事件

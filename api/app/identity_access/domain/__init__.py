@@ -4,10 +4,10 @@
 包含核心业务逻辑、领域规则、聚合设计。
 """
 
-from .entities.user import User
-from .entities.role import Role
-from .entities.tenant import Tenant
-from .entities.permission import Permission
+from .entities.user import UserEntity
+from .entities.role import RoleEntity
+from .entities.tenant import TenantEntity
+from .entities.permission import PermissionEntity
 from .value_objects.email import Email
 from .value_objects.password import Password
 from .value_objects.user_status import UserStatus
@@ -26,10 +26,10 @@ from .role_permission_domain_service import RolePermissionDomainService
 
 __all__ = [
     # 聚合根和实体
-    "User",
-    "Role",
-    "Tenant",
-    "Permission",
+    "UserEntity",
+    "RoleEntity",
+    "TenantEntity",
+    "PermissionEntity",
     
     # 值对象
     "Email",

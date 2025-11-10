@@ -7,7 +7,7 @@
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 
-from .entities.user import User
+from .entities.user import UserEntity
 from .value_objects.login_history import LoginHistory
 
 
@@ -26,7 +26,7 @@ class AuthenticationDomainService:
         self,
         username_or_email: str,
         password: str
-    ) -> Optional[User]:
+    ) -> Optional[UserEntity]:
         """用户身份认证"""
         # 判断是邮箱还是用户名
         is_email = "@" in username_or_email

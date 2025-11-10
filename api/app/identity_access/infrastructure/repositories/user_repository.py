@@ -9,8 +9,8 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
-from app.identity_access.domain.entities.user import User
-from app.identity_access.domain.entities.role import Role
+from app.identity_access.domain.entities.user import UserEntity
+from app.identity_access.domain.entities.role import RoleEntity
 from app.identity_access.infrastructure.db.profile import UserDefaultRole, UserPreferences
 from app.identity_access.infrastructure.db.user import User as UserModel, Role as RoleModel
 from ...interfaces.repository_interfaces import IUserRepository
@@ -24,7 +24,7 @@ class UserRepository(IUserRepository):
         self.db = db
         self.user_converter = user_converter
     
-    async def get_by_id(self, user_id: str) -> Optional[User]:
+    async def get_by_id(self, user_id: str) -> Optional[UserEntity]:
         """根据ID获取用户"""
         user_model = self.db.query(UserModel).filter(UserModel.id == user_id).first()
         if not user_model:
@@ -32,7 +32,7 @@ class UserRepository(IUserRepository):
         
         return self.user_converter.from_model(user_model)
     
-    async def get_by_email(self, email: str) -> Optional[User]:
+    async def get_by_email(self, email: str) -> Optional[UserEntity]:
         """根据邮箱获取用户"""
         user_model = self.db.query(UserModel).filter(UserModel.email == email).first()
         if not user_model:
@@ -40,7 +40,7 @@ class UserRepository(IUserRepository):
         
         return self.user_converter.from_model(user_model)
     
-    async def get_by_username(self, username: str) -> Optional[User]:
+    async def get_by_username(self, username: str) -> Optional[UserEntity]:
         """根据用户名获取用户"""
         user_model = self.db.query(UserModel).filter(UserModel.username == username).first()
         if not user_model:
@@ -48,7 +48,7 @@ class UserRepository(IUserRepository):
         
         return self.user_converter.from_model(user_model)
     
-    async def get_by_phone(self, phone: str) -> Optional[User]:
+    async def get_by_phone(self, phone: str) -> Optional[UserEntity]:
         """根据手机号获取用户"""
         user_model = self.db.query(UserModel).filter(UserModel.phone == phone).first()
         if not user_model:
@@ -68,7 +68,7 @@ class UserRepository(IUserRepository):
         """检查手机号是否存在"""
         return self.db.query(UserModel).filter(UserModel.phone == phone).first() is not None
     
-    async def save(self, user: User) -> User:
+    async def save(self, user: UserEntity) -> UserEntity:
         """保存用户"""
         # 检查用户是否存在
         existing_user = self.db.query(UserModel).filter(UserModel.id == user.id).first()
@@ -109,7 +109,7 @@ class UserRepository(IUserRepository):
         self.db.commit()
         return True
     
-    async def list_active(self, limit: int = 100, offset: int = 0) -> List[User]:
+    async def list_active(self, limit: int = 100, offset: int = 0) -> List[UserEntity]:
         """获取活跃用户列表"""
         users = self.db.query(UserModel).filter(
             UserModel.is_active == True
@@ -365,7 +365,7 @@ class UserRepository(IUserRepository):
         """统计租户下的用户数量"""
         return self.db.query(UserModel).filter(UserModel.tenant_id == tenant_id).count()
     
-    async def get_user_roles(self, user_id: str) -> List[Role]:
+    async def get_user_roles(self, user_id: str) -> List[RoleEntity]:
         """获取用户的角色列表"""
         user_model = self.db.query(UserModel).filter(UserModel.id == user_id).first()
         if not user_model:
@@ -375,18 +375,18 @@ class UserRepository(IUserRepository):
         db_roles = user_model.roles
         return [self._role_to_entity(role) for role in db_roles]
     
-    def _role_to_entity(self, db_role: RoleModel) -> Role:
+    def _role_to_entity(self, db_role: RoleModel) -> RoleEntity:
         """将角色数据库模型转换为领域实体"""
-        return Role(
+        return RoleEntity(
             id=db_role.id,
             name=db_role.name,
-            display_name=db_role.display_name,
+            displayName=db_role.display_name,
             description=db_role.description,
-            is_active=db_role.is_active,
-            is_system=db_role.is_system,
-            is_admin=db_role.is_admin,
+            isActive=db_role.is_active,
+            isSystem=db_role.is_system,
+            isAdmin=db_role.is_admin,
             priority=db_role.priority,
-            tenant_id=db_role.tenant_id,
-            created_at=db_role.created_at,
-            updated_at=db_role.updated_at
+            tenantId=db_role.tenant_id,
+            createdAt=db_role.created_at,
+            updatedAt=db_role.updated_at
         )

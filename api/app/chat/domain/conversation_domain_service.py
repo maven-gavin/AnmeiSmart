@@ -8,7 +8,7 @@ from datetime import datetime
 import logging
 
 from app.chat.domain.interfaces import IConversationRepository, IConversationDomainService
-from app.chat.domain.entities.conversation import Conversation
+from app.chat.domain.entities.conversation import ConversationEntity
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class ConversationDomainService(IConversationDomainService):
         title: str,
         owner_id: str,
         chat_mode: str = "single"
-    ) -> Conversation:
+    ) -> ConversationEntity:
         """创建会话 - 领域逻辑"""
         logger.info(f"领域服务：创建会话 - title={title}, owner_id={owner_id}")
 
@@ -40,23 +40,23 @@ class ConversationDomainService(IConversationDomainService):
             raise ValueError(f"会话标题 '{title}' 已存在")
 
         # 使用领域实体的工厂方法创建会话
-        conversation = Conversation.create(
+        conversation_entity = ConversationEntity.create(
             title=title.strip(),
-            owner_id=owner_id,
-            chat_mode=chat_mode
+            ownerId=owner_id,
+            chatMode=chat_mode
         )
 
         # 发布领域事件
         self._add_domain_event("conversation_created", {
-            "conversation_id": str(conversation.id),
+            "conversation_id": str(conversation_entity.id),
             "owner_id": owner_id,
             "title": title,
             "chat_mode": chat_mode
         })
 
-        return conversation
+        return conversation_entity
 
-    async def update_conversation(self, conversation: Conversation, updates: Dict[str, Any]) -> Conversation:
+    async def update_conversation(self, conversation: ConversationEntity, updates: Dict[str, Any]) -> ConversationEntity:
         """更新会话 - 领域逻辑"""
         logger.info(f"领域服务：更新会话 - conversation_id={conversation.id}")
 
@@ -74,8 +74,8 @@ class ConversationDomainService(IConversationDomainService):
                     conversation.archive()
                 else:
                     conversation.unarchive()
-            elif hasattr(conversation, field):
-                setattr(conversation, f"_{field}", value)
+            elif hasattr(conversation.__class__, field):
+                setattr(conversation, field, value)
 
         # 发布领域事件
         self._add_domain_event("conversation_updated", {
@@ -113,7 +113,7 @@ class ConversationDomainService(IConversationDomainService):
 
         return str(conversation.owner_id) == user_id
 
-    async def archive_conversation(self, conversation_id: str, user_id: str) -> Conversation:
+    async def archive_conversation(self, conversation_id: str, user_id: str) -> ConversationEntity:
         """归档会话 - 领域逻辑"""
         logger.info(
             f"领域服务：归档会话 - conversation_id={conversation_id}, user_id={user_id}")
@@ -138,7 +138,7 @@ class ConversationDomainService(IConversationDomainService):
 
         return conversation  # 返回修改后的实体，由应用服务保存
 
-    async def pin_conversation(self, conversation_id: str, user_id: str, is_pinned: bool) -> Conversation:
+    async def pin_conversation(self, conversation_id: str, user_id: str, is_pinned: bool) -> ConversationEntity:
         """置顶/取消置顶会话 - 领域逻辑"""
         logger.info(
             f"领域服务：置顶会话 - conversation_id={conversation_id}, user_id={user_id}, is_pinned={is_pinned}")
@@ -167,7 +167,7 @@ class ConversationDomainService(IConversationDomainService):
 
         return conversation  # 返回修改后的实体，由应用服务保存
 
-    async def increment_message_count(self, conversation_id: str) -> Optional[Conversation]:
+    async def increment_message_count(self, conversation_id: str) -> Optional[ConversationEntity]:
         """增加会话消息数 - 领域逻辑"""
         logger.info(f"领域服务：增加消息数 - conversation_id={conversation_id}")
 
@@ -188,7 +188,7 @@ class ConversationDomainService(IConversationDomainService):
 
         return conversation  # 返回修改后的实体，由应用服务保存
 
-    async def mark_as_read(self, conversation_id: str, user_id: str) -> Optional[Conversation]:
+    async def mark_as_read(self, conversation_id: str, user_id: str) -> Optional[ConversationEntity]:
         """标记会话为已读 - 领域逻辑"""
         logger.info(
             f"领域服务：标记已读 - conversation_id={conversation_id}, user_id={user_id}")

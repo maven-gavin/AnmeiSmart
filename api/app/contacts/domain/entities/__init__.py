@@ -1,23 +1,23 @@
 """
 Contact领域实体层
 """
-from .friendship import Friendship, FriendshipStatus, InteractionRecord
-from .contact_tag import ContactTag, TagCategory
-from .contact_group import ContactGroup, GroupType, GroupMemberRole, GroupMember
+from .friendship import FriendshipEntity, FriendshipStatus, InteractionRecordEntity
+from .contact_tag import ContactTagEntity, TagCategory
+from .contact_group import ContactGroupEntity, GroupType, GroupMemberRole, GroupMemberEntity
 
 __all__ = [
     # 聚合根
-    "Friendship",
+    "FriendshipEntity",
     
     # 实体
-    "ContactTag",
-    "ContactGroup",
+    "ContactTagEntity",
+    "ContactGroupEntity",
     
     # 值对象
     "FriendshipStatus",
     "TagCategory", 
     "GroupType",
     "GroupMemberRole",
-    "GroupMember",
-    "InteractionRecord",
+    "GroupMemberEntity",
+    "InteractionRecordEntity",
 ]

@@ -3,7 +3,7 @@
 负责领域实体与Schema之间的转换
 """
 from typing import List, Optional, Literal
-from app.chat.domain.entities.message import Message
+from app.chat.domain.entities.message import MessageEntity
 from app.chat.schemas.chat import MessageInfo, MessageSender
 
 
@@ -11,7 +11,7 @@ class MessageConverter:
     """消息转换器类"""
     
     @staticmethod
-    def to_response(message: Message, sender_user=None, sender_digital_human=None) -> Optional[MessageInfo]:
+    def to_response(message: MessageEntity, sender_user=None, sender_digital_human=None) -> Optional[MessageInfo]:
         """将领域实体转换为响应Schema"""
         if not message:
             return None
@@ -80,7 +80,7 @@ class MessageConverter:
         )
     
     @staticmethod
-    def to_list_response(messages: List[Message], sender_users: dict = None, sender_digital_humans: dict = None) -> List[MessageInfo]:
+    def to_list_response(messages: List[MessageEntity], sender_users: dict = None, sender_digital_humans: dict = None) -> List[MessageInfo]:
         """将领域实体列表转换为响应Schema列表"""
         result = []
         for msg in messages:
@@ -100,23 +100,23 @@ class MessageConverter:
         return result
     
     @staticmethod
-    def from_schema(message_info: MessageInfo) -> Message:
+    def from_schema(message_info: MessageInfo) -> MessageEntity:
         """将Schema转换为领域实体（用于创建）"""
         from app.common.infrastructure.db.uuid_utils import message_id
         from datetime import datetime
         
-        return Message(
+        return MessageEntity(
             id=message_id(),
-            conversation_id=message_info.conversation_id,
+            conversationId=message_info.conversation_id,
             content=message_info.content,
-            message_type=message_info.type,
-            sender_id=message_info.sender.id if message_info.sender else None,
-            sender_type=message_info.sender.type if message_info.sender else "user",
-            is_important=message_info.is_important,
-            reply_to_message_id=message_info.reply_to_message_id,
+            messageType=message_info.type,
+            senderId=message_info.sender.id if message_info.sender else None,
+            senderType=message_info.sender.type if message_info.sender else "user",
+            isImportant=message_info.is_important,
+            replyToMessageId=message_info.reply_to_message_id,
             reactions=message_info.reactions or {},
-            extra_metadata=message_info.extra_metadata or {},
-            requires_confirmation=False,
-            created_at=datetime.now(),
-            updated_at=datetime.now()
+            extraMetadata=message_info.extra_metadata or {},
+            requiresConfirmation=False,
+            createdAt=datetime.now(),
+            updatedAt=datetime.now()
         )

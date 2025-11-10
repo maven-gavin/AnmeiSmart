@@ -7,7 +7,7 @@
 from typing import List, Optional, Dict, Any
 
 from app.identity_access.schemas.user import UserCreate, UserUpdate, UserResponse
-from ..domain.entities.user import User
+from ..domain.entities.user import UserEntity
 from ..domain.value_objects.user_status import UserStatus
 from app.identity_access.infrastructure.db.user import User as UserModel
 
@@ -18,7 +18,7 @@ class UserConverter(IUserConverter):
     """用户数据转换器"""
     
     @staticmethod
-    def to_response(user: User, active_role: Optional[str] = None) -> UserResponse:
+    def to_response(user: UserEntity, active_role: Optional[str] = None) -> UserResponse:
         """转换用户实体为响应格式"""
         # 如果没有提供active_role，使用用户的第一个角色作为默认角色
         if active_role is None and user.roles:
@@ -47,14 +47,14 @@ class UserConverter(IUserConverter):
             is_active=user.status.to_bool(),
             roles=roles_list,
             active_role=active_role,
-            created_at=user.created_at,
-            updated_at=user.updated_at,
-            last_login_at=user.last_login_at,
+            created_at=user.createdAt,
+            updated_at=user.updatedAt,
+            last_login_at=user.lastLoginAt,
             extended_info=None  # 暂时设为None，避免前向引用问题
         )
     
     @staticmethod
-    def to_list_response(users: List[User]) -> List[UserResponse]:
+    def to_list_response(users: List[UserEntity]) -> List[UserResponse]:
         """转换用户列表为响应格式"""
         return [UserConverter.to_response(user) for user in users]
     
@@ -85,7 +85,7 @@ class UserConverter(IUserConverter):
         return updates
     
     @staticmethod
-    def from_model(model: UserModel) -> User:
+    def from_model(model: UserModel) -> UserEntity:
         """从ORM模型转换为领域实体"""
         from ..domain.value_objects.email import Email
         from ..domain.value_objects.password import Password
@@ -104,7 +104,7 @@ class UserConverter(IUserConverter):
                     roles.add(role)
         
         # 创建用户实体
-        user = User(
+        user = UserEntity(
             id=model.id,
             username=model.username,
             email=email,
@@ -112,16 +112,17 @@ class UserConverter(IUserConverter):
             phone=model.phone,
             avatar=model.avatar,
             status=UserStatus.from_bool(model.is_active),
-            created_at=model.created_at,
-            updated_at=model.updated_at,
-            last_login_at=getattr(model, 'last_login_at', None),
-            roles=roles
+            createdAt=model.created_at,
+            updatedAt=model.updated_at,
+            lastLoginAt=getattr(model, 'last_login_at', None),
+            roles=roles,
+            tenantId=model.tenant_id
         )
         
         return user
     
     @staticmethod
-    def to_model_dict(user: User) -> Dict[str, Any]:
+    def to_model_dict(user: UserEntity) -> Dict[str, Any]:
         """转换领域实体为ORM模型字典"""
         return {
             "id": user.id,
@@ -131,13 +132,14 @@ class UserConverter(IUserConverter):
             "phone": user.phone,
             "avatar": user.avatar,
             "is_active": user.status.to_bool(),
-            "created_at": user.created_at,
-            "updated_at": user.updated_at,
-            "last_login_at": user.last_login_at
+            "created_at": user.createdAt,
+            "updated_at": user.updatedAt,
+            "last_login_at": user.lastLoginAt,
+            "tenant_id": user.tenantId
         }
     
     @staticmethod
-    def to_public_response(user: User) -> Dict[str, Any]:
+    def to_public_response(user: UserEntity) -> Dict[str, Any]:
         """转换为公开响应格式（不包含敏感信息）"""
         return {
             "id": user.id,
@@ -146,12 +148,12 @@ class UserConverter(IUserConverter):
             "avatar": user.avatar,
             "is_active": user.status.to_bool(),
             "roles": list(user.roles),
-            "created_at": user.created_at.isoformat(),
-            "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None
+            "created_at": user.createdAt.isoformat(),
+            "last_login_at": user.lastLoginAt.isoformat() if user.lastLoginAt else None
         }
     
     @staticmethod
-    def to_summary_response(user: User) -> Dict[str, Any]:
+    def to_summary_response(user: UserEntity) -> Dict[str, Any]:
         """转换为摘要响应格式"""
         return {
             "id": user.id,

@@ -9,7 +9,7 @@ import logging
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 
-from app.identity_access.schemas.user import UserCreate, UserUpdate, UserResponse, RoleResponse
+from app.identity_access.schemas.user import UserCreate, UserUpdate, UserResponse, RoleResponse, RoleUpdate
 from app.identity_access.schemas.token import Token, RefreshTokenRequest
 from app.identity_access.schemas.profile import (
     LoginHistoryCreate, UserPreferencesInfo, UserPreferencesCreate, UserPreferencesUpdate,
@@ -297,6 +297,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
         """获取所有角色用例"""
         try:
             roles = await self.role_repository.get_all()
+            logger.info(f"获取到的角色列表: {roles}")
             return RoleConverter.to_list_response(roles)
             
         except Exception as e:
@@ -310,18 +311,69 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
     ) -> RoleResponse:
         """创建角色用例"""
         try:
-            from ..domain.entities.role import Role
+            from ..domain.entities.role import RoleEntity
             
-            role = Role.create(name=name, description=description)
-            saved_role = await self.role_repository.save(role)
+            roleEntity = RoleEntity.create(name=name, description=description)
+            savedRoleEntity = await self.role_repository.save(roleEntity)
             
-            return RoleConverter.to_response(saved_role)
+            return RoleConverter.to_response(savedRoleEntity)
             
         except ValueError as e:
             logger.warning(f"创建角色失败: {str(e)}")
             raise
         except Exception as e:
             logger.error(f"创建角色异常: {str(e)}", exc_info=True)
+            raise
+    
+    async def update_role(
+        self,
+        role_id: str,
+        update_data: RoleUpdate
+    ) -> RoleResponse:
+        """更新角色用例"""
+        try:
+            role = await self.role_repository.get_by_id(role_id)
+            if not role:
+                raise ValueError("角色不存在")
+
+            has_changes = False
+
+            if update_data.name is not None:
+                new_name = update_data.name.strip()
+                if not new_name:
+                    raise ValueError("角色名称不能为空")
+
+                old_name = role.name
+                if new_name != old_name:
+                    if role.isSystem:
+                        raise ValueError("系统角色名称不可修改")
+
+                    name_exists = await self.role_repository.exists_by_name(new_name)
+                    if name_exists:
+                        raise ValueError("角色名称已存在")
+
+                    role.name = new_name
+                    if role.displayName is None or role.displayName == old_name:
+                        role.displayName = new_name
+                    has_changes = True
+
+            if update_data.description is not None and update_data.description != role.description:
+                role.update_info(description=update_data.description)
+                has_changes = True
+
+            if not has_changes:
+                return RoleConverter.to_response(role)
+
+            role.updatedAt = datetime.utcnow()
+            updated_role = await self.role_repository.save(role)
+
+            return RoleConverter.to_response(updated_role)
+
+        except ValueError as e:
+            logger.warning(f"更新角色失败: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"更新角色异常: {str(e)}", exc_info=True)
             raise
     
     async def assign_role_to_user(

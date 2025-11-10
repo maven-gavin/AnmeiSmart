@@ -9,7 +9,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 from ..domain.tenant_domain_service import TenantDomainService
-from ..domain.entities.tenant import Tenant
+from ..domain.entities.tenant import TenantEntity
 from ..domain.value_objects.tenant_status import TenantStatus
 from ..domain.value_objects.tenant_type import TenantType
 
@@ -38,7 +38,7 @@ class TenantApplicationService:
             tenant_type_enum = TenantType(tenant_type)
             
             # 创建租户
-            tenant = await self.tenant_domain_service.create_tenant(
+            tenantEntity = await self.tenant_domain_service.create_tenant(
                 name=name,
                 display_name=display_name,
                 description=description,
@@ -49,20 +49,20 @@ class TenantApplicationService:
             )
             
             return {
-                "id": tenant.id,
-                "name": tenant.name,
-                "display_name": tenant.display_name,
-                "description": tenant.description,
-                "tenant_type": tenant.tenant_type.value,
-                "status": tenant.status.value,
-                "is_system": tenant.is_system,
-                "is_admin": tenant.is_admin,
-                "priority": tenant.priority,
-                "contact_name": tenant.contact_name,
-                "contact_email": tenant.contact_email,
-                "contact_phone": tenant.contact_phone,
-                "created_at": tenant.created_at.isoformat(),
-                "updated_at": tenant.updated_at.isoformat()
+                "id": tenantEntity.id,
+                "name": tenantEntity.name,
+                "display_name": tenantEntity.displayName,
+                "description": tenantEntity.description,
+                "tenant_type": tenantEntity.tenantType.value,
+                "status": tenantEntity.status.value,
+                "is_system": tenantEntity.isSystem,
+                "is_admin": tenantEntity.isAdmin,
+                "priority": tenantEntity.priority,
+                "contact_name": tenantEntity.contactName,
+                "contact_email": tenantEntity.contactEmail,
+                "contact_phone": tenantEntity.contactPhone,
+                "created_at": tenantEntity.createdAt.isoformat(),
+                "updated_at": tenantEntity.updatedAt.isoformat()
             }
             
         except Exception as e:
@@ -72,25 +72,25 @@ class TenantApplicationService:
     async def get_tenant(self, tenant_id: str) -> Optional[Dict[str, Any]]:
         """获取租户用例"""
         try:
-            tenant = await self.tenant_domain_service.get_tenant_by_id(tenant_id)
-            if not tenant:
+            tenantEntity = await self.tenant_domain_service.get_tenant_by_id(tenant_id)
+            if not tenantEntity:
                 return None
             
             return {
-                "id": tenant.id,
-                "name": tenant.name,
-                "display_name": tenant.display_name,
-                "description": tenant.description,
-                "tenant_type": tenant.tenant_type.value,
-                "status": tenant.status.value,
-                "is_system": tenant.is_system,
-                "is_admin": tenant.is_admin,
-                "priority": tenant.priority,
-                "contact_name": tenant.contact_name,
-                "contact_email": tenant.contact_email,
-                "contact_phone": tenant.contact_phone,
-                "created_at": tenant.created_at.isoformat(),
-                "updated_at": tenant.updated_at.isoformat()
+                "id": tenantEntity.id,
+                "name": tenantEntity.name,
+                "display_name": tenantEntity.displayName,
+                "description": tenantEntity.description,
+                "tenant_type": tenantEntity.tenantType.value,
+                "status": tenantEntity.status.value,
+                "is_system": tenantEntity.isSystem,
+                "is_admin": tenantEntity.isAdmin,
+                "priority": tenantEntity.priority,
+                "contact_name": tenantEntity.contactName,
+                "contact_email": tenantEntity.contactEmail,
+                "contact_phone": tenantEntity.contactPhone,
+                "created_at": tenantEntity.createdAt.isoformat(),
+                "updated_at": tenantEntity.updatedAt.isoformat()
             }
             
         except Exception as e:
@@ -108,22 +108,22 @@ class TenantApplicationService:
             
             return [
                 {
-                    "id": tenant.id,
-                    "name": tenant.name,
-                    "display_name": tenant.display_name,
-                    "description": tenant.description,
-                    "tenant_type": tenant.tenant_type.value,
-                    "status": tenant.status.value,
-                    "is_system": tenant.is_system,
-                    "is_admin": tenant.is_admin,
-                    "priority": tenant.priority,
-                    "contact_name": tenant.contact_name,
-                    "contact_email": tenant.contact_email,
-                    "contact_phone": tenant.contact_phone,
-                    "created_at": tenant.created_at.isoformat(),
-                    "updated_at": tenant.updated_at.isoformat()
+                    "id": tenantEntity.id,
+                    "name": tenantEntity.name,
+                    "display_name": tenantEntity.displayName,
+                    "description": tenantEntity.description,
+                    "tenant_type": tenantEntity.tenantType.value,
+                    "status": tenantEntity.status.value,
+                    "is_system": tenantEntity.isSystem,
+                    "is_admin": tenantEntity.isAdmin,
+                    "priority": tenantEntity.priority,
+                    "contact_name": tenantEntity.contactName,
+                    "contact_email": tenantEntity.contactEmail,
+                    "contact_phone": tenantEntity.contactPhone,
+                    "created_at": tenantEntity.createdAt.isoformat(),
+                    "updated_at": tenantEntity.updatedAt.isoformat()
                 }
-                for tenant in tenants
+                for tenantEntity in tenants
             ]
             
         except Exception as e:

@@ -6,7 +6,7 @@
 
 import uuid
 from datetime import datetime
-from typing import Optional, Set
+from typing import Optional
 from dataclasses import dataclass, field
 
 from ..value_objects.permission_type import PermissionType
@@ -14,7 +14,7 @@ from ..value_objects.permission_scope import PermissionScope
 
 
 @dataclass
-class Permission:
+class PermissionEntity:
     """权限实体"""
     
     # 身份标识
@@ -22,29 +22,29 @@ class Permission:
     
     # 基本信息
     name: str
-    display_name: Optional[str] = None
+    displayName: Optional[str] = None
     description: Optional[str] = None
     
     # 权限类型和范围
-    permission_type: PermissionType = PermissionType.ACTION
+    permissionType: PermissionType = PermissionType.ACTION
     scope: PermissionScope = PermissionScope.TENANT
     
     # 状态信息
-    is_active: bool = True
-    is_system: bool = False
-    is_admin: bool = False
+    isActive: bool = True
+    isSystem: bool = False
+    isAdmin: bool = False
     
     # 优先级和租户关联
     priority: int = 0
-    tenant_id: Optional[str] = None
+    tenantId: Optional[str] = None
     
     # 权限资源
     resource: Optional[str] = None
     action: Optional[str] = None
     
     # 时间戳
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    createdAt: datetime = field(default_factory=datetime.utcnow)
+    updatedAt: datetime = field(default_factory=datetime.utcnow)
     
     def __post_init__(self):
         """后初始化验证"""
@@ -58,122 +58,127 @@ class Permission:
             raise ValueError("权限名称长度不能超过50个字符")
         
         # 验证权限类型和资源/动作的匹配
-        if self.permission_type == PermissionType.ACTION and not self.action:
+        if self.permissionType == PermissionType.ACTION and not self.action:
             raise ValueError("动作类型权限必须指定action")
         
-        if self.permission_type == PermissionType.RESOURCE and not self.resource:
+        if self.permissionType == PermissionType.RESOURCE and not self.resource:
             raise ValueError("资源类型权限必须指定resource")
+        
+        if self.displayName is None:
+            self.displayName = self.name
     
     @classmethod
     def create(
         cls,
         name: str,
-        display_name: Optional[str] = None,
+        displayName: Optional[str] = None,
         description: Optional[str] = None,
-        permission_type: PermissionType = PermissionType.ACTION,
+        permissionType: PermissionType = PermissionType.ACTION,
         scope: PermissionScope = PermissionScope.TENANT,
         resource: Optional[str] = None,
         action: Optional[str] = None,
-        tenant_id: Optional[str] = None,
-        is_system: bool = False,
-        is_admin: bool = False
-    ) -> "Permission":
+        tenantId: Optional[str] = None,
+        isSystem: bool = False,
+        isAdmin: bool = False,
+        priority: int = 0
+    ) -> "PermissionEntity":
         """创建新权限"""
         permission_id = str(uuid.uuid4())
         
         return cls(
             id=permission_id,
             name=name,
-            display_name=display_name or name,
+            displayName=displayName or name,
             description=description,
-            permission_type=permission_type,
+            permissionType=permissionType,
             scope=scope,
             resource=resource,
             action=action,
-            tenant_id=tenant_id,
-            is_system=is_system,
-            is_admin=is_admin
+            tenantId=tenantId,
+            isSystem=isSystem,
+            isAdmin=isAdmin,
+            priority=priority
         )
     
     @classmethod
     def create_system_permission(
         cls,
         name: str,
-        display_name: Optional[str] = None,
+        displayName: Optional[str] = None,
         description: Optional[str] = None,
         resource: Optional[str] = None,
         action: Optional[str] = None
-    ) -> "Permission":
+    ) -> "PermissionEntity":
         """创建系统权限"""
         return cls.create(
             name=name,
-            display_name=display_name,
+            displayName=displayName,
             description=description,
             resource=resource,
             action=action,
             scope=PermissionScope.SYSTEM,
-            is_system=True,
-            is_admin=True,
+            isSystem=True,
+            isAdmin=True,
             priority=1000
         )
     
     def activate(self) -> None:
         """激活权限"""
-        if self.is_active:
+        if self.isActive:
             raise ValueError("权限已经是激活状态")
         
-        self.is_active = True
-        self.updated_at = datetime.utcnow()
+        self.isActive = True
+        self.updatedAt = datetime.utcnow()
     
     def deactivate(self) -> None:
         """停用权限"""
-        if not self.is_active:
+        if not self.isActive:
             raise ValueError("权限已经是停用状态")
         
-        if self.is_system:
+        if self.isSystem:
             raise ValueError("系统权限不能被停用")
         
-        self.is_active = False
-        self.updated_at = datetime.utcnow()
+        self.isActive = False
+        self.updatedAt = datetime.utcnow()
     
     def update_info(
         self,
-        display_name: Optional[str] = None,
+        displayName: Optional[str] = None,
         description: Optional[str] = None
     ) -> None:
         """更新权限信息"""
-        if display_name is not None:
-            self.display_name = display_name
+        if displayName is not None:
+            self.displayName = displayName
         if description is not None:
             self.description = description
         
-        self.updated_at = datetime.utcnow()
+        self.updatedAt = datetime.utcnow()
     
     def can_be_deleted(self) -> bool:
         """检查权限是否可以被删除"""
-        return not self.is_system
+        return not self.isSystem
     
     def is_available(self) -> bool:
         """检查权限是否可用"""
-        return self.is_active
+        return self.isActive
     
     def is_system_permission(self) -> bool:
         """检查是否为系统权限"""
-        return self.is_system
+        return self.isSystem
     
     def is_admin_permission(self) -> bool:
         """检查是否为管理员权限"""
-        return self.is_admin
+        return self.isAdmin
     
     def get_effective_name(self) -> str:
         """获取有效显示名称"""
-        return self.display_name or self.name
+        return self.displayName or self.name
     
     def get_permission_key(self) -> str:
         """获取权限键值（用于权限检查）"""
-        if self.permission_type == PermissionType.ACTION and self.action:
+        if self.permissionType == PermissionType.ACTION and self.action:
             return f"{self.resource}:{self.action}" if self.resource else self.action
-        elif self.permission_type == PermissionType.RESOURCE and self.resource:
+        elif self.permissionType == PermissionType.RESOURCE and self.resource:
             return self.resource
         else:
             return self.name
@@ -183,7 +188,21 @@ class Permission:
         return self.get_permission_key() == permission_key
     
     def __str__(self) -> str:
-        return f"Permission(id={self.id}, name={self.name}, type={self.permission_type.value})"
+        return (
+            f"PermissionEntity(id={self.id}, name={self.name}, displayName={self.displayName}, "
+            f"description={self.description}, permissionType={self.permissionType.value}, "
+            f"scope={self.scope.value}, resource={self.resource}, action={self.action}, "
+            f"isActive={self.isActive}, isSystem={self.isSystem}, isAdmin={self.isAdmin}, "
+            f"priority={self.priority}, tenantId={self.tenantId}, createdAt={self.createdAt}, "
+            f"updatedAt={self.updatedAt})"
+        )
     
     def __repr__(self) -> str:
-        return f"Permission(id={self.id}, name={self.name}, scope={self.scope.value}, active={self.is_active})"
+        return (
+            f"PermissionEntity(id={self.id}, name={self.name}, displayName={self.displayName}, "
+            f"description={self.description}, permissionType={self.permissionType.value}, "
+            f"scope={self.scope.value}, resource={self.resource}, action={self.action}, "
+            f"isActive={self.isActive}, isSystem={self.isSystem}, isAdmin={self.isAdmin}, "
+            f"priority={self.priority}, tenantId={self.tenantId}, createdAt={self.createdAt}, "
+            f"updatedAt={self.updatedAt})"
+        )

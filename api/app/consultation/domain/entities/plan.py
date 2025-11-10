@@ -1,6 +1,7 @@
 """
 方案聚合根实体
 """
+from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 import uuid
@@ -8,173 +9,143 @@ import uuid
 from ..value_objects.plan_status import PlanStatus
 
 
-class Plan:
+@dataclass
+class PlanEntity:
     """方案聚合根 - 管理方案的生命周期"""
     
-    def __init__(
-        self,
-        id: str,
-        consultation_id: str,
-        customer_id: str,
-        consultant_id: str,
-        status: PlanStatus,
-        title: str,
-        content: Dict[str, Any],
-        version: int,
-        created_at: datetime,
-        updated_at: datetime,
-        metadata: Optional[Dict[str, Any]] = None
-    ):
-        self._id = id
-        self._consultation_id = consultation_id
-        self._customer_id = customer_id
-        self._consultant_id = consultant_id
-        self._status = status
-        self._title = title
-        self._content = content
-        self._version = version
-        self._created_at = created_at
-        self._updated_at = updated_at
-        self._metadata = metadata or {}
-        self._domain_events = []
+    id: str
+    consultationId: str
+    customerId: str
+    consultantId: str
+    status: PlanStatus
+    title: str
+    content: Dict[str, Any]
+    version: int
+    createdAt: datetime
+    updatedAt: datetime
+    _metadata: Dict[str, Any] = field(default_factory=dict, repr=False)
+    _domainEvents: List[Dict[str, Any]] = field(default_factory=list, repr=False)
     
-    @property
-    def id(self) -> str:
-        return self._id
-    
-    @property
-    def consultation_id(self) -> str:
-        return self._consultation_id
-    
-    @property
-    def customer_id(self) -> str:
-        return self._customer_id
-    
-    @property
-    def consultant_id(self) -> str:
-        return self._consultant_id
-    
-    @property
-    def status(self) -> PlanStatus:
-        return self._status
-    
-    @property
-    def title(self) -> str:
-        return self._title
-    
-    @property
-    def content(self) -> Dict[str, Any]:
-        return self._content.copy()
-    
-    @property
-    def version(self) -> int:
-        return self._version
-    
-    @property
-    def created_at(self) -> datetime:
-        return self._created_at
-    
-    @property
-    def updated_at(self) -> datetime:
-        return self._updated_at
+    def __post_init__(self) -> None:
+        if not self.consultationId:
+            raise ValueError("咨询ID不能为空")
+        
+        if not self.customerId:
+            raise ValueError("客户ID不能为空")
+        
+        if not self.consultantId:
+            raise ValueError("顾问ID不能为空")
+        
+        if not self.title or not self.title.strip():
+            raise ValueError("方案标题不能为空")
+        self.title = self.title.strip()
+        
+        if self.version < 1:
+            raise ValueError("方案版本号必须大于等于1")
+        
+        self.createdAt = self.createdAt or datetime.utcnow()
+        self.updatedAt = self.updatedAt or datetime.utcnow()
+        self._metadata = dict(self._metadata or {})
+        self._domainEvents = list(self._domainEvents or [])
+        self.content = dict(self.content or {})
     
     @property
     def metadata(self) -> Dict[str, Any]:
-        return self._metadata.copy()
+        return dict(self._metadata)
     
     @property
-    def domain_events(self) -> List:
-        return self._domain_events.copy()
+    def domainEvents(self) -> List[Dict[str, Any]]:
+        return list(self._domainEvents)
     
-    def update_content(self, content: Dict[str, Any]) -> None:
+    def updateContent(self, content: Dict[str, Any]) -> None:
         """更新方案内容"""
-        if not self._status.is_editable():
-            raise ValueError(f"当前状态 {self._status} 不允许编辑")
+        if not self.status.is_editable():
+            raise ValueError(f"当前状态 {self.status} 不允许编辑")
         
-        self._content = content
-        self._updated_at = datetime.utcnow()
+        self.content = dict(content or {})
+        self.updatedAt = datetime.utcnow()
         
-        self._add_domain_event("PlanContentUpdated", {
-            "plan_id": self._id,
-            "version": self._version,
-            "timestamp": self._updated_at
+        self._addDomainEvent("PlanContentUpdated", {
+            "plan_id": self.id,
+            "version": self.version,
+            "timestamp": self.updatedAt
         })
     
-    def start_generation(self) -> None:
+    def startGeneration(self) -> None:
         """开始生成方案"""
-        if not self._status.can_transition_to(PlanStatus.GENERATING):
-            raise ValueError(f"当前状态 {self._status} 无法转换为生成中状态")
+        if not self.status.can_transition_to(PlanStatus.GENERATING):
+            raise ValueError(f"当前状态 {self.status} 无法转换为生成中状态")
         
-        self._status = PlanStatus.GENERATING
-        self._updated_at = datetime.utcnow()
+        self.status = PlanStatus.GENERATING
+        self.updatedAt = datetime.utcnow()
         
-        self._add_domain_event("PlanGenerationStarted", {
-            "plan_id": self._id,
-            "timestamp": self._updated_at
+        self._addDomainEvent("PlanGenerationStarted", {
+            "plan_id": self.id,
+            "timestamp": self.updatedAt
         })
     
-    def complete_generation(self) -> None:
+    def completeGeneration(self) -> None:
         """完成方案生成"""
-        if self._status != PlanStatus.GENERATING:
+        if self.status != PlanStatus.GENERATING:
             raise ValueError("只有生成中状态的方案才能完成生成")
         
-        self._status = PlanStatus.REVIEWING
-        self._updated_at = datetime.utcnow()
+        self.status = PlanStatus.REVIEWING
+        self.updatedAt = datetime.utcnow()
         
-        self._add_domain_event("PlanGenerationCompleted", {
-            "plan_id": self._id,
-            "timestamp": self._updated_at
+        self._addDomainEvent("PlanGenerationCompleted", {
+            "plan_id": self.id,
+            "timestamp": self.updatedAt
         })
     
     def approve(self) -> None:
         """批准方案"""
-        if not self._status.can_transition_to(PlanStatus.APPROVED):
-            raise ValueError(f"当前状态 {self._status} 无法转换为已批准状态")
+        if not self.status.can_transition_to(PlanStatus.APPROVED):
+            raise ValueError(f"当前状态 {self.status} 无法转换为已批准状态")
         
-        self._status = PlanStatus.APPROVED
-        self._updated_at = datetime.utcnow()
+        self.status = PlanStatus.APPROVED
+        self.updatedAt = datetime.utcnow()
         
-        self._add_domain_event("PlanApproved", {
-            "plan_id": self._id,
-            "timestamp": self._updated_at
+        self._addDomainEvent("PlanApproved", {
+            "plan_id": self.id,
+            "timestamp": self.updatedAt
         })
     
     def reject(self, reason: Optional[str] = None) -> None:
         """拒绝方案"""
-        if not self._status.can_transition_to(PlanStatus.REJECTED):
-            raise ValueError(f"当前状态 {self._status} 无法转换为已拒绝状态")
+        if not self.status.can_transition_to(PlanStatus.REJECTED):
+            raise ValueError(f"当前状态 {self.status} 无法转换为已拒绝状态")
         
-        self._status = PlanStatus.REJECTED
-        self._updated_at = datetime.utcnow()
+        self.status = PlanStatus.REJECTED
+        self.updatedAt = datetime.utcnow()
         
         if reason:
             self._metadata["rejection_reason"] = reason
         
-        self._add_domain_event("PlanRejected", {
-            "plan_id": self._id,
+        self._addDomainEvent("PlanRejected", {
+            "plan_id": self.id,
             "reason": reason,
-            "timestamp": self._updated_at
+            "timestamp": self.updatedAt
         })
     
-    def create_new_version(self) -> "Plan":
+    def createNewVersion(self) -> "PlanEntity":
         """创建新版本"""
-        new_version = self._version + 1
-        new_plan = Plan(
+        new_version = self.version + 1
+        new_plan = PlanEntity(
             id=str(uuid.uuid4()),
-            consultation_id=self._consultation_id,
-            customer_id=self._customer_id,
-            consultant_id=self._consultant_id,
+            consultationId=self.consultationId,
+            customerId=self.customerId,
+            consultantId=self.consultantId,
             status=PlanStatus.DRAFT,
-            title=self._title,
-            content=self._content.copy(),
+            title=self.title,
+            content=dict(self.content),
             version=new_version,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
-            metadata=self._metadata.copy()
+            createdAt=datetime.utcnow(),
+            updatedAt=datetime.utcnow(),
+            _metadata=dict(self.metadata)
         )
         
-        self._add_domain_event("PlanVersionCreated", {
-            "original_plan_id": self._id,
+        self._addDomainEvent("PlanVersionCreated", {
+            "original_plan_id": self.id,
             "new_plan_id": new_plan.id,
             "version": new_version,
             "timestamp": datetime.utcnow()
@@ -182,64 +153,71 @@ class Plan:
         
         return new_plan
     
-    def update_metadata(self, metadata: Dict[str, Any]) -> None:
+    def updateMetadata(self, metadata: Dict[str, Any]) -> None:
         """更新元数据"""
-        self._metadata.update(metadata)
-        self._updated_at = datetime.utcnow()
+        self._metadata.update(dict(metadata or {}))
+        self.updatedAt = datetime.utcnow()
     
-    def _add_domain_event(self, event_type: str, event_data: Dict[str, Any]) -> None:
+    def _addDomainEvent(self, event_type: str, event_data: Dict[str, Any]) -> None:
         """添加领域事件"""
         event = {
             "type": event_type,
             "data": event_data,
             "timestamp": datetime.utcnow()
         }
-        self._domain_events.append(event)
+        self._domainEvents.append(event)
+    
+    def clearDomainEvents(self) -> None:
+        """清空领域事件"""
+        self._domainEvents.clear()
     
     @classmethod
     def create(
         cls,
-        consultation_id: str,
-        customer_id: str,
-        consultant_id: str,
+        consultationId: str,
+        customerId: str,
+        consultantId: str,
         title: str,
         content: Dict[str, Any],
         metadata: Optional[Dict[str, Any]] = None
-    ) -> "Plan":
+    ) -> "PlanEntity":
         """创建新的方案"""
-        if not consultation_id:
-            raise ValueError("咨询ID不能为空")
-        
-        if not customer_id:
-            raise ValueError("客户ID不能为空")
-        
-        if not consultant_id:
-            raise ValueError("顾问ID不能为空")
-        
-        if not title or not title.strip():
-            raise ValueError("方案标题不能为空")
-        
         plan_id = str(uuid.uuid4())
         now = datetime.utcnow()
         
         return cls(
             id=plan_id,
-            consultation_id=consultation_id,
-            customer_id=customer_id,
-            consultant_id=consultant_id,
+            consultationId=consultationId,
+            customerId=customerId,
+            consultantId=consultantId,
             status=PlanStatus.DRAFT,
-            title=title.strip(),
+            title=title,
             content=content,
             version=1,
-            created_at=now,
-            updated_at=now,
-            metadata=metadata or {}
+            createdAt=now,
+            updatedAt=now,
+            _metadata=dict(metadata or {})
         )
     
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Plan):
+        if not isinstance(other, PlanEntity):
             return False
-        return self._id == other._id
+        return self.id == other.id
     
     def __hash__(self) -> int:
-        return hash(self._id)
+        return hash(self.id)
+    
+    def __str__(self) -> str:
+        return (
+            f"PlanEntity(id={self.id}, consultationId={self.consultationId}, customerId={self.customerId}, "
+            f"consultantId={self.consultantId}, status={self.status}, title={self.title}, "
+            f"version={self.version}, createdAt={self.createdAt}, updatedAt={self.updatedAt})"
+        )
+    
+    def __repr__(self) -> str:
+        return (
+            f"PlanEntity(id={self.id}, consultationId={self.consultationId}, customerId={self.customerId}, "
+            f"consultantId={self.consultantId}, status={self.status}, title={self.title}, "
+            f"content={self.content}, version={self.version}, metadata={self.metadata}, "
+            f"domainEvents={self.domainEvents}, createdAt={self.createdAt}, updatedAt={self.updatedAt})"
+        )

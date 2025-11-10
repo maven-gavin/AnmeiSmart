@@ -11,7 +11,7 @@ from datetime import datetime
 
 from app.chat.infrastructure.db.chat import Message as MessageModel
 from app.chat.domain.interfaces import IMessageRepository
-from app.chat.domain.entities.message import Message
+from app.chat.domain.entities.message import MessageEntity
 
 logger = logging.getLogger(__name__)
 
@@ -22,45 +22,53 @@ class MessageRepository(IMessageRepository):
     def __init__(self, db: Session):
         self.db = db
     
-    def _to_entity(self, model: MessageModel) -> Message:
+    def _to_entity(self, model: MessageModel) -> MessageEntity:
         """ORM模型转领域实体"""
-        return Message(
+        return MessageEntity(
             id=str(model.id),
-            conversation_id=str(model.conversation_id),
+            conversationId=str(model.conversation_id),
             content=model.content,
-            message_type=model.type,
-            sender_id=str(model.sender_id) if model.sender_id else None,
-            sender_digital_human_id=str(model.sender_digital_human_id) if model.sender_digital_human_id else None,
-            sender_type=model.sender_type,
-            is_important=model.is_important,
-            reply_to_message_id=str(model.reply_to_message_id) if model.reply_to_message_id else None,
+            messageType=model.type,
+            senderId=str(model.sender_id) if model.sender_id else None,
+            senderDigitalHumanId=str(model.sender_digital_human_id) if model.sender_digital_human_id else None,
+            senderType=model.sender_type,
+            isImportant=model.is_important,
+            replyToMessageId=str(model.reply_to_message_id) if model.reply_to_message_id else None,
             reactions=model.reactions,
-            extra_metadata=model.extra_metadata,
-            requires_confirmation=model.requires_confirmation,
-            created_at=model.created_at,
-            updated_at=model.updated_at
+            extraMetadata=model.extra_metadata,
+            requiresConfirmation=model.requires_confirmation,
+            createdAt=model.created_at,
+            updatedAt=model.updated_at,
+            isRead=model.is_read,
+            isDeleted=model.is_deleted,
+            deletedAt=model.deleted_at,
+            deletedBy=model.deleted_by
         )
     
-    def _to_model(self, entity: Message) -> MessageModel:
+    def _to_model(self, entity: MessageEntity) -> MessageModel:
         """领域实体转ORM模型"""
         return MessageModel(
             id=entity.id,
-            conversation_id=entity.conversation_id,
+            conversation_id=entity.conversationId,
             content=entity.content,
-            type=entity.message_type,
-            sender_id=entity.sender_id,
-            sender_digital_human_id=entity.sender_digital_human_id,
-            sender_type=entity.sender_type,
-            is_important=entity.is_important,
-            reply_to_message_id=entity.reply_to_message_id,
+            type=entity.messageType,
+            sender_id=entity.senderId,
+            sender_digital_human_id=entity.senderDigitalHumanId,
+            sender_type=entity.senderType,
+            is_important=entity.isImportant,
+            reply_to_message_id=entity.replyToMessageId,
             reactions=entity.reactions,
-            extra_metadata=entity.extra_metadata,
-            requires_confirmation=entity.requires_confirmation,
-            created_at=entity.created_at,
-            updated_at=entity.updated_at
+            extra_metadata=entity.extraMetadata,
+            requires_confirmation=entity.requiresConfirmation,
+            created_at=entity.createdAt,
+            updated_at=entity.updatedAt,
+            is_read=entity.isRead,
+            is_deleted=entity.isDeleted,
+            deleted_at=entity.deletedAt,
+            deleted_by=entity.deletedBy
         )
     
-    async def save(self, message: Message) -> Message:
+    async def save(self, message: MessageEntity) -> MessageEntity:
         """保存消息"""
         message_model = self._to_model(message)
         self.db.add(message_model)
@@ -68,12 +76,12 @@ class MessageRepository(IMessageRepository):
         self.db.refresh(message_model)
         
         # 更新实体的时间戳
-        message._updated_at = message_model.updated_at
+        message.updated_at = message_model.updated_at
         
         logger.info(f"消息保存成功: id={message.id}")
         return message
     
-    async def get_by_id(self, message_id: str) -> Optional[Message]:
+    async def get_by_id(self, message_id: str) -> Optional[MessageEntity]:
         """根据ID获取消息"""
         message_model = self.db.query(MessageModel).options(
             joinedload(MessageModel.sender)
@@ -84,7 +92,7 @@ class MessageRepository(IMessageRepository):
         
         return self._to_entity(message_model)
     
-    async def get_conversation_messages(self, conversation_id: str, skip: int = 0, limit: int = 100) -> List[Message]:
+    async def get_conversation_messages(self, conversation_id: str, skip: int = 0, limit: int = 100) -> List[MessageEntity]:
         """获取会话消息"""
         message_models = self.db.query(MessageModel).options(
             joinedload(MessageModel.sender),
@@ -97,7 +105,7 @@ class MessageRepository(IMessageRepository):
         
         return [self._to_entity(msg) for msg in message_models]
     
-    async def get_conversation_messages_with_senders(self, conversation_id: str, skip: int = 0, limit: int = 100) -> tuple[List[Message], dict, dict]:
+    async def get_conversation_messages_with_senders(self, conversation_id: str, skip: int = 0, limit: int = 100) -> tuple[List[MessageEntity], dict, dict]:
         """获取会话消息及发送者信息"""
         message_models = self.db.query(MessageModel).options(
             joinedload(MessageModel.sender),
@@ -157,7 +165,7 @@ class MessageRepository(IMessageRepository):
         logger.info(f"消息重点状态已更新: message_id={message_id}, is_important={is_important}")
         return True
     
-    async def get_recent_messages(self, conversation_id: str, limit: int = 10) -> List[Message]:
+    async def get_recent_messages(self, conversation_id: str, limit: int = 10) -> List[MessageEntity]:
         """获取最近的消息"""
         message_models = self.db.query(MessageModel).options(
             joinedload(MessageModel.sender)
@@ -171,7 +179,7 @@ class MessageRepository(IMessageRepository):
         message_models.reverse()
         return [self._to_entity(msg) for msg in message_models]
     
-    async def search_messages(self, conversation_id: str, query: str, skip: int = 0, limit: int = 50) -> List[Message]:
+    async def search_messages(self, conversation_id: str, query: str, skip: int = 0, limit: int = 50) -> List[MessageEntity]:
         """搜索消息"""
         message_models = self.db.query(MessageModel).options(
             joinedload(MessageModel.sender)

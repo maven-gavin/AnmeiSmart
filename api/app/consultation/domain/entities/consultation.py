@@ -1,6 +1,7 @@
 """
 咨询聚合根实体
 """
+from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 import uuid
@@ -8,163 +9,156 @@ import uuid
 from ..value_objects.consultation_status import ConsultationStatus
 
 
-class Consultation:
+@dataclass
+class ConsultationEntity:
     """咨询聚合根 - 管理咨询会话的生命周期"""
     
-    def __init__(
-        self,
-        id: str,
-        customer_id: str,
-        consultant_id: Optional[str],
-        status: ConsultationStatus,
-        title: str,
-        created_at: datetime,
-        updated_at: datetime,
-        metadata: Optional[Dict[str, Any]] = None
-    ):
-        self._id = id
-        self._customer_id = customer_id
-        self._consultant_id = consultant_id
-        self._status = status
-        self._title = title
-        self._created_at = created_at
-        self._updated_at = updated_at
-        self._metadata = metadata or {}
-        self._domain_events = []
+    id: str
+    customerId: str
+    consultantId: Optional[str]
+    status: ConsultationStatus
+    title: str
+    createdAt: datetime
+    updatedAt: datetime
+    _metadata: Dict[str, Any] = field(default_factory=dict, repr=False)
+    _domainEvents: List[Dict[str, Any]] = field(default_factory=list, repr=False)
     
-    @property
-    def id(self) -> str:
-        return self._id
-    
-    @property
-    def customer_id(self) -> str:
-        return self._customer_id
-    
-    @property
-    def consultant_id(self) -> Optional[str]:
-        return self._consultant_id
-    
-    @property
-    def status(self) -> ConsultationStatus:
-        return self._status
-    
-    @property
-    def title(self) -> str:
-        return self._title
-    
-    @property
-    def created_at(self) -> datetime:
-        return self._created_at
-    
-    @property
-    def updated_at(self) -> datetime:
-        return self._updated_at
+    def __post_init__(self) -> None:
+        if not self.customerId:
+            raise ValueError("客户ID不能为空")
+        
+        if not self.title or not self.title.strip():
+            raise ValueError("咨询标题不能为空")
+        self.title = self.title.strip()
+        
+        self.createdAt = self.createdAt or datetime.utcnow()
+        self.updatedAt = self.updatedAt or datetime.utcnow()
+        self._metadata = dict(self._metadata or {})
+        self._domainEvents = list(self._domainEvents or [])
     
     @property
     def metadata(self) -> Dict[str, Any]:
-        return self._metadata.copy()
+        return dict(self._metadata)
     
     @property
-    def domain_events(self) -> List:
-        return self._domain_events.copy()
+    def domainEvents(self) -> List[Dict[str, Any]]:
+        return list(self._domainEvents)
     
-    def assign_consultant(self, consultant_id: str) -> None:
+    def assignConsultant(self, consultantId: str) -> None:
         """分配顾问"""
-        if not consultant_id:
+        if not consultantId:
             raise ValueError("顾问ID不能为空")
         
-        if self._consultant_id:
+        if self.consultantId:
             raise ValueError("咨询已分配顾问")
         
-        self._consultant_id = consultant_id
-        self._status = ConsultationStatus.IN_PROGRESS
-        self._updated_at = datetime.utcnow()
+        self.consultantId = consultantId
+        self.status = ConsultationStatus.IN_PROGRESS
+        self.updatedAt = datetime.utcnow()
         
-        self._add_domain_event("ConsultantAssigned", {
-            "consultation_id": self._id,
-            "consultant_id": consultant_id,
-            "timestamp": self._updated_at
+        self._addDomainEvent("ConsultantAssigned", {
+            "consultation_id": self.id,
+            "consultant_id": consultantId,
+            "timestamp": self.updatedAt
         })
     
-    def complete_consultation(self) -> None:
+    def completeConsultation(self) -> None:
         """完成咨询"""
-        if not self._consultant_id:
+        if not self.consultantId:
             raise ValueError("咨询未分配顾问，无法完成")
         
-        if not self._status.can_transition_to(ConsultationStatus.COMPLETED):
-            raise ValueError(f"当前状态 {self._status} 无法转换为完成状态")
+        if not self.status.can_transition_to(ConsultationStatus.COMPLETED):
+            raise ValueError(f"当前状态 {self.status} 无法转换为完成状态")
         
-        self._status = ConsultationStatus.COMPLETED
-        self._updated_at = datetime.utcnow()
+        self.status = ConsultationStatus.COMPLETED
+        self.updatedAt = datetime.utcnow()
         
-        self._add_domain_event("ConsultationCompleted", {
-            "consultation_id": self._id,
-            "timestamp": self._updated_at
+        self._addDomainEvent("ConsultationCompleted", {
+            "consultation_id": self.id,
+            "timestamp": self.updatedAt
         })
     
-    def cancel_consultation(self, reason: Optional[str] = None) -> None:
+    def cancelConsultation(self, reason: Optional[str] = None) -> None:
         """取消咨询"""
-        if not self._status.can_transition_to(ConsultationStatus.CANCELLED):
-            raise ValueError(f"当前状态 {self._status} 无法转换为取消状态")
+        if not self.status.can_transition_to(ConsultationStatus.CANCELLED):
+            raise ValueError(f"当前状态 {self.status} 无法转换为取消状态")
         
-        self._status = ConsultationStatus.CANCELLED
-        self._updated_at = datetime.utcnow()
+        self.status = ConsultationStatus.CANCELLED
+        self.updatedAt = datetime.utcnow()
         
         if reason:
             self._metadata["cancellation_reason"] = reason
         
-        self._add_domain_event("ConsultationCancelled", {
-            "consultation_id": self._id,
+        self._addDomainEvent("ConsultationCancelled", {
+            "consultation_id": self.id,
             "reason": reason,
-            "timestamp": self._updated_at
+            "timestamp": self.updatedAt
         })
     
-    def update_metadata(self, metadata: Dict[str, Any]) -> None:
+    def updateMetadata(self, metadata: Dict[str, Any]) -> None:
         """更新元数据"""
-        self._metadata.update(metadata)
-        self._updated_at = datetime.utcnow()
+        self._metadata.update(dict(metadata or {}))
+        self.updatedAt = datetime.utcnow()
     
-    def _add_domain_event(self, event_type: str, event_data: Dict[str, Any]) -> None:
+    def updateTitle(self, title: str) -> None:
+        """更新咨询标题"""
+        if not title or not title.strip():
+            raise ValueError("咨询标题不能为空")
+        self.title = title.strip()
+        self.updatedAt = datetime.utcnow()
+    
+    def clearDomainEvents(self) -> None:
+        """清空领域事件"""
+        self._domainEvents.clear()
+    
+    def _addDomainEvent(self, event_type: str, event_data: Dict[str, Any]) -> None:
         """添加领域事件"""
         event = {
             "type": event_type,
             "data": event_data,
             "timestamp": datetime.utcnow()
         }
-        self._domain_events.append(event)
+        self._domainEvents.append(event)
     
     @classmethod
     def create(
         cls,
-        customer_id: str,
+        customerId: str,
         title: str,
         metadata: Optional[Dict[str, Any]] = None
-    ) -> "Consultation":
+    ) -> "ConsultationEntity":
         """创建新的咨询"""
-        if not customer_id:
-            raise ValueError("客户ID不能为空")
-        
-        if not title or not title.strip():
-            raise ValueError("咨询标题不能为空")
-        
         consultation_id = str(uuid.uuid4())
         now = datetime.utcnow()
         
         return cls(
             id=consultation_id,
-            customer_id=customer_id,
-            consultant_id=None,
+            customerId=customerId,
+            consultantId=None,
             status=ConsultationStatus.PENDING,
-            title=title.strip(),
-            created_at=now,
-            updated_at=now,
-            metadata=metadata or {}
+            title=title,
+            createdAt=now,
+            updatedAt=now,
+            _metadata=dict(metadata or {})
         )
     
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Consultation):
+        if not isinstance(other, ConsultationEntity):
             return False
-        return self._id == other._id
+        return self.id == other.id
     
     def __hash__(self) -> int:
-        return hash(self._id)
+        return hash(self.id)
+    
+    def __str__(self) -> str:
+        return (
+            f"ConsultationEntity(id={self.id}, customerId={self.customerId}, consultantId={self.consultantId}, "
+            f"status={self.status}, title={self.title}, createdAt={self.createdAt}, updatedAt={self.updatedAt})"
+        )
+    
+    def __repr__(self) -> str:
+        return (
+            f"ConsultationEntity(id={self.id}, customerId={self.customerId}, consultantId={self.consultantId}, "
+            f"status={self.status}, title={self.title}, metadata={self.metadata}, "
+            f"domainEvents={self.domainEvents}, createdAt={self.createdAt}, updatedAt={self.updatedAt})"
+        )

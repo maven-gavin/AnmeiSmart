@@ -5,10 +5,10 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from datetime import datetime
 
-from app.services.chat.domain.entities.conversation import Conversation
-from app.services.chat.domain.entities.message import Message
-from app.services.chat.domain.conversation_domain_service import ConversationDomainService
-from app.services.chat.application.chat_application_service import ChatApplicationService
+from app.chat.domain.entities.conversation import ConversationEntity
+from app.chat.domain.entities.message import MessageEntity
+from app.chat.domain.conversation_domain_service import ConversationDomainService
+from app.chat.application.chat_application_service import ChatApplicationService
 
 
 class TestMessageCount:
@@ -71,25 +71,25 @@ class TestMessageCount:
     @pytest.fixture
     def sample_conversation(self):
         """创建示例会话"""
-        return Conversation(
+        return ConversationEntity(
             id="conv-123",
             title="测试会话",
-            owner_id="user-123",
-            chat_mode="single",
-            message_count=5,
-            unread_count=2
+            ownerId="user-123",
+            chatMode="single",
+            messageCount=5,
+            unreadCount=2
         )
     
     @pytest.fixture
     def sample_message(self):
         """创建示例消息"""
-        return Message(
+        return MessageEntity(
             id="msg-123",
-            conversation_id="conv-123",
+            conversationId="conv-123",
             content={"text": "测试消息"},
-            message_type="text",
-            sender_id="user-123",
-            sender_type="customer"
+            messageType="text",
+            senderId="user-123",
+            senderType="customer"
         )
     
     @pytest.mark.asyncio
@@ -142,7 +142,7 @@ class TestMessageCount:
         assert sample_conversation.message_count == initial_count + 1
         
         # 验证时间戳已更新
-        assert sample_conversation._updated_at > sample_conversation._created_at
+        assert sample_conversation.updated_at > sample_conversation.created_at
     
     @pytest.mark.asyncio
     async def test_application_service_saves_updated_conversation(

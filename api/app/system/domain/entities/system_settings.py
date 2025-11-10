@@ -1,189 +1,193 @@
-from typing import Optional
 from datetime import datetime, timezone
+from typing import Optional, Dict, Any
+
 from app.system.domain.value_objects.system_config import (
-    SystemStatus, 
-    MaintenanceMode, 
-    SiteConfiguration, 
-    UserRegistrationConfig, 
-    AIModelConfig
+    SystemStatus,
+    MaintenanceMode,
+    SiteConfiguration,
+    UserRegistrationConfig,
+    AIModelConfig,
 )
 from app.common.domain.entities.base_entity import BaseEntity, DomainEvent
 
-class SystemSettings(BaseEntity):
+
+def _current_utc_time() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class SystemSettingsEntity(BaseEntity):
     """系统设置聚合根"""
-    
+
     def __init__(
         self,
         id: str,
-        site_config: SiteConfiguration,
-        ai_model_config: AIModelConfig,
-        maintenance_mode: MaintenanceMode,
-        user_registration_config: UserRegistrationConfig,
-        created_at: Optional[datetime] = None,
-        updated_at: Optional[datetime] = None
+        siteConfig: SiteConfiguration,
+        aiModelConfig: AIModelConfig,
+        maintenanceMode: MaintenanceMode,
+        userRegistrationConfig: UserRegistrationConfig,
+        createdAt: Optional[datetime] = None,
+        updatedAt: Optional[datetime] = None,
     ):
-        # 调用父类构造函数
         super().__init__(id)
-        
-        # 设置属性
-        self.site_config = site_config
-        self.ai_model_config = ai_model_config
-        self.maintenance_mode = maintenance_mode
-        self.user_registration_config = user_registration_config
-        self.created_at = created_at or datetime.now(timezone.utc)
-        self.updated_at = updated_at or datetime.now(timezone.utc)
-        
-        # 验证实体状态
+        self.siteConfig = siteConfig
+        self.aiModelConfig = aiModelConfig
+        self.maintenanceMode = maintenanceMode
+        self.userRegistrationConfig = userRegistrationConfig
+        self.createdAt = createdAt or _current_utc_time()
+        self.updatedAt = updatedAt or _current_utc_time()
         self.validate()
-    
+
     def validate(self) -> None:
-        """验证实体状态 - 必须实现"""
         if not self.id:
             raise ValueError("系统设置ID不能为空")
-        
-        if not self.site_config:
+        if not self.siteConfig:
             raise ValueError("站点配置不能为空")
-        
-        if not self.ai_model_config:
+        if not self.aiModelConfig:
             raise ValueError("AI模型配置不能为空")
-        
-        if not self.maintenance_mode:
+        if self.maintenanceMode is None:
             raise ValueError("维护模式配置不能为空")
-        
-        if not self.user_registration_config:
+        if not self.userRegistrationConfig:
             raise ValueError("用户注册配置不能为空")
-    
+
     @property
-    def system_status(self) -> SystemStatus:
-        """获取当前系统状态"""
-        if self.maintenance_mode == MaintenanceMode.ENABLED:
+    def systemStatus(self) -> SystemStatus:
+        if self.maintenanceMode == MaintenanceMode.ENABLED:
             return SystemStatus.MAINTENANCE
         return SystemStatus.NORMAL
-    
-    def update_site_config(self, site_name: Optional[str] = None, logo_url: Optional[str] = None) -> None:
-        """更新站点配置"""
-        old_site_name = self.site_config.site_name
-        old_logo_url = self.site_config.logo_url
-        
-        if site_name is not None:
-            if not site_name.strip():
+
+    def updateSiteConfig(self, siteName: Optional[str] = None, logoUrl: Optional[str] = None) -> None:
+        previous: Dict[str, Optional[str]] = {
+            "oldSiteName": self.siteConfig.site_name,
+            "oldLogoUrl": self.siteConfig.logo_url,
+        }
+
+        if siteName is not None:
+            if not siteName.strip():
                 raise ValueError("站点名称不能为空")
-            self.site_config = SiteConfiguration(
-                site_name=site_name.strip(),
-                logo_url=logo_url or self.site_config.logo_url
+            self.siteConfig = SiteConfiguration(
+                site_name=siteName.strip(),
+                logo_url=logoUrl if logoUrl is not None else self.siteConfig.logo_url,
             )
-        elif logo_url is not None:
-            if logo_url and not logo_url.strip():
+        elif logoUrl is not None:
+            if logoUrl and not logoUrl.strip():
                 raise ValueError("Logo URL不能为空字符串")
-            self.site_config = SiteConfiguration(
-                site_name=self.site_config.site_name,
-                logo_url=logo_url.strip() if logo_url else None
+            self.siteConfig = SiteConfiguration(
+                site_name=self.siteConfig.site_name,
+                logo_url=logoUrl.strip() if logoUrl else None,
             )
-        
-        self.updated_at = datetime.now(timezone.utc)
-        
-        # 添加领域事件
-        self._add_domain_event(DomainEvent(
-            event_type="system_site_config_updated",
-            aggregate_id=self.id,
-            data={
-                "old_site_name": old_site_name,
-                "new_site_name": self.site_config.site_name,
-                "old_logo_url": old_logo_url,
-                "new_logo_url": self.site_config.logo_url
-            }
-        ))
-    
-    def update_ai_model_config(self, default_model_id: Optional[str] = None) -> None:
-        """更新AI模型配置"""
-        old_model_id = self.ai_model_config.default_model_id
-        
-        if default_model_id is not None:
-            if default_model_id and not default_model_id.strip():
-                raise ValueError("默认AI模型ID不能为空字符串")
-            self.ai_model_config = AIModelConfig(
-                default_model_id=default_model_id.strip() if default_model_id else None
-            )
-            self.updated_at = datetime.now(timezone.utc)
-            
-            # 添加领域事件
-            self._add_domain_event(DomainEvent(
-                event_type="system_ai_model_config_updated",
+        else:
+            return
+
+        self.updatedAt = _current_utc_time()
+        self._add_domain_event(
+            DomainEvent(
+                event_type="system_site_config_updated",
                 aggregate_id=self.id,
                 data={
-                    "old_model_id": old_model_id,
-                    "new_model_id": self.ai_model_config.default_model_id
-                }
-            ))
-    
-    def set_maintenance_mode(self, enabled: bool) -> None:
-        """设置维护模式"""
-        old_mode = self.maintenance_mode
-        self.maintenance_mode = MaintenanceMode.ENABLED if enabled else MaintenanceMode.DISABLED
-        self.updated_at = datetime.now(timezone.utc)
-        
-        # 添加领域事件
-        self._add_domain_event(DomainEvent(
-            event_type="system_maintenance_mode_changed",
-            aggregate_id=self.id,
-            data={
-                "old_mode": old_mode.value,
-                "new_mode": self.maintenance_mode.value,
-                "enabled": enabled
-            }
-        ))
-    
-    def set_user_registration(self, enabled: bool) -> None:
-        """设置用户注册开关"""
-        old_enabled = self.user_registration_config.enabled
-        self.user_registration_config = UserRegistrationConfig(enabled=enabled)
-        self.updated_at = datetime.now(timezone.utc)
-        
-        # 添加领域事件
-        self._add_domain_event(DomainEvent(
-            event_type="system_user_registration_changed",
-            aggregate_id=self.id,
-            data={
-                "old_enabled": old_enabled,
-                "new_enabled": enabled
-            }
-        ))
-    
-    def is_maintenance_mode(self) -> bool:
-        """检查是否处于维护模式"""
-        return self.maintenance_mode == MaintenanceMode.ENABLED
-    
-    def is_user_registration_enabled(self) -> bool:
-        """检查用户注册是否启用"""
-        return self.user_registration_config.enabled
-    
-    @classmethod
-    def create_default(cls, id: str) -> "SystemSettings":
-        """创建默认系统设置"""
-        settings = cls(
-            id=id,
-            site_config=SiteConfiguration(
-                site_name="安美智能咨询系统",
-                logo_url="/logo.png"
-            ),
-            ai_model_config=AIModelConfig(default_model_id=None),
-            maintenance_mode=MaintenanceMode.DISABLED,
-            user_registration_config=UserRegistrationConfig(enabled=True)
+                    **previous,
+                    "newSiteName": self.siteConfig.site_name,
+                    "newLogoUrl": self.siteConfig.logo_url,
+                },
+            )
         )
-        
-        # 创建后必须验证
+
+    def updateAiModelConfig(self, defaultModelId: Optional[str] = None) -> None:
+        previous_model_id = self.aiModelConfig.default_model_id
+
+        if defaultModelId is not None:
+            if defaultModelId and not defaultModelId.strip():
+                raise ValueError("默认AI模型ID不能为空字符串")
+            self.aiModelConfig = AIModelConfig(
+                default_model_id=defaultModelId.strip() if defaultModelId else None
+            )
+            self.updatedAt = _current_utc_time()
+            self._add_domain_event(
+                DomainEvent(
+                    event_type="system_ai_model_config_updated",
+                    aggregate_id=self.id,
+                    data={
+                        "oldModelId": previous_model_id,
+                        "newModelId": self.aiModelConfig.default_model_id,
+                    },
+                )
+            )
+
+    def setMaintenanceMode(self, enabled: bool) -> None:
+        previous_mode = self.maintenanceMode
+        self.maintenanceMode = MaintenanceMode.ENABLED if enabled else MaintenanceMode.DISABLED
+        self.updatedAt = _current_utc_time()
+        self._add_domain_event(
+            DomainEvent(
+                event_type="system_maintenance_mode_changed",
+                aggregate_id=self.id,
+                data={
+                    "oldMode": previous_mode.value,
+                    "newMode": self.maintenanceMode.value,
+                    "enabled": enabled,
+                },
+            )
+        )
+
+    def setUserRegistration(self, enabled: bool) -> None:
+        previous_enabled = self.userRegistrationConfig.enabled
+        self.userRegistrationConfig = UserRegistrationConfig(enabled=enabled)
+        self.updatedAt = _current_utc_time()
+        self._add_domain_event(
+            DomainEvent(
+                event_type="system_user_registration_changed",
+                aggregate_id=self.id,
+                data={
+                    "oldEnabled": previous_enabled,
+                    "newEnabled": enabled,
+                },
+            )
+        )
+
+    def isMaintenanceMode(self) -> bool:
+        return self.maintenanceMode == MaintenanceMode.ENABLED
+
+    def isUserRegistrationEnabled(self) -> bool:
+        return self.userRegistrationConfig.enabled
+
+    @classmethod
+    def createDefault(cls, settingsId: str) -> "SystemSettingsEntity":
+        settings = cls(
+            id=settingsId,
+            siteConfig=SiteConfiguration(site_name="安美智能咨询系统", logo_url="/logo.png"),
+            aiModelConfig=AIModelConfig(default_model_id=None),
+            maintenanceMode=MaintenanceMode.DISABLED,
+            userRegistrationConfig=UserRegistrationConfig(enabled=True),
+        )
         settings.validate()
         return settings
-    
-    def to_dict(self) -> dict:
-        """转换为字典格式"""
+
+    def toDict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
-            "site_name": self.site_config.site_name,
-            "logo_url": self.site_config.logo_url,
-            "default_model_id": self.ai_model_config.default_model_id,
-            "maintenance_mode": self.maintenance_mode.value,
-            "user_registration_enabled": self.user_registration_config.enabled,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at
+            "siteName": self.siteConfig.site_name,
+            "logoUrl": self.siteConfig.logo_url,
+            "defaultModelId": self.aiModelConfig.default_model_id,
+            "maintenanceMode": self.maintenanceMode.value,
+            "userRegistrationEnabled": self.userRegistrationConfig.enabled,
+            "createdAt": self.createdAt,
+            "updatedAt": self.updatedAt,
         }
+
+    def __str__(self) -> str:
+        return (
+            f"SystemSettingsEntity(id={self.id}, maintenanceMode={self.maintenanceMode}, "
+            f"userRegistrationEnabled={self.userRegistrationConfig.enabled})"
+        )
+
+    def __repr__(self) -> str:
+        return (
+            "SystemSettingsEntity("
+            f"id={self.id}, "
+            f"siteConfig={self.siteConfig}, "
+            f"aiModelConfig={self.aiModelConfig}, "
+            f"maintenanceMode={self.maintenanceMode}, "
+            f"userRegistrationConfig={self.userRegistrationConfig}, "
+            f"createdAt={self.createdAt}, "
+            f"updatedAt={self.updatedAt}"
+            ")"
+        )

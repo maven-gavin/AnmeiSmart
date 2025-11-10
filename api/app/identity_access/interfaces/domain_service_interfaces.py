@@ -7,8 +7,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
 
-from ..domain.entities.user import User
-from ..domain.entities.role import Role
+from ..domain.entities.user import UserEntity
 from ..domain.value_objects.login_history import LoginHistory
 
 
@@ -24,7 +23,7 @@ class IUserDomainService(ABC):
         phone: Optional[str] = None,
         avatar: Optional[str] = None,
         roles: Optional[List[str]] = None
-    ) -> User:
+    ) -> UserEntity:
         """创建用户 - 领域逻辑"""
         pass
     
@@ -33,7 +32,7 @@ class IUserDomainService(ABC):
         self, 
         user_id: str, 
         updates: Dict[str, Any]
-    ) -> User:
+    ) -> UserEntity:
         """更新用户资料 - 领域逻辑"""
         pass
     
@@ -76,7 +75,7 @@ class IAuthenticationDomainService(ABC):
         self, 
         username_or_email: str, 
         password: str
-    ) -> Optional[User]:
+    ) -> Optional[UserEntity]:
         """用户身份认证"""
         pass
     

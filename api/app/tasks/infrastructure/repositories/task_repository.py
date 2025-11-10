@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
 from app.tasks.domain.interfaces import ITaskRepository
-from app.tasks.domain.entities.task import Task
+from app.tasks.domain.entities.task import TaskEntity
 from app.tasks.infrastructure.db.task import PendingTask
 from app.tasks.converters.task_converter import TaskConverter
 
@@ -20,7 +20,7 @@ class TaskRepository(ITaskRepository):
     def __init__(self, db: Session):
         self.db = db
     
-    def save(self, task: Task) -> Task:
+    def save(self, task: TaskEntity) -> TaskEntity:
         """保存任务"""
         try:
             # 检查任务是否已存在
@@ -50,7 +50,7 @@ class TaskRepository(ITaskRepository):
             logger.error(f"保存任务失败: {e}")
             raise
     
-    def get_by_id(self, task_id: str) -> Optional[Task]:
+    def get_by_id(self, task_id: str) -> Optional[TaskEntity]:
         """根据ID获取任务"""
         try:
             task_model = self.db.query(PendingTask).filter(PendingTask.id == task_id).first()
@@ -64,7 +64,7 @@ class TaskRepository(ITaskRepository):
             logger.error(f"根据ID获取任务失败: {e}")
             raise
     
-    def get_tasks_for_user(self, user_id: str, user_role: str, **filters) -> List[Task]:
+    def get_tasks_for_user(self, user_id: str, user_role: str, **filters) -> List[TaskEntity]:
         """获取用户相关任务"""
         try:
             logger.info(f"仓储层开始获取任务 - user_id: {user_id}, user_role: {user_role}, filters: {filters}")
@@ -175,7 +175,7 @@ class TaskRepository(ITaskRepository):
             logger.error(f"仓储层详细错误堆栈: {traceback.format_exc()}")
             raise
     
-    def get_claimable_tasks(self, user_role: str) -> List[Task]:
+    def get_claimable_tasks(self, user_role: str) -> List[TaskEntity]:
         """获取可认领的任务"""
         try:
             query = self.db.query(PendingTask).filter(
@@ -210,7 +210,7 @@ class TaskRepository(ITaskRepository):
             logger.error(f"获取可认领任务失败: {e}")
             raise
     
-    def get_tasks_by_status(self, status: str) -> List[Task]:
+    def get_tasks_by_status(self, status: str) -> List[TaskEntity]:
         """根据状态获取任务"""
         try:
             tasks = self.db.query(PendingTask).filter(
@@ -226,7 +226,7 @@ class TaskRepository(ITaskRepository):
             logger.error(f"根据状态获取任务失败: {e}")
             raise
     
-    def get_tasks_by_type(self, task_type: str) -> List[Task]:
+    def get_tasks_by_type(self, task_type: str) -> List[TaskEntity]:
         """根据类型获取任务"""
         try:
             tasks = self.db.query(PendingTask).filter(
@@ -242,7 +242,7 @@ class TaskRepository(ITaskRepository):
             logger.error(f"根据类型获取任务失败: {e}")
             raise
     
-    def get_overdue_tasks(self) -> List[Task]:
+    def get_overdue_tasks(self) -> List[TaskEntity]:
         """获取逾期任务"""
         try:
             from datetime import datetime

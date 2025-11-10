@@ -10,7 +10,7 @@ from sqlalchemy import and_
 
 from app.identity_access.infrastructure.db.user import Tenant
 from app.identity_access.interfaces.repository_interfaces import ITenantRepository
-from app.identity_access.domain.entities.tenant import Tenant as TenantEntity
+from app.identity_access.domain.entities.tenant import TenantEntity
 from app.identity_access.domain.value_objects.tenant_status import TenantStatus
 from app.identity_access.domain.value_objects.tenant_type import TenantType
 
@@ -87,19 +87,19 @@ class TenantRepository(ITenantRepository):
         return TenantEntity(
             id=db_tenant.id,
             name=db_tenant.name,
-            display_name=db_tenant.display_name,
+            displayName=db_tenant.display_name,
             description=db_tenant.description,
             status=TenantStatus(db_tenant.status) if db_tenant.status else TenantStatus.ACTIVE,
-            tenant_type=TenantType(db_tenant.tenant_type) if db_tenant.tenant_type else TenantType.STANDARD,
+            tenantType=TenantType(db_tenant.tenant_type) if db_tenant.tenant_type else TenantType.STANDARD,
             priority=db_tenant.priority,
-            is_system=db_tenant.is_system,
-            is_admin=db_tenant.is_admin,
-            contact_name=db_tenant.contact_name,
-            contact_email=db_tenant.contact_email,
-            contact_phone=db_tenant.contact_phone,
-            encrypted_pub_key=db_tenant.encrypted_pub_key,
-            created_at=db_tenant.created_at,
-            updated_at=db_tenant.updated_at
+            isSystem=db_tenant.is_system,
+            isAdmin=db_tenant.is_admin,
+            contactName=db_tenant.contact_name,
+            contactEmail=db_tenant.contact_email,
+            contactPhone=db_tenant.contact_phone,
+            encryptedPubKey=db_tenant.encrypted_pub_key,
+            createdAt=db_tenant.created_at,
+            updatedAt=db_tenant.updated_at
         )
     
     def _to_db_model(self, tenant: TenantEntity) -> Tenant:
@@ -107,33 +107,33 @@ class TenantRepository(ITenantRepository):
         return Tenant(
             id=tenant.id,
             name=tenant.name,
-            display_name=tenant.display_name,
+            display_name=tenant.displayName,
             description=tenant.description,
             status=tenant.status.value,
-            tenant_type=tenant.tenant_type.value,
+            tenant_type=tenant.tenantType.value,
             priority=tenant.priority,
-            is_system=tenant.is_system,
-            is_admin=tenant.is_admin,
-            contact_name=tenant.contact_name,
-            contact_email=tenant.contact_email,
-            contact_phone=tenant.contact_phone,
-            encrypted_pub_key=tenant.encrypted_pub_key,
-            created_at=tenant.created_at,
-            updated_at=tenant.updated_at
+            is_system=tenant.isSystem,
+            is_admin=tenant.isAdmin,
+            contact_name=tenant.contactName,
+            contact_email=tenant.contactEmail,
+            contact_phone=tenant.contactPhone,
+            encrypted_pub_key=tenant.encryptedPubKey,
+            created_at=tenant.createdAt,
+            updated_at=tenant.updatedAt
         )
     
     def _update_db_model(self, db_tenant: Tenant, tenant: TenantEntity) -> None:
         """更新数据库模型"""
         db_tenant.name = tenant.name
-        db_tenant.display_name = tenant.display_name
+        db_tenant.display_name = tenant.displayName
         db_tenant.description = tenant.description
         db_tenant.status = tenant.status.value
-        db_tenant.tenant_type = tenant.tenant_type.value
+        db_tenant.tenant_type = tenant.tenantType.value
         db_tenant.priority = tenant.priority
-        db_tenant.is_system = tenant.is_system
-        db_tenant.is_admin = tenant.is_admin
-        db_tenant.contact_name = tenant.contact_name
-        db_tenant.contact_email = tenant.contact_email
-        db_tenant.contact_phone = tenant.contact_phone
-        db_tenant.encrypted_pub_key = tenant.encrypted_pub_key
-        db_tenant.updated_at = tenant.updated_at
+        db_tenant.is_system = tenant.isSystem
+        db_tenant.is_admin = tenant.isAdmin
+        db_tenant.contact_name = tenant.contactName
+        db_tenant.contact_email = tenant.contactEmail
+        db_tenant.contact_phone = tenant.contactPhone
+        db_tenant.encrypted_pub_key = tenant.encryptedPubKey
+        db_tenant.updated_at = tenant.updatedAt

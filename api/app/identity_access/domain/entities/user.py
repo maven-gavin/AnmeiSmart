@@ -16,7 +16,7 @@ from ..value_objects.role_type import RoleType
 
 
 @dataclass
-class User:
+class UserEntity:
     """用户聚合根"""
     
     # 身份标识
@@ -33,15 +33,15 @@ class User:
     status: UserStatus = UserStatus.ACTIVE
     
     # 时间戳
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
-    last_login_at: Optional[datetime] = None
+    createdAt: datetime = field(default_factory=datetime.utcnow)
+    updatedAt: datetime = field(default_factory=datetime.utcnow)
+    lastLoginAt: Optional[datetime] = None
     
     # 角色集合（支持数据库配置的角色）
     roles: Set[str] = field(default_factory=set)
     
     # 租户关联
-    tenant_id: Optional[str] = None
+    tenantId: Optional[str] = None
     
     def __post_init__(self):
         """后初始化验证"""
@@ -64,8 +64,8 @@ class User:
         phone: Optional[str] = None,
         avatar: Optional[str] = None,
         roles: Optional[List[str]] = None,
-        tenant_id: Optional[str] = None
-    ) -> "User":
+        tenantId: Optional[str] = None
+    ) -> "UserEntity":
         """创建用户 - 工厂方法"""
         # 验证输入
         if not username or not username.strip():
@@ -100,8 +100,41 @@ class User:
             phone=phone,
             avatar=avatar,
             roles=role_set,
-            tenant_id=tenant_id
+            tenantId=tenantId
         )
+    
+    @property
+    def created_at(self) -> datetime:
+        """兼容旧的蛇形命名"""
+        return self.createdAt
+    
+    @created_at.setter
+    def created_at(self, value: datetime) -> None:
+        self.createdAt = value
+    
+    @property
+    def updated_at(self) -> datetime:
+        return self.updatedAt
+    
+    @updated_at.setter
+    def updated_at(self, value: datetime) -> None:
+        self.updatedAt = value
+    
+    @property
+    def last_login_at(self) -> Optional[datetime]:
+        return self.lastLoginAt
+    
+    @last_login_at.setter
+    def last_login_at(self, value: Optional[datetime]) -> None:
+        self.lastLoginAt = value
+    
+    @property
+    def tenant_id(self) -> Optional[str]:
+        return self.tenantId
+    
+    @tenant_id.setter
+    def tenant_id(self, value: Optional[str]) -> None:
+        self.tenantId = value
     
     def update_profile(
         self,
@@ -121,7 +154,7 @@ class User:
         if avatar is not None:
             self.avatar = avatar
         
-        self.updated_at = datetime.utcnow()
+        self.updatedAt = datetime.utcnow()
     
     def change_password(self, old_password: str, new_password: str) -> None:
         """修改密码"""
@@ -129,27 +162,27 @@ class User:
             raise ValueError("原密码不正确")
         
         self.password = Password.create(new_password)
-        self.updated_at = datetime.utcnow()
+        self.updatedAt = datetime.utcnow()
     
     def activate(self) -> None:
         """激活用户"""
         self.status = UserStatus.ACTIVE
-        self.updated_at = datetime.utcnow()
+        self.updatedAt = datetime.utcnow()
     
     def deactivate(self) -> None:
         """停用用户"""
         self.status = UserStatus.INACTIVE
-        self.updated_at = datetime.utcnow()
+        self.updatedAt = datetime.utcnow()
     
     def suspend(self) -> None:
         """暂停用户"""
         self.status = UserStatus.SUSPENDED
-        self.updated_at = datetime.utcnow()
+        self.updatedAt = datetime.utcnow()
     
     def record_login(self) -> None:
         """记录登录时间"""
-        self.last_login_at = datetime.utcnow()
-        self.updated_at = datetime.utcnow()
+        self.lastLoginAt = datetime.utcnow()
+        self.updatedAt = datetime.utcnow()
     
     def add_role(self, role_name: str) -> None:
         """添加角色"""
@@ -157,13 +190,13 @@ class User:
             raise ValueError(f"无效的角色: {role_name}")
         
         self.roles.add(role_name)
-        self.updated_at = datetime.utcnow()
+        self.updatedAt = datetime.utcnow()
     
     def remove_role(self, role_name: str) -> None:
         """移除角色"""
         if role_name in self.roles:
             self.roles.remove(role_name)
-            self.updated_at = datetime.utcnow()
+            self.updatedAt = datetime.utcnow()
     
     def has_role(self, role_name: str) -> bool:
         """检查是否有特定角色"""
@@ -219,4 +252,17 @@ class User:
         return self.password.verify(plain_password)
     
     def __str__(self) -> str:
-        return f"User(id={self.id}, username={self.username}, email={self.email.value})"
+        return (
+            f"UserEntity(id={self.id}, username={self.username}, email={self.email.value}, "
+            f"phone={self.phone}, avatar={self.avatar}, status={self.status.value}, "
+            f"tenantId={self.tenantId}, roles={sorted(self.roles)}, createdAt={self.createdAt}, "
+            f"updatedAt={self.updatedAt}, lastLoginAt={self.lastLoginAt})"
+        )
+    
+    def __repr__(self) -> str:
+        return (
+            f"UserEntity(id={self.id}, username={self.username}, email={self.email.value}, "
+            f"phone={self.phone}, avatar={self.avatar}, status={self.status.value}, "
+            f"tenantId={self.tenantId}, roles={sorted(self.roles)}, createdAt={self.createdAt}, "
+            f"updatedAt={self.updatedAt}, lastLoginAt={self.lastLoginAt})"
+        )

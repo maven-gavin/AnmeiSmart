@@ -4,7 +4,7 @@
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session, joinedload
 
-from app.customer.domain.entities.customer import Customer
+from app.customer.domain.entities.customer import CustomerEntity
 from app.customer.infrastructure.db.customer import Customer as CustomerModel
 
 
@@ -14,30 +14,30 @@ class CustomerRepository:
     def __init__(self, db: Session):
         self.db = db
     
-    async def save(self, customer: Customer) -> Customer:
+    async def save(self, customer: CustomerEntity) -> CustomerEntity:
         """保存客户信息"""
         # 检查是否已存在
         existing_customer = self.db.query(CustomerModel).filter(
-            CustomerModel.user_id == customer.user_id
+            CustomerModel.user_id == customer.userId
         ).first()
         
         if existing_customer:
             # 更新现有记录
-            existing_customer.medical_history = customer.medical_history
+            existing_customer.medical_history = customer.medicalHistory
             existing_customer.allergies = customer.allergies
             existing_customer.preferences = customer.preferences
-            existing_customer.updated_at = customer.updated_at
+            existing_customer.updated_at = customer.updatedAt
             customer_to_save = existing_customer
         else:
             # 创建新记录
             customer_to_save = CustomerModel(
                 id=customer.id,
-                user_id=customer.user_id,
-                medical_history=customer.medical_history,
+                user_id=customer.userId,
+                medical_history=customer.medicalHistory,
                 allergies=customer.allergies,
                 preferences=customer.preferences,
-                created_at=customer.created_at,
-                updated_at=customer.updated_at
+                created_at=customer.createdAt,
+                updated_at=customer.updatedAt
             )
             self.db.add(customer_to_save)
         
@@ -46,7 +46,7 @@ class CustomerRepository:
         
         return self._to_entity(customer_to_save)
     
-    async def get_by_id(self, customer_id: str) -> Optional[Customer]:
+    async def get_by_id(self, customer_id: str) -> Optional[CustomerEntity]:
         """根据ID获取客户"""
         customer_model = self.db.query(CustomerModel).filter(
             CustomerModel.id == customer_id
@@ -57,7 +57,7 @@ class CustomerRepository:
         
         return self._to_entity(customer_model)
     
-    async def get_by_user_id(self, user_id: str) -> Optional[Customer]:
+    async def get_by_user_id(self, user_id: str) -> Optional[CustomerEntity]:
         """根据用户ID获取客户"""
         customer_model = self.db.query(CustomerModel).filter(
             CustomerModel.user_id == user_id
@@ -68,7 +68,7 @@ class CustomerRepository:
         
         return self._to_entity(customer_model)
     
-    async def get_all(self, skip: int = 0, limit: int = 100) -> List[Customer]:
+    async def get_all(self, skip: int = 0, limit: int = 100) -> List[CustomerEntity]:
         """获取所有客户"""
         customers = self.db.query(CustomerModel).offset(skip).limit(limit).all()
         return [self._to_entity(customer) for customer in customers]
@@ -154,28 +154,28 @@ class CustomerRepository:
         
         return False
     
-    def _to_entity(self, model: CustomerModel) -> Customer:
+    def _to_entity(self, model: CustomerModel) -> CustomerEntity:
         """ORM模型转换为领域实体"""
-        from app.customer.domain.entities.customer import Customer
+        from app.customer.domain.entities.customer import CustomerEntity
         
-        return Customer(
+        return CustomerEntity(
             id=model.id,
-            user_id=model.user_id,
-            medical_history=model.medical_history,
+            userId=model.user_id,
+            medicalHistory=model.medical_history,
             allergies=model.allergies,
             preferences=model.preferences,
-            created_at=model.created_at,
-            updated_at=model.updated_at
+            createdAt=model.created_at,
+            updatedAt=model.updated_at
         )
     
-    def _to_model(self, entity: Customer) -> CustomerModel:
+    def _to_model(self, entity: CustomerEntity) -> CustomerModel:
         """领域实体转换为ORM模型"""
         return CustomerModel(
             id=entity.id,
-            user_id=entity.user_id,
-            medical_history=entity.medical_history,
+            user_id=entity.userId,
+            medical_history=entity.medicalHistory,
             allergies=entity.allergies,
             preferences=entity.preferences,
-            created_at=entity.created_at,
-            updated_at=entity.updated_at
+            created_at=entity.createdAt,
+            updated_at=entity.updatedAt
         )

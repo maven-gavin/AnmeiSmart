@@ -9,8 +9,7 @@ from typing import List, Optional, Dict, Any, Set
 from datetime import datetime
 
 from ..domain.role_permission_domain_service import RolePermissionDomainService
-from ..domain.entities.role import Role
-from ..domain.entities.permission import Permission
+from ..domain.entities.permission import PermissionEntity
 from ..domain.value_objects.permission_type import PermissionType
 from ..domain.value_objects.permission_scope import PermissionScope
 
@@ -48,15 +47,15 @@ class RolePermissionApplicationService:
             return {
                 "id": role.id,
                 "name": role.name,
-                "display_name": role.display_name,
+                "display_name": role.displayName,
                 "description": role.description,
-                "is_active": role.is_active,
-                "is_system": role.is_system,
-                "is_admin": role.is_admin,
+                "is_active": role.isActive,
+                "is_system": role.isSystem,
+                "is_admin": role.isAdmin,
                 "priority": role.priority,
-                "tenant_id": role.tenant_id,
-                "created_at": role.created_at.isoformat(),
-                "updated_at": role.updated_at.isoformat()
+                "tenant_id": role.tenantId,
+                "created_at": role.createdAt.isoformat(),
+                "updated_at": role.updatedAt.isoformat()
             }
             
         except Exception as e:
@@ -73,15 +72,15 @@ class RolePermissionApplicationService:
             return {
                 "id": role.id,
                 "name": role.name,
-                "display_name": role.display_name,
+                "display_name": role.displayName,
                 "description": role.description,
-                "is_active": role.is_active,
-                "is_system": role.is_system,
-                "is_admin": role.is_admin,
+                "is_active": role.isActive,
+                "is_system": role.isSystem,
+                "is_admin": role.isAdmin,
                 "priority": role.priority,
-                "tenant_id": role.tenant_id,
-                "created_at": role.created_at.isoformat(),
-                "updated_at": role.updated_at.isoformat()
+                "tenant_id": role.tenantId,
+                "created_at": role.createdAt.isoformat(),
+                "updated_at": role.updatedAt.isoformat()
             }
             
         except Exception as e:
@@ -97,15 +96,15 @@ class RolePermissionApplicationService:
                 {
                     "id": role.id,
                     "name": role.name,
-                    "display_name": role.display_name,
+                    "display_name": role.displayName,
                     "description": role.description,
-                    "is_active": role.is_active,
-                    "is_system": role.is_system,
-                    "is_admin": role.is_admin,
+                    "is_active": role.isActive,
+                    "is_system": role.isSystem,
+                    "is_admin": role.isAdmin,
                     "priority": role.priority,
-                    "tenant_id": role.tenant_id,
-                    "created_at": role.created_at.isoformat(),
-                    "updated_at": role.updated_at.isoformat()
+                    "tenant_id": role.tenantId,
+                    "created_at": role.createdAt.isoformat(),
+                    "updated_at": role.updatedAt.isoformat()
                 }
                 for role in roles
             ]
@@ -135,7 +134,7 @@ class RolePermissionApplicationService:
             permission_type_enum = PermissionType(permission_type)
             scope_enum = PermissionScope(scope)
             
-            permission = await self.role_permission_domain_service.create_permission(
+            permissionEntity = await self.role_permission_domain_service.create_permission(
                 name=name,
                 display_name=display_name,
                 description=description,
@@ -149,21 +148,21 @@ class RolePermissionApplicationService:
             )
             
             return {
-                "id": permission.id,
-                "name": permission.name,
-                "display_name": permission.display_name,
-                "description": permission.description,
-                "permission_type": permission.permission_type.value,
-                "scope": permission.scope.value,
-                "resource": permission.resource,
-                "action": permission.action,
-                "is_active": permission.is_active,
-                "is_system": permission.is_system,
-                "is_admin": permission.is_admin,
-                "priority": permission.priority,
-                "tenant_id": permission.tenant_id,
-                "created_at": permission.created_at.isoformat(),
-                "updated_at": permission.updated_at.isoformat()
+                "id": permissionEntity.id,
+                "name": permissionEntity.name,
+                "display_name": permissionEntity.displayName,
+                "description": permissionEntity.description,
+                "permission_type": permissionEntity.permissionType.value,
+                "scope": permissionEntity.scope.value,
+                "resource": permissionEntity.resource,
+                "action": permissionEntity.action,
+                "is_active": permissionEntity.isActive,
+                "is_system": permissionEntity.isSystem,
+                "is_admin": permissionEntity.isAdmin,
+                "priority": permissionEntity.priority,
+                "tenant_id": permissionEntity.tenantId,
+                "created_at": permissionEntity.createdAt.isoformat(),
+                "updated_at": permissionEntity.updatedAt.isoformat()
             }
             
         except Exception as e:
@@ -173,26 +172,26 @@ class RolePermissionApplicationService:
     async def get_permission(self, permission_id: str) -> Optional[Dict[str, Any]]:
         """获取权限用例"""
         try:
-            permission = await self.role_permission_domain_service.get_permission_by_id(permission_id)
-            if not permission:
+            permissionEntity = await self.role_permission_domain_service.get_permission_by_id(permission_id)
+            if not permissionEntity:
                 return None
             
             return {
-                "id": permission.id,
-                "name": permission.name,
-                "display_name": permission.display_name,
-                "description": permission.description,
-                "permission_type": permission.permission_type.value,
-                "scope": permission.scope.value,
-                "resource": permission.resource,
-                "action": permission.action,
-                "is_active": permission.is_active,
-                "is_system": permission.is_system,
-                "is_admin": permission.is_admin,
-                "priority": permission.priority,
-                "tenant_id": permission.tenant_id,
-                "created_at": permission.created_at.isoformat(),
-                "updated_at": permission.updated_at.isoformat()
+                "id": permissionEntity.id,
+                "name": permissionEntity.name,
+                "display_name": permissionEntity.displayName,
+                "description": permissionEntity.description,
+                "permission_type": permissionEntity.permissionType.value,
+                "scope": permissionEntity.scope.value,
+                "resource": permissionEntity.resource,
+                "action": permissionEntity.action,
+                "is_active": permissionEntity.isActive,
+                "is_system": permissionEntity.isSystem,
+                "is_admin": permissionEntity.isAdmin,
+                "priority": permissionEntity.priority,
+                "tenant_id": permissionEntity.tenantId,
+                "created_at": permissionEntity.createdAt.isoformat(),
+                "updated_at": permissionEntity.updatedAt.isoformat()
             }
             
         except Exception as e:
@@ -202,27 +201,27 @@ class RolePermissionApplicationService:
     async def list_permissions(self, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """获取权限列表用例"""
         try:
-            permissions = await self.role_permission_domain_service.list_active_permissions(tenant_id)
+            permissionEntities = await self.role_permission_domain_service.list_active_permissions(tenant_id)
             
             return [
                 {
-                    "id": permission.id,
-                    "name": permission.name,
-                    "display_name": permission.display_name,
-                    "description": permission.description,
-                    "permission_type": permission.permission_type.value,
-                    "scope": permission.scope.value,
-                    "resource": permission.resource,
-                    "action": permission.action,
-                    "is_active": permission.is_active,
-                    "is_system": permission.is_system,
-                    "is_admin": permission.is_admin,
-                    "priority": permission.priority,
-                    "tenant_id": permission.tenant_id,
-                    "created_at": permission.created_at.isoformat(),
-                    "updated_at": permission.updated_at.isoformat()
+                    "id": permissionEntity.id,
+                    "name": permissionEntity.name,
+                    "display_name": permissionEntity.displayName,
+                    "description": permissionEntity.description,
+                    "permission_type": permissionEntity.permissionType.value,
+                    "scope": permissionEntity.scope.value,
+                    "resource": permissionEntity.resource,
+                    "action": permissionEntity.action,
+                    "is_active": permissionEntity.isActive,
+                    "is_system": permissionEntity.isSystem,
+                    "is_admin": permissionEntity.isAdmin,
+                    "priority": permissionEntity.priority,
+                    "tenant_id": permissionEntity.tenantId,
+                    "created_at": permissionEntity.createdAt.isoformat(),
+                    "updated_at": permissionEntity.updatedAt.isoformat()
                 }
-                for permission in permissions
+                for permissionEntity in permissionEntities
             ]
             
         except Exception as e:
@@ -250,27 +249,27 @@ class RolePermissionApplicationService:
     async def get_role_permissions(self, role_id: str) -> List[Dict[str, Any]]:
         """获取角色权限用例"""
         try:
-            permissions = await self.role_permission_domain_service.get_role_permissions(role_id)
+            permissionEntities = await self.role_permission_domain_service.get_role_permissions(role_id)
             
             return [
                 {
-                    "id": permission.id,
-                    "name": permission.name,
-                    "display_name": permission.display_name,
-                    "description": permission.description,
-                    "permission_type": permission.permission_type.value,
-                    "scope": permission.scope.value,
-                    "resource": permission.resource,
-                    "action": permission.action,
-                    "is_active": permission.is_active,
-                    "is_system": permission.is_system,
-                    "is_admin": permission.is_admin,
-                    "priority": permission.priority,
-                    "tenant_id": permission.tenant_id,
-                    "created_at": permission.created_at.isoformat(),
-                    "updated_at": permission.updated_at.isoformat()
+                    "id": permissionEntity.id,
+                    "name": permissionEntity.name,
+                    "display_name": permissionEntity.displayName,
+                    "description": permissionEntity.description,
+                    "permission_type": permissionEntity.permissionType.value,
+                    "scope": permissionEntity.scope.value,
+                    "resource": permissionEntity.resource,
+                    "action": permissionEntity.action,
+                    "is_active": permissionEntity.isActive,
+                    "is_system": permissionEntity.isSystem,
+                    "is_admin": permissionEntity.isAdmin,
+                    "priority": permissionEntity.priority,
+                    "tenant_id": permissionEntity.tenantId,
+                    "created_at": permissionEntity.createdAt.isoformat(),
+                    "updated_at": permissionEntity.updatedAt.isoformat()
                 }
-                for permission in permissions
+                for permissionEntity in permissionEntities
             ]
             
         except Exception as e:
@@ -286,15 +285,15 @@ class RolePermissionApplicationService:
                 {
                     "id": role.id,
                     "name": role.name,
-                    "display_name": role.display_name,
+                    "display_name": role.displayName,
                     "description": role.description,
-                    "is_active": role.is_active,
-                    "is_system": role.is_system,
-                    "is_admin": role.is_admin,
+                    "is_active": role.isActive,
+                    "is_system": role.isSystem,
+                    "is_admin": role.isAdmin,
                     "priority": role.priority,
-                    "tenant_id": role.tenant_id,
-                    "created_at": role.created_at.isoformat(),
-                    "updated_at": role.updated_at.isoformat()
+                    "tenant_id": role.tenantId,
+                    "created_at": role.createdAt.isoformat(),
+                    "updated_at": role.updatedAt.isoformat()
                 }
                 for role in roles
             ]
