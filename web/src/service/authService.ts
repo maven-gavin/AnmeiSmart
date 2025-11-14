@@ -3,15 +3,26 @@
  * 专注于用户身份验证、角色管理和会话控制
  */
 
-import { AuthUser, LoginCredentials, UserRole, UserPermissionSummary } from '@/types/auth';
+import type { AuthUser, LoginCredentials, UserRole, UserPermissionSummary } from '@/types/auth';
 import { tokenManager } from './tokenManager';
-import { ApiClientError, ErrorType, handleApiError } from './apiClient';
-import { apiClient } from './apiClient';
-import { API_BASE_URL, AUTH_CONFIG } from '@/config';
-// 移除未使用的导入
-// import { mockUsers } from './mockData';
+import { ApiClientError, ErrorType, apiClient } from './apiClient';
+import { AUTH_CONFIG } from '@/config';
+import { ContentType } from './fetch';
 
-// 检查是否在浏览器环境中运行
+type PermissionSummaryResponse = UserPermissionSummary;
+type PermissionCheckResponse = { has_permission: boolean };
+type RoleCheckResponse = { has_role: boolean };
+type AdminCheckResponse = { is_admin: boolean };
+type UserPermissionsResponse = { permissions: string[] };
+type UserRolesResponse = { roles: string[] };
+type UserProfileResponse = {
+  id: string | number;
+  username: string;
+  email?: string;
+  roles?: string[];
+  activeRole?: string;
+};
+
 const isBrowser = typeof window !== 'undefined';
 
 /**
@@ -54,6 +65,22 @@ const userStorage = {
   }
 };
 
+const normalizeRole = (role?: string): UserRole | undefined => {
+  if (!role) {
+    return undefined;
+  }
+  return (role === 'administrator' ? 'admin' : role) as UserRole;
+};
+
+const normalizeRoles = (roles?: string[]): UserRole[] => {
+  if (!roles || roles.length === 0) {
+    return [];
+  }
+  return roles
+    .map((role) => normalizeRole(role))
+    .filter((role): role is UserRole => Boolean(role));
+};
+
 
 
 /**
@@ -65,81 +92,59 @@ class AuthService {
    */
   async login(credentials: LoginCredentials): Promise<{ user: AuthUser; token: string }> {
     try {
-      // 调用登录接口 - 使用原生fetch处理表单数据
       const formData = new URLSearchParams({
         username: credentials.username,
         password: credentials.password,
       });
 
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+      const response = await apiClient.post<{
+        access_token: string;
+        refresh_token: string;
+        token_type: string;
+      }>(
+        '/auth/login',
+        {
+          body: formData,
+          headers: new Headers({ 'Content-Type': ContentType.form }),
         },
-        body: formData,
-      });
+        {
+          bodyStringify: false,
+        }
+      );
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new ApiClientError(
-          errorData.detail || errorData.message || '登录失败',
-          { status: response.status, type: ErrorType.AUTHENTICATION }
-        )
-      }
-
-      const tokenData = await response.json();
-      const accessToken = tokenData.access_token;
-      const refreshToken = tokenData.refresh_token;
-
-      if (!accessToken) {
+      const tokenData = response.data;
+      if (!tokenData?.access_token || !tokenData?.refresh_token) {
         throw new ApiClientError('服务器未返回访问令牌', {
           status: 500,
           type: ErrorType.AUTHENTICATION,
-        })
+        });
       }
 
-      if (!refreshToken) {
-        throw new ApiClientError('服务器未返回刷新令牌', {
-          status: 500,
-          type: ErrorType.AUTHENTICATION,
-        })
-      }
+      tokenManager.setTokens(tokenData.access_token, tokenData.refresh_token);
 
-      // 存储令牌对（访问令牌和刷新令牌）
-      tokenManager.setTokens(accessToken, refreshToken);
+      const userResponse = await apiClient.get<UserProfileResponse>('/auth/me');
 
-      // 获取用户信息和角色 - 使用统一的apiClient
-      const [userResponse] = await Promise.all([
-        apiClient.get<any>('/auth/me')
-      ]);
-
-      console.log("===============",JSON.stringify(userResponse))
-
-      // 创建用户对象
       const authUser: AuthUser = {
         id: userResponse.data.id.toString(),
         name: userResponse.data.username,
         email: userResponse.data.email,
-        roles: (userResponse.data.roles || []).map((role: string) => 
-          role === 'administrator' ? 'admin' : role
-        ) as UserRole[],
-        currentRole: userResponse.data.active_role === 'administrator' ? 'admin' : userResponse.data.active_role,
+        roles: normalizeRoles(userResponse.data.roles),
+        currentRole: normalizeRole(userResponse.data.activeRole),
       };
 
-      // 存储用户信息
       userStorage.setUser(authUser);
 
-      return { user: authUser, token: accessToken };
+      return { user: authUser, token: tokenData.access_token };
     } catch (error) {
       if (error instanceof ApiClientError) {
         throw error;
       }
-      
+
       throw new ApiClientError('登录失败，请稍后重试', {
         status: 500,
         type: ErrorType.AUTHENTICATION,
         responseData: error instanceof Error ? error.message : String(error),
-      })
+      });
     }
   }
 
@@ -163,7 +168,7 @@ class AuthService {
   }): Promise<{ user: AuthUser; token: string }> {
     try {
       // 调用注册接口
-      const response = await apiClient.post<any>('/auth/register', {
+      const response = await apiClient.post<UserProfileResponse>('/auth/register', {
         body: {
           email: registerData.email,
           username: registerData.username,
@@ -339,7 +344,7 @@ class AuthService {
   }
 
   /**
-   * 检查用户是否具有特定角色
+   * 检查当前登录用户是否具有特定角色（本地缓存）
    */
   hasRole(role: UserRole): boolean {
     const user = this.getCurrentUser();
@@ -378,8 +383,8 @@ class AuthService {
         return null;
       }
 
-      const response = await apiClient.get(`/api/v1/users/${targetUserId}/permissions/summary`);
-      return response.data;
+      const response = await apiClient.get<PermissionSummaryResponse>(`/api/v1/users/${targetUserId}/permissions/summary`);
+      return response.data ?? null;
     } catch (error) {
       console.error('获取用户权限摘要失败:', error);
       return null;
@@ -396,10 +401,10 @@ class AuthService {
         return false;
       }
 
-      const response = await apiClient.get(`/api/v1/users/${targetUserId}/permissions/check`, {
+      const response = await apiClient.get<PermissionCheckResponse>(`/api/v1/users/${targetUserId}/permissions/check`, {
         params: { permission }
       });
-      return response.data.has_permission;
+      return Boolean(response.data?.has_permission);
     } catch (error) {
       console.error('权限检查失败:', error);
       return false;
@@ -407,19 +412,19 @@ class AuthService {
   }
 
   /**
-   * 检查用户是否有指定角色
+   * 远程检查用户是否具备指定角色
    */
-  async hasRole(role: string, userId?: string): Promise<boolean> {
+  async checkUserRole(role: string, userId?: string): Promise<boolean> {
     try {
       const targetUserId = userId || this.getCurrentUser()?.id;
       if (!targetUserId) {
         return false;
       }
 
-      const response = await apiClient.get(`/api/v1/users/${targetUserId}/roles/check`, {
+      const response = await apiClient.get<RoleCheckResponse>(`/api/v1/users/${targetUserId}/roles/check`, {
         params: { role }
       });
-      return response.data.has_role;
+      return Boolean(response.data?.has_role);
     } catch (error) {
       console.error('角色检查失败:', error);
       return false;
@@ -436,8 +441,8 @@ class AuthService {
         return false;
       }
 
-      const response = await apiClient.get(`/api/v1/users/${targetUserId}/admin/check`);
-      return response.data.is_admin;
+      const response = await apiClient.get<AdminCheckResponse>(`/api/v1/users/${targetUserId}/admin/check`);
+      return Boolean(response.data?.is_admin);
     } catch (error) {
       console.error('管理员权限检查失败:', error);
       return false;
@@ -454,8 +459,8 @@ class AuthService {
         return [];
       }
 
-      const response = await apiClient.get(`/api/v1/users/${targetUserId}/permissions`);
-      return response.data.permissions;
+      const response = await apiClient.get<UserPermissionsResponse>(`/api/v1/users/${targetUserId}/permissions`);
+      return response.data?.permissions ?? [];
     } catch (error) {
       console.error('获取用户权限列表失败:', error);
       return [];
@@ -472,8 +477,8 @@ class AuthService {
         return [];
       }
 
-      const response = await apiClient.get(`/api/v1/users/${targetUserId}/roles`);
-      return response.data.roles;
+      const response = await apiClient.get<UserRolesResponse>(`/api/v1/users/${targetUserId}/roles`);
+      return response.data?.roles ?? [];
     } catch (error) {
       console.error('获取用户角色列表失败:', error);
       return [];

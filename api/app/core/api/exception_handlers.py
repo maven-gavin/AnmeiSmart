@@ -24,7 +24,7 @@ def _build_response(code: int, message: str, data: Any = None, status_code: int 
     payload = ApiResponse.failure(code=code, message=message, data=data)
     return JSONResponse(
         status_code=status_code,
-        content=jsonable_encoder(payload.dict(exclude_none=True)),
+        content=jsonable_encoder(payload.model_dump(exclude_none=True, by_alias=True)),
     )
 
 

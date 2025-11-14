@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -67,6 +68,10 @@ export default function RolesPage() {
   const [roleName, setRoleName] = useState('');
   const [roleDisplayName, setRoleDisplayName] = useState('');
   const [roleDescription, setRoleDescription] = useState('');
+  const [roleIsActive, setRoleIsActive] = useState(true);
+  const [roleIsSystem, setRoleIsSystem] = useState(false);
+  const [roleIsAdmin, setRoleIsAdmin] = useState(false);
+  const [rolePriority, setRolePriority] = useState<number>(0);
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   // 添加分页状态
@@ -79,7 +84,15 @@ export default function RolesPage() {
   const [searchDescription, setSearchDescription] = useState('');
   const [allRoles, setAllRoles] = useState<RoleItem[]>([]);
   const [editingRole, setEditingRole] = useState<RoleItem | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', displayName: '', description: '' });
+  const [editForm, setEditForm] = useState({ 
+    name: '', 
+    displayName: '', 
+    description: '',
+    isActive: true,
+    isSystem: false,
+    isAdmin: false,
+    priority: 0
+  });
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -97,6 +110,10 @@ export default function RolesPage() {
     setRoleName('');
     setRoleDisplayName('');
     setRoleDescription('');
+    setRoleIsActive(true);
+    setRoleIsSystem(false);
+    setRoleIsAdmin(false);
+    setRolePriority(0);
     setFormError(null);
   }
 
@@ -204,7 +221,11 @@ export default function RolesPage() {
       await permissionService.createRole({
         name: roleName.trim(),
         displayName: nextDisplayName || undefined,
-        description: roleDescription.trim() || undefined
+        description: roleDescription.trim() || undefined,
+        isActive: roleIsActive,
+        isSystem: roleIsSystem,
+        isAdmin: roleIsAdmin,
+        priority: rolePriority
       });
       toast.success('角色创建成功');
       
@@ -228,7 +249,11 @@ export default function RolesPage() {
     setEditForm({
       name: role.name,
       displayName: role.displayName ?? role.name,
-      description: role.description ?? ''
+      description: role.description ?? '',
+      isActive: role.isActive ?? true,
+      isSystem: role.isSystem ?? false,
+      isAdmin: role.isAdmin ?? false,
+      priority: role.priority ?? 0
     });
     setEditError(null);
     setIsEditDialogOpen(true);
@@ -251,13 +276,25 @@ export default function RolesPage() {
     setEditError(null);
 
     try {
-      const payload: { name?: string; displayName?: string; description?: string } = {};
+      const payload: { 
+        name?: string; 
+        displayName?: string; 
+        description?: string;
+        isActive?: boolean;
+        isSystem?: boolean;
+        isAdmin?: boolean;
+        priority?: number;
+      } = {};
 
       if (!editingRole.isSystem) {
         payload.name = nextName;
       }
       payload.displayName = nextDisplayName || undefined;
       payload.description = editForm.description.trim() || undefined;
+      payload.isActive = editForm.isActive;
+      payload.isSystem = editForm.isSystem;
+      payload.isAdmin = editForm.isAdmin;
+      payload.priority = editForm.priority;
 
       await permissionService.updateRole(editingRole.id, payload);
       toast.success('角色更新成功');
@@ -425,6 +462,18 @@ export default function RolesPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                   描述
                 </th>
+                <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
+                  是否启用
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
+                  系统角色
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
+                  管理员角色
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
+                  优先级
+                </th>
                 <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
                   操作
                 </th>
@@ -454,6 +503,36 @@ export default function RolesPage() {
                   <td className="px-6 py-4 text-sm text-gray-500">
                     {role.description || '-'}
                   </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-center text-sm">
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      role.isActive 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {role.isActive ? '启用' : '禁用'}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-center text-sm">
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      role.isSystem 
+                        ? 'bg-blue-100 text-blue-800' 
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {role.isSystem ? '是' : '否'}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-center text-sm">
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      role.isAdmin 
+                        ? 'bg-purple-100 text-purple-800' 
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {role.isAdmin ? '是' : '否'}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-center text-sm font-medium text-gray-900">
+                    {role.priority ?? 0}
+                  </td>
                   <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                     <div className="flex justify-end space-x-2">
                       <Button
@@ -481,7 +560,7 @@ export default function RolesPage() {
 
               {roles.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">
+                  <td colSpan={9} className="px-6 py-4 text-center text-sm text-gray-500">
                     暂无角色数据
                   </td>
                 </tr>
@@ -547,7 +626,7 @@ export default function RolesPage() {
           <DialogHeader>
             <DialogTitle>创建角色</DialogTitle>
             <DialogDescription>
-              创建一个新的角色，设置角色名称、显示名称和描述信息
+              创建一个新的角色，设置角色名称、显示名称、描述和其他属性
             </DialogDescription>
           </DialogHeader>
           {formError && (
@@ -589,6 +668,59 @@ export default function RolesPage() {
                 autoResize
                 placeholder="可选: 角色的详细描述"
               />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="createRoleIsActive">是否启用</Label>
+                <Switch
+                  id="createRoleIsActive"
+                  checked={roleIsActive}
+                  onCheckedChange={setRoleIsActive}
+                  disabled={formLoading}
+                />
+              </div>
+              <p className="text-xs text-gray-500">禁用的角色将无法被分配和使用</p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="createRoleIsSystem">是否系统角色</Label>
+                <Switch
+                  id="createRoleIsSystem"
+                  checked={roleIsSystem}
+                  onCheckedChange={setRoleIsSystem}
+                  disabled={formLoading}
+                />
+              </div>
+              <p className="text-xs text-gray-500">系统角色通常由系统自动创建，请谨慎设置</p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="createRoleIsAdmin">是否管理员角色</Label>
+                <Switch
+                  id="createRoleIsAdmin"
+                  checked={roleIsAdmin}
+                  onCheckedChange={setRoleIsAdmin}
+                  disabled={formLoading}
+                />
+              </div>
+              <p className="text-xs text-gray-500">管理员角色拥有系统管理权限</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="createRolePriority">角色优先级</Label>
+              <Input
+                id="createRolePriority"
+                type="number"
+                value={rolePriority}
+                onChange={(e) => setRolePriority(Number(e.target.value) || 0)}
+                disabled={formLoading}
+                placeholder="数字越大优先级越高"
+                min="0"
+              />
+              <p className="text-xs text-gray-500">用于角色排序和权限判断，数字越大优先级越高</p>
             </div>
 
             <DialogFooter>
@@ -639,7 +771,7 @@ export default function RolesPage() {
           <DialogHeader>
             <DialogTitle>编辑角色</DialogTitle>
             <DialogDescription>
-              修改角色的显示名称和描述信息
+              修改角色的显示名称、描述和其他属性信息
             </DialogDescription>
           </DialogHeader>
           {editError && (
@@ -681,6 +813,61 @@ export default function RolesPage() {
                 disabled={editLoading}
                 placeholder="可选: 角色的详细描述"
               />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="editRoleIsActive">是否启用</Label>
+                <Switch
+                  id="editRoleIsActive"
+                  checked={editForm.isActive}
+                  onCheckedChange={(checked) => setEditForm((prev) => ({ ...prev, isActive: checked }))}
+                  disabled={editLoading}
+                />
+              </div>
+              <p className="text-xs text-gray-500">禁用的角色将无法被分配和使用</p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="editRoleIsSystem">是否系统角色</Label>
+                <Switch
+                  id="editRoleIsSystem"
+                  checked={editForm.isSystem}
+                  onCheckedChange={(checked) => setEditForm((prev) => ({ ...prev, isSystem: checked }))}
+                  disabled={editLoading || editingRole?.isSystem}
+                />
+              </div>
+              <p className="text-xs text-gray-500">
+                {editingRole?.isSystem ? '系统角色状态不可修改' : '系统角色通常由系统自动创建'}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="editRoleIsAdmin">是否管理员角色</Label>
+                <Switch
+                  id="editRoleIsAdmin"
+                  checked={editForm.isAdmin}
+                  onCheckedChange={(checked) => setEditForm((prev) => ({ ...prev, isAdmin: checked }))}
+                  disabled={editLoading}
+                />
+              </div>
+              <p className="text-xs text-gray-500">管理员角色拥有系统管理权限</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="editRolePriority">角色优先级</Label>
+              <Input
+                id="editRolePriority"
+                type="number"
+                value={editForm.priority}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, priority: Number(e.target.value) || 0 }))}
+                disabled={editLoading}
+                placeholder="数字越大优先级越高"
+                min="0"
+              />
+              <p className="text-xs text-gray-500">用于角色排序和权限判断，数字越大优先级越高</p>
             </div>
             <DialogFooter>
               <Button

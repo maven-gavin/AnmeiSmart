@@ -758,6 +758,16 @@ const normalizeBodyOptions = (options: unknown): FetchOptionType => {
   const normalizedOptions: Record<string, unknown> = {}
 
   for (const [key, value] of optionEntries) {
+    if (key === 'priority') {
+      const priorityValue = typeof value === 'string' ? value.toLowerCase() : value
+      if (priorityValue === 'high' || priorityValue === 'low' || priorityValue === 'auto') {
+        normalizedOptions[key] = priorityValue
+      } else {
+        bodyPayload[key] = value
+      }
+      continue
+    }
+
     if (FETCH_OPTION_KEYS.has(key) || key === 'method') {
       normalizedOptions[key] = value
     } else {

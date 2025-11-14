@@ -297,7 +297,6 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
         """获取所有角色用例"""
         try:
             roles = await self.role_repository.get_all()
-            logger.info(f"获取到的角色列表: {roles}")
             return RoleConverter.to_list_response(roles)
             
         except Exception as e:
@@ -343,29 +342,97 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             if not role:
                 raise ValueError("角色不存在")
 
+            current_name = role.name
+            current_display_name = role.displayName or role.name
+
+            target_is_system = (
+                update_data.is_system
+                if update_data.is_system is not None
+                else role.isSystem
+            )
+            target_is_active = (
+                update_data.is_active
+                if update_data.is_active is not None
+                else role.isActive
+            )
+            target_is_admin = (
+                update_data.is_admin
+                if update_data.is_admin is not None
+                else role.isAdmin
+            )
+            target_priority = (
+                update_data.priority
+                if update_data.priority is not None
+                else role.priority
+            )
+
+            if target_priority is not None and target_priority < 0:
+                raise ValueError("角色优先级不能为负数")
+
+            target_name = current_name
+            if update_data.name is not None:
+                normalized_name = update_data.name.strip()
+                if not normalized_name:
+                    raise ValueError("角色名称不能为空")
+                target_name = normalized_name
+
+            target_display_name = current_display_name
+            if update_data.display_name is not None:
+                normalized_display = update_data.display_name.strip()
+                target_display_name = normalized_display or target_name
+            elif target_name != current_name and (
+                current_display_name is None or current_display_name == current_name
+            ):
+                target_display_name = target_name
+
+            target_description = (
+                update_data.description
+                if update_data.description is not None
+                else role.description
+            )
+
+            if target_name != current_name and role.isSystem:
+                raise ValueError("系统角色名称不可修改")
+
+            if target_name != current_name:
+                name_exists = await self.role_repository.exists_by_name(target_name)
+                if name_exists and target_name != current_name:
+                    raise ValueError("角色名称已存在")
+
+            if target_is_system and not target_is_active:
+                raise ValueError("系统角色必须保持启用状态")
+
             has_changes = False
 
-            if update_data.name is not None:
-                new_name = update_data.name.strip()
-                if not new_name:
-                    raise ValueError("角色名称不能为空")
+            if target_name != role.name:
+                role.name = target_name
+                has_changes = True
 
-                old_name = role.name
-                if new_name != old_name:
-                    if role.isSystem:
-                        raise ValueError("系统角色名称不可修改")
+            if target_display_name != (role.displayName or role.name):
+                role.displayName = target_display_name
+                has_changes = True
 
-                    name_exists = await self.role_repository.exists_by_name(new_name)
-                    if name_exists:
-                        raise ValueError("角色名称已存在")
+            if target_description != role.description:
+                role.description = target_description
+                has_changes = True
 
-                    role.name = new_name
-                    if role.displayName is None or role.displayName == old_name:
-                        role.displayName = new_name
-                    has_changes = True
+            if role.isSystem != target_is_system:
+                role.isSystem = target_is_system
+                has_changes = True
 
-            if update_data.description is not None and update_data.description != role.description:
-                role.update_info(description=update_data.description)
+            if role.isAdmin != target_is_admin:
+                role.isAdmin = target_is_admin
+                has_changes = True
+
+            if role.priority != target_priority:
+                role.priority = target_priority if target_priority is not None else 0
+                has_changes = True
+
+            if target_is_active != role.isActive:
+                if target_is_active:
+                    role.activate()
+                else:
+                    role.deactivate()
                 has_changes = True
 
             if not has_changes:
