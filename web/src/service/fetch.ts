@@ -108,6 +108,7 @@ async function base<T>(url: string, options: FetchOptionType = {}, otherOptions:
     needAllResponseContent,
     deleteContentType,
     getAbortController,
+    skipAuth = false,
   } = otherOptions
 
   let base: string
@@ -127,6 +128,11 @@ async function base<T>(url: string, options: FetchOptionType = {}, otherOptions:
   if (deleteContentType)
     (headers as Headers).delete('Content-Type')
 
+  const authHooks: BeforeRequestHook[] = []
+  if (!skipAuth) {
+    authHooks.push(isSmartBrainAPI ? beforeRequestSmartBrainAuthorization : beforeRequestAuthorization)
+  }
+
   const client = baseClient.extend({
     hooks: {
       ...baseHooks,
@@ -136,8 +142,7 @@ async function base<T>(url: string, options: FetchOptionType = {}, otherOptions:
       ],
       beforeRequest: [
         ...baseHooks.beforeRequest || [],
-        ...(isSmartBrainAPI ? [beforeRequestSmartBrainAuthorization] : []),
-        ...(!isSmartBrainAPI ? [beforeRequestAuthorization] : []),
+        ...authHooks,
       ],
       afterResponse: [
         ...baseHooks.afterResponse || [],

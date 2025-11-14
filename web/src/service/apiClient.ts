@@ -105,6 +105,7 @@ export type IOtherOptions = StreamHandlers & {
   onData?: IOnData // for stream
   onError?: IOnError
   getAbortController?: (abortController: AbortController) => void
+  skipAuth?: boolean
 }
 
 /**

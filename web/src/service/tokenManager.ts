@@ -4,8 +4,18 @@
  */
 
 import { jwtUtils } from './jwt';
-import { ApiClientError, ErrorType } from './apiClient';
-import { API_BASE_URL, AUTH_CONFIG, SMARTBRAIN_API_BASE_URL } from '@/config';
+import { ApiClientError, ErrorType, apiClient } from './apiClient';
+import { AUTH_CONFIG } from '@/config';
+
+type RefreshTokenResponse = {
+  access_token: string;
+  refresh_token?: string;
+  token_type?: string;
+};
+
+type RefreshTokenPayload = {
+  token: string;
+};
 
 // 检查是否在浏览器环境
 const isBrowser = typeof window !== 'undefined';
@@ -61,6 +71,7 @@ const secureStorage = {
  */
 export class TokenManager {
   private refreshPromise: Promise<string> | null = null;
+  private readonly retryDelay = 1000;
 
   /**
    * 获取当前存储的访问令牌
@@ -161,7 +172,6 @@ export class TokenManager {
 
     try {
       const newToken = await this.refreshPromise;
-      this.setToken(newToken);
       return newToken;
     } catch (error) {
       // 刷新失败，清除令牌
@@ -178,57 +188,17 @@ export class TokenManager {
    */
   private async performTokenRefresh(refreshToken: string, isSmartBrainAPI?: boolean): Promise<string> {
     const maxRetries = 3;
-    const retryDelay = 1000; // 1秒
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
+        const data = await this.requestRefreshToken(
+          { token: refreshToken },
+          isSmartBrainAPI
+        );
 
-        const response = await fetch(`${isSmartBrainAPI ? SMARTBRAIN_API_BASE_URL : API_BASE_URL}/auth/refresh-token`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ token: refreshToken }),
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ detail: '令牌刷新失败' }));
-          throw new AppError(
-            ErrorType.AUTHENTICATION,
-            response.status,
-            errorData.detail || '令牌刷新失败'
-          );
-        }
-
-        const data = await response.json();
-        const newAccessToken = data.access_token;
-        const newRefreshToken = data.refresh_token;
-
-        if (!newAccessToken || !jwtUtils.isValidFormat(newAccessToken)) {
-          throw new ApiClientError('服务器返回无效访问令牌', {
-            status: 500,
-            type: ErrorType.AUTHENTICATION,
-          })
-        }
-
-        // 更新两个令牌
-        this.setToken(newAccessToken);
-        if (newRefreshToken && jwtUtils.isValidFormat(newRefreshToken)) {
-          this.setRefreshToken(newRefreshToken);
-        }
-
-        console.log('令牌刷新成功');
-        return newAccessToken;
-
+        this.persistTokenPair(data);
+        return data.access_token;
       } catch (error) {
-        console.warn(`令牌刷新尝试 ${attempt}/${maxRetries} 失败:`, error);
-
-        // 如果是最后一次尝试，抛出错误
         if (attempt === maxRetries) {
           if (error instanceof ApiClientError) {
             throw error;
@@ -237,18 +207,62 @@ export class TokenManager {
             status: 500,
             type: ErrorType.AUTHENTICATION,
             responseData: error instanceof Error ? error.message : String(error),
-          })
+          });
         }
 
-        // 等待后重试
-        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+        await this.waitForRetry(attempt);
       }
     }
 
     throw new ApiClientError('令牌刷新失败', {
       status: 500,
       type: ErrorType.AUTHENTICATION,
-    })
+    });
+  }
+
+  private async waitForRetry(attempt: number): Promise<void> {
+    const delay = this.retryDelay * attempt;
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+
+  private async requestRefreshToken(
+    payload: RefreshTokenPayload,
+    isSmartBrainAPI?: boolean
+  ): Promise<RefreshTokenResponse> {
+    const response = await apiClient.post<RefreshTokenResponse>(
+      '/auth/refresh-token',
+      {
+        body: payload,
+      },
+      {
+        skipAuth: true,
+        isSmartBrainAPI,
+        silent: true,
+      }
+    );
+
+    if (!response.data) {
+      throw new ApiClientError('刷新令牌失败，服务器无返回数据', {
+        status: 500,
+        type: ErrorType.AUTHENTICATION,
+      });
+    }
+
+    return response.data;
+  }
+
+  private persistTokenPair(data: RefreshTokenResponse): void {
+    if (!data.access_token || !jwtUtils.isValidFormat(data.access_token)) {
+      throw new ApiClientError('服务器返回无效访问令牌', {
+        status: 500,
+        type: ErrorType.AUTHENTICATION,
+      });
+    }
+
+    this.setToken(data.access_token);
+    if (data.refresh_token && jwtUtils.isValidFormat(data.refresh_token)) {
+      this.setRefreshToken(data.refresh_token);
+    }
   }
 
   /**
