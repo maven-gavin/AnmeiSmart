@@ -77,8 +77,10 @@ class UserRepository(IUserRepository):
             # 更新现有用户
             user_dict = self.user_converter.to_model_dict(user)
             for key, value in user_dict.items():
-                if key != "id":  # 不更新ID
-                    setattr(existing_user, key, value)
+                # 不更新ID和last_login_at（UserModel没有此字段，由登录逻辑单独处理）
+                if key != "id" and key != "last_login_at":
+                    if hasattr(existing_user, key):
+                        setattr(existing_user, key, value)
             
             # 更新角色关联
             await self._update_user_roles(existing_user, user.roles)
@@ -89,6 +91,8 @@ class UserRepository(IUserRepository):
         else:
             # 创建新用户
             user_dict = self.user_converter.to_model_dict(user)
+            # 移除 last_login_at，因为新用户还没有登录过，且 UserModel 没有此字段
+            user_dict.pop("last_login_at", None)
             new_user = UserModel(**user_dict)
             
             # 设置角色关联

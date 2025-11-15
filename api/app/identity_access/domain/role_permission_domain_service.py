@@ -295,5 +295,5 @@ class RolePermissionDomainService:
             "roles": roles,
             "permissions": list(permissions),
             "is_admin": is_admin,
-            "tenant_id": user.tenant_id
+            "tenant_id": user.tenantId
         }

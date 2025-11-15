@@ -19,6 +19,15 @@ from ..value_objects.role_type import RoleType
 class UserEntity:
     """用户聚合根"""
     
+    # 角色优先级（用于获取主要角色）
+    _ROLE_PRIORITY = [
+        RoleType.ADMINISTRATOR,
+        RoleType.OPERATOR,
+        RoleType.DOCTOR,
+        RoleType.CONSULTANT,
+        RoleType.CUSTOMER,
+    ]
+    
     # 身份标识
     id: str
     
@@ -55,6 +64,16 @@ class UserEntity:
         if not self.roles:
             self.roles = {RoleType.CUSTOMER.value}
     
+    @staticmethod
+    def _is_valid_role(role_name: str) -> bool:
+        """检查角色名称是否有效"""
+        valid_roles = {rt.value for rt in RoleType.get_all_roles()}
+        return role_name in valid_roles
+    
+    def _update_timestamp(self) -> None:
+        """更新修改时间戳"""
+        self.updatedAt = datetime.utcnow()
+    
     @classmethod
     def create(
         cls,
@@ -81,16 +100,15 @@ class UserEntity:
         email_obj = Email(email.strip())
         password_obj = Password.create(password)
         
-        # 处理角色
-        role_set = set()
-        if roles:
-            for role in roles:
-                if role in [rt.value for rt in RoleType.get_all_roles()]:
-                    role_set.add(role)
+        # 处理角色：过滤有效角色
+        role_set = {
+            role for role in (roles or [])
+            if cls._is_valid_role(role)
+        }
         
         # 确保有默认角色
         if not role_set:
-            role_set.add(RoleType.CUSTOMER.value)
+            role_set = {RoleType.CUSTOMER.value}
         
         return cls(
             id=str(uuid.uuid4()),
@@ -102,39 +120,6 @@ class UserEntity:
             roles=role_set,
             tenantId=tenantId
         )
-    
-    @property
-    def created_at(self) -> datetime:
-        """兼容旧的蛇形命名"""
-        return self.createdAt
-    
-    @created_at.setter
-    def created_at(self, value: datetime) -> None:
-        self.createdAt = value
-    
-    @property
-    def updated_at(self) -> datetime:
-        return self.updatedAt
-    
-    @updated_at.setter
-    def updated_at(self, value: datetime) -> None:
-        self.updatedAt = value
-    
-    @property
-    def last_login_at(self) -> Optional[datetime]:
-        return self.lastLoginAt
-    
-    @last_login_at.setter
-    def last_login_at(self, value: Optional[datetime]) -> None:
-        self.lastLoginAt = value
-    
-    @property
-    def tenant_id(self) -> Optional[str]:
-        return self.tenantId
-    
-    @tenant_id.setter
-    def tenant_id(self, value: Optional[str]) -> None:
-        self.tenantId = value
     
     def update_profile(
         self,
@@ -154,7 +139,7 @@ class UserEntity:
         if avatar is not None:
             self.avatar = avatar
         
-        self.updatedAt = datetime.utcnow()
+        self._update_timestamp()
     
     def change_password(self, old_password: str, new_password: str) -> None:
         """修改密码"""
@@ -162,41 +147,41 @@ class UserEntity:
             raise ValueError("原密码不正确")
         
         self.password = Password.create(new_password)
-        self.updatedAt = datetime.utcnow()
+        self._update_timestamp()
     
     def activate(self) -> None:
         """激活用户"""
         self.status = UserStatus.ACTIVE
-        self.updatedAt = datetime.utcnow()
+        self._update_timestamp()
     
     def deactivate(self) -> None:
         """停用用户"""
         self.status = UserStatus.INACTIVE
-        self.updatedAt = datetime.utcnow()
+        self._update_timestamp()
     
     def suspend(self) -> None:
         """暂停用户"""
         self.status = UserStatus.SUSPENDED
-        self.updatedAt = datetime.utcnow()
+        self._update_timestamp()
     
     def record_login(self) -> None:
         """记录登录时间"""
         self.lastLoginAt = datetime.utcnow()
-        self.updatedAt = datetime.utcnow()
+        self._update_timestamp()
     
     def add_role(self, role_name: str) -> None:
         """添加角色"""
-        if role_name not in [rt.value for rt in RoleType.get_all_roles()]:
+        if not self._is_valid_role(role_name):
             raise ValueError(f"无效的角色: {role_name}")
         
         self.roles.add(role_name)
-        self.updatedAt = datetime.utcnow()
+        self._update_timestamp()
     
     def remove_role(self, role_name: str) -> None:
         """移除角色"""
         if role_name in self.roles:
             self.roles.remove(role_name)
-            self.updatedAt = datetime.utcnow()
+            self._update_timestamp()
     
     def has_role(self, role_name: str) -> bool:
         """检查是否有特定角色"""
@@ -204,17 +189,17 @@ class UserEntity:
     
     def has_any_role(self, role_names: List[str]) -> bool:
         """检查是否有任意一个角色"""
-        return any(role in self.roles for role in role_names)
+        return bool(self.roles & set(role_names))
     
     def is_admin(self) -> bool:
         """是否为管理员"""
-        admin_roles = [rt.value for rt in RoleType.get_admin_roles()]
-        return self.has_any_role(admin_roles)
+        admin_roles = {rt.value for rt in RoleType.get_admin_roles()}
+        return bool(self.roles & admin_roles)
     
     def is_medical_staff(self) -> bool:
         """是否为医疗人员"""
-        medical_roles = [rt.value for rt in RoleType.get_medical_roles()]
-        return self.has_any_role(medical_roles)
+        medical_roles = {rt.value for rt in RoleType.get_medical_roles()}
+        return bool(self.roles & medical_roles)
     
     def can_login(self) -> bool:
         """是否可以登录"""
@@ -225,18 +210,10 @@ class UserEntity:
         return self.status.can_access_system()
     
     def get_primary_role(self) -> Optional[str]:
-        """获取主要角色（优先级：管理员 > 医疗人员 > 客户）"""
-        if self.has_role(RoleType.ADMINISTRATOR.value):
-            return RoleType.ADMINISTRATOR.value
-        elif self.has_role(RoleType.OPERATOR.value):
-            return RoleType.OPERATOR.value
-        elif self.has_role(RoleType.DOCTOR.value):
-            return RoleType.DOCTOR.value
-        elif self.has_role(RoleType.CONSULTANT.value):
-            return RoleType.CONSULTANT.value
-        elif self.has_role(RoleType.CUSTOMER.value):
-            return RoleType.CUSTOMER.value
-        
+        """获取主要角色（按优先级返回）"""
+        for role_type in self._ROLE_PRIORITY:
+            if self.has_role(role_type.value):
+                return role_type.value
         return None
     
     def get_email_value(self) -> str:
@@ -260,9 +237,4 @@ class UserEntity:
         )
     
     def __repr__(self) -> str:
-        return (
-            f"UserEntity(id={self.id}, username={self.username}, email={self.email.value}, "
-            f"phone={self.phone}, avatar={self.avatar}, status={self.status.value}, "
-            f"tenantId={self.tenantId}, roles={sorted(self.roles)}, createdAt={self.createdAt}, "
-            f"updatedAt={self.updatedAt}, lastLoginAt={self.lastLoginAt})"
-        )
+        return str(self)

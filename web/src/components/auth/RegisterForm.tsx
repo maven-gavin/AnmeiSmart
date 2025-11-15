@@ -108,7 +108,7 @@ export default function RegisterForm() {
   const errorMessage = error || authError;
 
   return (
-    <div className="mx-auto max-w-md rounded-xl bg-white p-8 shadow-md">
+    <div className="mx-auto max-w-md rounded-xl bg-white p-8 shadow-md w-full">
       <div className="mb-8 text-center">
         <div className="mx-auto mb-4 h-16 w-16 flex items-center justify-center">
           <img 

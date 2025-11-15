@@ -10,7 +10,7 @@ from app.identity_access.infrastructure.db.user import User
 from app.chat.schemas.chat import (
     ConversationInfo, MessageInfo, ConversationCreate,
     MessageCreateRequest, CreateTextMessageRequest, CreateMediaMessageRequest,
-    CreateSystemEventRequest, CreateStructuredMessageRequest, AppointmentCardData
+    CreateSystemEventRequest, CreateStructuredMessageRequest
 )
 from app.chat.domain.interfaces import (
     IConversationRepository, IMessageRepository, IChatApplicationService,
@@ -490,60 +490,6 @@ class ChatApplicationService(IChatApplicationService):
         except Exception as e:
             logger.error(f"创建结构化消息时发生未知错误: {e}")
             raise Exception("创建结构化消息失败")
-
-    async def create_appointment_confirmation_use_case(
-        self,
-        conversation_id: str,
-        appointment_data: AppointmentCardData,
-        sender: User
-    ) -> MessageInfo:
-        """创建预约确认消息用例"""
-        try:
-            # 1. 权限检查
-            user_role = self.get_user_role(sender)
-            if user_role not in ["consultant", "doctor"]:
-                raise PermissionError("只有顾问或医生可以发送预约确认")
-
-            # 2. 创建预约卡片内容
-            content = {
-                "card_type": "appointment",
-                "title": "预约确认",
-                "subtitle": f"您的{appointment_data.service_name}预约",
-                "data": appointment_data.dict(),
-                "components": [],
-                "actions": {}
-            }
-
-            # 3. 创建领域实体
-            message = Message(
-                id="",  # 由仓储生成
-                conversation_id=conversation_id,
-                content=content,
-                message_type="structured",
-                sender_id=str(sender.id),
-                sender_type=self.get_user_role(sender),
-                is_important=True,  # 预约消息通常标记为重要
-                reply_to_message_id=None,
-                extra_metadata={}
-            )
-
-            # 4. 保存到仓储
-            saved_message = await self.message_repository.save(message)
-
-            # 5. 转换为响应Schema
-            message_info = MessageConverter.to_response(saved_message)
-            if message_info is None:
-                raise ValueError("消息转换失败")
-            return message_info
-
-        except PermissionError:
-            raise PermissionError("只有顾问或医生可以发送预约确认")
-        except ValueError as e:
-            logger.error(f"创建预约确认失败: {e}")
-            raise ValueError(str(e))
-        except Exception as e:
-            logger.error(f"创建预约确认时发生未知错误: {e}")
-            raise Exception("创建预约确认失败")
 
     async def get_conversation_messages_use_case(
         self,

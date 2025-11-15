@@ -69,36 +69,22 @@ export interface SystemEventContent {
   [key: string]: any; // 其他事件相关数据
 }
 
-// 预约确认卡片数据结构
-export interface AppointmentCardData {
-  appointment_id: string;
-  service_name: string; // 服务名称：如"面部深层清洁护理"
-  consultant_name: string; // 顾问姓名
-  consultant_avatar?: string; // 顾问头像
-  scheduled_time: string; // 预约时间 ISO string
-  duration_minutes: number; // 服务时长（分钟）
-  price: number; // 价格
-  location: string; // 地点
-  status: 'pending' | 'confirmed' | 'cancelled'; // 预约状态
-  notes?: string; // 备注
-}
-
 // 通用卡片组件数据
 export interface CardComponent {
   type: 'button' | 'text' | 'image' | 'divider';
   content?: any;
   action?: {
-    type: 'confirm_appointment' | 'reschedule' | 'cancel' | 'custom';
+    type: 'cancel' | 'custom';
     data?: any;
   };
 }
 
 // 结构化消息内容（卡片式消息）
 export interface StructuredMessageContent {
-  card_type: 'appointment_confirmation' | 'service_recommendation' | 'consultation_summary' | 'custom';
+  card_type: 'service_recommendation' | 'consultation_summary' | 'custom';
   title: string;
   subtitle?: string;
-  data: AppointmentCardData | any; // 根据card_type确定具体数据结构
+  data: any; // 根据card_type确定具体数据结构
   components?: CardComponent[]; // 可选的交互组件
   actions?: {
     primary?: { text: string; action: string; data?: any };

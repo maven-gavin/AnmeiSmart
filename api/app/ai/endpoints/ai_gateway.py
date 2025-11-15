@@ -115,7 +115,7 @@ async def generate_beauty_plan(
     """
     生成个性化医美方案
     
-    根据用户需求和档案信息，生成详细的医美治疗方案。
+    根据用户需求和档案信息，生成详细的医美方案。
     """
     try:
         ai_gateway = get_ai_gateway_service(db)

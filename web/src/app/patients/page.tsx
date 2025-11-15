@@ -13,18 +13,8 @@ export default function PatientsPage() {
   
   // 使用useEffect处理异步请求
   useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        const data = await doctorService.getPatients();
-        setPatients(data);
-      } catch (error) {
-        console.error('获取患者列表失败:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchPatients();
+    // TODO: 实现真实API调用
+    setLoading(false);
   }, []);
   
   // 根据搜索和过滤条件筛选患者

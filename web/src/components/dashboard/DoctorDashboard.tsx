@@ -82,80 +82,18 @@ function NeedAttentionPatients({ patients }: { patients: any[] }) {
   );
 }
 
-// 今日日程组件
-function TodaySchedule({ appointments }: { appointments: any[] }) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-      <h3 className="mb-4 text-lg font-medium text-gray-800">今日日程</h3>
-      <div className="divide-y divide-gray-100">
-        {appointments.length > 0 ? (
-          appointments.map((appointment) => (
-            <div key={appointment.id} className="py-3">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="font-medium text-gray-800">{appointment.time}</p>
-                  <p className="text-sm text-gray-600">{appointment.patientName} - {appointment.treatmentType}</p>
-                </div>
-                <span className={`rounded-full px-2 py-1 text-xs ${
-                  appointment.status === 'confirmed' 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {appointment.status === 'confirmed' ? '已确认' : '待确认'}
-                </span>
-              </div>
-            </div>
-          ))
-        ) : (
-          <p className="py-3 text-sm text-gray-500">今日暂无日程安排</p>
-        )}
-      </div>
-      <Link href="/doctor/appointments" className="mt-4 block text-center text-sm font-medium text-orange-600 hover:text-orange-500">
-        查看全部日程
-      </Link>
-    </div>
-  );
-}
-
 export default function DoctorDashboard() {
   const { user } = useAuthContext();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [patientsCount, setPatientsCount] = useState(0);
-  const [plansCount, setPlansCount] = useState(0);
-  const [appointmentsCount, setAppointmentsCount] = useState(0);
   const [urgentPatients, setUrgentPatients] = useState<any[]>([]);
-  const [todayAppointments, setTodayAppointments] = useState<any[]>([]);
   
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // 并行加载数据以提高性能
-        const [patients, plans, appointments, todayAppts, urgentPats] = await Promise.all([
-          doctorService.getPatients().catch(() => []),
-          doctorService.getTreatmentPlans().catch(() => []),
-          doctorService.getAppointments().catch(() => []),
-          doctorService.getTodayAppointments().catch(() => []),
-          doctorService.getUrgentPatients().catch(() => [])
-        ]);
-        
-        setPatientsCount(patients.length);
-        setPlansCount(plans.length);
-        setAppointmentsCount(appointments.length);
-        setTodayAppointments(todayAppts);
-        setUrgentPatients(urgentPats);
-      } catch (err) {
-        console.error('加载数据失败', err);
-        setError('数据加载失败，请刷新页面重试');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    loadData();
+    // TODO: 实现真实API调用
+    setLoading(false);
+    setPatientsCount(0);
+    setUrgentPatients([]);
   }, []);
   
   if (loading) {
@@ -202,7 +140,7 @@ export default function DoctorDashboard() {
         </p>
       </div>
       
-      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
         <DashboardCard 
           title="我的患者" 
           count={patientsCount} 
@@ -213,35 +151,10 @@ export default function DoctorDashboard() {
             </svg>
           }
         />
-        
-        <DashboardCard 
-          title="治疗方案" 
-          count={plansCount} 
-          link="/doctor/plans"
-          color="blue"
-          icon={
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-          }
-        />
-        
-        <DashboardCard 
-          title="预约日程" 
-          count={appointmentsCount} 
-          link="/doctor/appointments"
-          color="green"
-          icon={
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          }
-        />
       </div>
       
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <NeedAttentionPatients patients={urgentPatients} />
-        <TodaySchedule appointments={todayAppointments} />
       </div>
     </div>
     </AppLayout>

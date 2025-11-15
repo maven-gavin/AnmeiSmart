@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { customerService } from '@/service/customerService';
-import { CustomerAppointment, Treatment, TreatmentPlan } from '@/types/customer';
 import { Message } from '@/types/chat';
 import AppLayout from '../layout/AppLayout';
 import { useAuthContext } from '@/contexts/AuthContext';
@@ -74,74 +73,16 @@ function RecentNotifications({ messages }: { messages: Message[] }) {
   );
 }
 
-// 近期预约组件
-function UpcomingAppointments({ appointments }: { appointments: CustomerAppointment[] }) {
-  // 获取未来的预约
-  const futureAppointments = appointments.filter(
-    (appointment) => appointment.status !== 'canceled' && appointment.status !== 'completed'
-  );
-  
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-      <h3 className="mb-4 text-lg font-medium text-gray-800">近期预约</h3>
-      <div className="divide-y divide-gray-100">
-        {futureAppointments.length > 0 ? (
-          futureAppointments.map((appointment) => (
-            <div key={appointment.id} className="py-3">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="font-medium text-gray-800">{appointment.title}</p>
-                  <p className="text-sm text-gray-600">
-                    {appointment.date} {appointment.time}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {appointment.type === 'consultation' 
-                      ? `咨询：${appointment.consultant}` 
-                      : `${appointment.type === 'treatment' ? '治疗' : '复诊'}：${appointment.doctor}`}
-                  </p>
-                </div>
-                <span className={`rounded-full px-2 py-1 text-xs ${
-                  appointment.status === 'confirmed' 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-yellow-100 text-yellow-800'
-                }`}>
-                  {appointment.status === 'confirmed' ? '已确认' : '待确认'}
-                </span>
-              </div>
-            </div>
-          ))
-        ) : (
-          <p className="py-3 text-sm text-gray-500">暂无预约</p>
-        )}
-      </div>
-      {futureAppointments.length > 0 && (
-        <Link href="/customer/appointments" className="mt-4 block text-center text-sm font-medium text-orange-600 hover:text-orange-500">
-          查看全部预约
-        </Link>
-      )}
-    </div>
-  );
-}
-
 export default function CustomerDashboard() {
   const { user } = useAuthContext();
   const [loading, setLoading] = useState(true);
-  const [treatments, setTreatments] = useState<Treatment[]>([]);
-  const [plans, setPlans] = useState<TreatmentPlan[]>([]);
-  const [appointments, setAppointments] = useState<CustomerAppointment[]>([]);
   const [notifications, setNotifications] = useState<Message[]>([]);
   
   useEffect(() => {
     const loadData = async () => {
       try {
-        const treatmentsData = await customerService.getTreatments();
-        const plansData = await customerService.getTreatmentPlans();
-        const appointmentsData = await customerService.getAppointments();
         const messagesData = await customerService.getSystemMessages();
         
-        setTreatments(treatmentsData);
-        setPlans(plansData);
-        setAppointments(appointmentsData);
         setNotifications(messagesData);
       } catch (error) {
         console.error('加载数据失败', error);
@@ -173,42 +114,7 @@ export default function CustomerDashboard() {
         </p>
       </div>
       
-      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <DashboardCard 
-          title="治疗记录" 
-          count={treatments.length} 
-          link="/customer/treatments"
-          icon={
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-          }
-        />
-        
-        <DashboardCard 
-          title="治疗方案" 
-          count={plans.length} 
-          link="/customer/plans"
-          color="blue"
-          icon={
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          }
-        />
-        
-        <DashboardCard 
-          title="我的预约" 
-          count={appointments.length} 
-          link="/customer/appointments"
-          color="green"
-          icon={
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          }
-        />
-        
+      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         <DashboardCard 
           title="在线咨询" 
           count={notifications.length} 
@@ -223,7 +129,6 @@ export default function CustomerDashboard() {
       </div>
       
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <UpcomingAppointments appointments={appointments} />
         <RecentNotifications messages={notifications} />
       </div>
     </div>

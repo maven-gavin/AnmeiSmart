@@ -41,31 +41,10 @@ export const menuConfig: MenuConfig = {
     },    
     // 医生端菜单
     {
-      id: 'plans-doctor',
-      label: '治疗方案',
-      path: '/plans/doctor',
-      icon: 'treatment-icon',
-      roles: ['doctor']
-    },
-    {
       id: 'patients-doctor',
       label: '患者管理',
       path: '/patients/doctor',
       icon: 'patients-icon',
-      roles: ['doctor']
-    },
-    {
-      id: 'treatments-doctor',
-      label: '治疗记录',
-      path: '/treatments/doctor',
-      icon: 'records-icon',
-      roles: ['doctor']
-    },
-    {
-      id: 'appointments-doctor',
-      label: '预约管理',
-      path: '/appointments',
-      icon: 'calendar-icon',
       roles: ['doctor']
     },
     
@@ -86,27 +65,6 @@ export const menuConfig: MenuConfig = {
     },
     
     // 客户端菜单
-    {
-      id: 'treatments-customer',
-      label: '治疗记录',
-      path: '/treatments/customer',
-      icon: 'records-icon',
-      roles: ['customer']
-    },
-    {
-      id: 'plans-customer',
-      label: '治疗方案',
-      path: '/plans/customer',
-      icon: 'treatment-icon',
-      roles: ['customer']
-    },
-    {
-      id: 'appointments-customer',
-      label: '我的预约',
-      path: '/appointments/customer',
-      icon: 'calendar-icon',
-      roles: ['customer']
-    },
     
     // 管理端菜单
     {

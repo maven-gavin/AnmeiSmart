@@ -84,9 +84,6 @@ api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 api_router.include_router(contacts.router, prefix="/contacts", tags=["contacts"])
 
 # 后续可添加其他路由
-# api_router.include_router(plans.router, prefix="/plans", tags=["plans"])
-# api_router.include_router(appointments.router, prefix="/appointments", tags=["appointments"])
-# api_router.include_router(treatments.router, prefix="/treatments", tags=["treatments"])
 
 # 在这里添加其他路由器
 # api_router.include_router(services.router, prefix="/services", tags=["services"]) 

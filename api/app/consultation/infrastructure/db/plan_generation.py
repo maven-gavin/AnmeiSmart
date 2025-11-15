@@ -170,7 +170,7 @@ class PlanDraft(BaseModel):
     {
         "basic_info": {
             "title": "个性化美肌方案",
-            "description": "针对痤疮疤痕和细纹的综合治疗方案",
+            "description": "针对痤疮疤痕和细纹的综合方案",
             "target_concerns": ["acne_scars", "fine_lines"],
             "difficulty_level": "intermediate",
             "total_duration": "3-6个月"

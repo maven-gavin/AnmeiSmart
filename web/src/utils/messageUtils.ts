@@ -166,7 +166,6 @@ import {
   CreateTextMessageData,
   CreateMediaMessageData,
   CreateSystemEventData,
-  AppointmentCardData,
   CardComponent
 } from '@/types/chat';
 
@@ -242,13 +241,6 @@ export class MessageUtils {
     return message.type === 'structured';
   }
 
-  /**
-   * 判断是否为预约确认卡片
-   */
-  static isAppointmentCard(message: Message): boolean {
-    return message.type === 'structured' && 
-           (message.content as StructuredMessageContent).card_type === 'appointment_confirmation';
-  }
 
   /**
    * 格式化系统事件为可读文本
@@ -302,8 +294,6 @@ export class MessageUtils {
    */
   static getCardTypeDisplayName(cardType: string): string {
     switch (cardType) {
-      case 'appointment_confirmation':
-        return '预约确认';
       case 'service_recommendation':
         return '服务推荐';
       case 'consultation_summary':
@@ -379,25 +369,6 @@ export class MessageUtils {
     };
   }
 
-  /**
-   * 创建预约确认卡片内容
-   */
-  static createAppointmentCardContent(
-    appointmentData: AppointmentCardData,
-    title: string = '预约确认',
-    subtitle?: string
-  ): StructuredMessageContent {
-    return {
-      card_type: 'appointment_confirmation',
-      title,
-      subtitle,
-      data: appointmentData,
-      actions: {
-        primary: { text: '确认预约', action: 'confirm_appointment', data: { appointment_id: appointmentData.appointment_id } },
-        secondary: { text: '重新安排', action: 'reschedule', data: { appointment_id: appointmentData.appointment_id } }
-      }
-    };
-  }
 
   /**
    * 创建服务推荐卡片内容
@@ -425,7 +396,6 @@ export const {
   isMediaMessage,
   isSystemMessage,
   isStructuredMessage,
-  isAppointmentCard,
   getDisplayText,
   getStructuredCardData,
   getCardTypeDisplayName,
@@ -435,6 +405,5 @@ export const {
   createTextMessageContent,
   createMediaMessageContent,
   createSystemEventContent,
-  createAppointmentCardContent,
   createServiceRecommendationContent
 } = MessageUtils; 

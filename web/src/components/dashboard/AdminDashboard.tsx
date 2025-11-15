@@ -121,10 +121,6 @@ export default function AdminDashboard() {
             <p className="text-sm text-gray-600">今日活跃用户</p>
             <p className="text-2xl font-bold text-green-600">24</p>
           </div>
-          <div className="flex min-w-[200px] flex-1 flex-col rounded-lg bg-purple-50 p-4">
-            <p className="text-sm text-gray-600">总预约数</p>
-            <p className="text-2xl font-bold text-purple-600">86</p>
-          </div>
           <div className="flex min-w-[200px] flex-1 flex-col rounded-lg bg-orange-50 p-4">
             <p className="text-sm text-gray-600">系统版本</p>
             <p className="text-2xl font-bold text-orange-600">v1.0.0</p>

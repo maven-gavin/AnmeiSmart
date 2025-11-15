@@ -14,8 +14,7 @@ from app.chat.schemas.chat import (
     ConversationCreate, ConversationInfo,
     MessageCreateRequest, MessageInfo,
     CreateTextMessageRequest, CreateMediaMessageRequest, 
-    CreateSystemEventRequest, CreateStructuredMessageRequest,
-    AppointmentCardData
+    CreateSystemEventRequest, CreateStructuredMessageRequest
 )
 
 # 导入应用服务层
@@ -286,37 +285,6 @@ async def create_structured_message(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="创建结构化消息失败")
 
-
-@router.post("/conversations/{conversation_id}/messages/appointment", response_model=MessageInfo)
-async def create_appointment_confirmation(
-    conversation_id: str,
-    appointment_data: AppointmentCardData,
-    current_user: User = Depends(get_current_user),
-    chat_app_service: ChatApplicationService = Depends(get_chat_application_service)
-):
-    """创建预约确认卡片消息 - 表现层只负责请求路由和响应格式化"""
-    try:
-        message = await chat_app_service.create_appointment_confirmation_use_case(
-            conversation_id=conversation_id,
-            appointment_data=appointment_data,
-            sender=current_user
-        )
-        
-        # 广播消息
-        await chat_app_service.broadcast_message_safe(
-            conversation_id=conversation_id,
-            message_info=message,
-            sender_id=str(current_user.id)
-        )
-        
-        return message
-        
-    except PermissionError:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="只有顾问或医生可以发送预约确认")
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="创建预约确认失败")
 
 
 @router.patch("/messages/{message_id}/read")

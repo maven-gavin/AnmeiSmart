@@ -1,6 +1,5 @@
 import { authService } from './authService';
 import { apiClient } from './apiClient';
-import { CustomerAppointment, Treatment, TreatmentPlan } from '@/types/customer';
 import { Message } from '@/types/chat';
 
 // 客户信息接口，匹配后端响应格式
@@ -102,102 +101,6 @@ class CustomerService {
     }
   }
 
-  // 获取当前客户的治疗记录
-  async getTreatments(): Promise<Treatment[]> {
-    const currentUser = authService.getCurrentUser();
-    if (!currentUser || currentUser.currentRole !== 'customer') {
-      return [];
-    }
-    
-    try {
-      
-      // 如果后端有专门的treatment endpoints，应该调用类似：
-      // const response = await apiClient.get(`/customers/${currentUser.id}/treatments`);
-      
-      // 临时返回空数组，等待后端提供treatment endpoints
-      return [];
-    } catch (error) {
-      console.error('获取治疗记录失败:', error);
-      return [];
-    }
-  }
-  
-  // 获取特定治疗记录详情
-  async getTreatmentById(id: string): Promise<Treatment | null> {
-    const currentUser = authService.getCurrentUser();
-    if (!currentUser || currentUser.currentRole !== 'customer') {
-      return null;
-    }
-    
-    try {
-      // 注意：需要后端提供treatment详情endpoint
-      // const response = await apiClient.get(`/treatments/${id}`);
-      
-      // 临时返回null，等待后端提供treatment endpoints
-      return null;
-    } catch (error) {
-      console.error('获取治疗记录详情失败:', error);
-      return null;
-    }
-  }
-  
-  // 获取当前客户的治疗方案
-  async getTreatmentPlans(): Promise<TreatmentPlan[]> {
-    const currentUser = authService.getCurrentUser();
-    if (!currentUser || currentUser.currentRole !== 'customer') {
-      return [];
-    }
-    
-    try {
-      // 注意：需要后端提供treatment plan endpoints
-      // const response = await apiClient.get(`/customers/${currentUser.id}/treatment-plans`);
-      
-      // 临时返回空数组，等待后端提供treatment plan endpoints
-      return [];
-    } catch (error) {
-      console.error('获取治疗方案失败:', error);
-      return [];
-    }
-  }
-  
-  // 获取特定治疗方案详情
-  async getTreatmentPlanById(id: string): Promise<TreatmentPlan | null> {
-    const currentUser = authService.getCurrentUser();
-    if (!currentUser || currentUser.currentRole !== 'customer') {
-      return null;
-    }
-    
-    try {
-      // 注意：需要后端提供treatment plan详情endpoint
-      // const response = await apiClient.get(`/treatment-plans/${id}`);
-      
-      // 临时返回null，等待后端提供treatment plan endpoints
-      return null;
-    } catch (error) {
-      console.error('获取治疗方案详情失败:', error);
-      return null;
-    }
-  }
-  
-  // 获取当前客户的预约
-  async getAppointments(): Promise<CustomerAppointment[]> {
-    const currentUser = authService.getCurrentUser();
-    if (!currentUser || currentUser.currentRole !== 'customer') {
-      return [];
-    }
-    
-    try {
-      // 注意：需要后端提供appointment endpoints
-      // const response = await apiClient.get(`/customers/${currentUser.id}/appointments`);
-      
-      // 临时返回空数组，等待后端提供appointment endpoints
-      return [];
-    } catch (error) {
-      console.error('获取预约信息失败:', error);
-      return [];
-    }
-  }
-  
   // 获取系统消息/通知
   async getSystemMessages(): Promise<Message[]> {
     const currentUser = authService.getCurrentUser();

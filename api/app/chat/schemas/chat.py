@@ -6,7 +6,7 @@
 - text: 纯文本消息
 - media: 媒体文件消息（图片、语音、视频、文档等）
 - system: 系统事件消息（如用户加入、接管状态等）
-- structured: 结构化卡片消息（预约确认、服务推荐等）
+- structured: 结构化卡片消息（服务推荐等）
 """
 from datetime import datetime
 from typing import Optional, List, Literal, Dict, Any
@@ -54,20 +54,6 @@ class SystemEventContent(BaseModel):
     details: Optional[Dict[str, Any]] = None  # 其他详细信息
 
 
-class AppointmentCardData(BaseModel):
-    """预约确认卡片数据结构"""
-    appointment_id: str
-    service_name: str  # 服务名称：如"面部深层清洁护理"
-    consultant_name: str  # 顾问姓名
-    consultant_avatar: Optional[str] = None  # 顾问头像
-    scheduled_time: str  # 预约时间 ISO string
-    duration_minutes: int  # 服务时长（分钟）
-    price: float  # 价格
-    location: str  # 地点
-    status: Literal["pending", "confirmed", "cancelled"]  # 预约状态
-    notes: Optional[str] = None  # 备注
-
-
 class CardComponent(BaseModel):
     """通用卡片组件数据"""
     type: Literal["button", "text", "image", "divider"]
@@ -84,7 +70,7 @@ class CardAction(BaseModel):
 
 class StructuredMessageContent(BaseModel):
     """结构化消息内容（卡片式消息）"""
-    card_type: Literal["appointment_confirmation", "service_recommendation", "consultation_summary", "custom"]
+    card_type: Literal["service_recommendation", "consultation_summary", "custom"]
     title: str
     subtitle: Optional[str] = None
     data: Dict[str, Any]  # 根据card_type确定具体数据结构
@@ -334,30 +320,6 @@ def create_system_event_content(
     }
 
 
-def create_appointment_card_content(
-    appointment_data: AppointmentCardData,
-    title: str = "预约确认",
-    subtitle: Optional[str] = None
-) -> Dict[str, Any]:
-    """创建预约确认卡片内容"""
-    return {
-        "card_type": "appointment_confirmation",
-        "title": title,
-        "subtitle": subtitle,
-        "data": appointment_data.model_dump(),
-        "actions": {
-            "primary": {
-                "text": "确认预约",
-                "action": "confirm_appointment",
-                "data": {"appointment_id": appointment_data.appointment_id}
-            },
-            "secondary": {
-                "text": "重新安排",
-                "action": "reschedule",
-                "data": {"appointment_id": appointment_data.appointment_id}
-            }
-        }
-    }
 
 
 def create_service_recommendation_content(

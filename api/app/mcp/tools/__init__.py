@@ -11,13 +11,11 @@ MCP工具模块
 from . import user
 from . import customer  
 from . import consultation
-from . import treatment
 from . import projects
 
 __all__ = [
     "user",
     "customer", 
     "consultation",
-    "treatment",
     "projects"
 ] 
