@@ -81,6 +81,7 @@ export interface Tenant {
   isSystem: boolean;
   isAdmin: boolean;
   priority: number;
+  encryptedPubKey?: string;
   contactName?: string;
   contactEmail?: string;
   contactPhone?: string;

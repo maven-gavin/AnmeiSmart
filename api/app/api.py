@@ -23,11 +23,11 @@ api_router.include_router(users.router, prefix="/users", tags=["users"])
 # 角色管理路由
 api_router.include_router(roles.router, prefix="/roles", tags=["roles"])
 
-# 租户管理路由
-api_router.include_router(tenants.router, prefix="/tenants", tags=["tenants"])
+# 租户管理路由（router内部已定义prefix）
+api_router.include_router(tenants.router, tags=["tenants"])
 
-# 权限管理路由
-api_router.include_router(permissions.router, prefix="/permissions", tags=["permissions"])
+# 权限管理路由（router内部已定义prefix）
+api_router.include_router(permissions.router, tags=["permissions"])
 
 # 用户权限检查路由
 api_router.include_router(user_permissions.router, prefix="/users", tags=["user-permissions"])

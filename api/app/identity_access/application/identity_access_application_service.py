@@ -293,10 +293,26 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             raise
     
     # 角色管理用例
-    async def get_all_roles(self) -> List[RoleResponse]:
-        """获取所有角色用例"""
+    async def get_all_roles(
+        self, 
+        search: Optional[str] = None,
+        tenant_id: Optional[str] = None,
+        include_system: bool = True
+    ) -> List[RoleResponse]:
+        """
+        获取所有角色用例
+        
+        Args:
+            search: 搜索关键词
+            tenant_id: 租户ID，如果提供则只返回该租户的角色
+            include_system: 是否包含系统角色（默认True，包含系统角色）
+        """
         try:
-            roles = await self.role_repository.get_all()
+            roles = await self.role_repository.get_all(
+                search=search,
+                tenant_id=tenant_id,
+                include_system=include_system
+            )
             return RoleConverter.to_list_response(roles)
             
         except Exception as e:

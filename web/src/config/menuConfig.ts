@@ -77,8 +77,22 @@ export const menuConfig: MenuConfig = {
     {
       id: 'roles',
       label: '角色管理',
-      path: '/roles',
+      path: '/admin/roles',
       icon: 'roles-icon',
+      roles: ['admin']
+    },
+    {
+      id: 'permissions-admin',
+      label: '权限管理',
+      path: '/admin/permissions',
+      icon: 'permissions-icon',
+      roles: ['admin']
+    },
+    {
+      id: 'tenants-admin',
+      label: '租户管理',
+      path: '/admin/tenants',
+      icon: 'tenants-icon',
       roles: ['admin']
     },
     {

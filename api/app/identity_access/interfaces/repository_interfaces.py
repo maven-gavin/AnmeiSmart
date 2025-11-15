@@ -153,6 +153,11 @@ class ITenantRepository(ABC):
         pass
     
     @abstractmethod
+    async def list_all(self) -> List[TenantEntity]:
+        """获取所有租户列表"""
+        pass
+    
+    @abstractmethod
     async def list_active(self) -> List[TenantEntity]:
         """获取活跃租户列表"""
         pass

@@ -13,7 +13,8 @@ from app.common.infrastructure.db.base import get_db
 from app.identity_access.deps.auth_deps import get_current_user
 from app.identity_access.infrastructure.db.user import User
 from app.identity_access.application.role_permission_application_service import RolePermissionApplicationService
-from app.identity_access.deps.auth_deps import get_role_permission_application_service
+from app.identity_access.deps.auth_deps import get_role_permission_application_service, get_identity_access_application_service
+from app.identity_access.application.identity_access_application_service import IdentityAccessApplicationService
 from app.identity_access.schemas.permission_schemas import (
     PermissionCreate,
     PermissionUpdate,
@@ -43,31 +44,45 @@ async def list_permissions(
     limit: int = Query(100, ge=1, le=1000, description="返回记录数"),
     current_user: User = Depends(get_current_user),
     permission_service: RolePermissionApplicationService = Depends(get_role_permission_application_service),
+    identity_service: IdentityAccessApplicationService = Depends(get_identity_access_application_service),
     _db: Session = Depends(get_db),
 ) -> ApiResponse[PermissionListResponse]:
     """获取权限列表"""
     try:
-        if not await permission_service.is_user_admin(current_user.id):
-            if tenant_id and tenant_id != current_user.tenant_id:
+        # 使用 IdentityAccessApplicationService 检查管理员权限
+        if not await identity_service.is_user_admin(str(current_user.id)):
+            if tenant_id and tenant_id != getattr(current_user, 'tenant_id', None):
                 raise BusinessException(
                     message="权限不足：只能查看自己租户的权限",
                     code=ErrorCode.PERMISSION_DENIED,
                     status_code=status.HTTP_403_FORBIDDEN,
                 )
-            tenant_id = current_user.tenant_id
+            tenant_id = getattr(current_user, 'tenant_id', None)
 
-        permissions = await permission_service.list_permissions_use_case(
-            tenant_id=tenant_id,
-            permission_type=permission_type,
-            scope=scope,
-            is_active=is_active,
-            skip=skip,
-            limit=limit,
-        )
+        # 获取权限列表（注意：list_permissions 方法不支持所有筛选参数，需要先获取再过滤）
+        all_permissions = await permission_service.list_permissions(tenant_id=tenant_id)
+        
+        # 前端筛选
+        permissions = all_permissions
+        if permission_type:
+            permissions = [p for p in permissions if p.get('permission_type') == permission_type]
+        if scope:
+            permissions = [p for p in permissions if p.get('scope') == scope]
+        if is_active is not None:
+            permissions = [p for p in permissions if p.get('is_active') == is_active]
+        
+        # 分页
+        total = len(permissions)
+        permissions = permissions[skip:skip + limit]
 
+        # 将字典转换为 PermissionResponse 对象
+        permission_responses = [
+            PermissionResponse(**p) for p in permissions
+        ]
+        
         response = PermissionListResponse(
-            permissions=permissions,
-            total=len(permissions),
+            permissions=permission_responses,
+            total=total,
             skip=skip,
             limit=limit,
         )

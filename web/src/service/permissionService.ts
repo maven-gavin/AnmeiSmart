@@ -11,8 +11,9 @@ class PermissionService {
    */
   async getPermissions(tenantId?: string): Promise<Permission[]> {
     const params = tenantId ? { tenant_id: tenantId } : {};
-    const response = await apiClient.get<Permission[]>(`${this.baseUrl}`, { params });
-    return response.data;
+    const response = await apiClient.get<{ permissions: Permission[] }>(`${this.baseUrl}`, { params });
+    // 后端返回的是 ApiResponse[PermissionListResponse]，需要提取 permissions 字段
+    return response.data?.permissions || [];
   }
 
   /**
@@ -50,9 +51,22 @@ class PermissionService {
 
   /**
    * 获取所有角色列表
+   * 
+   * @param search - 搜索关键词（可选）
+   * @param tenantId - 租户ID（可选，仅系统管理员可指定查看其他租户的角色）
+   * 
+   * 注意：普通用户不需要传递tenantId，后端会自动从当前登录用户获取租户信息
    */
-  async getRoles(tenantId?: string): Promise<Role[]> {
-    const params = tenantId ? { tenant_id: tenantId } : {};
+  async getRoles(search?: string, tenantId?: string): Promise<Role[]> {
+    const params: Record<string, string> = {};
+    if (search) {
+      params.search = search;
+    }
+    // tenantId 仅用于系统管理员查看其他租户的数据
+    // 普通用户不传此参数，后端会自动从当前用户获取
+    if (tenantId) {
+      params.tenant_id = tenantId;
+    }
     const response = await apiClient.get<Role[]>('/roles', { params });
     return response.data ?? [];
   }
@@ -128,8 +142,9 @@ class PermissionService {
    */
   async getTenants(status?: string): Promise<Tenant[]> {
     const params = status ? { status } : {};
-    const response = await apiClient.get<Tenant[]>('/tenants', { params });
-    return response.data;
+    const response = await apiClient.get<{ tenants: Tenant[] }>('/tenants', { params });
+    // 后端返回的是 TenantListResponse，需要提取 tenants 字段
+    return response.data?.tenants || [];
   }
 
   /**

@@ -77,6 +77,11 @@ class TenantRepository(ITenantRepository):
         db_tenants = self.db.query(Tenant).filter(Tenant.status == status.value).all()
         return [self._to_entity(tenant) for tenant in db_tenants]
     
+    async def list_all(self) -> List[TenantEntity]:
+        """获取所有租户列表"""
+        db_tenants = self.db.query(Tenant).all()
+        return [self._to_entity(tenant) for tenant in db_tenants]
+    
     async def list_active(self) -> List[TenantEntity]:
         """获取活跃租户列表"""
         db_tenants = self.db.query(Tenant).filter(Tenant.is_active == True).all()

@@ -79,10 +79,7 @@ export default function RolesPage() {
   const [itemsPerPage] = useState(5);
   
   // 添加搜索筛选状态
-  const [searchId, setSearchId] = useState('');
-  const [searchName, setSearchName] = useState('');
-  const [searchDescription, setSearchDescription] = useState('');
-  const [allRoles, setAllRoles] = useState<RoleItem[]>([]);
+  const [searchText, setSearchText] = useState('');
   const [editingRole, setEditingRole] = useState<RoleItem | null>(null);
   const [editForm, setEditForm] = useState({ 
     name: '', 
@@ -131,19 +128,18 @@ export default function RolesPage() {
 
   // 检查用户是否有管理员权限
   useEffect(() => {
-    if (user && !user.roles.includes('admin')) {
+    if (user && user.currentRole !== 'admin') {
       router.push('/unauthorized');
     }
   }, [user, router]);
 
   // 获取角色列表
-  const fetchRoles = async () => {
+  const fetchRoles = async (search?: string) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await permissionService.getRoles();
+      const data = await permissionService.getRoles(search);
       const normalized = Array.isArray(data) ? data.map(normalizeRole) : [];
-      setAllRoles(normalized);
       setRoles(normalized);
     } catch (err) {
       // 使用统一的错误处理函数
@@ -154,43 +150,17 @@ export default function RolesPage() {
     }
   };
 
-  // 筛选角色
+  // 筛选角色（后端搜索）
   const filterRoles = () => {
     setCurrentPage(1); // 重置到第一页
-    let filteredRoles = [...allRoles];
-    
-    if (searchId) {
-      const keyword = searchId.toLowerCase();
-      filteredRoles = filteredRoles.filter((role) =>
-        role.id.toLowerCase().includes(keyword)
-      );
-    }
-    
-    if (searchName) {
-      const keyword = searchName.toLowerCase();
-      filteredRoles = filteredRoles.filter((role) =>
-        role.name.toLowerCase().includes(keyword)
-      );
-    }
-    
-    if (searchDescription) {
-      const keyword = searchDescription.toLowerCase();
-      filteredRoles = filteredRoles.filter(
-        (role) =>
-          (role.description ?? '').toLowerCase().includes(keyword)
-      );
-    }
-    
-    setRoles(filteredRoles);
+    fetchRoles(searchText.trim() || undefined);
   };
 
   // 重置筛选条件
   const resetFilters = () => {
-    setSearchId('');
-    setSearchName('');
-    setSearchDescription('');
-    setRoles(allRoles);
+    setSearchText('');
     setCurrentPage(1);
+    fetchRoles(); // 重新获取所有角色
   };
 
   useEffect(() => {
@@ -391,53 +361,28 @@ export default function RolesPage() {
         </div>
 
         <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow">
-          <h2 className="mb-4 text-lg font-medium text-gray-800">组合查询</h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div>
-              <Label htmlFor="roleId" className="mb-2 block text-sm font-medium">
-                角色ID
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 flex-1">
+              <Label htmlFor="search" className="w-24 flex-shrink-0">
+                搜索:
               </Label>
               <Input
-                id="roleId"
-                value={searchId}
-                onChange={(e) => setSearchId(e.target.value)}
-                placeholder="搜索角色ID"
-                className="w-full"
+                id="search"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="搜索角色名称,显示名称,描述"
+                className="flex-1"
               />
             </div>
-            <div>
-              <Label htmlFor="roleName" className="mb-2 block text-sm font-medium">
-                角色名称
-              </Label>
-              <Input
-                id="roleName"
-                value={searchName}
-                onChange={(e) => setSearchName(e.target.value)}
-                placeholder="搜索角色名称"
-                className="w-full"
-              />
+            <div className="flex space-x-2 flex-shrink-0">
+              <Button variant="outline" onClick={resetFilters}>
+                重置
+              </Button>
+              <Button className="bg-orange-500 hover:bg-orange-600" onClick={filterRoles}>
+                查询
+              </Button>
             </div>
-            <div>
-              <Label htmlFor="roleDescription" className="mb-2 block text-sm font-medium">
-                角色描述
-              </Label>
-              <Input
-                id="roleDescription"
-                value={searchDescription}
-                onChange={(e) => setSearchDescription(e.target.value)}
-                placeholder="搜索角色描述"
-                className="w-full"
-              />
-            </div>
-          </div>
-          <div className="mt-4 flex justify-end space-x-2">
-            <Button variant="outline" onClick={resetFilters}>
-              重置
-            </Button>
-            <Button className="bg-orange-500 hover:bg-orange-600" onClick={filterRoles}>
-              查询
-            </Button>
-          </div>
+          </div>          
         </div>
 
         {error && (

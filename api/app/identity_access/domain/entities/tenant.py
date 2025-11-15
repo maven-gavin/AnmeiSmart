@@ -67,6 +67,11 @@ class TenantEntity:
         displayName: Optional[str] = None,
         description: Optional[str] = None,
         tenantType: TenantType = TenantType.STANDARD,
+        status: TenantStatus = TenantStatus.ACTIVE,
+        isSystem: bool = False,
+        isAdmin: bool = False,
+        priority: int = 0,
+        encryptedPubKey: Optional[str] = None,
         contactName: Optional[str] = None,
         contactEmail: Optional[str] = None,
         contactPhone: Optional[str] = None
@@ -80,6 +85,12 @@ class TenantEntity:
             displayName=displayName or name,
             description=description,
             tenantType=tenantType,
+            status=status,
+            isSystem=isSystem,
+            isAdmin=isAdmin,
+            priority=priority,
+            # 空字符串转换为 None，非空字符串保留并去除首尾空格
+            encryptedPubKey=encryptedPubKey.strip() if encryptedPubKey and isinstance(encryptedPubKey, str) and encryptedPubKey.strip() else None,
             contactName=contactName,
             contactEmail=contactEmail,
             contactPhone=contactPhone
@@ -131,6 +142,56 @@ class TenantEntity:
             self.contactEmail = contactEmail
         if contactPhone is not None:
             self.contactPhone = contactPhone
+        
+        self.updatedAt = datetime.utcnow()
+    
+    def update_name(self, name: str) -> None:
+        """更新租户名称"""
+        if not name or not name.strip():
+            raise ValueError("租户名称不能为空")
+        
+        if len(name) > 50:
+            raise ValueError("租户名称长度不能超过50个字符")
+        
+        self.name = name.strip()
+        self.updatedAt = datetime.utcnow()
+    
+    def update_basic_info(
+        self,
+        displayName: Optional[str] = None,
+        description: Optional[str] = None
+    ) -> None:
+        """更新基本信息"""
+        if displayName is not None:
+            self.displayName = displayName
+        if description is not None:
+            self.description = description
+        
+        self.updatedAt = datetime.utcnow()
+    
+    def update_attributes(
+        self,
+        tenantType: Optional[TenantType] = None,
+        status: Optional[TenantStatus] = None,
+        isSystem: Optional[bool] = None,
+        isAdmin: Optional[bool] = None,
+        priority: Optional[int] = None,
+        encryptedPubKey: Optional[str] = None
+    ) -> None:
+        """更新租户属性"""
+        if tenantType is not None:
+            self.tenantType = tenantType
+        if status is not None:
+            self.status = status
+        if isSystem is not None:
+            self.isSystem = isSystem
+        if isAdmin is not None:
+            self.isAdmin = isAdmin
+        if priority is not None:
+            self.priority = priority
+        # 允许设置为空字符串来清空加密公钥
+        if encryptedPubKey is not None:
+            self.encryptedPubKey = encryptedPubKey if encryptedPubKey else None
         
         self.updatedAt = datetime.utcnow()
     

@@ -37,9 +37,42 @@ class RoleRepository(IRoleRepository):
         
         return self.role_converter.from_model(role_model)
     
-    async def get_all(self) -> List[RoleModel]:
-        """获取所有角色"""
-        roles = self.db.query(RoleModel).all()
+    async def get_all(self, search: Optional[str] = None, tenant_id: Optional[str] = None, include_system: bool = False) -> List[RoleModel]:
+        """
+        获取所有角色
+        
+        Args:
+            search: 搜索关键词
+            tenant_id: 租户ID，如果提供则只返回该租户的角色
+            include_system: 是否包含系统角色（tenant_id为None的角色）
+        """
+        query = self.db.query(RoleModel)
+        
+        # 租户过滤：如果指定了tenant_id，只返回该租户的角色或系统角色
+        if tenant_id:
+            if include_system:
+                # 包含系统角色（tenant_id为NULL）和当前租户的角色
+                query = query.filter(
+                    (RoleModel.tenant_id == tenant_id) | (RoleModel.tenant_id.is_(None))
+                )
+            else:
+                # 只返回当前租户的角色
+                query = query.filter(RoleModel.tenant_id == tenant_id)
+        else:
+            # 如果没有指定tenant_id，默认只返回系统角色（tenant_id为NULL）
+            # 这样可以避免返回所有租户的数据
+            query = query.filter(RoleModel.tenant_id.is_(None))
+        
+        # 搜索过滤
+        if search:
+            search_term = f"%{search.lower()}%"
+            query = query.filter(
+                (RoleModel.name.ilike(search_term)) |
+                (RoleModel.display_name.ilike(search_term)) |
+                (RoleModel.description.ilike(search_term))
+            )
+        
+        roles = query.all()
         return [self.role_converter.from_model(role) for role in roles]
     
     async def exists_by_name(self, name: str) -> bool:

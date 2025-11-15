@@ -27,6 +27,11 @@ class TenantDomainService:
         display_name: Optional[str] = None,
         description: Optional[str] = None,
         tenant_type: TenantType = TenantType.STANDARD,
+        status: TenantStatus = TenantStatus.ACTIVE,
+        is_system: bool = False,
+        is_admin: bool = False,
+        priority: int = 0,
+        encrypted_pub_key: Optional[str] = None,
         contact_name: Optional[str] = None,
         contact_email: Optional[str] = None,
         contact_phone: Optional[str] = None
@@ -43,6 +48,11 @@ class TenantDomainService:
             displayName=display_name,
             description=description,
             tenantType=tenant_type,
+            status=status,
+            isSystem=is_system,
+            isAdmin=is_admin,
+            priority=priority,
+            encryptedPubKey=encrypted_pub_key,
             contactName=contact_name,
             contactEmail=contact_email,
             contactPhone=contact_phone
@@ -69,6 +79,10 @@ class TenantDomainService:
     async def list_active_tenants(self) -> List[TenantEntity]:
         """获取所有激活的租户"""
         return await self.tenant_repository.list_by_status(TenantStatus.ACTIVE)
+    
+    async def list_all_tenants(self) -> List[TenantEntity]:
+        """获取所有租户"""
+        return await self.tenant_repository.list_all()
     
     async def list_by_status(self, status: TenantStatus) -> List[TenantEntity]:
         """根据状态获取租户列表"""
@@ -119,6 +133,72 @@ class TenantDomainService:
         tenantEntity.update_contact_info(contact_name, contact_email, contact_phone)
         await self.tenant_repository.save(tenantEntity)
         logger.info(f"更新租户联系信息: {tenantEntity.name}")
+        
+        return True
+    
+    async def update_tenant_name(
+        self,
+        tenant_id: str,
+        name: str
+    ) -> bool:
+        """更新租户名称"""
+        tenantEntity = await self.tenant_repository.get_by_id(tenant_id)
+        if not tenantEntity:
+            return False
+        
+        # 检查新名称是否与其他租户冲突
+        existing_tenant = await self.tenant_repository.get_by_name(name)
+        if existing_tenant and existing_tenant.id != tenant_id:
+            raise ValueError(f"租户名称 '{name}' 已存在")
+        
+        tenantEntity.update_name(name)
+        await self.tenant_repository.save(tenantEntity)
+        logger.info(f"更新租户名称: {tenantEntity.name}")
+        
+        return True
+    
+    async def update_tenant_basic_info(
+        self,
+        tenant_id: str,
+        display_name: Optional[str] = None,
+        description: Optional[str] = None
+    ) -> bool:
+        """更新租户基本信息"""
+        tenantEntity = await self.tenant_repository.get_by_id(tenant_id)
+        if not tenantEntity:
+            return False
+        
+        tenantEntity.update_basic_info(display_name, description)
+        await self.tenant_repository.save(tenantEntity)
+        logger.info(f"更新租户基本信息: {tenantEntity.name}")
+        
+        return True
+    
+    async def update_tenant_attributes(
+        self,
+        tenant_id: str,
+        tenant_type: Optional[TenantType] = None,
+        status: Optional[TenantStatus] = None,
+        is_system: Optional[bool] = None,
+        is_admin: Optional[bool] = None,
+        priority: Optional[int] = None,
+        encrypted_pub_key: Optional[str] = None
+    ) -> bool:
+        """更新租户属性"""
+        tenantEntity = await self.tenant_repository.get_by_id(tenant_id)
+        if not tenantEntity:
+            return False
+        
+        tenantEntity.update_attributes(
+            tenantType=tenant_type,
+            status=status,
+            isSystem=is_system,
+            isAdmin=is_admin,
+            priority=priority,
+            encryptedPubKey=encrypted_pub_key
+        )
+        await self.tenant_repository.save(tenantEntity)
+        logger.info(f"更新租户属性: {tenantEntity.name}")
         
         return True
     
