@@ -33,6 +33,7 @@ import { handleApiError } from '@/service/apiClient';
 import { Tenant } from '@/types/auth';
 import toast from 'react-hot-toast';
 import AppLayout from '@/components/layout/AppLayout';
+import { EnhancedPagination } from '@/components/ui/pagination';
 
 const normalizeTenant = (tenant: any): Tenant => {
   const id = tenant?.id ? String(tenant.id) : '';
@@ -77,7 +78,7 @@ export default function TenantsPage() {
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(5);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
   const [searchText, setSearchText] = useState('');
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [editForm, setEditForm] = useState({
@@ -357,9 +358,6 @@ export default function TenantsPage() {
   const currentTenants = tenants.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(tenants.length / itemsPerPage);
 
-  // 页码变更
-  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
-
   return (
     <AppLayout requiredRole={user?.currentRole}>
       <div className="container mx-auto px-4 py-6">
@@ -547,40 +545,22 @@ export default function TenantsPage() {
         </div>
 
         {tenants.length > 0 && (
-          <div className="mt-6 flex items-center justify-between">
-            <div className="flex space-x-2">
-              <Button
-                onClick={() => paginate(currentPage - 1)}
-                disabled={currentPage === 1}
-                variant="outline"
-                size="sm"
-                className="px-3"
-              >
-                上一页
-              </Button>
-
-              {Array.from({ length: totalPages }, (_, i) => (
-                <Button
-                  key={i}
-                  onClick={() => paginate(i + 1)}
-                  variant={currentPage === i + 1 ? 'default' : 'outline'}
-                  size="sm"
-                  className={`px-3 ${currentPage === i + 1 ? 'bg-orange-500 hover:bg-orange-600' : ''}`}
-                >
-                  {i + 1}
-                </Button>
-              ))}
-
-              <Button
-                onClick={() => paginate(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                variant="outline"
-                size="sm"
-                className="px-3"
-              >
-                下一页
-              </Button>
-            </div>
+          <div className="mt-6">
+            <EnhancedPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={tenants.length}
+              itemsPerPage={itemsPerPage}
+              itemsPerPageOptions={[5, 10, 20, 50, 100]}
+              onPageChange={(page) => {
+                setCurrentPage(page);
+              }}
+              onItemsPerPageChange={(newItemsPerPage) => {
+                setItemsPerPage(newItemsPerPage);
+                setCurrentPage(1);
+              }}
+              showPageInput={true}
+            />
           </div>
         )}
       </div>

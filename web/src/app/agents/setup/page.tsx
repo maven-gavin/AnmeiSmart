@@ -32,6 +32,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import { useAgentConfigs } from '@/hooks/useAgentConfigs';
 import { AgentConfig, AgentConfigCreate, AgentConfigUpdate } from '@/service/agentConfigService';
 import { SMARTBRAIN_API_BASE_URL, SMARTBRAIN_DEFAULT_TIMEOUT, SMARTBRAIN_DEFAULT_MAX_RETRIES } from '@/config';
+import { EnhancedPagination } from '@/components/ui/pagination';
 
 export default function AgentsPage() {
   const { user } = useAuthContext();
@@ -77,7 +78,7 @@ export default function AgentsPage() {
 
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(5);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
   
   // 搜索筛选状态
   const [searchEnvironment, setSearchEnvironment] = useState('all');
@@ -328,9 +329,6 @@ export default function AgentsPage() {
   const currentConfigs = configs.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(configs.length / itemsPerPage);
 
-  // 页码变更
-  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
-
   return (
     <AppLayout requiredRole={user?.currentRole}>
       <div className="container mx-auto px-4 py-6">
@@ -506,40 +504,22 @@ export default function AgentsPage() {
         
         {/* 分页组件 */}
         {configs.length > 0 && (
-          <div className="mt-6 flex justify-between items-center">
-            <div className="flex space-x-2">
-              <Button
-                onClick={() => paginate(currentPage - 1)}
-                disabled={currentPage === 1}
-                variant="outline"
-                size="sm"
-                className="px-3"
-              >
-                上一页
-              </Button>
-              
-              {Array.from({ length: totalPages }, (_, i) => (
-                <Button
-                  key={i}
-                  onClick={() => paginate(i + 1)}
-                  variant={currentPage === i + 1 ? "default" : "outline"}
-                  size="sm"
-                  className={`px-3 ${currentPage === i + 1 ? 'bg-orange-500 hover:bg-orange-600' : ''}`}
-                >
-                  {i + 1}
-                </Button>
-              ))}
-              
-              <Button
-                onClick={() => paginate(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                variant="outline"
-                size="sm"
-                className="px-3"
-              >
-                下一页
-              </Button>
-            </div>
+          <div className="mt-6">
+            <EnhancedPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={configs.length}
+              itemsPerPage={itemsPerPage}
+              itemsPerPageOptions={[5, 10, 20, 50, 100]}
+              onPageChange={(page) => {
+                setCurrentPage(page);
+              }}
+              onItemsPerPageChange={(newItemsPerPage) => {
+                setItemsPerPage(newItemsPerPage);
+                setCurrentPage(1);
+              }}
+              showPageInput={true}
+            />
           </div>
         )}
 

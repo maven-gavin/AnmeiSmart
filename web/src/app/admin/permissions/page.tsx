@@ -33,6 +33,7 @@ import { handleApiError } from '@/service/apiClient';
 import { Permission, Role, Tenant } from '@/types/auth';
 import toast from 'react-hot-toast';
 import AppLayout from '@/components/layout/AppLayout';
+import { EnhancedPagination } from '@/components/ui/pagination';
 
 export default function PermissionsPage() {
   const { user } = useAuthContext();
@@ -82,7 +83,7 @@ export default function PermissionsPage() {
   // 搜索和分页
   const [searchText, setSearchText] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // 检查用户是否有管理员权限
   useEffect(() => {
@@ -283,8 +284,6 @@ export default function PermissionsPage() {
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentPermissions = filteredData.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-
-  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
 
   if (loading && permissions.length === 0) {
     return (
@@ -523,40 +522,22 @@ export default function PermissionsPage() {
 
         {/* 分页 */}
         {filteredData.length > 0 && (
-          <div className="mt-6 flex items-center justify-between">
-            <div className="flex space-x-2">
-              <Button
-                onClick={() => paginate(currentPage - 1)}
-                disabled={currentPage === 1}
-                variant="outline"
-                size="sm"
-                className="px-3"
-              >
-                上一页
-              </Button>
-
-              {Array.from({ length: totalPages }, (_, i) => (
-                <Button
-                  key={i}
-                  onClick={() => paginate(i + 1)}
-                  variant={currentPage === i + 1 ? 'default' : 'outline'}
-                  size="sm"
-                  className={`px-3 ${currentPage === i + 1 ? 'bg-orange-500 hover:bg-orange-600' : ''}`}
-                >
-                  {i + 1}
-                </Button>
-              ))}
-
-              <Button
-                onClick={() => paginate(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                variant="outline"
-                size="sm"
-                className="px-3"
-              >
-                下一页
-              </Button>
-            </div>
+          <div className="mt-6">
+            <EnhancedPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredData.length}
+              itemsPerPage={itemsPerPage}
+              itemsPerPageOptions={[5, 10, 20, 50, 100]}
+              onPageChange={(page) => {
+                setCurrentPage(page);
+              }}
+              onItemsPerPageChange={(newItemsPerPage) => {
+                setItemsPerPage(newItemsPerPage);
+                setCurrentPage(1);
+              }}
+              showPageInput={true}
+            />
           </div>
         )}
 
