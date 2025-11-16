@@ -56,10 +56,10 @@ export default function UsersPage() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/users');
+      const response = await apiClient.get<User[]>('/users');
       if (response.status === 200) {
         // 使用response.data如果存在，否则尝试解析JSON
-        if (response.data) {
+        if (response.data && Array.isArray(response.data)) {
           setAllUsers(response.data);
           setUsers(response.data);
         } else {
@@ -185,9 +185,11 @@ export default function UsersPage() {
 
   if (loading && users.length === 0) {
     return (
-      <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
-      </div>
+      <AppLayout requiredRole={user?.currentRole}>
+        <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
+        </div>
+      </AppLayout>
     );
   }
 
@@ -214,6 +216,12 @@ export default function UsersPage() {
               id="username"
               value={searchUsername}
               onChange={(e) => setSearchUsername(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  filterUsers();
+                }
+              }}
               placeholder="搜索用户名"
               className="w-full"
             />
@@ -224,6 +232,12 @@ export default function UsersPage() {
               id="email"
               value={searchEmail}
               onChange={(e) => setSearchEmail(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  filterUsers();
+                }
+              }}
               placeholder="搜索邮箱"
               className="w-full"
             />
@@ -234,6 +248,12 @@ export default function UsersPage() {
               id="phone"
               value={searchPhone}
               onChange={(e) => setSearchPhone(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  filterUsers();
+                }
+              }}
               placeholder="搜索手机号"
               className="w-full"
             />

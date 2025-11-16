@@ -83,7 +83,7 @@ export default function PermissionsPage() {
   // 搜索和分页
   const [searchText, setSearchText] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
 
   // 检查用户是否有管理员权限
   useEffect(() => {
@@ -365,6 +365,7 @@ export default function PermissionsPage() {
                 onChange={(e) => setSearchText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
+                    e.preventDefault();
                     filterItems();
                   }
                 }}

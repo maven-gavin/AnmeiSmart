@@ -338,9 +338,11 @@ export default function TenantsPage() {
 
   if (loading && tenants.length === 0) {
     return (
-      <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
-      </div>
+      <AppLayout requiredRole={user?.currentRole}>
+        <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
+        </div>
+      </AppLayout>
     );
   }
 
@@ -384,6 +386,12 @@ export default function TenantsPage() {
                 id="search"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    filterTenants();
+                  }
+                }}
                 placeholder="搜索租户名称,显示名称,描述"
                 className="flex-1"
               />

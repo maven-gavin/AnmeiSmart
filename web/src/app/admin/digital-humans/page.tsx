@@ -93,7 +93,7 @@ export default function DigitalHumansPage() {
   
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
   
   // 搜索筛选状态
   const [searchText, setSearchText] = useState('');
@@ -133,11 +133,15 @@ export default function DigitalHumansPage() {
       if (status && status !== 'all') params.append('status', status);
       if (type && type !== 'all') params.append('type', type);
       
-      const response = await apiClient.get(`/admin/digital-humans?${params.toString()}`);
-      if (response.data?.success) {
-        const normalized = Array.isArray(response.data.data) 
-          ? response.data.data.map(normalizeDigitalHuman) 
-          : [];
+      type ApiResponse = {
+        success?: boolean;
+        data?: any[];
+        message?: string;
+      };
+      
+      const response = await apiClient.get<ApiResponse>(`/admin/digital-humans?${params.toString()}`);
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        const normalized = response.data.data.map(normalizeDigitalHuman);
         setDigitalHumans(normalized);
       } else {
         throw new Error(response.data?.message || '获取数字人列表失败');
@@ -263,9 +267,11 @@ export default function DigitalHumansPage() {
 
   if (loading && digitalHumans.length === 0) {
     return (
-      <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
-      </div>
+      <AppLayout requiredRole={user?.currentRole}>
+        <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
+        </div>
+      </AppLayout>
     );
   }
 
@@ -347,6 +353,12 @@ export default function DigitalHumansPage() {
                 id="search"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    filterDigitalHumans();
+                  }
+                }}
                 placeholder="搜索数字人名称、描述"
                 className="flex-1"
               />
@@ -448,7 +460,9 @@ export default function DigitalHumansPage() {
                         <div className="flex items-center space-x-2">
                           <span className="text-sm font-medium text-gray-900">{dh.name}</span>
                           {dh.is_system_created && (
-                            <Shield className="h-4 w-4 text-blue-500" title="系统创建" />
+                            <span title="系统创建">
+                              <Shield className="h-4 w-4 text-blue-500" />
+                            </span>
                           )}
                         </div>
                         <p className="text-sm text-gray-500 truncate max-w-xs">

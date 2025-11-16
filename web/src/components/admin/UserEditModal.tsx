@@ -41,11 +41,12 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
   // 初始化表单数据
   useEffect(() => {
     if (user) {
-      setUsername(user.username);
-      setEmail(user.email);
-      setPhone(user.phone || '');
-      setRoles(user.roles);
-      setIsActive(user.is_active);
+      // 确保始终传递受控组件可接受的值，避免从 defined 变为 undefined
+      setUsername(user.username ?? '');
+      setEmail(user.email ?? '');
+      setPhone(user.phone ?? '');
+      setRoles(user.roles ?? []);
+      setIsActive(user.is_active ?? true);
     }
   }, [user]);
 
