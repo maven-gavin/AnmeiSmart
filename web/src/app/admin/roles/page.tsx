@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { usePermission } from '@/hooks/usePermission';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -61,6 +62,7 @@ const normalizeRole = (role: any): RoleItem => {
 
 export default function RolesPage() {
   const { user } = useAuthContext();
+  const { isAdmin } = usePermission();
   const router = useRouter();
   const [roles, setRoles] = useState<RoleItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -129,10 +131,10 @@ export default function RolesPage() {
 
   // 检查用户是否有管理员权限
   useEffect(() => {
-    if (user && user.currentRole !== 'admin') {
+    if (user && !isAdmin) {
       router.push('/unauthorized');
     }
-  }, [user, router]);
+  }, [user, isAdmin, router]);
 
   // 获取角色列表
   const fetchRoles = async (search?: string) => {

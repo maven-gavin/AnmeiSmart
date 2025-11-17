@@ -20,6 +20,7 @@ from app.identity_access.converters.role_converter import RoleConverter
 from app.identity_access.infrastructure.repositories.login_history_repository import LoginHistoryRepository
 from app.identity_access.infrastructure.repositories.tenant_repository import TenantRepository
 from app.identity_access.infrastructure.repositories.permission_repository import PermissionRepository
+from app.identity_access.infrastructure.repositories.resource_repository import ResourceRepository
 from app.identity_access.interfaces.domain_service_interfaces import IUserDomainService
 from app.identity_access.interfaces.domain_service_interfaces import IAuthenticationDomainService
 from app.identity_access.interfaces.domain_service_interfaces import IPermissionDomainService
@@ -50,6 +51,11 @@ def get_tenant_repository(db: Session = Depends(get_db)) -> TenantRepository:
 def get_permission_repository(db: Session = Depends(get_db)) -> PermissionRepository:
     """获取权限仓储实例"""
     return PermissionRepository(db)
+
+
+def get_resource_repository(db: Session = Depends(get_db)) -> ResourceRepository:
+    """获取资源仓储实例"""
+    return ResourceRepository(db)
 
 def get_user_domain_service(
     user_repository: UserRepository = Depends(get_user_repository),
@@ -90,6 +96,9 @@ __all__ = [
     "get_user_repository",
     "get_role_repository", 
     "get_login_history_repository",
+    "get_tenant_repository",
+    "get_permission_repository",
+    "get_resource_repository",
     "get_user_domain_service",
     "get_authentication_domain_service",
     "get_permission_domain_service",

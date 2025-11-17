@@ -12,6 +12,7 @@ from ..domain.entities.user import UserEntity
 from ..domain.entities.role import RoleEntity
 from ..domain.entities.tenant import TenantEntity
 from ..domain.entities.permission import PermissionEntity
+from ..domain.entities.resource import ResourceEntity
 from ..domain.value_objects.login_history import LoginHistory
 from ..domain.value_objects.tenant_status import TenantStatus
 
@@ -199,6 +200,45 @@ class IPermissionRepository(ABC):
     @abstractmethod
     async def get_roles(self, permission_id: str) -> List[RoleEntity]:
         """获取拥有指定权限的角色列表"""
+        pass
+
+
+class IResourceRepository(ABC):
+    """资源仓储接口"""
+    
+    @abstractmethod
+    async def get_by_id(self, resource_id: str) -> Optional[ResourceEntity]:
+        """根据ID获取资源"""
+        pass
+    
+    @abstractmethod
+    async def get_by_name(self, name: str) -> Optional[ResourceEntity]:
+        """根据名称获取资源"""
+        pass
+    
+    @abstractmethod
+    async def save(self, resource: ResourceEntity) -> ResourceEntity:
+        """保存资源"""
+        pass
+    
+    @abstractmethod
+    async def delete(self, resource_id: str) -> bool:
+        """删除资源"""
+        pass
+    
+    @abstractmethod
+    async def list_active(self, tenant_id: Optional[str] = None, resource_type: Optional[str] = None) -> List[ResourceEntity]:
+        """获取活跃资源列表"""
+        pass
+    
+    @abstractmethod
+    async def list_system_resources(self, resource_type: Optional[str] = None) -> List[ResourceEntity]:
+        """获取系统资源列表"""
+        pass
+    
+    @abstractmethod
+    async def get_permissions(self, resource_id: str) -> List[PermissionEntity]:
+        """获取资源关联的权限列表"""
         pass
 
 

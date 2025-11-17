@@ -1004,7 +1004,7 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
             
             roles = await self.permission_domain_service.get_user_roles(user_id)
             permissions = await self.permission_domain_service.get_user_permissions(user_id)
-            is_admin = await self.is_user_admin_use_case(user_id)
+            is_admin = await self.is_user_admin(user_id)
             
             return {
                 "user_id": user_id,
@@ -1012,7 +1012,10 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
                 "roles": roles,
                 "permissions": permissions,
                 "is_admin": is_admin,
-                "tenant_id": getattr(user, 'tenant_id', None)
+                "tenant_id": getattr(user, 'tenant_id', None),
+                "tenant_name": None,
+                "last_login_at": getattr(user, 'lastLoginAt', None),
+                "created_at": getattr(user, 'createdAt', None),
             }
             
         except Exception as e:

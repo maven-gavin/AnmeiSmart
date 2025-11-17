@@ -6,8 +6,14 @@
 
 from .user import UserEntity
 from .role import RoleEntity
+from .permission import PermissionEntity
+from .tenant import TenantEntity
+from .resource import ResourceEntity
 
 __all__ = [
     "UserEntity",
-    "RoleEntity"
+    "RoleEntity",
+    "PermissionEntity",
+    "TenantEntity",
+    "ResourceEntity"
 ]

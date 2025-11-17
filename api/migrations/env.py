@@ -17,7 +17,6 @@ from app.common.infrastructure.db.base import Base
 # 通过导入各领域模块来确保SQLAlchemy可以正确建立关系映射
 import app.identity_access.infrastructure.db
 import app.chat.infrastructure.db
-import app.consultation.infrastructure.db
 import app.contacts.infrastructure.db
 import app.digital_humans.infrastructure.db
 import app.tasks.infrastructure.db

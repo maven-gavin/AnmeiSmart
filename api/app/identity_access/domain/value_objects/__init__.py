@@ -10,6 +10,9 @@ from .user_status import UserStatus
 from .role_type import RoleType
 from .login_history import LoginHistory
 from .admin_level import AdminLevel
+from .permission_type import PermissionType
+from .permission_scope import PermissionScope
+from .resource_type import ResourceType
 
 __all__ = [
     "Email",
@@ -17,5 +20,8 @@ __all__ = [
     "UserStatus",
     "RoleType",
     "LoginHistory",
-    "AdminLevel"
+    "AdminLevel",
+    "PermissionType",
+    "PermissionScope",
+    "ResourceType"
 ]

@@ -47,6 +47,11 @@ def permission_id() -> str:
     """生成权限ID"""
     return prefixed_uuid("perm")
 
+# 资源ID前缀生成函数
+def resource_id() -> str:
+    """生成资源ID"""
+    return prefixed_uuid("res")
+
 
 # 会话ID前缀生成函数
 def conversation_id() -> str:

@@ -4,7 +4,7 @@ from sqlalchemy.sql import func
 
 from app.common.infrastructure.db.base_model import BaseModel
 from app.common.infrastructure.db.base import Base
-from app.common.infrastructure.db.uuid_utils import user_id, role_id, tenant_id, permission_id
+from app.common.infrastructure.db.uuid_utils import user_id, role_id, tenant_id, permission_id, resource_id
 from app.identity_access.domain.enums import AdminLevel
 
 # 用户-角色关联表 (使用String类型的外键)
@@ -21,6 +21,14 @@ role_permissions = Table(
     "role_permissions",
     Base.metadata,
     Column("role_id", String(36), ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True, comment="角色ID"),
+    Column("permission_id", String(36), ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True, comment="权限ID"),
+)
+
+# 资源-权限关联表 (使用String类型的外键)
+resource_permissions = Table(
+    "resource_permissions",
+    Base.metadata,
+    Column("resource_id", String(36), ForeignKey("resources.id", ondelete="CASCADE"), primary_key=True, comment="资源ID"),
     Column("permission_id", String(36), ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True, comment="权限ID"),
 )
 
@@ -91,6 +99,33 @@ class Permission(BaseModel):
 
     # 权限关联的角色
     roles = relationship("Role", secondary="role_permissions", back_populates="permissions")
+    # 权限关联的资源
+    resources = relationship("Resource", secondary="resource_permissions", back_populates="permissions")
+
+
+class Resource(BaseModel):
+    """资源表：API端点和菜单项"""
+    __tablename__ = "resources"
+    __table_args__ = {"comment": "资源表，存储API端点和菜单项"}
+    
+    id = Column(String(36), primary_key=True, default=resource_id, comment="资源ID")
+    name = Column(String(100), unique=True, index=True, nullable=False, comment="资源名称，如 menu:home, api:user:create")
+    display_name = Column(String(50), nullable=True, comment="资源显示名称")
+    description = Column(String(255), nullable=True, comment="资源描述")
+    resource_type = Column(String(20), nullable=False, comment="资源类型：api 或 menu")
+    resource_path = Column(String(255), nullable=False, comment="API路径或菜单路径")
+    http_method = Column(String(10), nullable=True, comment="HTTP方法：GET, POST, PUT, DELETE（仅API资源）")
+    parent_id = Column(String(36), ForeignKey("resources.id", ondelete="SET NULL"), nullable=True, comment="父资源ID（菜单层级）")
+    
+    is_active = Column(Boolean, default=True, comment="是否启用")
+    is_system = Column(Boolean, default=False, comment="是否系统资源")
+    priority = Column(Integer, default=0, comment="资源优先级")
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, comment="租户ID")
+    
+    # 资源关联的权限
+    permissions = relationship("Permission", secondary="resource_permissions", back_populates="resources")
+    # 子资源（菜单层级）
+    children = relationship("Resource", backref="parent", remote_side=[id])
 
 
 class User(BaseModel):

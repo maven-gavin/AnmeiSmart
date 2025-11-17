@@ -40,29 +40,10 @@ export const menuConfig: MenuConfig = {
       roles: ['doctor', 'consultant', 'customer', 'admin', 'operator']
     },    
     // 医生端菜单
-    {
-      id: 'patients-doctor',
-      label: '患者管理',
-      path: '/patients/doctor',
-      icon: 'patients-icon',
-      roles: ['doctor']
-    },
+    // 患者管理模块已移除
     
     // 顾问端菜单
-    {
-      id: 'simulation',
-      label: '术前模拟',
-      path: '/simulation',
-      icon: 'simulation-icon',
-      roles: ['consultant']
-    },
-    {
-      id: 'consultant-plan',
-      label: '方案推荐',
-      path: '/plan',
-      icon: 'plan-icon',
-      roles: ['consultant']
-    },
+    // 术前模拟与方案推荐模块已移除
     
     // 客户端菜单
     
@@ -86,6 +67,13 @@ export const menuConfig: MenuConfig = {
       label: '权限管理',
       path: '/admin/permissions',
       icon: 'permissions-icon',
+      roles: ['admin']
+    },
+    {
+      id: 'resources-admin',
+      label: '资源管理',
+      path: '/admin/resources',
+      icon: 'resources-icon',
       roles: ['admin']
     },
     {

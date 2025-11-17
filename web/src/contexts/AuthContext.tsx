@@ -141,6 +141,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
+  // 菜单资源同步（仅在开发环境或管理员登录时）
+  useEffect(() => {
+    const syncMenusIfNeeded = async () => {
+      if (!user) return;
+      
+      try {
+        const { syncMenuResources, shouldSyncMenuResources } = await import('@/utils/menuSync');
+        const isAdmin = user.roles?.some(role => role === 'admin' || role === 'administrator') || false;
+        
+        if (shouldSyncMenuResources(isAdmin)) {
+          // 异步同步，不阻塞UI
+          syncMenuResources().catch(err => {
+            console.warn('菜单资源同步失败（不影响使用）:', err);
+          });
+        }
+      } catch (err) {
+        // 菜单同步失败不应该影响应用运行
+        console.warn('菜单资源同步功能不可用:', err);
+      }
+    };
+    
+    syncMenusIfNeeded();
+  }, [user]);
+
   // 初始化认证状态
   useEffect(() => {
     const initAuth = async () => {
@@ -155,6 +179,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // 如果没有有效token但有存储的用户信息，清除用户信息
         if (!validToken && storedUser) {
           setUser(null);
+        } else if (validToken && storedUser) {
+          // 如果有有效token，刷新用户权限信息
+          authService.refreshUserPermissions().then(updatedUser => {
+            if (updatedUser) {
+              setUser(updatedUser);
+            }
+          }).catch(err => {
+            console.warn('刷新用户权限失败（不影响使用）:', err);
+          });
         }
       } catch (err) {
         console.error('初始化认证状态失败', err);

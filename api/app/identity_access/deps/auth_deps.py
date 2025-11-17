@@ -19,6 +19,8 @@ from app.identity_access.domain.role_permission_domain_service import RolePermis
 from app.identity_access.application.tenant_application_service import TenantApplicationService
 from app.identity_access.application.role_permission_application_service import RolePermissionApplicationService
 from app.identity_access.application.identity_access_application_service import IdentityAccessApplicationService
+from app.identity_access.domain.resource_domain_service import ResourceDomainService
+from app.identity_access.application.resource_application_service import ResourceApplicationService
 
 # 从用户依赖模块导入基础依赖
 from .user_deps import (
@@ -27,6 +29,7 @@ from .user_deps import (
     get_login_history_repository,
     get_tenant_repository,
     get_permission_repository,
+    get_resource_repository,
     get_user_domain_service,
     get_authentication_domain_service,
     get_permission_domain_service
@@ -92,6 +95,22 @@ def get_role_permission_application_service(
 ) -> RolePermissionApplicationService:
     """获取角色权限应用服务实例"""
     return RolePermissionApplicationService(role_permission_domain_service)
+
+
+def get_resource_domain_service(
+    resource_repository = Depends(get_resource_repository),
+    permission_repository = Depends(get_permission_repository)
+) -> ResourceDomainService:
+    """获取资源领域服务实例"""
+    from app.identity_access.domain.resource_domain_service import ResourceDomainService
+    return ResourceDomainService(resource_repository, permission_repository)
+
+
+def get_resource_application_service(
+    resource_domain_service: ResourceDomainService = Depends(get_resource_domain_service)
+) -> ResourceApplicationService:
+    """获取资源应用服务实例"""
+    return ResourceApplicationService(resource_domain_service)
 
 
 def get_identity_access_application_service(

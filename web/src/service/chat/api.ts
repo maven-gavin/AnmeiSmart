@@ -3,7 +3,7 @@
  * 统一管理聊天相关的后端API调用
  */
 
-import { apiClient } from '../apiClient';
+import { apiClient, ApiClientError } from '../apiClient';
 import { 
   Message, 
   Conversation, 
@@ -35,8 +35,16 @@ export class ChatApiService {
    * 获取会话列表
    */
   public static async getConversations(): Promise<Conversation[]> {
-    const response = await apiClient.get<ConversationApiResponse[]>(`${this.BASE_PATH}/conversations`);
-    return response.data ? ChatDataMapper.mapConversations(response.data) : [];
+    try {
+      const response = await apiClient.get<ConversationApiResponse[]>(`${this.BASE_PATH}/conversations`);
+      return response.data ? ChatDataMapper.mapConversations(response.data) : [];
+    } catch (error) {
+      // 统一抛出可读错误，避免上层出现 {} 的错误对象
+      if (error instanceof ApiClientError) {
+        throw error;
+      }
+      throw new ApiClientError('获取会话列表失败', { status: 500 });
+    }
   }
   
   /**

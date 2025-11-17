@@ -49,6 +49,34 @@ async def lifespan(app: FastAPI):
         
         # WebSocket连接管理器会在需要时自动初始化
         logger.info("WebSocket分布式连接管理器将在需要时初始化")
+        
+        # 同步API资源到资源库
+        try:
+            from app.common.infrastructure.db.base import get_db
+            from app.identity_access.infrastructure.repositories.resource_repository import ResourceRepository
+            from app.identity_access.infrastructure.repositories.permission_repository import PermissionRepository
+            from app.identity_access.domain.resource_domain_service import ResourceDomainService
+            from app.identity_access.services.resource_sync_service import ResourceSyncService
+            
+            # 创建数据库会话
+            from app.common.infrastructure.db.base import SessionLocal
+            db = SessionLocal()
+            
+            try:
+                # 创建资源同步服务
+                resource_repository = ResourceRepository(db)
+                permission_repository = PermissionRepository(db)
+                resource_domain_service = ResourceDomainService(resource_repository, permission_repository)
+                resource_sync_service = ResourceSyncService(resource_domain_service)
+                
+                # 同步API资源
+                result = await resource_sync_service.sync_api_resources(app)
+                logger.info(f"API资源自动同步完成: {result}")
+            finally:
+                db.close()
+        except Exception as sync_error:
+            # 资源同步失败不应该阻止应用启动
+            logger.warning(f"API资源自动同步失败（不影响应用启动）: {sync_error}")
     
     except Exception as e:
         logger.error(f"应用启动初始化失败: {e}")

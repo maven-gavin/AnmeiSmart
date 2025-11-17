@@ -19,11 +19,14 @@ from app.identity_access.schemas.tenant_schemas import (
     TenantStatisticsResponse
 )
 from app.identity_access.domain.value_objects.tenant_status import TenantStatus
+from app.core.api import ApiResponse, BusinessException, ErrorCode, SystemException
 
 router = APIRouter(prefix="/tenants", tags=["租户管理"])
 
+def _handle_unexpected_error(message: str, exc: Exception) -> SystemException:
+    return SystemException(message=message, code=ErrorCode.SYSTEM_ERROR)
 
-@router.get("", response_model=TenantListResponse)
+@router.get("", response_model=ApiResponse[TenantListResponse])
 async def list_tenants(
     tenant_status: Optional[str] = Query(None, alias="status", description="租户状态筛选"),
     tenant_type: Optional[str] = Query(None, description="租户类型筛选"),
@@ -38,42 +41,38 @@ async def list_tenants(
     try:
         # 权限检查：只有系统管理员可以查看所有租户
         if not await identity_service.is_user_admin(str(current_user.id)):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="权限不足：需要系统管理员权限"
+            raise BusinessException(
+                message="权限不足：需要系统管理员权限",
+                code=ErrorCode.PERMISSION_DENIED,
+                status_code=status.HTTP_403_FORBIDDEN
             )
         
-        # 使用正确的方法名，传递 tenant_status 参数（避免与 status 模块冲突）
         all_tenants = await tenant_service.list_tenants(status=tenant_status)
         
-        # 筛选租户类型
         tenants = all_tenants
         if tenant_type:
             tenants = [t for t in tenants if t.get('tenant_type') == tenant_type]
         
-        # 分页
         total = len(tenants)
         tenants = tenants[skip:skip + limit]
-        
-        # 转换为 TenantResponse
         tenant_responses = [TenantResponse(**t) for t in tenants]
         
-        return TenantListResponse(
-            tenants=tenant_responses,
-            total=total,
-            skip=skip,
-            limit=limit
+        return ApiResponse.success(
+            data=TenantListResponse(
+                tenants=tenant_responses,
+                total=total,
+                skip=skip,
+                limit=limit
+            ),
+            message="获取租户列表成功"
         )
-    except HTTPException:
+    except BusinessException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取租户列表失败: {str(e)}"
-        )
+        raise _handle_unexpected_error("获取租户列表失败", e)
 
 
-@router.get("/{tenant_id}", response_model=TenantResponse)
+@router.get("/{tenant_id}", response_model=ApiResponse[TenantResponse])
 async def get_tenant(
     tenant_id: str,
     current_user: User = Depends(get_current_user),
@@ -83,34 +82,31 @@ async def get_tenant(
 ):
     """获取租户详情"""
     try:
-        # 权限检查：系统管理员或租户管理员
         user_tenant_id = getattr(current_user, 'tenantId', None) or getattr(current_user, 'tenant_id', None)
         if not await identity_service.is_user_admin(str(current_user.id)):
             if user_tenant_id != tenant_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="权限不足：只能查看自己租户的信息"
+                raise BusinessException(
+                    message="权限不足：只能查看自己租户的信息",
+                    code=ErrorCode.PERMISSION_DENIED,
+                    status_code=status.HTTP_403_FORBIDDEN
                 )
         
         tenant_dict = await tenant_service.get_tenant(tenant_id)
         if not tenant_dict:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="租户不存在"
+            raise BusinessException(
+                message="租户不存在",
+                code=ErrorCode.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND
             )
         
-        # 转换为 TenantResponse
-        return TenantResponse(**tenant_dict)
-    except HTTPException:
+        return ApiResponse.success(data=TenantResponse(**tenant_dict), message="获取租户详情成功")
+    except BusinessException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取租户详情失败: {str(e)}"
-        )
+        raise _handle_unexpected_error("获取租户详情失败", e)
 
 
-@router.post("", response_model=TenantResponse)
+@router.post("", response_model=ApiResponse[TenantResponse])
 async def create_tenant(
     tenant_data: TenantCreate,
     current_user: User = Depends(get_current_user),
@@ -120,11 +116,11 @@ async def create_tenant(
 ):
     """创建新租户"""
     try:
-        # 权限检查：只有系统管理员可以创建租户
         if not await identity_service.is_user_admin(str(current_user.id)):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="权限不足：需要系统管理员权限"
+            raise BusinessException(
+                message="权限不足：需要系统管理员权限",
+                code=ErrorCode.PERMISSION_DENIED,
+                status_code=status.HTTP_403_FORBIDDEN
             )
         
         tenant_dict = await tenant_service.create_tenant(
@@ -142,21 +138,16 @@ async def create_tenant(
             contact_phone=tenant_data.contact_phone
         )
         
-        # 转换为 TenantResponse
-        return TenantResponse(**tenant_dict)
+        return ApiResponse.success(data=TenantResponse(**tenant_dict), message="创建租户成功")
+    except BusinessException:
+        raise
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise BusinessException(str(e), code=ErrorCode.VALIDATION_ERROR, status_code=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"创建租户失败: {str(e)}"
-        )
+        raise _handle_unexpected_error("创建租户失败", e)
 
 
-@router.put("/{tenant_id}", response_model=TenantResponse)
+@router.put("/{tenant_id}", response_model=ApiResponse[TenantResponse])
 async def update_tenant(
     tenant_id: str,
     tenant_data: TenantUpdate,
@@ -167,16 +158,15 @@ async def update_tenant(
 ):
     """更新租户信息"""
     try:
-        # 权限检查：系统管理员或租户管理员
         user_tenant_id = getattr(current_user, 'tenantId', None) or getattr(current_user, 'tenant_id', None)
         if not await identity_service.is_user_admin(str(current_user.id)):
             if user_tenant_id != tenant_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="权限不足：只能更新自己租户的信息"
+                raise BusinessException(
+                    message="权限不足：只能更新自己租户的信息",
+                    code=ErrorCode.PERMISSION_DENIED,
+                    status_code=status.HTTP_403_FORBIDDEN
                 )
         
-        # 更新租户信息（包含基本信息和联系信息）
         tenant_dict = await tenant_service.update_tenant(
             tenant_id=tenant_id,
             name=tenant_data.name,
@@ -194,28 +184,22 @@ async def update_tenant(
         )
         
         if not tenant_dict:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="租户不存在"
+            raise BusinessException(
+                message="租户不存在",
+                code=ErrorCode.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND
             )
         
-        # 转换为 TenantResponse
-        return TenantResponse(**tenant_dict)
-    except HTTPException:
+        return ApiResponse.success(data=TenantResponse(**tenant_dict), message="更新租户成功")
+    except BusinessException:
         raise
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise BusinessException(str(e), code=ErrorCode.VALIDATION_ERROR, status_code=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"更新租户失败: {str(e)}"
-        )
+        raise _handle_unexpected_error("更新租户失败", e)
 
 
-@router.delete("/{tenant_id}")
+@router.delete("/{tenant_id}", response_model=ApiResponse[dict])
 async def delete_tenant(
     tenant_id: str,
     current_user: User = Depends(get_current_user),
@@ -225,36 +209,31 @@ async def delete_tenant(
 ):
     """删除租户"""
     try:
-        # 权限检查：只有系统管理员可以删除租户
         if not await identity_service.is_user_admin(str(current_user.id)):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="权限不足：需要系统管理员权限"
+            raise BusinessException(
+                message="权限不足：需要系统管理员权限",
+                code=ErrorCode.PERMISSION_DENIED,
+                status_code=status.HTTP_403_FORBIDDEN
             )
         
         success = await tenant_service.delete_tenant(tenant_id)
         if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="租户不存在"
+            raise BusinessException(
+                message="租户不存在",
+                code=ErrorCode.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND
             )
         
-        return {"message": "租户删除成功"}
-    except HTTPException:
+        return ApiResponse.success(data={"message": "租户删除成功"})
+    except BusinessException:
         raise
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise BusinessException(str(e), code=ErrorCode.VALIDATION_ERROR, status_code=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"删除租户失败: {str(e)}"
-        )
+        raise _handle_unexpected_error("删除租户失败", e)
 
 
-@router.post("/{tenant_id}/activate")
+@router.post("/{tenant_id}/activate", response_model=ApiResponse[dict])
 async def activate_tenant(
     tenant_id: str,
     current_user: User = Depends(get_current_user),
@@ -264,36 +243,31 @@ async def activate_tenant(
 ):
     """激活租户"""
     try:
-        # 权限检查：只有系统管理员可以激活租户
         if not await identity_service.is_user_admin(str(current_user.id)):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="权限不足：需要系统管理员权限"
+            raise BusinessException(
+                message="权限不足：需要系统管理员权限",
+                code=ErrorCode.PERMISSION_DENIED,
+                status_code=status.HTTP_403_FORBIDDEN
             )
         
         success = await tenant_service.activate_tenant(tenant_id)
         if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="租户不存在"
+            raise BusinessException(
+                message="租户不存在",
+                code=ErrorCode.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND
             )
         
-        return {"message": "租户激活成功"}
-    except HTTPException:
+        return ApiResponse.success(data={"message": "租户激活成功"})
+    except BusinessException:
         raise
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise BusinessException(str(e), code=ErrorCode.VALIDATION_ERROR, status_code=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"激活租户失败: {str(e)}"
-        )
+        raise _handle_unexpected_error("激活租户失败", e)
 
 
-@router.post("/{tenant_id}/deactivate")
+@router.post("/{tenant_id}/deactivate", response_model=ApiResponse[dict])
 async def deactivate_tenant(
     tenant_id: str,
     current_user: User = Depends(get_current_user),
@@ -303,36 +277,31 @@ async def deactivate_tenant(
 ):
     """停用租户"""
     try:
-        # 权限检查：只有系统管理员可以停用租户
         if not await identity_service.is_user_admin(str(current_user.id)):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="权限不足：需要系统管理员权限"
+            raise BusinessException(
+                message="权限不足：需要系统管理员权限",
+                code=ErrorCode.PERMISSION_DENIED,
+                status_code=status.HTTP_403_FORBIDDEN
             )
         
         success = await tenant_service.deactivate_tenant(tenant_id)
         if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="租户不存在"
+            raise BusinessException(
+                message="租户不存在",
+                code=ErrorCode.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND
             )
         
-        return {"message": "租户停用成功"}
-    except HTTPException:
+        return ApiResponse.success(data={"message": "租户停用成功"})
+    except BusinessException:
         raise
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise BusinessException(str(e), code=ErrorCode.VALIDATION_ERROR, status_code=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"停用租户失败: {str(e)}"
-        )
+        raise _handle_unexpected_error("停用租户失败", e)
 
 
-@router.get("/{tenant_id}/statistics", response_model=TenantStatisticsResponse)
+@router.get("/{tenant_id}/statistics", response_model=ApiResponse[TenantStatisticsResponse])
 async def get_tenant_statistics(
     tenant_id: str,
     current_user: User = Depends(get_current_user),
@@ -342,27 +311,25 @@ async def get_tenant_statistics(
 ):
     """获取租户统计信息"""
     try:
-        # 权限检查：系统管理员或租户管理员
         user_tenant_id = getattr(current_user, 'tenantId', None) or getattr(current_user, 'tenant_id', None)
         if not await identity_service.is_user_admin(str(current_user.id)):
             if user_tenant_id != tenant_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="权限不足：只能查看自己租户的统计信息"
+                raise BusinessException(
+                    message="权限不足：只能查看自己租户的统计信息",
+                    code=ErrorCode.PERMISSION_DENIED,
+                    status_code=status.HTTP_403_FORBIDDEN
                 )
         
         statistics = await tenant_service.get_tenant_statistics(tenant_id)
         if not statistics:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="租户不存在"
+            raise BusinessException(
+                message="租户不存在",
+                code=ErrorCode.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND
             )
         
-        return statistics
-    except HTTPException:
+        return ApiResponse.success(data=TenantStatisticsResponse(**statistics), message="获取租户统计信息成功")
+    except BusinessException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取租户统计信息失败: {str(e)}"
-        )
+        raise _handle_unexpected_error("获取租户统计信息失败", e)

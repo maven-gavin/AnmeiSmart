@@ -134,6 +134,11 @@ class AuthService {
 
       userStorage.setUser(authUser);
 
+      // 异步获取用户权限（不阻塞登录流程）
+      this.refreshUserPermissions().catch(err => {
+        console.warn('获取用户权限失败（不影响登录）:', err);
+      });
+
       return { user: authUser, token: tokenData.access_token };
     } catch (error) {
       if (error instanceof ApiClientError) {
@@ -383,7 +388,7 @@ class AuthService {
         return null;
       }
 
-      const response = await apiClient.get<PermissionSummaryResponse>(`/api/v1/users/${targetUserId}/permissions/summary`);
+      const response = await apiClient.get<PermissionSummaryResponse>(`/users/${targetUserId}/permissions/summary`);
       return response.data ?? null;
     } catch (error) {
       console.error('获取用户权限摘要失败:', error);
@@ -401,7 +406,7 @@ class AuthService {
         return false;
       }
 
-      const response = await apiClient.get<PermissionCheckResponse>(`/api/v1/users/${targetUserId}/permissions/check`, {
+      const response = await apiClient.get<PermissionCheckResponse>(`/users/${targetUserId}/permissions/check`, {
         params: { permission }
       });
       return Boolean(response.data?.has_permission);
@@ -421,7 +426,7 @@ class AuthService {
         return false;
       }
 
-      const response = await apiClient.get<RoleCheckResponse>(`/api/v1/users/${targetUserId}/roles/check`, {
+      const response = await apiClient.get<RoleCheckResponse>(`/users/${targetUserId}/roles/check`, {
         params: { role }
       });
       return Boolean(response.data?.has_role);
@@ -441,7 +446,7 @@ class AuthService {
         return false;
       }
 
-      const response = await apiClient.get<AdminCheckResponse>(`/api/v1/users/${targetUserId}/admin/check`);
+      const response = await apiClient.get<AdminCheckResponse>(`/users/${targetUserId}/admin/check`);
       return Boolean(response.data?.is_admin);
     } catch (error) {
       console.error('管理员权限检查失败:', error);
@@ -459,7 +464,7 @@ class AuthService {
         return [];
       }
 
-      const response = await apiClient.get<UserPermissionsResponse>(`/api/v1/users/${targetUserId}/permissions`);
+      const response = await apiClient.get<UserPermissionsResponse>(`/users/${targetUserId}/permissions`);
       return response.data?.permissions ?? [];
     } catch (error) {
       console.error('获取用户权限列表失败:', error);
@@ -477,7 +482,7 @@ class AuthService {
         return [];
       }
 
-      const response = await apiClient.get<UserRolesResponse>(`/api/v1/users/${targetUserId}/roles`);
+      const response = await apiClient.get<UserRolesResponse>(`/users/${targetUserId}/roles`);
       return response.data?.roles ?? [];
     } catch (error) {
       console.error('获取用户角色列表失败:', error);
@@ -497,10 +502,15 @@ class AuthService {
 
       const permissionSummary = await this.getUserPermissionSummary();
       if (permissionSummary) {
+        // 保留原始角色信息（可能包含administrator），同时normalize用于显示
+        const originalRoles = permissionSummary.roles || [];
+        const normalizedRoles = normalizeRoles(originalRoles);
+        
         const updatedUser: AuthUser = {
           ...currentUser,
+          roles: normalizedRoles, // 使用normalized后的角色用于显示
           permissions: permissionSummary.permissions,
-          isAdmin: permissionSummary.isAdmin,
+          isAdmin: permissionSummary.isAdmin, // 优先使用API返回的isAdmin字段
           tenantId: permissionSummary.tenantId
         };
 

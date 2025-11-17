@@ -1,12 +1,11 @@
 from fastapi import APIRouter
-from app.identity_access.endpoints import users,auth,roles,preferences,tenants,permissions,user_permissions
+from app.identity_access.endpoints import users,auth,roles,preferences,tenants,permissions,resources
 from app.chat.endpoints import  chat
 from app.ai.endpoints import ai_gateway, agent_config, agent_chat
 from app.system.endpoints import  system
 from app.customer.endpoints import  customer
 from app.websocket.endpoints import  websocket
 from app.common.endpoints import  files
-from app.consultation.endpoints import  consultation
 from app.contacts.endpoints import  contacts
 from app.mcp.endpoints import  mcp_config,mcp_server,mcp_oauth
 from app.digital_humans.endpoints import  digital_humans,admin_digital_humans
@@ -29,8 +28,10 @@ api_router.include_router(tenants.router, tags=["tenants"])
 # 权限管理路由（router内部已定义prefix）
 api_router.include_router(permissions.router, tags=["permissions"])
 
-# 用户权限检查路由
-api_router.include_router(user_permissions.router, prefix="/users", tags=["user-permissions"])
+# 资源管理路由（router内部已定义prefix）
+api_router.include_router(resources.router, tags=["resources"])
+
+# 用户权限检查路由已合并入 users 路由
 
 # WebSocket连接路由 (注意：WebSocket端点不需要prefix)
 api_router.include_router(websocket.router, tags=["websocket"])
@@ -38,8 +39,6 @@ api_router.include_router(websocket.router, tags=["websocket"])
 # 聊天系统路由
 api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
 
-# 咨询业务路由（整合咨询会话、总结、方案管理、方案生成等所有咨询相关功能）
-api_router.include_router(consultation.router, prefix="/consultation", tags=["consultation"])
 
 # 文件上传路由
 api_router.include_router(files.router, prefix="/files", tags=["files"])
