@@ -73,6 +73,81 @@ class RolePermissionDomainService:
         """获取所有系统角色"""
         return await self.role_repository.list_system_roles()
     
+    async def update_role(
+        self,
+        role_id: str,
+        name: Optional[str] = None,
+        display_name: Optional[str] = None,
+        description: Optional[str] = None,
+        is_active: Optional[bool] = None,
+        is_system: Optional[bool] = None,
+        is_admin: Optional[bool] = None,
+        priority: Optional[int] = None
+    ) -> RoleEntity:
+        """更新角色"""
+        from datetime import datetime
+        
+        role = await self.role_repository.get_by_id(role_id)
+        if not role:
+            raise ValueError("角色不存在")
+
+        # 检查名称唯一性
+        if name is not None and name != role.name:
+            normalized_name = name.strip()
+            if not normalized_name:
+                raise ValueError("角色名称不能为空")
+                
+            if role.isSystem:
+                raise ValueError("系统角色名称不可修改")
+            
+            existing_role = await self.role_repository.get_by_name(normalized_name)
+            if existing_role and existing_role.id != role.id:
+                raise ValueError(f"角色名称 '{normalized_name}' 已存在")
+            role.name = normalized_name
+
+        if display_name is not None:
+            role.displayName = display_name.strip() if display_name.strip() else role.name
+        
+        if description is not None:
+            role.description = description.strip() or None
+            
+        if is_active is not None:
+            if not is_active and role.isSystem:
+                raise ValueError("系统角色必须保持启用状态")
+            role.isActive = is_active
+            
+        if is_system is not None:
+            # 如果尝试更改系统角色状态，需要额外检查（通常不允许随意更改）
+            role.isSystem = is_system
+            
+        if is_admin is not None:
+            role.isAdmin = is_admin
+            
+        if priority is not None:
+            if priority < 0:
+                raise ValueError("角色优先级不能为负数")
+            role.priority = priority
+            
+        role.updatedAt = datetime.utcnow()
+        
+        # 保存更新
+        updated_role = await self.role_repository.save(role)
+        logger.info(f"更新角色: {role.name} (ID: {role.id})")
+        return updated_role
+
+    async def delete_role(self, role_id: str) -> bool:
+        """删除角色"""
+        role = await self.role_repository.get_by_id(role_id)
+        if not role:
+            raise ValueError("角色不存在")
+            
+        if role.isSystem:
+            raise ValueError("不能删除系统基础角色")
+            
+        await self.role_repository.delete(role_id)
+        logger.info(f"删除角色: {role.name} (ID: {role.id})")
+        return True
+
     # ==================== 权限管理 ====================
     
     async def create_permission(

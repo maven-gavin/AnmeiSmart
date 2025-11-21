@@ -112,6 +112,56 @@ class RolePermissionApplicationService:
         except Exception as e:
             logger.error(f"获取角色列表失败: {str(e)}", exc_info=True)
             raise
+
+    async def update_role(
+        self,
+        role_id: str,
+        name: Optional[str] = None,
+        display_name: Optional[str] = None,
+        description: Optional[str] = None,
+        is_active: Optional[bool] = None,
+        is_system: Optional[bool] = None,
+        is_admin: Optional[bool] = None,
+        priority: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """更新角色用例"""
+        try:
+            role = await self.role_permission_domain_service.update_role(
+                role_id=role_id,
+                name=name,
+                display_name=display_name,
+                description=description,
+                is_active=is_active,
+                is_system=is_system,
+                is_admin=is_admin,
+                priority=priority
+            )
+            
+            return {
+                "id": role.id,
+                "name": role.name,
+                "display_name": role.displayName,
+                "description": role.description,
+                "is_active": role.isActive,
+                "is_system": role.isSystem,
+                "is_admin": role.isAdmin,
+                "priority": role.priority,
+                "tenant_id": role.tenantId,
+                "created_at": role.createdAt.isoformat(),
+                "updated_at": role.updatedAt.isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"更新角色失败: {str(e)}", exc_info=True)
+            raise
+
+    async def delete_role(self, role_id: str) -> bool:
+        """删除角色用例"""
+        try:
+            return await self.role_permission_domain_service.delete_role(role_id)
+        except Exception as e:
+            logger.error(f"删除角色失败: {str(e)}", exc_info=True)
+            raise
     
     # ==================== 权限管理用例 ====================
     

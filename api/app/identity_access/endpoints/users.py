@@ -52,6 +52,7 @@ async def create_user(
 async def read_users(
     skip: int = 0,
     limit: int = 100,
+    search: Optional[str] = Query(None, description="搜索关键词"),
     current_user: User = Depends(get_current_user),
     identity_access_service: IdentityAccessApplicationService = Depends(get_identity_access_application_service)
 ) -> ApiResponse[List[UserResponse]]:
@@ -72,7 +73,11 @@ async def read_users(
                 status_code=status.HTTP_403_FORBIDDEN,
             )
         
-        users = await identity_access_service.get_users_list(skip=skip, limit=limit)
+        filters = {}
+        if search:
+            filters["search"] = search
+            
+        users = await identity_access_service.get_users_list(skip=skip, limit=limit, filters=filters)
         return ApiResponse.success(users, message="获取用户列表成功")
     except BusinessException:
         raise

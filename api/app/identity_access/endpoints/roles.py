@@ -128,8 +128,7 @@ async def read_role(
 
     需要登录
     """
-    roles = await identity_access_service.get_all_roles()
-    role = next((r for r in roles if r.id == role_id), None)
+    role = await identity_access_service.get_role_by_id(role_id)
     if not role:
         raise BusinessException(
             "角色不存在",
@@ -180,7 +179,6 @@ async def update_role(
 )
 async def delete_role(
     role_id: str,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     identity_access_service: IdentityAccessApplicationService = Depends(
         get_identity_access_application_service
@@ -201,21 +199,9 @@ async def delete_role(
             status_code=status.HTTP_403_FORBIDDEN,
         )
 
-    roles = await identity_access_service.get_all_roles()
-    role = next((r for r in roles if r.id == role_id), None)
-    if not role:
-        raise BusinessException(
-            "角色不存在",
-            code=ErrorCode.NOT_FOUND,
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
-
-    if getattr(role, "is_system", False):
-        raise BusinessException("不能删除系统基础角色")
-
-    db_role = db.query(Role).filter(Role.id == role_id).first()
-    if db_role:
-        db.delete(db_role)
-        db.commit()
+    try:
+        await identity_access_service.delete_role(role_id)
+    except ValueError as exc:
+        raise BusinessException(str(exc))
 
     return ApiResponse.success(True, message="删除角色成功")
