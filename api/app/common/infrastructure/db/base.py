@@ -54,7 +54,9 @@ def with_db(func: F) -> F:
 def init_db():
     """初始化数据库，通过导入各领域模型确保映射完整"""
     # 导入各领域的模型初始化文件，确保SQLAlchemy可以正确建立关系映射
-    import app.identity_access.infrastructure.db
+    # import app.identity_access.infrastructure.db # 已迁移到models
+    import app.identity_access.models.user
+    import app.identity_access.models.profile
     import app.chat.infrastructure.db
     import app.contacts.infrastructure.db
     import app.digital_humans.infrastructure.db
@@ -72,7 +74,7 @@ def init_db():
 # 创建初始角色
 @with_db
 def create_initial_roles(db: Session):
-    from app.identity_access.infrastructure.db.user import Role
+    from app.identity_access.models.user import Role
     from app.common.infrastructure.db.uuid_utils import role_id
     
     # 角色列表

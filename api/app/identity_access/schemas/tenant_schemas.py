@@ -8,8 +8,8 @@ from typing import Optional, List
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 
-from app.identity_access.domain.value_objects.tenant_status import TenantStatus
-from app.identity_access.domain.value_objects.tenant_type import TenantType
+from app.identity_access.enums import TenantStatus
+from app.identity_access.enums import TenantType
 
 
 def to_camel(string: str) -> str:

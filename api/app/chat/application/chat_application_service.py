@@ -6,7 +6,7 @@
 import logging
 from typing import List, Optional, Dict, Any, Union
 
-from app.identity_access.infrastructure.db.user import User
+from app.identity_access.models.user import User
 from app.chat.schemas.chat import (
     ConversationInfo, MessageInfo, ConversationCreate,
     MessageCreateRequest, CreateTextMessageRequest, CreateMediaMessageRequest,

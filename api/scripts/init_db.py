@@ -22,7 +22,7 @@ def init_db():
     try:
         # 导入所有模型以确保它们被包含在Base.metadata中
         from app.common.infrastructure.db.base_model import BaseModel
-        from app.identity_access.infrastructure.db.user import User, Role
+        from app.identity_access.models.user import User, Role
         from app.customer.infrastructure.db.customer import Customer, CustomerProfile
         from app.chat.infrastructure.db.chat import Conversation, Message
         from app.system.infrastructure.db.system import SystemSettings, AIModelConfig
@@ -40,7 +40,7 @@ def create_initial_roles():
     try:
         # 导入角色相关模块
         from app.db.base import SessionLocal
-        from app.identity_access.infrastructure.db.user import Role
+        from app.identity_access.models.user import Role
         from app.db.uuid_utils import role_id
         
         # 创建数据库会话

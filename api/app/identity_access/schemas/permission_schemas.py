@@ -8,8 +8,8 @@ from typing import Optional, List
 from datetime import datetime
 from pydantic import BaseModel, Field
 
-from app.identity_access.domain.value_objects.permission_type import PermissionType
-from app.identity_access.domain.value_objects.permission_scope import PermissionScope
+from app.identity_access.enums import PermissionType
+from app.identity_access.enums import PermissionScope
 
 
 class PermissionBase(BaseModel):

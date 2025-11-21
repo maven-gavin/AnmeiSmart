@@ -41,7 +41,7 @@ class DigitalHuman(BaseModel):
     last_active_at = Column(DateTime(timezone=True), nullable=True, comment="最后活跃时间")
     
     # 关联关系
-    user = relationship("app.identity_access.infrastructure.db.user.User", back_populates="digital_humans")
+    user = relationship("app.identity_access.models.user.User", back_populates="digital_humans")
     agent_configs = relationship("app.digital_humans.infrastructure.db.digital_human.DigitalHumanAgentConfig", back_populates="digital_human", cascade="all, delete-orphan")
     
     def __repr__(self):
@@ -121,8 +121,8 @@ class ConsultationRecord(BaseModel):
     
     # 关联关系
     conversation = relationship("app.chat.infrastructure.db.chat.Conversation")
-    customer = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[customer_id])
-    consultant = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[consultant_id])
+    customer = relationship("app.identity_access.models.user.User", foreign_keys=[customer_id])
+    consultant = relationship("app.identity_access.models.user.User", foreign_keys=[consultant_id])
     digital_human = relationship("app.digital_humans.infrastructure.db.digital_human.DigitalHuman", foreign_keys=[digital_human_id])
     
     def __repr__(self):

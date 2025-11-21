@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.common.infrastructure.db.base import get_db
 from app.identity_access.deps import get_current_user
-from app.identity_access.infrastructure.db.user import User
+from app.identity_access.models.user import User
 from app.ai.ai_gateway_service import get_ai_gateway_service
 from app.ai.interfaces import AIScenario
 

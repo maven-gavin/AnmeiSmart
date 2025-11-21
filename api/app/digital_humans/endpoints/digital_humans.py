@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.common.deps import get_db
 from app.identity_access.deps import get_current_user
-from app.identity_access.infrastructure.db.user import User
+from app.identity_access.models.user import User
 from ..schemas.digital_human import (
     DigitalHumanResponse,
     CreateDigitalHumanRequest,

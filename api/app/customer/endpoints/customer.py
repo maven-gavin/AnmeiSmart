@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.common.deps import get_db
 from app.identity_access.deps import get_current_user
-from app.identity_access.infrastructure.db.user import User, Role
+from app.identity_access.models.user import User, Role
 from app.customer.deps.customer import get_customer_application_service
 from app.customer.application.customer_application_service import CustomerApplicationService
 from app.customer.schemas.customer import (

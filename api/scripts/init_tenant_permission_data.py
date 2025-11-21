@@ -16,13 +16,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.orm import Session
 from app.common.infrastructure.db.base import get_db
-from app.identity_access.infrastructure.db.user import Tenant, Role, Permission, User
-from app.identity_access.domain.entities.role import RoleEntity
-from app.identity_access.domain.entities.permission import PermissionEntity
-from app.identity_access.domain.value_objects.tenant_status import TenantStatus
-from app.identity_access.domain.value_objects.tenant_type import TenantType
-from app.identity_access.domain.value_objects.permission_type import PermissionType
-from app.identity_access.domain.value_objects.permission_scope import PermissionScope
+from app.identity_access.models.user import Tenant, Role, Permission, User
+from app.identity_access.enums import TenantStatus, TenantType, PermissionType, PermissionScope
 
 
 class TenantPermissionDataInitializer:

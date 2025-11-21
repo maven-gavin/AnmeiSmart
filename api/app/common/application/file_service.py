@@ -215,7 +215,7 @@ class FileService:
     def _is_admin(self, user_id: str, db: Session = None) -> bool:
         """检查用户是否为管理员"""
         try:
-            from app.identity_access.infrastructure.db.user import User
+            from app.identity_access.models.user import User
             
             user = db.query(User).filter(User.id == user_id).first()
             return user and user.role == 'admin'

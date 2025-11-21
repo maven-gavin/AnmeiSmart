@@ -15,7 +15,7 @@ class Customer(BaseModel):
     preferences = Column(Text, nullable=True, comment="偏好")
     
     # 关联到基础用户表
-    user = relationship("app.identity_access.infrastructure.db.user.User", back_populates="customer")
+    user = relationship("app.identity_access.models.user.User", back_populates="customer")
     
     # 关联到客户档案
     profile = relationship("app.customer.infrastructure.db.customer.CustomerProfile", back_populates="customer", uselist=False, cascade="all, delete-orphan")

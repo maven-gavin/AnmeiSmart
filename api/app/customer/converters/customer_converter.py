@@ -5,7 +5,7 @@ from typing import List, Optional, Dict, Any
 
 from app.customer.domain.entities.customer import CustomerEntity
 from app.customer.schemas.customer import CustomerInfo, CustomerBase
-from app.identity_access.infrastructure.db.user import User
+from app.identity_access.models.user import User
 
 
 class CustomerConverter:

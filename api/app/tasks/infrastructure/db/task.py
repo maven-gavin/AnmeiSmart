@@ -49,8 +49,8 @@ class PendingTask(BaseModel):
     notes = Column(Text, nullable=True, comment="处理备注")
     
     # 关联关系
-    created_by_user = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[created_by], overlaps="created_tasks")
-    assigned_to_user = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[assigned_to], overlaps="assigned_tasks")
+    created_by_user = relationship("app.identity_access.models.user.User", foreign_keys=[created_by], overlaps="created_tasks")
+    assigned_to_user = relationship("app.identity_access.models.user.User", foreign_keys=[assigned_to], overlaps="assigned_tasks")
     
     def __repr__(self):
         return f"<PendingTask(id={self.id}, type={self.task_type}, status={self.status})>"

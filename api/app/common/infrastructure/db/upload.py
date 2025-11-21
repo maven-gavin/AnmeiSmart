@@ -10,7 +10,7 @@ from app.common.infrastructure.db.uuid_utils import message_id
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from app.identity_access.infrastructure.db.user import User
+    from app.identity_access.models.user import User
     from app.chat.infrastructure.db.message_attachment import MessageAttachment
 
 

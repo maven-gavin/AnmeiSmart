@@ -15,7 +15,7 @@ from app.common.infrastructure.db.base import Base
 
 # 导入所有模型确保元数据完整
 # 通过导入各领域模块来确保SQLAlchemy可以正确建立关系映射
-import app.identity_access.infrastructure.db
+import app.identity_access.models.user
 import app.chat.infrastructure.db
 import app.contacts.infrastructure.db
 import app.digital_humans.infrastructure.db

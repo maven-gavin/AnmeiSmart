@@ -22,7 +22,7 @@ from app.mcp.schemas.mcp import (
     MCPToolUpdate
 )
 from app.identity_access.deps import get_current_admin
-from app.identity_access.infrastructure.db.user import User
+from app.identity_access.models.user import User
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

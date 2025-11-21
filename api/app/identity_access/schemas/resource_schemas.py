@@ -8,7 +8,7 @@ from typing import Optional, List
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
-from app.identity_access.domain.value_objects.resource_type import ResourceType
+from app.identity_access.enums import ResourceType
 
 
 def to_camel(string: str) -> str:

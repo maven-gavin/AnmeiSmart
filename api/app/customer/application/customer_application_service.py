@@ -53,7 +53,7 @@ class CustomerApplicationService:
                 raise ValueError("客户不存在")
             
             # 获取用户信息 - 延迟导入避免循环依赖
-            from app.identity_access.infrastructure.db.user import User
+            from app.identity_access.models.user import User
             user = self.customer_repository.db.query(User).filter(User.id == customer_id).first()
             if not user:
                 raise ValueError("用户不存在")
@@ -106,7 +106,7 @@ class CustomerApplicationService:
             saved_customer = await self.customer_repository.save(customer)
             
             # 获取用户信息
-            from app.identity_access.infrastructure.db.user import User
+            from app.identity_access.models.user import User
             user = self.customer_repository.db.query(User).filter(User.id == user_id).first()
             if not user:
                 raise ValueError("用户不存在")
@@ -152,7 +152,7 @@ class CustomerApplicationService:
             updated_customer = await self.customer_repository.save(customer)
             
             # 获取用户信息
-            from app.identity_access.infrastructure.db.user import User
+            from app.identity_access.models.user import User
             user = self.customer_repository.db.query(User).filter(User.id == user_id).first()
             if not user:
                 raise ValueError("用户不存在")
@@ -225,7 +225,7 @@ class CustomerApplicationService:
             saved_profile = await self.customer_profile_repository.save(profile)
             
             # 获取用户信息
-            from app.identity_access.infrastructure.db.user import User
+            from app.identity_access.models.user import User
             user = self.customer_profile_repository.db.query(User).filter(User.id == customer_id).first()
             if not user:
                 raise ValueError("用户不存在")
@@ -297,7 +297,7 @@ class CustomerApplicationService:
             updated_profile = await self.customer_profile_repository.save(profile)
             
             # 获取用户信息
-            from app.identity_access.infrastructure.db.user import User
+            from app.identity_access.models.user import User
             user = self.customer_profile_repository.db.query(User).filter(User.id == customer_id).first()
             if not user:
                 raise ValueError("用户不存在")

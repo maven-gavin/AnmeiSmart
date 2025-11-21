@@ -78,7 +78,7 @@ class TaskConverter:
     def _get_user_info(db: Session, user_id: str) -> Optional[UserInfo]:
         """获取用户信息"""
         try:
-            from app.identity_access.infrastructure.db.user import User
+            from app.identity_access.models.user import User
             
             user = db.query(User).filter(User.id == user_id).first()
             if user:

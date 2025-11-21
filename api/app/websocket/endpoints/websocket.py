@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.common.deps import get_db
 from app.identity_access.deps import verify_token
-from app.identity_access.infrastructure.db.user import User
+from app.identity_access.models.user import User
 from app.websocket import get_websocket_service_dependency
 
 logger = logging.getLogger(__name__)

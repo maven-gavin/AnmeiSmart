@@ -51,8 +51,8 @@ class Conversation(BaseModel):
     extra_metadata = Column(JSON, nullable=True, comment="附加元数据")
     
     # 关联关系
-    owner = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[owner_id], back_populates="owned_conversations")
-    first_participant = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[first_participant_id])
+    owner = relationship("app.identity_access.models.user.User", foreign_keys=[owner_id], back_populates="owned_conversations")
+    first_participant = relationship("app.identity_access.models.user.User", foreign_keys=[first_participant_id])
     messages = relationship("app.chat.infrastructure.db.chat.Message", back_populates="conversation", cascade="all, delete-orphan")
     participants = relationship("app.chat.infrastructure.db.chat.ConversationParticipant", back_populates="conversation", cascade="all, delete-orphan")
 
@@ -102,9 +102,9 @@ class Message(BaseModel):
 
     # 关联关系
     conversation = relationship("app.chat.infrastructure.db.chat.Conversation", back_populates="messages")
-    sender = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[sender_id])
+    sender = relationship("app.identity_access.models.user.User", foreign_keys=[sender_id])
     sender_digital_human = relationship("app.digital_humans.infrastructure.db.digital_human.DigitalHuman", foreign_keys=[sender_digital_human_id])
-    confirmed_by_user = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[confirmed_by])
+    confirmed_by_user = relationship("app.identity_access.models.user.User", foreign_keys=[confirmed_by])
     reply_to_message = relationship("app.chat.infrastructure.db.chat.Message", remote_side=[id], backref="replies")
     attachments = relationship("app.chat.infrastructure.db.message_attachment.MessageAttachment", back_populates="message", cascade="all, delete-orphan")
 
@@ -145,7 +145,7 @@ class ConversationParticipant(BaseModel):
     
     # 关联关系
     conversation = relationship("app.chat.infrastructure.db.chat.Conversation", back_populates="participants")
-    user = relationship("app.identity_access.infrastructure.db.user.User")
+    user = relationship("app.identity_access.models.user.User")
     digital_human = relationship("app.digital_humans.infrastructure.db.digital_human.DigitalHuman")
     
     def __repr__(self):

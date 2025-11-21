@@ -142,8 +142,8 @@ class PlanGenerationSession(BaseModel):
 
     # 关联关系
     conversation = relationship("app.chat.infrastructure.db.chat.Conversation", backref="plan_generation_sessions")
-    customer = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[customer_id], backref="customer_plan_sessions")
-    consultant = relationship("app.identity_access.infrastructure.db.user.User", foreign_keys=[consultant_id], backref="consultant_plan_sessions")
+    customer = relationship("app.identity_access.models.user.User", foreign_keys=[customer_id], backref="customer_plan_sessions")
+    consultant = relationship("app.identity_access.models.user.User", foreign_keys=[consultant_id], backref="consultant_plan_sessions")
     plan_drafts = relationship("app.consultation.infrastructure.db.plan_generation.PlanDraft", back_populates="session", cascade="all, delete-orphan", order_by="app.consultation.infrastructure.db.plan_generation.PlanDraft.version.desc()")
     info_completeness = relationship("app.consultation.infrastructure.db.plan_generation.InfoCompleteness", back_populates="session", uselist=False, cascade="all, delete-orphan")
 

@@ -3,7 +3,7 @@ from typing import Optional, List, TYPE_CHECKING
 
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
-from app.identity_access.domain.enums import AdminLevel
+from app.identity_access.enums import AdminLevel
 
 from app.customer.schemas.customer import CustomerBase
 

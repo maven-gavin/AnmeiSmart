@@ -6,7 +6,7 @@ import logging
 from typing import List
 
 from app.contacts.infrastructure.db.contacts import Friendship, ContactTag, ContactGroup, ContactGroupMember
-from app.identity_access.infrastructure.db.user import User
+from app.identity_access.models.user import User
 from app.contacts.schemas.contacts import (
     FriendshipResponse, ContactTagResponse, ContactGroupResponse,
     GroupMemberResponse, UserSearchResult

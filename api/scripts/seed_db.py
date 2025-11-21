@@ -22,8 +22,8 @@ from pathlib import Path
 
 try:
     from sqlalchemy.orm import Session
-    from app.identity_access.infrastructure.db.user import User, Role, Doctor, Consultant, Operator, Administrator
-    from app.identity_access.domain.enums import AdminLevel
+    from app.identity_access.models.user import User, Role, Doctor, Consultant, Operator, Administrator
+    from app.identity_access.enums import AdminLevel
     from app.customer.infrastructure.db.customer import Customer, CustomerProfile
     from app.db.base import get_db, engine
     # from app.services import user_service as crud_user  # 已重构为DDD架构，不再需要
