@@ -43,10 +43,13 @@ async def read_users(
 ) -> ApiResponse[UserListResponse]:
     """获取用户列表"""
     try:
+        # 获取用户列表和总数
         users = await user_service.get_users_list(skip=skip, limit=limit, search=search)
-        # 简单的统计，实际生产可能需要单独count查询
-        total = len(users) # 注意：这里分页了，total不准确，为了简单先这样，或者Service加count方法
-        return ApiResponse.success(UserListResponse(users=users, total=total, skip=skip, limit=limit), message="获取用户列表成功")
+        total = await user_service.count_users(search=search)
+        return ApiResponse.success(
+            UserListResponse(users=users, total=total, skip=skip, limit=limit), 
+            message="获取用户列表成功"
+        )
     except Exception as e:
         raise _handle_unexpected_error("获取用户列表失败", e)
 

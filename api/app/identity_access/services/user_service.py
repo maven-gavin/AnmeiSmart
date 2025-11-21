@@ -122,15 +122,13 @@ class UserService:
         self.db.commit()
         return True
 
-    async def get_users_list(
-        self, 
-        skip: int = 0, 
-        limit: int = 100, 
+    def _build_users_query(
+        self,
         search: Optional[str] = None,
         role: Optional[str] = None,
         is_active: Optional[bool] = None
-    ) -> List[User]:
-        """获取用户列表"""
+    ):
+        """构建用户查询，用于复用查询逻辑"""
         query = self.db.query(User)
         
         if is_active is not None:
@@ -148,7 +146,35 @@ class UserService:
                     User.phone.ilike(search_term)
                 )
             )
-            
+        
+        return query
+
+    async def count_users(
+        self,
+        search: Optional[str] = None,
+        role: Optional[str] = None,
+        is_active: Optional[bool] = None
+    ) -> int:
+        """统计用户总数（应用筛选条件后）"""
+        query = self._build_users_query(search=search, role=role, is_active=is_active)
+        # 如果有关联查询（如role），需要去重
+        if role:
+            return query.distinct().count()
+        return query.count()
+
+    async def get_users_list(
+        self, 
+        skip: int = 0, 
+        limit: int = 100, 
+        search: Optional[str] = None,
+        role: Optional[str] = None,
+        is_active: Optional[bool] = None
+    ) -> List[User]:
+        """获取用户列表"""
+        query = self._build_users_query(search=search, role=role, is_active=is_active)
+        # 如果有关联查询（如role），需要去重
+        if role:
+            query = query.distinct()
         return query.order_by(User.updated_at.desc()).offset(skip).limit(limit).all()
 
     async def change_password(self, user_id: str, password_data: ChangePasswordRequest) -> bool:
