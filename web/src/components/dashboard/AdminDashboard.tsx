@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import { WebSocketStatus } from '@/components/WebSocketStatus';
 import { useWebSocketByPage } from '@/hooks/useWebSocketByPage';
+import { authService, roleOptions } from '@/service/authService';
 import AppLayout from '../layout/AppLayout';
 
 interface AdminCard {
@@ -18,6 +19,7 @@ interface AdminCard {
 export default function AdminDashboard() {
   const { user } = useAuthContext();
   const router = useRouter();
+  const [roleDisplayName, setRoleDisplayName] = useState('管理员');
   
   // 使用页面级WebSocket架构
   const websocketState = useWebSocketByPage();
@@ -28,6 +30,28 @@ export default function AdminDashboard() {
       router.push('/unauthorized');
     }
   }, [user, router]);
+
+  useEffect(() => {
+    const fetchRoleInfo = async () => {
+      if (user?.currentRole) {
+        try {
+          const roles = await authService.getRoleDetails();
+          const currentRole = roles.find(r => r.name === user.currentRole);
+          if (currentRole?.displayName) {
+            setRoleDisplayName(currentRole.displayName);
+          } else {
+            const staticOption = roleOptions.find(r => r.id === user.currentRole);
+            if (staticOption) {
+              setRoleDisplayName(staticOption.name.replace('端', ''));
+            }
+          }
+        } catch (e) {
+          console.error('Failed to fetch role details', e);
+        }
+      }
+    };
+    fetchRoleInfo();
+  }, [user?.currentRole]);
 
   const adminCards: AdminCard[] = [
     {
@@ -77,7 +101,7 @@ export default function AdminDashboard() {
     <AppLayout requiredRole={user?.currentRole}>
     <div className="container mx-auto px-4 py-6">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800">管理员控制面板</h1>
+        <h1 className="text-2xl font-bold text-gray-800">{roleDisplayName}控制面板</h1>
         <WebSocketStatus 
           isConnected={websocketState.isConnected}
           connectionStatus={websocketState.connectionStatus}

@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import { authService, roleOptions } from '@/service/authService';
 import UserInfoBar from '@/components/chat/UserInfoBar'
-import { UserRole, AuthUser } from '@/types/auth';
+import { UserRole, AuthUser, Role } from '@/types/auth';
 
 export default function RoleHeader() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [roleDetails, setRoleDetails] = useState<Role[]>([]);
   const [isClient, setIsClient] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   
@@ -17,12 +18,30 @@ export default function RoleHeader() {
     const user = authService.getCurrentUser();
     if (user) {
       setCurrentUser(user);
+      // 获取动态角色详情
+      authService.getRoleDetails().then(roles => {
+        if (roles && roles.length > 0) {
+          setRoleDetails(roles);
+        }
+      });
     }
   }, []);
   
+  // 获取角色显示信息（优先使用动态详情，降级使用静态配置）
+  const getRoleDisplayInfo = (roleName: string) => {
+    const dynamicRole = roleDetails.find(r => r.name === roleName);
+    const staticOption = roleOptions.find(r => r.id === roleName);
+    
+    return {
+      name: dynamicRole?.displayName || staticOption?.name || roleName,
+      // 暂时保留静态路径映射，如果是未知角色则默认为 /home
+      path: staticOption?.path || '/home'
+    };
+  };
+
   // 获取当前角色信息
   const currentRole = currentUser?.currentRole;
-  const roleInfo = currentRole ? roleOptions.find(r => r.id === currentRole) : null;
+  const currentRoleInfo = currentRole ? getRoleDisplayInfo(currentRole) : null;
   
   // 检查用户是否有多个角色
   const hasMultipleRoles = currentUser?.roles && currentUser.roles.length > 1;
@@ -83,15 +102,15 @@ export default function RoleHeader() {
           />
           <h1 className="text-xl font-bold text-gray-800">安美智享</h1>
           
-          {/* 角色标识 - 只在客户端且有roleInfo时显示内容 */}
-          {isClient && roleInfo && (
+          {/* 角色标识 - 只在客户端且有currentRoleInfo时显示内容 */}
+          {isClient && currentRoleInfo && (
             <div className="ml-6 rounded-full bg-orange-100 px-3 py-1 text-sm font-medium text-orange-700">
-              {roleInfo.name}
+              {currentRoleInfo.name}
             </div>
           )}
           
           {/* 占位元素，保持布局一致 */}
-          {(!isClient || !roleInfo) && (
+          {(!isClient || !currentRoleInfo) && (
             <div className="ml-6 rounded-full bg-gray-100 px-3 py-1 text-sm font-medium text-gray-400">
               加载中...
             </div>
@@ -118,8 +137,7 @@ export default function RoleHeader() {
                   <div className="border-b border-gray-100 py-2">
                     <p className="px-4 py-1 text-xs text-gray-500">切换角色</p>
                     {currentUser.roles.map((role: UserRole) => {
-                      const roleInfo = roleOptions.find(r => r.id === role);
-                      if (!roleInfo) return null;
+                      const info = getRoleDisplayInfo(role);
                       
                       return (
                         <button
@@ -129,7 +147,7 @@ export default function RoleHeader() {
                             currentRole === role ? 'font-medium text-orange-500' : 'text-gray-700'
                           }`}
                         >
-                          {roleInfo.name}
+                          {info.name}
                         </button>
                       );
                     })}

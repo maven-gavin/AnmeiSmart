@@ -939,6 +939,33 @@ class IdentityAccessApplicationService(IIdentityAccessApplicationService):
         except Exception as e:
             logger.error(f"获取用户角色列表失败: {str(e)}", exc_info=True)
             return []
+            
+    async def get_user_role_details(self, user_id: str) -> List[RoleResponse]:
+        """获取用户角色详情列表用例"""
+        try:
+            # 1. 获取用户角色名称列表
+            role_names = await self.get_user_roles(user_id)
+            
+            if not role_names:
+                return []
+                
+            # 2. 查询所有角色
+            # 这是一个简单的实现，假设角色数量不多。如果角色数量很大，应该在 repository 中添加 find_by_names 方法
+            all_roles = await self.role_repository.get_all(include_system=True)
+            
+            # 3. 过滤出用户的角色
+            # 注意：有些角色可能在 role_repository 中不存在（例如硬编码的 legacy roles），这些将被忽略
+            user_roles_details = [
+                role for role in all_roles 
+                if role.name in role_names
+            ]
+            
+            return RoleConverter.to_list_response(user_roles_details)
+            
+        except Exception as e:
+            logger.error(f"获取用户角色详情失败: {str(e)}", exc_info=True)
+            return []
+
     
     async def is_user_admin(self, user_id: str) -> bool:
         """检查用户是否为管理员用例"""

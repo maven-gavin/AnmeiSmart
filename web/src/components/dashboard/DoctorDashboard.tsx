@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { doctorService } from '@/service/doctorService';
+import { authService, roleOptions } from '@/service/authService';
 import AppLayout from '../layout/AppLayout';
 import { useAuthContext } from '@/contexts/AuthContext';
 
@@ -88,8 +89,32 @@ export default function DoctorDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [patientsCount, setPatientsCount] = useState(0);
   const [urgentPatients, setUrgentPatients] = useState<any[]>([]);
+  const [roleDisplayName, setRoleDisplayName] = useState('医生');
   
   useEffect(() => {
+    // 获取角色显示名称
+    const fetchRoleInfo = async () => {
+      if (user?.currentRole) {
+        try {
+          const roles = await authService.getRoleDetails();
+          const currentRole = roles.find(r => r.name === user.currentRole);
+          if (currentRole?.displayName) {
+            setRoleDisplayName(currentRole.displayName);
+          } else {
+             // Fallback
+             const staticOption = roleOptions.find(r => r.id === user.currentRole);
+             if (staticOption) {
+               // 移除"端"字，使称呼更自然
+               setRoleDisplayName(staticOption.name.replace('端', ''));
+             }
+          }
+        } catch (e) {
+          console.error('Failed to fetch role details', e);
+        }
+      }
+    };
+    fetchRoleInfo();
+
     // TODO: 实现真实API调用
     setLoading(false);
     setPatientsCount(0);
@@ -133,10 +158,10 @@ export default function DoctorDashboard() {
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-800">
-          你好，{user?.name || '医生'}
+          你好，{user?.name || roleDisplayName}
         </h1>
         <p className="text-gray-600">
-          欢迎回到安美智享医生工作台，今天是 {new Date().toLocaleDateString('zh-CN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          欢迎回到安美智享{roleDisplayName}工作台，今天是 {new Date().toLocaleDateString('zh-CN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
       </div>
       

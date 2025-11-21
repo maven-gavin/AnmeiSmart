@@ -15,17 +15,24 @@ export default function DynamicHomePage() {
     return <div>无权访问</div>;
   }
 
-  // 根据角色渲染对应的欢迎页
-  switch (user.currentRole) {
-    case 'doctor':
-      return <DoctorDashboard />;
-    case 'consultant':
-      return <ConsultantDashboard />;
-    case 'customer':
-      return <CustomerDashboard />;
-    case 'admin':
-      return <AdminDashboard />;
-    default:
-      return <div>未知角色</div>;
-  }
-} 
+  // 获取当前角色并标准化
+  const role = user.currentRole;
+
+  // 1. 优先匹配已知系统角色
+  if (role === 'admin' || role === 'administrator') return <AdminDashboard />;
+  if (role === 'doctor') return <DoctorDashboard />;
+  if (role === 'consultant') return <ConsultantDashboard />;
+  if (role === 'customer') return <CustomerDashboard />;
+  if (role === 'operator') return <AdminDashboard />; // 运营人员暂时使用管理面板
+
+  // 2. 根据角色特征模糊匹配
+  if (role.includes('admin')) return <AdminDashboard />;
+  if (role.includes('doctor')) return <DoctorDashboard />;
+  if (role.includes('consultant')) return <ConsultantDashboard />;
+
+  // 3. 根据用户权限标识判断
+  if (user.isAdmin) return <AdminDashboard />;
+
+  // 4. 默认回退到客户面板（最安全的默认值）
+  return <CustomerDashboard />;
+}

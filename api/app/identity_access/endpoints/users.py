@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import List
+from typing import List, Optional
 
 from app.identity_access.schemas.user import UserCreate, UserUpdate, UserResponse, RoleResponse
 from app.identity_access.infrastructure.db.user import User, Role

@@ -8,7 +8,7 @@ from app.identity_access.infrastructure.db.user import User
 from app.identity_access.deps import get_identity_access_application_service
 from app.identity_access.application import IdentityAccessApplicationService
 from app.identity_access.schemas.token import Token, RefreshTokenRequest
-from app.identity_access.schemas.user import UserCreate, UserUpdate, UserResponse, SwitchRoleRequest
+from app.identity_access.schemas.user import UserCreate, UserUpdate, UserResponse, SwitchRoleRequest, RoleResponse
 from app.core.api import ApiResponse, BusinessException, ErrorCode, SystemException
 
 router = APIRouter()
@@ -197,6 +197,23 @@ async def get_roles(
         return ApiResponse.success(data=user_roles, message="获取角色成功")
     except Exception as exc:
         raise _handle_unexpected_error("获取用户角色失败", exc)
+
+
+@router.get("/roles/details", response_model=ApiResponse[List[RoleResponse]])
+async def get_roles_details(
+    current_user: User = Depends(get_current_user),
+    identity_access_service: IdentityAccessApplicationService = Depends(
+        get_identity_access_application_service
+    ),
+) -> ApiResponse[List[RoleResponse]]:
+    """
+    获取用户角色详情（包含显示名称等）
+    """
+    try:
+        role_details = await identity_access_service.get_user_role_details(str(current_user.id))
+        return ApiResponse.success(data=role_details, message="获取角色详情成功")
+    except Exception as exc:
+        raise _handle_unexpected_error("获取用户角色详情失败", exc)
 
 
 @router.post("/switch-role", response_model=ApiResponse[Token])

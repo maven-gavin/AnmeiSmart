@@ -3,7 +3,7 @@
  * 专注于用户身份验证、角色管理和会话控制
  */
 
-import type { AuthUser, LoginCredentials, UserRole, UserPermissionSummary } from '@/types/auth';
+import type { AuthUser, LoginCredentials, UserRole, UserPermissionSummary, Role } from '@/types/auth';
 import { tokenManager } from './tokenManager';
 import { ApiClientError, ErrorType, apiClient } from './apiClient';
 import { AUTH_CONFIG } from '@/config';
@@ -15,6 +15,7 @@ type RoleCheckResponse = { has_role: boolean };
 type AdminCheckResponse = { is_admin: boolean };
 type UserPermissionsResponse = { permissions: string[] };
 type UserRolesResponse = { roles: string[] };
+type UserRoleDetailsResponse = Role[];
 type UserProfileResponse = {
   id: string | number;
   username: string;
@@ -486,6 +487,19 @@ class AuthService {
       return response.data?.roles ?? [];
     } catch (error) {
       console.error('获取用户角色列表失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 获取当前用户角色详情列表
+   */
+  async getRoleDetails(): Promise<Role[]> {
+    try {
+      const response = await apiClient.get<UserRoleDetailsResponse>("/auth/roles/details");
+      return response.data || [];
+    } catch (error) {
+      console.error('获取用户角色详情失败:', error);
       return [];
     }
   }

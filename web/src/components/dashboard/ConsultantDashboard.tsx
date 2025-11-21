@@ -1,16 +1,43 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import ConsultantNavigation from '@/components/ui/ConsultantNavigation';
 import AppLayout from '../layout/AppLayout';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { authService, roleOptions } from '@/service/authService';
 
 export default function ConsultantDashboard() {
   const { user } = useAuthContext();
+  const [roleDisplayName, setRoleDisplayName] = useState('顾问端');
+
+  useEffect(() => {
+    const fetchRoleInfo = async () => {
+      if (user?.currentRole) {
+        try {
+          const roles = await authService.getRoleDetails();
+          const currentRole = roles.find(r => r.name === user.currentRole);
+          if (currentRole?.displayName) {
+            setRoleDisplayName(currentRole.displayName);
+          } else {
+            // Fallback to static options
+            const staticOption = roleOptions.find(r => r.id === user.currentRole);
+            if (staticOption) {
+              setRoleDisplayName(staticOption.name);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch role details:', error);
+        }
+      }
+    };
+    fetchRoleInfo();
+  }, [user?.currentRole]);
+
   return (
     <AppLayout requiredRole={user?.currentRole}>
     <div className="container mx-auto p-6">
-      <h1 className="mb-6 text-2xl font-bold text-gray-800">欢迎使用顾问端</h1>
+      <h1 className="mb-6 text-2xl font-bold text-gray-800">欢迎使用{roleDisplayName}</h1>
       
       <ConsultantNavigation />
       

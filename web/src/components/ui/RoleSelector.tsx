@@ -2,9 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { UserRole, AuthUser } from '@/types/auth';
+import { UserRole, AuthUser, Role } from '@/types/auth';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { roleOptions } from '@/service/authService';
+import { authService, roleOptions } from '@/service/authService';
 
 interface RoleSelectorProps {
   onRoleSelect?: (role: UserRole) => void;
@@ -15,21 +15,40 @@ export default function RoleSelector({ onRoleSelect, className = '' }: RoleSelec
   const router = useRouter();
   const { user, switchRole, loading: authLoading } = useAuthContext();
   const [selectedRole, setSelectedRole] = useState<UserRole | undefined>(undefined);
+  const [roleDetails, setRoleDetails] = useState<Role[]>([]);
   const [loading, setLoading] = useState<UserRole | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
   
-  // 在客户端挂载后获取用户信息
+  // 在客户端挂载后获取用户信息和角色详情
   useEffect(() => {
     setIsClient(true);
     if (user) {
       setSelectedRole(user.currentRole);
+      // 获取动态角色详情
+      authService.getRoleDetails().then(roles => {
+        if (roles && roles.length > 0) {
+          setRoleDetails(roles);
+        }
+      });
     }
   }, [user]);
 
+  // 获取角色显示信息
+  const getRoleDisplayInfo = (roleId: string) => {
+    const dynamicRole = roleDetails.find(r => r.name === roleId);
+    const staticOption = roleOptions.find(r => r.id === roleId);
+    
+    return {
+      name: dynamicRole?.displayName || staticOption?.name || roleId,
+      description: dynamicRole?.description || '暂无描述',
+      path: staticOption?.path || '/home'
+    };
+  };
+
   // 过滤出当前用户拥有的角色
   const availableRoles = isClient && user?.roles 
-    ? roleOptions.filter(role => user.roles.includes(role.id))
+    ? user.roles.map(roleId => ({ id: roleId, ...getRoleDisplayInfo(roleId) }))
     : [];
 
   const handleRoleSelect = async (role: UserRole) => {
@@ -49,11 +68,8 @@ export default function RoleSelector({ onRoleSelect, className = '' }: RoleSelec
         onRoleSelect(role);
       }
       
-      // 导航到对应角色的首页
-      const selectedRoleOption = roleOptions.find(r => r.id === role);
-      if (selectedRoleOption) {
-        router.push(selectedRoleOption.path);
-      }
+      // 导航到统一首页
+      router.push('/home');
     } catch (error) {
       console.error('角色切换失败', error);
       setError('角色切换失败，请重试');
@@ -105,13 +121,7 @@ export default function RoleSelector({ onRoleSelect, className = '' }: RoleSelec
             <div className="text-left">
               <p className="font-medium text-gray-800">{role.name}</p>
               <p className="text-sm text-gray-500">
-                {role.id === 'consultant' 
-                  ? '客户沟通与方案推荐'
-                  : role.id === 'doctor'
-                  ? '方案录入与风险评估'
-                  : role.id === 'operator'
-                  ? '数据分析与审核管理'
-                  : '咨询、治疗与个人中心'}
+                {role.description}
               </p>
             </div>
           </button>
