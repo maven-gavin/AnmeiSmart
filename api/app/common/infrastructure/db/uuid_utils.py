@@ -101,12 +101,6 @@ def digital_human_id() -> str:
     return prefixed_uuid("dh")
 
 
-# 咨询记录ID前缀生成函数
-def consultation_id() -> str:
-    """生成咨询记录ID"""
-    return prefixed_uuid("cons")
-
-
 # 任务ID前缀生成函数
 def task_id() -> str:
     """生成任务ID"""

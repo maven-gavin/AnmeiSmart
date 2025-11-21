@@ -416,7 +416,7 @@ class DigitalHumanService:
                     agent_config_id=default_agent.id,
                     priority=1,
                     is_active=True,
-                    scenarios=['consultation', 'greeting', 'general_qa'],
+                    scenarios=['greeting', 'general_qa'],
                     context_prompt=f'你是{username}的专属数字助手，请提供专业、友好的医美咨询服务。'
                 )
                 self.db.add(dh_agent_config)

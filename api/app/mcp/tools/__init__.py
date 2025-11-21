@@ -10,12 +10,10 @@ MCP工具模块
 # 导入所有工具模块，触发装饰器注册
 from . import user
 from . import customer  
-from . import consultation
 from . import projects
 
 __all__ = [
     "user",
     "customer", 
-    "consultation",
     "projects"
 ] 

@@ -85,7 +85,7 @@ class TaskRepository(ITaskRepository):
                     or_(
                         PendingTask.assigned_to == user_id,
                         and_(
-                            PendingTask.task_type.in_(['new_user_reception', 'consultation_upgrade']),
+                            PendingTask.task_type.in_(['new_user_reception']),
                             PendingTask.status == 'pending'
                         )
                     )
@@ -97,7 +97,7 @@ class TaskRepository(ITaskRepository):
                     or_(
                         PendingTask.assigned_to == user_id,
                         and_(
-                            PendingTask.task_type.in_(['prescription_review', 'medical_consultation']),
+                            PendingTask.task_type.in_(['prescription_review']),
                             PendingTask.status == 'pending'
                         )
                     )
@@ -188,11 +188,11 @@ class TaskRepository(ITaskRepository):
             # 根据用户角色筛选可认领的任务类型
             if user_role == "consultant":
                 query = query.filter(
-                    PendingTask.task_type.in_(['new_user_reception', 'consultation_upgrade'])
+                    PendingTask.task_type.in_(['new_user_reception'])
                 )
             elif user_role == "doctor":
                 query = query.filter(
-                    PendingTask.task_type.in_(['prescription_review', 'medical_consultation'])
+                    PendingTask.task_type.in_(['prescription_review'])
                 )
             elif user_role == "operator":
                 query = query.filter(

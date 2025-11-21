@@ -94,7 +94,6 @@ class AIGatewayService:
                     weight=3,
                     scenarios=[
                         AIScenario.BEAUTY_PLAN,
-                        AIScenario.CONSULTATION_SUMMARY,
                         AIScenario.GENERAL_CHAT,
                         AIScenario.CUSTOMER_SERVICE
                     ],
@@ -233,46 +232,6 @@ class AIGatewayService:
             estimated_cost=base_response.metadata.get("estimated_cost") if base_response.metadata else None,
             timeline=base_response.metadata.get("timeline") if base_response.metadata else None,
             risks=base_response.metadata.get("risks") if base_response.metadata else None
-        )
-    
-    async def summarize_consultation(self, conversation_text: str, 
-                                   user_id: str) -> SummaryResponse:
-        """总结咨询内容"""
-        if not self.gateway:
-            raise Exception("AI Gateway not initialized")
-        
-        context = ChatContext(
-            user_id=user_id,
-            session_id=f"summary_{user_id}_{int(time.time())}"
-        )
-        
-        request = AIRequest(
-            scenario=AIScenario.CONSULTATION_SUMMARY,
-            message=conversation_text,
-            context=context,
-            parameters={"summary_type": "detailed", "include_sentiment": True}
-        )
-        
-        # 获取基础响应并转换为 SummaryResponse
-        base_response = await self.gateway.execute_request(request)
-        
-        # 转换为 SummaryResponse
-        return SummaryResponse(
-            request_id=base_response.request_id,
-            content=base_response.content,
-            provider=base_response.provider,
-            scenario=base_response.scenario,
-            success=base_response.success,
-            error_message=base_response.error_message,
-            metadata=base_response.metadata,
-            usage=base_response.usage,
-            response_time=base_response.response_time,
-            timestamp=base_response.timestamp,
-            # SummaryResponse 特有字段可以从 metadata 或 content 中解析
-            key_points=base_response.metadata.get("key_points") if base_response.metadata else None,
-            action_items=base_response.metadata.get("action_items") if base_response.metadata else None,
-            sentiment_score=base_response.metadata.get("sentiment_score") if base_response.metadata else None,
-            categories=base_response.metadata.get("categories") if base_response.metadata else None
         )
     
     async def analyze_sentiment(self, text: str, user_id: str) -> SentimentResponse:

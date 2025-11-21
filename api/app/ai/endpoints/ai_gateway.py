@@ -155,45 +155,6 @@ async def generate_beauty_plan(
         )
 
 
-@router.post("/summarize", summary="总结咨询内容")
-async def summarize_consultation(
-    request: SummaryRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    总结咨询对话内容
-    
-    分析咨询对话，提取关键信息和行动项。
-    """
-    try:
-        ai_gateway = get_ai_gateway_service(db)
-        
-        response = await ai_gateway.summarize_consultation(
-            conversation_text=request.content,
-            user_id=str(current_user.id)
-        )
-        
-        return {
-            "success": response.success,
-            "content": response.content,
-            "provider": response.provider.value,
-            "key_points": response.key_points,
-            "action_items": response.action_items,
-            "sentiment_score": response.sentiment_score,
-            "categories": response.categories,
-            "response_time": response.response_time,
-            "usage": response.usage
-        }
-        
-    except Exception as e:
-        logger.error(f"咨询总结失败: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"总结服务暂时不可用: {str(e)}"
-        )
-
-
 @router.post("/sentiment", summary="情感分析")
 async def analyze_sentiment(
     request: SentimentRequest,
@@ -326,7 +287,6 @@ def _get_scenario_description(scenario: AIScenario) -> str:
     descriptions = {
         AIScenario.GENERAL_CHAT: "通用聊天对话",
         AIScenario.BEAUTY_PLAN: "个性化医美方案生成",
-        AIScenario.CONSULTATION_SUMMARY: "咨询对话总结分析",
         AIScenario.SENTIMENT_ANALYSIS: "文本情感倾向分析",
         AIScenario.CUSTOMER_SERVICE: "智能客服支持",
         AIScenario.MEDICAL_ADVICE: "医疗建议咨询"

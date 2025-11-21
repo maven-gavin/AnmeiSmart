@@ -29,7 +29,7 @@ class Conversation(BaseModel):
     owner_id = Column(String(36), ForeignKey("users.id"), nullable=False, comment="会话所有者用户ID")
     
     # 会话标签（区分会话类型）
-    tag = Column(String(50), nullable=False, default="chat", comment="会话标签：chat(普通聊天)、consultation(咨询会话)")
+    tag = Column(String(50), nullable=False, default="chat", comment="会话标签：chat(普通聊天)")
     
     # 新增：置顶功能
     is_pinned = Column(Boolean, default=False, comment="是否置顶")

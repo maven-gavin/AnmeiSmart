@@ -24,12 +24,6 @@ class RiskNote(BaseModel):
     description: str
     level: Literal["high", "medium", "low"] = "medium"
 
-class ConsultationHistoryItem(BaseModel):
-    """咨询历史记录项模型"""
-    date: str
-    type: str
-    description: str
-
 class CustomerBasicInfo(BaseModel):
     """客户基本信息模型"""
     name: str

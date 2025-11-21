@@ -9,11 +9,9 @@ class TaskType(str, Enum):
     """任务类型枚举"""
     # 用户相关任务
     NEW_USER_RECEPTION = "new_user_reception"
-    CONSULTATION_UPGRADE = "consultation_upgrade"
     
     # 医疗相关任务
     PRESCRIPTION_REVIEW = "prescription_review"
-    MEDICAL_CONSULTATION = "medical_consultation"
     
     # 运营相关任务
     SYSTEM_MAINTENANCE = "system_maintenance"
@@ -26,12 +24,12 @@ class TaskType(str, Enum):
     @classmethod
     def get_medical_task_types(cls) -> List[str]:
         """获取医疗相关任务类型"""
-        return [cls.PRESCRIPTION_REVIEW.value, cls.MEDICAL_CONSULTATION.value]
+        return [cls.PRESCRIPTION_REVIEW.value]
     
     @classmethod
     def get_consultant_task_types(cls) -> List[str]:
         """获取顾问相关任务类型"""
-        return [cls.NEW_USER_RECEPTION.value, cls.CONSULTATION_UPGRADE.value]
+        return [cls.NEW_USER_RECEPTION.value]
     
     @classmethod
     def get_operator_task_types(cls) -> List[str]:
@@ -48,21 +46,9 @@ class TaskType(str, Enum):
                 "default_priority": "medium",
                 "auto_assign": False
             },
-            cls.CONSULTATION_UPGRADE.value: {
-                "name": "咨询升级",
-                "description": "用户咨询需要升级到更高级别服务",
-                "default_priority": "high",
-                "auto_assign": False
-            },
             cls.PRESCRIPTION_REVIEW.value: {
                 "name": "处方审核",
                 "description": "医生处方需要审核确认",
-                "default_priority": "high",
-                "auto_assign": False
-            },
-            cls.MEDICAL_CONSULTATION.value: {
-                "name": "医疗咨询",
-                "description": "用户医疗相关问题咨询",
                 "default_priority": "high",
                 "auto_assign": False
             },

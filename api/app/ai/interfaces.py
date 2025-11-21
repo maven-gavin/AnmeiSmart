@@ -17,7 +17,6 @@ class AIScenario(Enum):
     """AI使用场景枚举"""
     GENERAL_CHAT = "general_chat"           # 通用聊天
     BEAUTY_PLAN = "beauty_plan"             # 医美方案生成
-    CONSULTATION_SUMMARY = "consultation_summary"  # 咨询总结
     SENTIMENT_ANALYSIS = "sentiment_analysis"      # 情感分析
     CUSTOMER_SERVICE = "customer_service"          # 客服支持
     MEDICAL_ADVICE = "medical_advice"              # 医疗建议
@@ -172,18 +171,6 @@ class AIServiceInterface(ABC):
             
         Returns:
             包含方案详情的响应对象
-        """
-        pass
-    
-    @abstractmethod
-    async def summarize_consultation(self, request: AIRequest) -> SummaryResponse:
-        """总结咨询内容
-        
-        Args:
-            request: 包含咨询对话的请求对象
-            
-        Returns:
-            包含总结内容的响应对象
         """
         pass
     

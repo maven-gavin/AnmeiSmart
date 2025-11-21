@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 
 from app.common.infrastructure.db.base_model import BaseModel
-from app.common.infrastructure.db.uuid_utils import digital_human_id, consultation_id, task_id
+from app.common.infrastructure.db.uuid_utils import digital_human_id, task_id
 
 
 class DigitalHuman(BaseModel):
@@ -78,52 +78,3 @@ class DigitalHumanAgentConfig(BaseModel):
     
     def __repr__(self):
         return f"<DigitalHumanAgentConfig(dh_id={self.digital_human_id}, agent_id={self.agent_config_id})>"
-
-
-class ConsultationRecord(BaseModel):
-    """咨询记录聚合根 - 独立管理咨询业务"""
-    __tablename__ = "consultation_records"
-    __table_args__ = (
-        Index('idx_consultation_conversation', 'conversation_id'),
-        Index('idx_consultation_customer', 'customer_id'),
-        Index('idx_consultation_consultant', 'consultant_id'),
-        Index('idx_consultation_type', 'consultation_type'),
-        {"comment": "咨询记录表，记录每次咨询的详细信息"}
-    )
-
-    id = Column(String(36), primary_key=True, default=consultation_id, comment="咨询记录ID")
-    conversation_id = Column(String(36), ForeignKey("conversations.id"), nullable=False, comment="关联会话ID")
-    
-    # 参与人员
-    customer_id = Column(String(36), ForeignKey("users.id"), nullable=False, comment="客户ID")
-    consultant_id = Column(String(36), ForeignKey("users.id"), nullable=True, comment="顾问ID")
-    digital_human_id = Column(String(36), ForeignKey("digital_humans.id"), nullable=True, comment="数字人ID")
-    
-    # 咨询信息
-    consultation_type = Column(Enum("initial", "follow_up", "emergency", "specialized", "other", name="consultation_type"), 
-                              nullable=False, comment="咨询类型")
-    title = Column(String(500), nullable=False, comment="咨询标题")
-    description = Column(Text, nullable=True, comment="咨询描述")
-    
-    # 咨询状态
-    status = Column(Enum("pending", "in_progress", "completed", "cancelled", name="consultation_status"), 
-                    default="pending", comment="咨询状态")
-    
-    # 时间信息
-    started_at = Column(DateTime(timezone=True), nullable=True, comment="开始时间")
-    ended_at = Column(DateTime(timezone=True), nullable=True, comment="结束时间")
-    duration_minutes = Column(Integer, nullable=True, comment="持续时间（分钟）")
-    
-    # 咨询结果
-    consultation_summary = Column(JSON, nullable=True, comment="结构化咨询总结")
-    satisfaction_rating = Column(Integer, nullable=True, comment="满意度评分（1-5）")
-    follow_up_required = Column(Boolean, default=False, comment="是否需要跟进")
-    
-    # 关联关系
-    conversation = relationship("app.chat.infrastructure.db.chat.Conversation")
-    customer = relationship("app.identity_access.models.user.User", foreign_keys=[customer_id])
-    consultant = relationship("app.identity_access.models.user.User", foreign_keys=[consultant_id])
-    digital_human = relationship("app.digital_humans.infrastructure.db.digital_human.DigitalHuman", foreign_keys=[digital_human_id])
-    
-    def __repr__(self):
-        return f"<ConsultationRecord(id={self.id}, type={self.consultation_type}, customer_id={self.customer_id})>"

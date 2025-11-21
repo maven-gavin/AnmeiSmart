@@ -197,8 +197,6 @@ class MCPToolExecutionService:
             return await self._execute_customer_tool(tool, arguments)
         elif tool_name.startswith("treatment_"):
             return await self._execute_treatment_tool(tool, arguments)
-        elif tool_name.startswith("consultation_"):
-            return await self._execute_consultation_tool(tool, arguments)
         elif tool_name.startswith("project_"):
             return await self._execute_project_tool(tool, arguments)
         else:
@@ -253,20 +251,6 @@ class MCPToolExecutionService:
             return await optimize_treatment(arguments)
         else:
             return {"content": [{"type": "text", "text": f"未知的治疗工具: {tool_name}"}]}
-    
-    async def _execute_consultation_tool(self, tool: MCPTool, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """执行咨询相关工具"""
-        from app.mcp.tools.consultation.history import get_consultation_history
-        from app.mcp.tools.consultation.summary import generate_consultation_summary
-        
-        tool_name = tool.tool_name
-        
-        if tool_name == "consultation_history":
-            return await get_consultation_history(arguments)
-        elif tool_name == "consultation_summary":
-            return await generate_consultation_summary(arguments)
-        else:
-            return {"content": [{"type": "text", "text": f"未知的咨询工具: {tool_name}"}]}
     
     async def _execute_project_tool(self, tool: MCPTool, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """执行项目相关工具"""
