@@ -124,6 +124,12 @@ class UserResponse(UserBase):
     active_role: Optional[str] = None
     extended_info: Optional[ExtendedUserInfo] = None
 
+class UserListResponse(CamelModel):
+    """用户列表响应模型"""
+    users: List[UserResponse] = Field(..., description="用户列表")
+    total: int = Field(..., description="总数量")
+    skip: int = Field(..., description="跳过数量")
+    limit: int = Field(..., description="限制数量")
 
 class SwitchRoleRequest(CamelModel):
     """角色切换请求模型"""

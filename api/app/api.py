@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.identity_access.endpoints import users,auth,roles,preferences,tenants,permissions,resources
+from app.identity_access.controllers import users, auth, roles, tenants
 from app.chat.endpoints import  chat
 from app.ai.endpoints import ai_gateway, agent_config, agent_chat
 from app.system.endpoints import  system
@@ -22,16 +22,10 @@ api_router.include_router(users.router, prefix="/users", tags=["users"])
 # 角色管理路由
 api_router.include_router(roles.router, prefix="/roles", tags=["roles"])
 
-# 租户管理路由（router内部已定义prefix）
+# 租户管理路由
 api_router.include_router(tenants.router, tags=["tenants"])
 
-# 权限管理路由（router内部已定义prefix）
-api_router.include_router(permissions.router, tags=["permissions"])
-
-# 资源管理路由（router内部已定义prefix）
-api_router.include_router(resources.router, tags=["resources"])
-
-# 用户权限检查路由已合并入 users 路由
+# 权限和资源路由暂时移除，建议合并到角色或系统管理中
 
 # WebSocket连接路由 (注意：WebSocket端点不需要prefix)
 api_router.include_router(websocket.router, tags=["websocket"])
@@ -67,8 +61,8 @@ api_router.include_router(mcp_server.router, prefix="/mcp", tags=["mcp-server"])
 # OAuth发现端点已在main.py中添加到根路径
 api_router.include_router(mcp_oauth.router, prefix="/oauth", tags=["oauth-server"])
 
-# 个人中心路由
-api_router.include_router(preferences.router, prefix="/profile", tags=["profile"])
+# 个人中心路由 (已合并到 users /me)
+# api_router.include_router(preferences.router, prefix="/profile", tags=["profile"])
 
 # 数字人管理路由
 api_router.include_router(digital_humans.router, prefix="/digital-humans", tags=["digital-humans"])
@@ -85,4 +79,4 @@ api_router.include_router(contacts.router, prefix="/contacts", tags=["contacts"]
 # 后续可添加其他路由
 
 # 在这里添加其他路由器
-# api_router.include_router(services.router, prefix="/services", tags=["services"]) 
+# api_router.include_router(services.router, prefix="/services", tags=["services"])
