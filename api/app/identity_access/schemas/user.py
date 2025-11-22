@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional, List, TYPE_CHECKING
 
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
 
 from app.identity_access.enums import AdminLevel
 
@@ -51,13 +51,29 @@ class RoleResponse(RoleBase):
     model_config = ConfigDict(from_attributes=True)
     
     id: str
-    is_active: bool = True
-    is_system: bool = False
-    is_admin: bool = False
-    priority: int = 0
+    is_active: Optional[bool] = Field(default=True, description="是否启用")
+    is_system: Optional[bool] = Field(default=False, description="是否系统角色")
+    is_admin: Optional[bool] = Field(default=False, description="是否管理员角色")
+    priority: Optional[int] = Field(default=0, description="角色优先级")
     tenant_id: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    
+    @field_validator('is_active', 'is_system', 'is_admin', mode='before')
+    @classmethod
+    def validate_bool_fields(cls, v):
+        """将 None 转换为默认布尔值"""
+        if v is None:
+            return False
+        return bool(v)
+    
+    @field_validator('priority', mode='before')
+    @classmethod
+    def validate_priority(cls, v):
+        """将 None 转换为默认优先级"""
+        if v is None:
+            return 0
+        return int(v) if v is not None else 0
 
 class UserBase(CamelModel):
     """用户基础模型"""

@@ -1,3 +1,4 @@
+import logging
 from typing import List
 from fastapi import APIRouter, Depends, status, Body
 from fastapi.security import OAuth2PasswordRequestForm
@@ -10,6 +11,7 @@ from app.identity_access.deps.user_deps import get_auth_service
 from app.identity_access.deps.auth_deps import get_current_user
 from app.core.api import ApiResponse, BusinessException, ErrorCode, SystemException
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 def _handle_unexpected_error(message: str, exc: Exception) -> SystemException:
@@ -107,26 +109,35 @@ async def get_current_user_roles_details(
     获取当前用户的角色详情列表
     """
     try:
-        roles = []
-        if current_user.roles:
-            for role in current_user.roles:
-                role_response = RoleResponse(
-                    id=role.id,
-                    name=role.name,
-                    display_name=role.display_name,
-                    description=role.description,
-                    is_active=role.is_active,
-                    is_system=role.is_system,
-                    is_admin=role.is_admin,
-                    priority=role.priority,
-                    tenant_id=role.tenant_id,
-                    created_at=role.created_at,
-                    updated_at=role.updated_at
-                )
-                roles.append(role_response)
+        logger.debug(f"开始获取用户角色详情: user_id={current_user.id}, username={current_user.username}")
         
+        # 检查用户是否有角色
+        if not current_user.roles:
+            logger.debug(f"用户 {current_user.id} 没有角色")
+            return ApiResponse.success([], message="获取角色详情成功")
+        
+        logger.debug(f"用户 {current_user.id} 有 {len(current_user.roles)} 个角色")
+        
+        # 使用 model_validate 从 ORM 对象转换，因为 RoleResponse 配置了 from_attributes=True
+        roles = []
+        for idx, role in enumerate(current_user.roles):
+            try:
+                logger.debug(f"处理角色 {idx+1}/{len(current_user.roles)}: role_id={role.id}, name={role.name}")
+                logger.debug(f"角色属性: display_name={role.display_name}, is_active={role.is_active}, is_system={role.is_system}, is_admin={role.is_admin}")
+                logger.debug(f"角色属性: priority={role.priority}, tenant_id={role.tenant_id}")
+                logger.debug(f"角色属性: created_at={role.created_at}, updated_at={role.updated_at}")
+                
+                role_response = RoleResponse.model_validate(role)
+                logger.debug(f"角色转换成功: {role_response.model_dump()}")
+                roles.append(role_response)
+            except Exception as role_error:
+                logger.error(f"转换角色失败: role_id={role.id}, error={str(role_error)}", exc_info=True)
+                raise
+        
+        logger.debug(f"成功转换 {len(roles)} 个角色")
         return ApiResponse.success(roles, message="获取角色详情成功")
     except Exception as e:
+        logger.error(f"获取角色详情失败: user_id={current_user.id if current_user else 'unknown'}, error={str(e)}", exc_info=True)
         raise _handle_unexpected_error("获取角色详情失败", e)
 
 @router.post("/switch-role", response_model=ApiResponse[Token])
