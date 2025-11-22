@@ -1,7 +1,9 @@
+from typing import List
 from fastapi import APIRouter, Depends, status, Body
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.identity_access.schemas.token import Token, RefreshTokenRequest
+from app.identity_access.schemas.user import UserResponse, RoleResponse
 from app.identity_access.models.user import User
 from app.identity_access.services.auth_service import AuthService
 from app.identity_access.deps.user_deps import get_auth_service
@@ -50,6 +52,42 @@ async def refresh_token(
     except Exception as e:
         raise _handle_unexpected_error("令牌刷新失败", e)
 
+@router.get("/me", response_model=ApiResponse[UserResponse])
+async def get_current_user_info(
+    current_user: User = Depends(get_current_user)
+) -> ApiResponse[UserResponse]:
+    """
+    获取当前用户信息
+    """
+    # 将 Role 对象列表转换为角色名称字符串列表
+    roles = [role.name for role in current_user.roles] if current_user.roles else []
+    
+    # 获取活跃角色（从 JWT token 中获取，或使用默认角色）
+    active_role = None
+    if hasattr(current_user, '_active_role') and current_user._active_role:
+        active_role = current_user._active_role
+    elif roles:
+        active_role = roles[0]
+    
+    # 构建 UserResponse 数据
+    user_data = {
+        "id": current_user.id,
+        "email": current_user.email,
+        "username": current_user.username,
+        "phone": current_user.phone,
+        "avatar": current_user.avatar,
+        "is_active": current_user.is_active,
+        "created_at": current_user.created_at,
+        "updated_at": current_user.updated_at,
+        "last_login_at": getattr(current_user, 'last_login_at', None),
+        "roles": roles,
+        "active_role": active_role,
+        "extended_info": None  # 可以后续扩展
+    }
+    
+    user_response = UserResponse(**user_data)
+    return ApiResponse.success(user_response, message="获取当前用户成功")
+
 @router.post("/logout", response_model=ApiResponse[bool])
 async def logout(
     current_user: User = Depends(get_current_user)
@@ -60,6 +98,36 @@ async def logout(
     后端可以是黑名单机制，这里暂时返回True。
     """
     return ApiResponse.success(True, message="登出成功")
+
+@router.get("/roles/details", response_model=ApiResponse[List[RoleResponse]])
+async def get_current_user_roles_details(
+    current_user: User = Depends(get_current_user)
+) -> ApiResponse[List[RoleResponse]]:
+    """
+    获取当前用户的角色详情列表
+    """
+    try:
+        roles = []
+        if current_user.roles:
+            for role in current_user.roles:
+                role_response = RoleResponse(
+                    id=role.id,
+                    name=role.name,
+                    display_name=role.display_name,
+                    description=role.description,
+                    is_active=role.is_active,
+                    is_system=role.is_system,
+                    is_admin=role.is_admin,
+                    priority=role.priority,
+                    tenant_id=role.tenant_id,
+                    created_at=role.created_at,
+                    updated_at=role.updated_at
+                )
+                roles.append(role_response)
+        
+        return ApiResponse.success(roles, message="获取角色详情成功")
+    except Exception as e:
+        raise _handle_unexpected_error("获取角色详情失败", e)
 
 @router.post("/switch-role", response_model=ApiResponse[Token])
 async def switch_role(

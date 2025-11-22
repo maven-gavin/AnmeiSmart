@@ -48,6 +48,8 @@ class RoleUpdate(CamelModel):
 
 class RoleResponse(RoleBase):
     """API响应中的角色模型"""
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str
     is_active: bool = True
     is_system: bool = False
@@ -120,6 +122,8 @@ class ExtendedUserInfo(CamelModel):
 
 class UserResponse(UserBase):
     """API响应中的用户模型"""
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str
     created_at: datetime
     updated_at: datetime

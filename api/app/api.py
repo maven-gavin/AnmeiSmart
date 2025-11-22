@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.identity_access.controllers import users, auth, roles, tenants
+from app.identity_access.controllers import users, auth, roles, tenants, resources
 from app.chat.controllers import chat
 from app.ai.controllers import ai_gateway, agent_config, agent_chat
 from app.system.controllers import system
@@ -25,7 +25,8 @@ api_router.include_router(roles.router, prefix="/roles", tags=["roles"])
 # 租户管理路由
 api_router.include_router(tenants.router, tags=["tenants"])
 
-# 权限和资源路由暂时移除，建议合并到角色或系统管理中
+# 资源管理路由
+api_router.include_router(resources.router, prefix="/resources", tags=["resources"])
 
 # WebSocket连接路由 (注意：WebSocket端点不需要prefix)
 api_router.include_router(websocket.router, tags=["websocket"])
