@@ -121,6 +121,7 @@ class UserUpdate(CamelModel):
     password: Optional[str] = Field(None, min_length=8)
     phone: Optional[str] = None
     avatar: Optional[str] = None
+    is_active: Optional[bool] = None
     roles: Optional[List[str]] = None
     customer_info: Optional["CustomerBase"] = None
     doctor_info: Optional[DoctorBase] = None
@@ -138,7 +139,11 @@ class ExtendedUserInfo(CamelModel):
 
 class UserResponse(UserBase):
     """API响应中的用户模型"""
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        alias_generator=to_camel,
+    )
     
     id: str
     created_at: datetime
@@ -158,7 +163,7 @@ class UserListResponse(CamelModel):
 class SwitchRoleRequest(CamelModel):
     """角色切换请求模型"""
     role: str
-
+    
 
 # 重建所有使用前向引用的模型，确保 Pydantic 可以正确生成 OpenAPI schema
 def _rebuild_models():

@@ -21,9 +21,11 @@ export interface User {
   phone?: string;
   avatar?: string;
   roles: string[];
-  is_active: boolean;
-  created_at: string;
-  updated_at?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string;
+  lastLoginAt?: string;
+  activeRole?: string;
 }
 
 export interface LoginCredentials {

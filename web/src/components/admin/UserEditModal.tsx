@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { userService } from '@/service/userService';
-import { User, UserRole } from '@/types/auth';
+import { permissionService } from '@/service/permissionService';
+import { User, UserRole, Role } from '@/types/auth';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -25,14 +26,27 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [isActive, setIsActive] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(false);
   
-  const availableRoles: { id: UserRole; name: string }[] = [
-    { id: 'admin', name: '管理员' },
-    { id: 'consultant', name: '顾问' },
-    { id: 'doctor', name: '医生' },
-    { id: 'customer', name: '客户' },
-    { id: 'operator', name: '运营' }
-  ];
+  // 从后端获取角色列表
+  useEffect(() => {
+    if (isOpen) {
+      const fetchRoles = async () => {
+        setLoadingRoles(true);
+        try {
+          const rolesList = await permissionService.getRoles();
+          setAvailableRoles(rolesList);
+        } catch (err: any) {
+          toast.error(err.message || '获取角色列表失败');
+          console.error('获取角色列表失败:', err);
+        } finally {
+          setLoadingRoles(false);
+        }
+      };
+      fetchRoles();
+    }
+  }, [isOpen]);
 
   // 初始化表单数据
   useEffect(() => {
@@ -42,16 +56,16 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
       setPhone(user.phone ?? '');
       // 类型断言，假设后端返回的角色字符串是合法的 UserRole
       setRoles((user.roles as UserRole[]) ?? []);
-      setIsActive(user.is_active ?? true);
+      setIsActive(user.isActive ?? true);
     }
   }, [user]);
 
-  const handleRoleToggle = (roleId: UserRole) => {
+  const handleRoleToggle = (roleName: string) => {
     setRoles(prevRoles => {
-      if (prevRoles.includes(roleId)) {
-        return prevRoles.filter(r => r !== roleId);
+      if (prevRoles.includes(roleName as UserRole)) {
+        return prevRoles.filter(r => r !== roleName);
       } else {
-        return [...prevRoles, roleId];
+        return [...prevRoles, roleName as UserRole];
       }
     });
   };
@@ -116,15 +130,11 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
         // 如果后端不支持，这部分会失败或被忽略
         // 实际上，之前的后端代码 IdentityAccessApplicationService.update_user 确实只更新 profile
         
-        // TODO: 增强后端 update_user 支持角色更新，或者前端调用 assign_role/remove_role
-        // 简单起见，我们假设后端会忽略 roles，如果需要支持，这是一个后续任务
-        // 或者我们在前端 userService 中处理？
-        // 暂时先这样，如果后端不支持，角色不会更新
-        // (user.roles as any) = roles; // Hack for type check if needed
-        // updateData['roles'] = roles; 
+        // 后端 UserUpdate schema 支持 roles 字段，可以直接传递
+        updateData.roles = roles; 
     }
     
-    if (isActive !== user.is_active) updateData.is_active = isActive;
+    if (isActive !== user.isActive) updateData.is_active = isActive;
     
     try {
       await userService.updateUser(String(user.id), updateData as Partial<User>);
@@ -198,20 +208,24 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
           
           <div className="space-y-2">
             <Label>角色 *</Label>
+            {loadingRoles ? (
+              <div className="text-sm text-gray-500">加载角色列表...</div>
+            ) : (
             <div className="flex flex-wrap gap-2">
               {availableRoles.map((role) => (
                 <Badge
                   key={role.id}
-                  variant={roles.includes(role.id) ? "default" : "outline"}
+                    variant={roles.includes(role.name as UserRole) ? "default" : "outline"}
                   className={`cursor-pointer hover:opacity-80 ${
-                    roles.includes(role.id) ? 'bg-orange-500 hover:bg-orange-600' : ''
+                      roles.includes(role.name as UserRole) ? 'bg-orange-500 hover:bg-orange-600' : ''
                   }`}
-                  onClick={() => handleRoleToggle(role.id)}
+                    onClick={() => handleRoleToggle(role.name)}
                 >
-                  {role.name}
+                    {role.displayName || role.name}
                 </Badge>
               ))}
             </div>
+            )}
           </div>
           
           <div className="flex items-center justify-between py-2">

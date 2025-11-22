@@ -8,8 +8,10 @@ export interface GetUsersParams {
 }
 
 export interface UserListResponse {
-  data: User[];
+  users: User[];
   total: number;
+  skip: number;
+  limit: number;
 }
 
 class UserService {
@@ -17,10 +19,16 @@ class UserService {
 
   /**
    * 获取用户列表
+   * @returns 返回用户数组和总数
    */
-  async getUsers(params: GetUsersParams = {}): Promise<User[]> {
-    const response = await apiClient.get<User[]>(`${this.baseUrl}`, { params });
-    return response.data;
+  async getUsers(params: GetUsersParams = {}): Promise<{ users: User[]; total: number }> {
+    const response = await apiClient.get<UserListResponse>(`${this.baseUrl}`, { params });
+    // 后端返回的是 UserListResponse 格式：{ users: User[], total: number, skip: number, limit: number }
+    // apiClient 已经提取了 data 字段，所以 response.data 就是 UserListResponse
+    return {
+      users: response.data?.users || [],
+      total: response.data?.total || 0
+    };
   }
 
   /**

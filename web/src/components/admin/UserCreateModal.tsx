@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { UserRole } from '@/types/auth';
+import { UserRole, Role } from '@/types/auth';
 import { userService } from '@/service/userService';
+import { permissionService } from '@/service/permissionService';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -22,21 +23,34 @@ export default function UserCreateModal({ isOpen, onClose, onUserCreated }: User
   const [phone, setPhone] = useState('');
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [loading, setLoading] = useState(false);
+  const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(false);
   
-  const availableRoles: { id: UserRole; name: string }[] = [
-    { id: 'admin', name: '管理员' },
-    { id: 'consultant', name: '顾问' },
-    { id: 'doctor', name: '医生' },
-    { id: 'customer', name: '客户' },
-    { id: 'operator', name: '运营' }
-  ];
+  // 从后端获取角色列表
+  useEffect(() => {
+    if (isOpen) {
+      const fetchRoles = async () => {
+        setLoadingRoles(true);
+        try {
+          const rolesList = await permissionService.getRoles();
+          setAvailableRoles(rolesList);
+        } catch (err: any) {
+          toast.error(err.message || '获取角色列表失败');
+          console.error('获取角色列表失败:', err);
+        } finally {
+          setLoadingRoles(false);
+        }
+      };
+      fetchRoles();
+    }
+  }, [isOpen]);
 
-  const handleRoleToggle = (roleId: UserRole) => {
+  const handleRoleToggle = (roleName: string) => {
     setRoles(prevRoles => {
-      if (prevRoles.includes(roleId)) {
-        return prevRoles.filter(r => r !== roleId);
+      if (prevRoles.includes(roleName as UserRole)) {
+        return prevRoles.filter(r => r !== roleName);
       } else {
-        return [...prevRoles, roleId];
+        return [...prevRoles, roleName as UserRole];
       }
     });
   };
@@ -157,20 +171,24 @@ export default function UserCreateModal({ isOpen, onClose, onUserCreated }: User
           
           <div className="space-y-2">
             <Label>角色 *</Label>
+            {loadingRoles ? (
+              <div className="text-sm text-gray-500">加载角色列表...</div>
+            ) : (
             <div className="flex flex-wrap gap-2">
               {availableRoles.map((role) => (
                 <Badge
                   key={role.id}
-                  variant={roles.includes(role.id) ? "default" : "outline"}
+                    variant={roles.includes(role.name as UserRole) ? "default" : "outline"}
                   className={`cursor-pointer hover:opacity-80 ${
-                    roles.includes(role.id) ? 'bg-orange-500 hover:bg-orange-600' : ''
+                      roles.includes(role.name as UserRole) ? 'bg-orange-500 hover:bg-orange-600' : ''
                   }`}
-                  onClick={() => handleRoleToggle(role.id)}
+                    onClick={() => handleRoleToggle(role.name)}
                 >
-                  {role.name}
+                    {role.displayName || role.name}
                 </Badge>
               ))}
             </div>
+            )}
           </div>
           
           <div className="flex justify-end space-x-3 pt-4 border-t">

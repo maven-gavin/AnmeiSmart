@@ -48,19 +48,14 @@ export default function UsersPage() {
     setLoading(true);
     setError(null);
     try {
-      // userService.getUsers 返回的是数组，后端目前没有返回 total
-      // 如果后端接口调整了返回格式包含 total，这里需要同步修改
-      // 目前后端 endpoint 返回 ApiResponse[List[UserResponse]]
-      // 分页是在后端做的，但是 total count 没有返回... 这是一个潜在问题
-      // 暂时只展示当前页数据
-      const data = await userService.getUsers({
+      const result = await userService.getUsers({
         skip: (currentPage - 1) * itemsPerPage,
         limit: itemsPerPage,
         search: searchKeyword || undefined
       });
       
-      setUsers(data);
-      setTotal(1000); // 临时占位
+      setUsers(result.users);
+      setTotal(result.total);
       
     } catch (err: any) {
       setError(err.message || '获取用户列表失败');
@@ -186,7 +181,10 @@ export default function UsersPage() {
                   setTimeout(() => {
                       setCurrentPage(1);
                       // 这里需要传递参数覆盖 state
-                      userService.getUsers({ skip: 0, limit: itemsPerPage }).then(setUsers);
+                      userService.getUsers({ skip: 0, limit: itemsPerPage }).then(result => {
+                        setUsers(result.users);
+                        setTotal(result.total);
+                      });
                   }, 0);
               }}>
                 重置
@@ -257,12 +255,12 @@ export default function UsersPage() {
                     </div>
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm">
-                    <span className={`px-2 py-1 rounded-full text-xs ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                      {user.is_active ? '活跃' : '禁用'}
+                    <span className={`px-2 py-1 rounded-full text-xs ${user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {user.isActive ? '活跃' : '禁用'}
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                    {formatDate(user.created_at)}
+                    {formatDate(user.createdAt)}
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
                     <Button
