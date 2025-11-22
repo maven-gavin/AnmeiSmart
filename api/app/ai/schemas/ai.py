@@ -94,38 +94,20 @@ class AgentConfigUpdate(BaseModel):
 
 class AgentConfigInfo(BaseModel):
     """Agent配置信息Schema"""
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     
-    id: str = Field(..., description="配置ID")
-    environment: str = Field(..., description="环境名称")
-    appId: str = Field(..., description="应用ID")
-    appName: str = Field(..., description="应用名称")
-    agentType: Optional[str] = Field(None, description="智能体类型")
-    baseUrl: str = Field(..., description="Agent API基础URL")
-    timeoutSeconds: int = Field(30, description="请求超时时间（秒）")
-    maxRetries: int = Field(3, description="最大重试次数")
-    enabled: bool = Field(True, description="是否启用配置")
-    description: Optional[str] = Field(None, description="配置描述")
-    createdAt: datetime = Field(..., description="创建时间")
-    updatedAt: datetime = Field(..., description="更新时间")
-
-    @staticmethod
-    def from_model(model) -> "AgentConfigInfo":
-        """从ORM模型创建Schema实例"""
-        return AgentConfigInfo(
-            id=model.id,
-            environment=model.environment,
-            appId=model.app_id,
-            appName=model.app_name,
-            agentType=model.agent_type,
-            baseUrl=model.base_url,
-            timeoutSeconds=model.timeout_seconds,
-            maxRetries=model.max_retries,
-            enabled=model.enabled,
-            description=model.description,
-            createdAt=model.created_at,
-            updatedAt=model.updated_at
-        )
+    id: str = Field(..., description="配置ID", alias="id")
+    environment: str = Field(..., description="环境名称", alias="environment")
+    appId: str = Field(..., description="应用ID", alias="app_id")
+    appName: str = Field(..., description="应用名称", alias="app_name")
+    agentType: Optional[str] = Field(None, description="智能体类型", alias="agent_type")
+    baseUrl: str = Field(..., description="Agent API基础URL", alias="base_url")
+    timeoutSeconds: int = Field(30, description="请求超时时间（秒）", alias="timeout_seconds")
+    maxRetries: int = Field(3, description="最大重试次数", alias="max_retries")
+    enabled: bool = Field(True, description="是否启用配置", alias="enabled")
+    description: Optional[str] = Field(None, description="配置描述", alias="description")
+    createdAt: datetime = Field(..., description="创建时间", alias="created_at")
+    updatedAt: datetime = Field(..., description="更新时间", alias="updated_at")
 
 
 class AgentConfigResponse(BaseModel):

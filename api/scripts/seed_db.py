@@ -24,7 +24,7 @@ try:
     from sqlalchemy.orm import Session
     from app.identity_access.models.user import User, Role, Doctor, Consultant, Operator, Administrator
     from app.identity_access.enums import AdminLevel
-    from app.customer.infrastructure.db.customer import Customer, CustomerProfile
+    from app.customer.models.customer import Customer, CustomerProfile
     from app.db.base import get_db, engine
     # from app.services import user_service as crud_user  # 已重构为DDD架构，不再需要
     from app.identity_access.schemas.user import UserCreate, DoctorBase, ConsultantBase, OperatorBase, AdministratorBase
@@ -368,8 +368,8 @@ async def create_test_conversations(db: Session) -> None:
     """
     创建测试会话和消息数据
     """
-    from app.chat.infrastructure.db.chat import Conversation, Message
-    from app.customer.infrastructure.db.customer import CustomerProfile
+    from app.chat.models.chat import Conversation, Message
+    from app.customer.models.customer import CustomerProfile
     from app.db.uuid_utils import conversation_id, message_id, profile_id
     from datetime import datetime, timedelta
     

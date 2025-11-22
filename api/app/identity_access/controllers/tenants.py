@@ -5,7 +5,7 @@ from app.identity_access.schemas.tenant_schemas import TenantCreate, TenantUpdat
 from app.identity_access.models.user import Tenant, User
 from app.identity_access.services.tenant_service import TenantService
 from app.identity_access.deps.auth_deps import get_current_user, require_role
-from app.common.infrastructure.db.base import get_db
+from app.common.deps import get_db
 from app.core.api import ApiResponse, BusinessException, ErrorCode, SystemException
 from sqlalchemy.orm import Session
 

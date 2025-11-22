@@ -1,25 +1,18 @@
 """
-系统管理模块
+系统管理模块 - 新架构
 """
 
-from .domain.entities.system_settings import SystemSettingsEntity
-from .domain.value_objects.system_config import (
-    SystemStatus, 
-    MaintenanceMode, 
-    SiteConfiguration, 
-    UserRegistrationConfig, 
-    AIModelConfig
-)
-from .application.system_application_service import SystemApplicationService
-from .domain.system_domain_service import SystemDomainService
+# 导出控制器
+from .controllers import system_router
+
+# 导出模型
+from .models import SystemSettings
+
+# 导出服务
+from .services import SystemService
 
 __all__ = [
-    "SystemSettingsEntity",
-    "SystemStatus",
-    "MaintenanceMode", 
-    "SiteConfiguration",
-    "UserRegistrationConfig",
-    "AIModelConfig",
-    "SystemApplicationService",
-    "SystemDomainService"
+    "system_router",
+    "SystemSettings",
+    "SystemService",
 ]

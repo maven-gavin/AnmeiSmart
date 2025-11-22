@@ -1,39 +1,21 @@
 """
-聊天服务模块 - DDD架构重构完成
+聊天服务模块 - 新架构
 """
-# 导出应用服务层
-from .application.chat_application_service import ChatApplicationService
 
-# 导出领域层
-from .domain.entities.conversation import ConversationEntity
-from .domain.entities.message import MessageEntity
-from .domain.conversation_domain_service import ConversationDomainService
-from .domain.message_domain_service import MessageDomainService
+# 导出控制器
+from .controllers import chat_router
 
-# 导出基础设施层
-from .infrastructure.conversation_repository import ConversationRepository
-from .infrastructure.message_repository import MessageRepository
+# 导出模型
+from .models import Conversation, Message, ConversationParticipant, MessageAttachment
 
-# 导出转换器
-from .converters.conversation_converter import ConversationConverter
-from .converters.message_converter import MessageConverter
-
+# 导出服务
+from .services import ChatService
 
 __all__ = [
-    # 应用服务层
-    "ChatApplicationService",
-    
-    # 领域层
-    "ConversationEntity",
-    "MessageEntity",
-    "ConversationDomainService",
-    "MessageDomainService",
-    
-    # 基础设施层
-    "ConversationRepository",
-    "MessageRepository",
-    
-    # 转换器
-    "ConversationConverter",
-    "MessageConverter",
-] 
+    "chat_router",
+    "Conversation",
+    "Message", 
+    "ConversationParticipant",
+    "MessageAttachment",
+    "ChatService",
+]

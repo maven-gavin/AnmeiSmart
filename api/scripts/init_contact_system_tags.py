@@ -4,7 +4,7 @@
 import asyncio
 from sqlalchemy.orm import Session
 from app.db.base import SessionLocal
-from app.contacts.infrastructure.db.contacts import ContactTag
+from app.contacts.models.contacts import ContactTag
 from app.identity_access.models.user import User
 from app.db.uuid_utils import tag_id
 import logging

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Optional, List, TYPE_CHECKING
 
@@ -5,7 +7,9 @@ from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 from app.identity_access.enums import AdminLevel
 
-from app.customer.schemas.customer import CustomerBase
+# 延迟导入避免循环依赖
+if TYPE_CHECKING:
+    from app.customer.schemas.customer import CustomerBase
 
 def to_camel(string: str) -> str:
     """将下划线命名转换为驼峰命名"""
@@ -86,7 +90,7 @@ class UserCreate(UserBase):
     """用户创建模型"""
     password: str = Field(..., min_length=8)
     roles: List[str] = ["customer"]  # 默认为客户角色
-    customer_info: Optional[CustomerBase] = None
+    customer_info: Optional["CustomerBase"] = None
     doctor_info: Optional[DoctorBase] = None
     consultant_info: Optional[ConsultantBase] = None
     operator_info: Optional[OperatorBase] = None
@@ -100,7 +104,7 @@ class UserUpdate(CamelModel):
     phone: Optional[str] = None
     avatar: Optional[str] = None
     roles: Optional[List[str]] = None
-    customer_info: Optional[CustomerBase] = None
+    customer_info: Optional["CustomerBase"] = None
     doctor_info: Optional[DoctorBase] = None
     consultant_info: Optional[ConsultantBase] = None
     operator_info: Optional[OperatorBase] = None
@@ -108,7 +112,7 @@ class UserUpdate(CamelModel):
 
 class ExtendedUserInfo(CamelModel):
     """扩展用户信息，包含角色特定信息"""
-    customer_info: Optional[CustomerBase] = None
+    customer_info: Optional["CustomerBase"] = None
     doctor_info: Optional[DoctorBase] = None
     consultant_info: Optional[ConsultantBase] = None
     operator_info: Optional[OperatorBase] = None
@@ -134,4 +138,22 @@ class UserListResponse(CamelModel):
 class SwitchRoleRequest(CamelModel):
     """角色切换请求模型"""
     role: str
-    
+
+
+# 重建所有使用前向引用的模型，确保 Pydantic 可以正确生成 OpenAPI schema
+def _rebuild_models():
+    """重建所有使用前向引用的模型"""
+    try:
+        # 尝试导入 CustomerBase 以解析前向引用
+        from app.customer.schemas.customer import CustomerBase
+        
+        # 重建所有使用 CustomerBase 的模型
+        UserCreate.model_rebuild()
+        UserUpdate.model_rebuild()
+        ExtendedUserInfo.model_rebuild()
+    except ImportError:
+        # 如果 CustomerBase 不可用，跳过重建（在 TYPE_CHECKING 时可能发生）
+        pass
+
+# 在模块加载时重建模型
+_rebuild_models()

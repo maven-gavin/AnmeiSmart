@@ -2,8 +2,8 @@ from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, Integer, T
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from app.common.infrastructure.db.base_model import BaseModel
-from app.common.infrastructure.db.uuid_utils import generate_uuid
+from app.common.models.base_model import BaseModel
+from app.common.deps.uuid_utils import generate_uuid
 
 
 class UserPreferences(BaseModel):

@@ -12,7 +12,7 @@ import logging
 from app.core.api import register_exception_handlers
 from app.core.config import get_settings
 from app.api import api_router
-from app.common.infrastructure.db.base import create_initial_roles, create_initial_system_settings
+from app.common.deps.database import create_initial_roles, create_initial_system_settings
 
 # 导入新的WebSocket和Redis组件
 from app.core.redis_client import redis_manager, get_redis_client
@@ -52,26 +52,22 @@ async def lifespan(app: FastAPI):
         
         # 同步API资源到资源库
         try:
-            from app.common.infrastructure.db.base import get_db
-            from app.identity_access.infrastructure.repositories.resource_repository import ResourceRepository
-            from app.identity_access.infrastructure.repositories.permission_repository import PermissionRepository
-            # from app.identity_access.domain.resource_domain_service import ResourceDomainService
-            # from app.identity_access.services.resource_sync_service import ResourceSyncService
+            from app.common.deps.database import SessionLocal
+            from app.identity_access.services.resource_service import ResourceService
+            from app.identity_access.services.resource_sync_service import ResourceSyncService
             
             # 创建数据库会话
-            from app.common.infrastructure.db.base import SessionLocal
             db = SessionLocal()
             
             try:
+                # 创建资源服务（遵循新架构，直接操作数据库）
+                resource_service = ResourceService(db)
                 # 创建资源同步服务
-                resource_repository = ResourceRepository(db)
-                permission_repository = PermissionRepository(db)
-                # resource_domain_service = ResourceDomainService(resource_repository, permission_repository)
-                # resource_sync_service = ResourceSyncService(resource_domain_service)
+                resource_sync_service = ResourceSyncService(resource_service)
                 
                 # 同步API资源
-                # result = await resource_sync_service.sync_api_resources(app)
-                # logger.info(f"API资源自动同步完成: {result}")
+                result = await resource_sync_service.sync_api_resources(app)
+                logger.info(f"API资源自动同步完成: {result}")
             finally:
                 db.close()
         except Exception as sync_error:
@@ -124,7 +120,7 @@ register_exception_handlers(app)
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # OAuth发现端点需要在根路径可访问（MCP Inspector要求）
-from app.mcp.endpoints.mcp_oauth import (
+from app.mcp.controllers.mcp_oauth import (
     oauth_metadata, oauth_metadata_options
 )
 

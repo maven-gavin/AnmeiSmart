@@ -3,8 +3,10 @@
 """
 import logging
 from typing import Optional
+from fastapi import Depends
 from sqlalchemy.orm import Session
 
+from app.common.deps import get_db
 from app.core.websocket.distributed_connection_manager import DistributedConnectionManager
 from app.core.redis_client import get_redis_client
 from .broadcasting_service import BroadcastingService
@@ -102,7 +104,9 @@ async def cleanup_broadcasting_services():
 
 
 # 依赖注入函数
-async def get_broadcasting_service_dependency(db: Optional[Session] = None) -> BroadcastingService:
+async def get_broadcasting_service_dependency(
+    db: Optional[Session] = Depends(get_db)
+) -> BroadcastingService:
     """
     FastAPI依赖注入函数
     """

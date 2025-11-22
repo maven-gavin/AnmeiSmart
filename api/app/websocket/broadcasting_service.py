@@ -244,7 +244,7 @@ class BroadcastingService:
                 return []
             
             # 查询会话参与者
-            from app.chat.infrastructure.db.chat import ConversationParticipant
+            from app.chat.models.chat import ConversationParticipant
             
             participants = self.db.query(ConversationParticipant).filter(
                 ConversationParticipant.conversation_id == conversation_id,

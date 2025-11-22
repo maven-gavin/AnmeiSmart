@@ -1,11 +1,18 @@
 """
-AnmeiSmart MCP (Model Context Protocol) Implementation
-
-统一MCP服务器实现，支持：
-- API Key认证和分组权限控制
-- 动态工具路由
-- 模块化架构设计
-- FastAPI集成
-
-设计符合企业级应用的安全和权限管理需求。
+MCP服务模块 - 新架构
 """
+
+# 导出控制器
+from .controllers import mcp_config_router, mcp_oauth_router, mcp_server_router
+
+# 导出模型
+from .models import MCPToolGroup, MCPTool, MCPCallLog
+
+__all__ = [
+    "mcp_config_router",
+    "mcp_oauth_router",
+    "mcp_server_router",
+    "MCPToolGroup",
+    "MCPTool",
+    "MCPCallLog",
+]

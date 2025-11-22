@@ -2,9 +2,9 @@ from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, Table, Tex
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from app.common.infrastructure.db.base_model import BaseModel
-from app.common.infrastructure.db.base import Base
-from app.common.infrastructure.db.uuid_utils import user_id, role_id, tenant_id, permission_id, resource_id
+from app.common.models.base_model import BaseModel
+from app.common.deps.database import Base
+from app.common.deps.uuid_utils import user_id, role_id, tenant_id, permission_id, resource_id
 from app.identity_access.enums import AdminLevel
 
 # 用户-角色关联表 (使用String类型的外键)
@@ -149,25 +149,25 @@ class User(BaseModel):
     roles = relationship("Role", secondary="user_roles", back_populates="users")
     
     # 扩展表关联
-    customer = relationship("app.customer.infrastructure.db.customer.Customer", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    customer = relationship("app.customer.models.customer.Customer", back_populates="user", uselist=False, cascade="all, delete-orphan")
     doctor = relationship("Doctor", back_populates="user", uselist=False, cascade="all, delete-orphan")
     consultant = relationship("Consultant", back_populates="user", uselist=False, cascade="all, delete-orphan")
     operator = relationship("Operator", back_populates="user", uselist=False, cascade="all, delete-orphan")
     administrator = relationship("Administrator", back_populates="user", uselist=False, cascade="all, delete-orphan")
     
     # 上传会话关联
-    upload_sessions = relationship("app.common.infrastructure.db.upload.UploadSession", back_populates="user", cascade="all, delete-orphan")
+    upload_sessions = relationship("app.common.models.upload.UploadSession", back_populates="user", cascade="all, delete-orphan")
     
     # 数字人关联（新增）
-    digital_humans = relationship("app.digital_humans.infrastructure.db.digital_human.DigitalHuman", back_populates="user", cascade="all, delete-orphan")
-    owned_conversations = relationship("app.chat.infrastructure.db.chat.Conversation", foreign_keys="app.chat.infrastructure.db.chat.Conversation.owner_id", back_populates="owner")
+    digital_humans = relationship("app.digital_humans.models.digital_human.DigitalHuman", back_populates="user", cascade="all, delete-orphan")
+    owned_conversations = relationship("app.chat.models.chat.Conversation", foreign_keys="app.chat.models.chat.Conversation.owner_id", back_populates="owner")
     
     # 通讯录关联（新增）
-    friendships = relationship("app.contacts.infrastructure.db.contacts.Friendship", foreign_keys="app.contacts.infrastructure.db.contacts.Friendship.user_id", 
+    friendships = relationship("app.contacts.models.contacts.Friendship", foreign_keys="app.contacts.models.contacts.Friendship.user_id", 
                               back_populates="user", cascade="all, delete-orphan")
-    contact_tags = relationship("app.contacts.infrastructure.db.contacts.ContactTag", back_populates="user", cascade="all, delete-orphan")
-    contact_groups = relationship("app.contacts.infrastructure.db.contacts.ContactGroup", back_populates="user", cascade="all, delete-orphan")
-    contact_privacy_setting = relationship("app.contacts.infrastructure.db.contacts.ContactPrivacySetting", back_populates="user", 
+    contact_tags = relationship("app.contacts.models.contacts.ContactTag", back_populates="user", cascade="all, delete-orphan")
+    contact_groups = relationship("app.contacts.models.contacts.ContactGroup", back_populates="user", cascade="all, delete-orphan")
+    contact_privacy_setting = relationship("app.contacts.models.contacts.ContactPrivacySetting", back_populates="user", 
                                           uselist=False, cascade="all, delete-orphan")
 
 class Doctor(BaseModel):

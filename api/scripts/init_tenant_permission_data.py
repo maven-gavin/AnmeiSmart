@@ -15,7 +15,7 @@ from typing import List, Dict, Any
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.orm import Session
-from app.common.infrastructure.db.base import get_db
+from app.common.deps.database import get_db
 from app.identity_access.models.user import Tenant, Role, Permission, User
 from app.identity_access.enums import TenantStatus, TenantType, PermissionType, PermissionScope
 

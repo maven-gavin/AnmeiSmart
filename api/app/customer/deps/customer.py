@@ -1,41 +1,24 @@
 """
 客户模块依赖注入配置
 
-遵循 @ddd_service_schema.mdc 第3章依赖注入配置规范：
+遵循新架构标准：
 - 使用FastAPI的依赖注入避免循环依赖
-- 接口抽象：使用抽象接口而不是具体实现
-- 依赖方向：确保依赖方向指向领域层
-- 生命周期管理：合理管理依赖的作用域
+- 直接使用Service层，无需Repository抽象
 """
 
-from typing import Optional
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.common.deps import get_db
-from app.customer.infrastructure.repositories.customer_repository import CustomerRepository
-from app.customer.application.customer_application_service import CustomerApplicationService
+from app.customer.services.customer_service import CustomerService
+from app.identity_access.deps.permission_deps import check_user_any_role
 
 
-def get_customer_repository(db: Session = Depends(get_db)) -> CustomerRepository:
-    """获取客户仓储实例
-    
-    遵循DDD规范：
-    - 使用FastAPI的依赖注入避免循环依赖
-    - 依赖方向：确保依赖方向指向领域层
-    """
-    return CustomerRepository(db)
+def get_customer_service(db: Session = Depends(get_db)) -> CustomerService:
+    """获取客户服务实例"""
+    return CustomerService(db)
 
 
-def get_customer_application_service(
-    customer_repository: CustomerRepository = Depends(get_customer_repository)
-) -> CustomerApplicationService:
-    """获取客户应用服务实例
-    
-    遵循DDD规范：
-    - 编排领域服务，实现用例，事务管理
-    - 无状态，协调领域对象完成业务用例
-    """
-    return CustomerApplicationService(
-        customer_repository=customer_repository
-    )
+async def check_customer_permission(user, required_roles: list[str]) -> bool:
+    """检查客户权限"""
+    return await check_user_any_role(user, required_roles)

@@ -11,20 +11,20 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
 
 # 导入Base模型
-from app.common.infrastructure.db.base import Base
+from app.common.deps.database import Base
 
 # 导入所有模型确保元数据完整
 # 通过导入各领域模块来确保SQLAlchemy可以正确建立关系映射
 import app.identity_access.models.user
-import app.chat.infrastructure.db
-import app.contacts.infrastructure.db
-import app.digital_humans.infrastructure.db
-import app.tasks.infrastructure.db
-import app.mcp.infrastructure.db
+import app.chat.models
+import app.contacts.models
+import app.digital_humans.models
+import app.tasks.models
+import app.mcp.models
 import app.ai.infrastructure.db
-import app.system.infrastructure.db
-import app.customer.infrastructure.db
-import app.common.infrastructure.db.upload
+import app.system.models
+import app.customer.models
+import app.common.models.upload
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

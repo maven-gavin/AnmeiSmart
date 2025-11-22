@@ -9,7 +9,7 @@ from fastapi import HTTPException, status
 from functools import wraps
 import logging
 
-from app.mcp.infrastructure.db.mcp import MCPToolGroup, MCPTool, MCPCallLog
+from app.mcp.models.mcp import MCPToolGroup, MCPTool, MCPCallLog
 from app.mcp.schemas.mcp import (
     MCPGroupCreate, MCPGroupUpdate, MCPGroupInfo,
     MCPToolInfo, MCPCallLogInfo

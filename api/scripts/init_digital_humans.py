@@ -17,9 +17,9 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from app.core.config import Settings
 from app.identity_access.models.user import User
-from app.digital_humans.infrastructure.db.digital_human import DigitalHuman
+from app.digital_humans.models.digital_human import DigitalHuman
 from app.ai.infrastructure.db.agent_config import AgentConfig
-from app.common.infrastructure.db.uuid_utils import digital_human_id, generate_agent_id
+from app.common.deps.uuid_utils import digital_human_id, generate_agent_id
 
 
 def create_default_agent_configs(session):

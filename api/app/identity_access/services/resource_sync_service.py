@@ -9,15 +9,16 @@ from typing import List, Dict, Any
 from fastapi import FastAPI
 
 from app.identity_access.enums import ResourceType
+from app.identity_access.services.resource_service import ResourceService
 
 logger = logging.getLogger(__name__)
 
 
 class ResourceSyncService:
-    """资源同步服务"""
+    """资源同步服务 - 遵循新架构，使用 ResourceService"""
     
-    def __init__(self, resource_repository):
-        self.resource_repository = resource_repository
+    def __init__(self, resource_service: ResourceService):
+        self.resource_service = resource_service
     
     async def sync_api_resources(self, app: FastAPI) -> Dict[str, int]:
         """
@@ -35,6 +36,15 @@ class ResourceSyncService:
         updated_count = 0
         
         try:
+            # 确保所有使用前向引用的 Pydantic 模型都已重建
+            try:
+                from app.identity_access.schemas.user import UserCreate, UserUpdate, ExtendedUserInfo
+                UserCreate.model_rebuild()
+                UserUpdate.model_rebuild()
+                ExtendedUserInfo.model_rebuild()
+            except Exception as e:
+                logger.debug(f"模型重建跳过: {e}")
+            
             # 获取OpenAPI文档
             openapi_schema = app.openapi()
             
@@ -103,17 +113,25 @@ class ResourceSyncService:
                     # 生成描述：使用description（可能为空字符串）
                     resource_description = description or ""
                     
-                    # 检查资源是否已存在
-                    existing_resource = self.resource_repository.get_by_name(resource_name)
-                    
-                    if existing_resource:
-                        updated_count += 1
-                    else:
-                        created_count += 1
-                    
-                    # 同步资源
-                    # TODO: 实现资源同步逻辑，需要ResourceRepository支持create_or_update
-                    # await self.resource_repository.sync_resource(...)
+                    # 同步资源（创建或更新）
+                    try:
+                        existing_resource = self.resource_service.get_by_name(resource_name)
+                        if existing_resource:
+                            updated_count += 1
+                        else:
+                            created_count += 1
+                        
+                        self.resource_service.create_or_update_resource(
+                            name=resource_name,
+                            resource_path=path,
+                            resource_type=ResourceType.API,
+                            display_name=display_name[:50] if display_name else None,
+                            description=resource_description[:255] if resource_description else None,
+                            http_method=method.upper()
+                        )
+                    except Exception as e:
+                        logger.warning(f"同步资源失败 {resource_name}: {e}")
+                        continue
             
             logger.info(f"API资源同步完成: 创建 {created_count} 个，更新 {updated_count} 个")
             
@@ -143,17 +161,30 @@ class ResourceSyncService:
                 if not name:
                     continue
                 
-                # 检查资源是否已存在
-                existing_resource = self.resource_repository.get_by_name(name)
-                
-                if existing_resource:
-                    updated_count += 1
-                else:
-                    created_count += 1
-                
-                # 同步资源
-                # TODO: 实现资源同步逻辑
-                # await self.resource_repository.sync_resource(...)
+                # 同步资源（创建或更新）
+                try:
+                    existing_resource = self.resource_service.get_by_name(name)
+                    if existing_resource:
+                        updated_count += 1
+                    else:
+                        created_count += 1
+                    
+                    resource_path = menu.get('path', menu.get('url', ''))
+                    display_name = menu.get('display_name', menu.get('title', name))
+                    description = menu.get('description', '')
+                    
+                    self.resource_service.create_or_update_resource(
+                        name=name,
+                        resource_path=resource_path,
+                        resource_type=ResourceType.MENU,
+                        display_name=display_name[:50] if display_name else None,
+                        description=description[:255] if description else None,
+                        parent_id=menu.get('parent_id'),
+                        priority=menu.get('priority', 0)
+                    )
+                except Exception as e:
+                    logger.warning(f"同步菜单资源失败 {name}: {e}")
+                    continue
             
             logger.info(f"菜单资源同步完成: 创建 {created_count} 个，更新 {updated_count} 个")
             

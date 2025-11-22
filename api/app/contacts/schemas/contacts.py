@@ -3,8 +3,11 @@
 """
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from enum import Enum
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # 枚举定义
@@ -76,15 +79,21 @@ class ContactTagUpdate(BaseModel):
 
 class ContactTagResponse(ContactTagBase):
     """联系人标签响应模型"""
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str = Field(..., description="标签ID")
     user_id: str = Field(..., description="创建用户ID")
     is_system_tag: bool = Field(..., description="是否系统预设标签")
     usage_count: int = Field(..., description="使用次数")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
-
-    class Config:
-        from_attributes = True
+    
+    @staticmethod
+    def from_model(tag) -> "ContactTagResponse":
+        """从数据库模型转换为Schema模型"""
+        if not tag:
+            return None
+        return ContactTagResponse.model_validate(tag)
 
 
 # 好友关系模型
@@ -124,19 +133,53 @@ class UserSearchRequest(BaseModel):
 
 class UserSearchResult(BaseModel):
     """用户搜索结果模型"""
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str = Field(..., description="用户ID")
-    username: str = Field(..., description="用户名")
+    name: str = Field(..., description="用户名")  # 注意：使用 name 而不是 username，以保持兼容性
+    email: Optional[str] = Field(None, description="邮箱")
     avatar: Optional[str] = Field(None, description="头像URL")
-    roles: List[str] = Field(..., description="用户角色列表")
-    is_friend: bool = Field(..., description="是否已经是好友")
-    friendship_status: Optional[FriendshipStatus] = Field(None, description="好友关系状态")
-
-    class Config:
-        from_attributes = True
+    phone: Optional[str] = Field(None, description="手机号")
+    is_friend: bool = Field(False, description="是否已经是好友")
+    mutual_friends_count: int = Field(0, description="共同好友数量")
+    
+    @staticmethod
+    def from_model(user, current_user_id: str, db_session=None) -> "UserSearchResult":
+        """从用户模型转换为搜索结果模型"""
+        if not user:
+            return None
+        
+        # 检查是否为好友（需要传入 db_session 来查询）
+        is_friend = False
+        mutual_friends_count = 0
+        
+        if db_session:
+            from app.contacts.models.contacts import Friendship
+            friendship = db_session.query(Friendship).filter(
+                Friendship.user_id == current_user_id,
+                Friendship.friend_id == user.id,
+                Friendship.status == "accepted"
+            ).first()
+            is_friend = friendship is not None
+            
+            # 计算共同好友数量（简化版，后续可以优化）
+            # TODO: 实现完整的共同好友计算逻辑
+        
+        return UserSearchResult(
+            id=user.id,
+            name=user.username,  # 使用 username 字段填充 name
+            email=user.email,
+            avatar=user.avatar,
+            phone=getattr(user, 'phone', None),
+            is_friend=is_friend,
+            mutual_friends_count=mutual_friends_count
+        )
 
 
 class FriendshipResponse(FriendshipBase):
     """好友关系响应模型"""
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str = Field(..., description="好友关系ID")
     user_id: str = Field(..., description="用户ID")
     friend_id: str = Field(..., description="好友用户ID")
@@ -153,9 +196,52 @@ class FriendshipResponse(FriendshipBase):
     # 关联数据
     friend: Optional[Dict[str, Any]] = Field(None, description="好友用户信息")
     tags: List[ContactTagResponse] = Field([], description="关联的标签列表")
-
-    class Config:
-        from_attributes = True
+    
+    @staticmethod
+    def from_model(friendship) -> "FriendshipResponse":
+        """从数据库模型转换为Schema模型"""
+        if not friendship:
+            return None
+        
+        # 构建好友用户信息字典
+        friend_info = None
+        if friendship.friend:
+            friend_info = {
+                "id": friendship.friend.id,
+                "username": friendship.friend.username,
+                "email": friendship.friend.email,
+                "avatar": friendship.friend.avatar,
+                "phone": getattr(friendship.friend, 'phone', None)
+            }
+        
+        # 构建标签列表
+        tags_list = []
+        if friendship.tags:
+            for friendship_tag in friendship.tags:
+                if friendship_tag.tag:
+                    tags_list.append(ContactTagResponse.from_model(friendship_tag.tag))
+        
+        return FriendshipResponse(
+            id=friendship.id,
+            user_id=friendship.user_id,
+            friend_id=friendship.friend_id,
+            status=friendship.status,
+            source=friendship.source,
+            nickname=friendship.nickname,
+            remark=friendship.remark,
+            is_starred=friendship.is_starred,
+            is_muted=friendship.is_muted,
+            is_pinned=friendship.is_pinned,
+            is_blocked=friendship.is_blocked,
+            requested_at=friendship.requested_at,
+            accepted_at=friendship.accepted_at,
+            last_interaction_at=friendship.last_interaction_at,
+            interaction_count=friendship.interaction_count or 0,
+            created_at=friendship.created_at,
+            updated_at=friendship.updated_at,
+            friend=friend_info,
+            tags=tags_list
+        )
 
 
 class FriendRequestResponse(BaseModel):
@@ -210,6 +296,8 @@ class UpdateContactGroupRequest(BaseModel):
 
 class ContactGroupResponse(ContactGroupBase):
     """联系人分组响应模型"""
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str = Field(..., description="分组ID")
     user_id: str = Field(..., description="创建用户ID")
     member_count: int = Field(..., description="当前成员数")
@@ -217,10 +305,41 @@ class ContactGroupResponse(ContactGroupBase):
     updated_at: datetime = Field(..., description="更新时间")
     
     # 可选的成员信息
-    members: Optional[List[Dict[str, Any]]] = Field(None, description="分组成员列表")
-
-    class Config:
-        from_attributes = True
+    members: Optional[List["GroupMemberResponse"]] = Field(None, description="分组成员列表")
+    
+    @staticmethod
+    def from_model(group, include_members: bool = False) -> "ContactGroupResponse":
+        """从数据库模型转换为Schema模型"""
+        if not group:
+            return None
+        
+        # 构建成员列表
+        members_list = None
+        if include_members and group.members:
+            members_list = [
+                GroupMemberResponse.from_model(member) for member in group.members
+            ]
+        
+        # 获取成员数量
+        member_count = len(members_list) if members_list else getattr(group, 'member_count', 0)
+        
+        return ContactGroupResponse(
+            id=group.id,
+            user_id=group.user_id,
+            name=group.name,
+            description=group.description,
+            avatar=getattr(group, 'avatar', None),
+            group_type=getattr(group, 'group_type', 'personal'),
+            color_theme=getattr(group, 'color_theme', '#3B82F6'),
+            display_order=getattr(group, 'display_order', 0),
+            is_collapsed=getattr(group, 'is_collapsed', False),
+            max_members=getattr(group, 'max_members', None),
+            is_private=getattr(group, 'is_private', False),
+            member_count=member_count,
+            created_at=group.created_at,
+            updated_at=group.updated_at,
+            members=members_list
+        )
 
 
 class UpdateGroupMembersRequest(BaseModel):
@@ -228,7 +347,8 @@ class UpdateGroupMembersRequest(BaseModel):
     add_friendship_ids: List[str] = Field([], description="要添加的好友关系ID列表")
     remove_friendship_ids: List[str] = Field([], description="要移除的好友关系ID列表")
     
-    @validator('add_friendship_ids', 'remove_friendship_ids')
+    @field_validator('add_friendship_ids', 'remove_friendship_ids')
+    @classmethod
     def validate_friendship_ids(cls, v):
         if not isinstance(v, list):
             raise ValueError('必须是列表类型')
@@ -237,6 +357,8 @@ class UpdateGroupMembersRequest(BaseModel):
 
 class GroupMemberResponse(BaseModel):
     """分组成员响应模型"""
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str = Field(..., description="关联ID")
     group_id: str = Field(..., description="分组ID")
     friendship_id: str = Field(..., description="好友关系ID")
@@ -246,9 +368,26 @@ class GroupMemberResponse(BaseModel):
     
     # 关联的好友信息
     friendship: Optional[FriendshipResponse] = Field(None, description="好友关系信息")
-
-    class Config:
-        from_attributes = True
+    
+    @staticmethod
+    def from_model(member) -> "GroupMemberResponse":
+        """从数据库模型转换为Schema模型"""
+        if not member:
+            return None
+        
+        friendship = None
+        if member.friendship:
+            friendship = FriendshipResponse.from_model(member.friendship)
+        
+        return GroupMemberResponse(
+            id=member.id,
+            group_id=member.group_id,
+            friendship_id=member.friendship_id,
+            role=member.role,
+            joined_at=member.joined_at,
+            invited_by=getattr(member, 'invited_by', None),
+            friendship=friendship
+        )
 
 
 # 隐私设置模型
@@ -285,7 +424,8 @@ class UpdateFriendTagsRequest(BaseModel):
     """更新好友标签请求模型"""
     tag_ids: List[str] = Field(..., description="标签ID列表")
     
-    @validator('tag_ids')
+    @field_validator('tag_ids')
+    @classmethod
     def validate_tag_ids(cls, v):
         if not isinstance(v, list):
             raise ValueError('必须是列表类型')
@@ -311,7 +451,8 @@ class BatchFriendOperations(BaseModel):
     operation: str = Field(..., pattern="^(add_tags|remove_tags|move_to_group|remove_from_group|star|unstar|mute|unmute)$", description="操作类型")
     operation_data: Optional[Dict[str, Any]] = Field(None, description="操作相关数据")
     
-    @validator('friendship_ids')
+    @field_validator('friendship_ids')
+    @classmethod
     def validate_friendship_ids(cls, v):
         if not v:
             raise ValueError('好友关系ID列表不能为空')

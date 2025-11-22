@@ -1,7 +1,7 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from app.common.infrastructure.db.base import get_db
+from app.common.deps import get_db
 from app.identity_access.services.user_service import UserService
 from app.identity_access.services.auth_service import AuthService
 from app.identity_access.services.role_service import RoleService

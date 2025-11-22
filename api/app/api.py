@@ -1,15 +1,15 @@
 from fastapi import APIRouter
 from app.identity_access.controllers import users, auth, roles, tenants
-from app.chat.endpoints import  chat
-from app.ai.endpoints import ai_gateway, agent_config, agent_chat
-from app.system.endpoints import  system
-from app.customer.endpoints import  customer
-from app.websocket.endpoints import  websocket
-from app.common.endpoints import  files
-from app.contacts.endpoints import  contacts
-from app.mcp.endpoints import  mcp_config,mcp_server,mcp_oauth
-from app.digital_humans.endpoints import  digital_humans,admin_digital_humans
-from app.tasks.endpoints import  tasks
+from app.chat.controllers import chat
+from app.ai.controllers import ai_gateway, agent_config, agent_chat
+from app.system.controllers import system
+from app.customer.controllers import customer
+from app.websocket.controllers import websocket
+from app.common.controllers import files
+from app.contacts.controllers import contacts
+from app.mcp.controllers import mcp_config, mcp_server, mcp_oauth
+from app.digital_humans.controllers import digital_humans, admin_digital_humans
+from app.tasks.controllers import tasks
 
 api_router = APIRouter()
 

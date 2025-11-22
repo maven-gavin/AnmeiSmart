@@ -1,8 +1,18 @@
 """
-任务管理模块
+任务服务模块 - 新架构
 """
-from .application.task_application_service import TaskApplicationService
+
+# 导出控制器
+from .controllers import tasks_router
+
+# 导出模型
+from .models import PendingTask
+
+# 导出服务
+from .services import TaskService
 
 __all__ = [
-    "TaskApplicationService"
+    "tasks_router",
+    "PendingTask",
+    "TaskService",
 ]

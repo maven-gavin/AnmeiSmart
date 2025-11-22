@@ -1,7 +1,7 @@
 import uvicorn
 import os
 import sys
-from app.common.infrastructure.db.base import init_db, create_initial_roles
+from app.common.deps.database import init_db, create_initial_roles
 
 def run_dev_server():
     """

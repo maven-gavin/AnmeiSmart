@@ -15,9 +15,19 @@ AI模块 - 新架构
     response = await ai_gateway.chat(message, user_id, session_id)
 """
 
+# 导出控制器
+from .controllers import agent_config_router, agent_chat_router, ai_gateway_router
+
 # 导出依赖注入配置
-try:
-    from .deps import get_agent_config_service
-    __all__ = ["get_agent_config_service"]
-except ImportError:
-    __all__ = [] 
+from .deps import get_agent_config_service
+
+# 导出模型
+from .models import AgentConfig
+
+__all__ = [
+    "agent_config_router",
+    "agent_chat_router", 
+    "ai_gateway_router",
+    "get_agent_config_service",
+    "AgentConfig",
+] 

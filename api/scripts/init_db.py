@@ -21,11 +21,11 @@ def init_db():
     """初始化数据库表结构"""
     try:
         # 导入所有模型以确保它们被包含在Base.metadata中
-        from app.common.infrastructure.db.base_model import BaseModel
+        from app.common.deps.database_model import BaseModel
         from app.identity_access.models.user import User, Role
-        from app.customer.infrastructure.db.customer import Customer, CustomerProfile
-        from app.chat.infrastructure.db.chat import Conversation, Message
-        from app.system.infrastructure.db.system import SystemSettings, AIModelConfig
+        from app.customer.models.customer import Customer, CustomerProfile
+        from app.chat.models.chat import Conversation, Message
+        from app.system.models.system import SystemSettings
         
         # 导入和使用Base以创建所有表
         from app.db.base import Base, engine
@@ -76,7 +76,7 @@ def create_initial_system_settings():
     try:
         # 导入系统设置相关模块
         from app.db.base import SessionLocal
-        from app.system.infrastructure.db.system import SystemSettings, AIModelConfig
+        from app.system.models.system import SystemSettings
         from app.db.uuid_utils import system_id, model_id
 
         # 创建数据库会话
