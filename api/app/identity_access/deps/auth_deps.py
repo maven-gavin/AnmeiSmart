@@ -86,3 +86,30 @@ def require_role(role_name: str):
             )
         return current_user
     return check_role
+
+def require_permission(permission_code: str):
+    """检查用户是否拥有特定权限"""
+    async def check_permission(current_user: User = Depends(get_current_user)):
+        # 1. 如果是超级管理员，直接通过
+        for role in current_user.roles:
+            if role.is_admin:
+                return current_user
+                
+        # 2. 检查用户的所有角色的所有权限
+        has_permission = False
+        # 如果有活跃角色上下文，优先检查活跃角色（这里简化为检查所有角色）
+        for role in current_user.roles:
+            for permission in role.permissions:
+                if permission.code == permission_code:
+                    has_permission = True
+                    break
+            if has_permission:
+                break
+        
+        if not has_permission:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"需要操作权限: {permission_code}"
+            )
+        return current_user
+    return check_permission

@@ -199,6 +199,14 @@ async def read_user_me(
             pass
         if not active_role and roles:
             active_role = roles[0]
+
+    # 获取权限列表（从所有角色中收集）
+    permissions = []
+    for role in current_user.roles:
+        if role.permissions:
+            for perm in role.permissions:
+                if perm.code not in permissions:
+                    permissions.append(perm.code)
     
     # 构建 UserResponse 数据
     user_data = {
@@ -212,6 +220,7 @@ async def read_user_me(
         "updated_at": current_user.updated_at,
         "last_login_at": getattr(current_user, 'last_login_at', None),
         "roles": roles,
+        "permissions": permissions,
         "active_role": active_role,
         "extended_info": None  # 可以后续扩展
     }
@@ -315,7 +324,7 @@ async def read_roles(
 @router.get("/{user_id}/permissions/check", response_model=ApiResponse[UserPermissionCheckResponse])
 async def check_user_permission(
     user_id: str,
-    permission: str = Query(..., description="要检查的权限名称"),
+    permission: str = Query(..., description="要检查的权限代码"),
     current_user: User = Depends(get_current_user),
     role_service: RoleService = Depends(get_role_service)
 ) -> ApiResponse[UserPermissionCheckResponse]:
@@ -394,8 +403,8 @@ async def get_user_permissions_summary(
             # 收集角色的权限
             if role.permissions:
                 for perm in role.permissions:
-                    if perm.name not in permissions:
-                        permissions.append(perm.name)
+                    if perm.code not in permissions:
+                        permissions.append(perm.code)
         
         # 获取租户信息
         tenant_id = user.tenant_id

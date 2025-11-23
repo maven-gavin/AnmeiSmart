@@ -98,6 +98,11 @@ class AuthService {
         password: credentials.password,
       });
 
+      const params: Record<string, string> = {};
+      if (credentials.tenantId) {
+        params.tenant_id = credentials.tenantId;
+      }
+
       const response = await apiClient.post<{
         access_token: string;
         refresh_token: string;
@@ -107,6 +112,7 @@ class AuthService {
         {
           body: formData,
           headers: new Headers({ 'Content-Type': ContentType.form }),
+          params,
         },
         {
           bodyStringify: false,

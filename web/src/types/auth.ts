@@ -22,6 +22,7 @@ export interface User {
   avatar?: string;
   roles: string[];
   isActive: boolean;
+  tenantId?: string; // 新增租户ID
   createdAt: string;
   updatedAt?: string;
   lastLoginAt?: string;
@@ -31,6 +32,7 @@ export interface User {
 export interface LoginCredentials {
   username: string; // 可以是邮箱或手机号
   password: string;
+  tenantId?: string;
 }
 
 export interface LoginResponse {
@@ -55,13 +57,12 @@ export interface RoleOption {
 // 新增权限相关类型定义
 export interface Permission {
   id: string;
+  code: string; // 权限标识码
   name: string;
   displayName?: string;
   description?: string;
   permissionType: 'action' | 'resource' | 'feature' | 'system';
   scope: 'system' | 'tenant' | 'user' | 'resource';
-  resource?: string;
-  action?: string;
   isActive: boolean;
   isSystem: boolean;
   isAdmin: boolean;

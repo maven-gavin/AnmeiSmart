@@ -21,7 +21,7 @@ import app.contacts.models
 import app.digital_humans.models
 import app.tasks.models
 import app.mcp.models
-import app.ai.infrastructure.db
+import app.ai.models
 import app.system.models
 import app.customer.models
 import app.common.models.upload

@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, Table, Text, JSON, Integer
+from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, Table, Text, JSON, Integer, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -70,7 +70,7 @@ class Role(BaseModel):
     is_system = Column(Boolean, default=False, comment="是否系统角色")
     is_admin = Column(Boolean, default=False, comment="是否管理员角色")
     priority = Column(Integer, default=0, comment="角色优先级")
-    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), comment="租户ID")
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), default="system", comment="租户ID")
 
     # 角色关联的用户
     users = relationship("User", secondary="user_roles", back_populates="roles")
@@ -83,19 +83,18 @@ class Permission(BaseModel):
     __table_args__ = {"comment": "权限配置表，存储系统所有权限配置信息"}
     
     id = Column(String(36), primary_key=True, default=permission_id, comment="权限ID")
+    code = Column(String(100), unique=True, index=True, nullable=False, comment="权限标识码，如 user:create")
     name = Column(String(50), unique=True, index=True, nullable=False, comment="权限名称")
     display_name = Column(String(50), nullable=True, comment="权限显示名称")
     description = Column(String(255), nullable=True, comment="权限描述")
     permission_type = Column(String(20), default="action", comment="权限类型")
     scope = Column(String(20), default="tenant", comment="权限范围")
-    resource = Column(String(50), nullable=True, comment="权限资源")
-    action = Column(String(50), nullable=True, comment="权限动作")
     
     is_active = Column(Boolean, default=True, comment="是否启用")
     is_system = Column(Boolean, default=False, comment="是否系统权限")
     is_admin = Column(Boolean, default=False, comment="是否管理员权限")
     priority = Column(Integer, default=0, comment="权限优先级")
-    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), comment="租户ID")
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), default="system", comment="租户ID")
 
     # 权限关联的角色
     roles = relationship("Role", secondary="role_permissions", back_populates="permissions")
@@ -120,7 +119,7 @@ class Resource(BaseModel):
     is_active = Column(Boolean, default=True, comment="是否启用")
     is_system = Column(Boolean, default=False, comment="是否系统资源")
     priority = Column(Integer, default=0, comment="资源优先级")
-    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, comment="租户ID")
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), default="system", comment="租户ID")
     
     # 资源关联的权限
     permissions = relationship("Permission", secondary="resource_permissions", back_populates="resources")
@@ -131,15 +130,19 @@ class Resource(BaseModel):
 class User(BaseModel):
     """用户基础数据库模型，存储所有类型用户共有的信息"""
     __tablename__ = "users"
-    __table_args__ = {"comment": "用户表，存储所有用户基础信息"}
+    __table_args__ = (
+        UniqueConstraint('email', 'tenant_id', name='uq_user_email_tenant'),
+        UniqueConstraint('username', 'tenant_id', name='uq_user_username_tenant'),
+        {"comment": "用户表，存储所有用户基础信息"}
+    )
 
     id = Column(String(36), primary_key=True, default=user_id, comment="用户ID")
-    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), comment="租户ID")
-    email = Column(String, unique=True, index=True, nullable=False, comment="邮箱")
-    username = Column(String, unique=True, index=True, nullable=False, comment="用户名")
-    hashed_password = Column(String, nullable=False, comment="加密密码")
-    phone = Column(String, unique=True, index=True, nullable=True, comment="手机号")
-    avatar = Column(String, nullable=True, comment="头像URL")
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), default="system", comment="租户ID")
+    email = Column(String(255), index=True, nullable=False, comment="邮箱")
+    username = Column(String(255), index=True, nullable=False, comment="用户名")
+    hashed_password = Column(String(255), nullable=False, comment="加密密码")
+    phone = Column(String(50), index=True, nullable=True, comment="手机号")
+    avatar = Column(String(255), nullable=True, comment="头像URL")
     is_active = Column(Boolean, default=True, comment="是否激活")
     
     # 租户关联
@@ -176,9 +179,9 @@ class Doctor(BaseModel):
     __table_args__ = {"comment": "医生表，存储医生扩展信息"}
     
     user_id = Column(String(36), ForeignKey("users.id"), unique=True, nullable=False, comment="用户ID")
-    specialization = Column(String, nullable=True, comment="专科方向")
-    certification = Column(String, nullable=True, comment="资格证书")
-    license_number = Column(String, nullable=True, comment="执业证号")
+    specialization = Column(String(255), nullable=True, comment="专科方向")
+    certification = Column(String(255), nullable=True, comment="资格证书")
+    license_number = Column(String(100), nullable=True, comment="执业证号")
     
     # 关联到基础用户表
     user = relationship("User", back_populates="doctor")
@@ -189,8 +192,8 @@ class Consultant(BaseModel):
     __table_args__ = {"comment": "医美顾问表，存储顾问扩展信息"}
     
     user_id = Column(String(36), ForeignKey("users.id"), unique=True, nullable=False, comment="用户ID")
-    expertise = Column(String, nullable=True, comment="专长领域")
-    performance_metrics = Column(Text, nullable=True, comment="业绩指标")
+    expertise = Column(String(255), nullable=True, comment="专长领域")
+    performance_metrics = Column(JSON, nullable=True, comment="业绩指标")
     
     # 关联到基础用户表
     user = relationship("User", back_populates="consultant")
@@ -201,7 +204,7 @@ class Operator(BaseModel):
     __table_args__ = {"comment": "运营人员表，存储机构运营人员扩展信息"}
     
     user_id = Column(String(36), ForeignKey("users.id"), unique=True, nullable=False, comment="用户ID")
-    department = Column(String, nullable=True, comment="所属部门")
+    department = Column(String(100), nullable=True, comment="所属部门")
     responsibilities = Column(Text, nullable=True, comment="职责描述")
     
     # 关联到基础用户表
@@ -213,8 +216,8 @@ class Administrator(BaseModel):
     __table_args__ = {"comment": "系统管理员表，存储管理员扩展信息"}
     
     user_id = Column(String(36), ForeignKey("users.id"), unique=True, nullable=False, comment="用户ID")
-    admin_level = Column(String, default=AdminLevel.BASIC, comment="管理员级别")
-    access_permissions = Column(Text, nullable=True, comment="权限描述")
+    admin_level = Column(String(20), default=AdminLevel.BASIC, comment="管理员级别")
+    access_permissions = Column(JSON, nullable=True, comment="权限描述")
     
     # 关联到基础用户表
-    user = relationship("User", back_populates="administrator") 
+    user = relationship("User", back_populates="administrator")

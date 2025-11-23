@@ -80,11 +80,10 @@ class RoleService:
         self.db.commit()
         return True
         
-    async def check_permission(self, user_id: str, permission: str) -> bool:
+    async def check_permission(self, user_id: str, permission_code: str) -> bool:
         """
         检查用户权限
-        目前简化实现：如果是管理员角色则拥有所有权限
-        后续应查询 role_permissions 表
+        基于 Permission.code 进行判断
         """
         user = self.db.query(User).filter(User.id == user_id).first()
         if not user:
@@ -94,10 +93,10 @@ class RoleService:
             if role.is_admin or role.name in ["administrator", "super_admin"]:
                 return True
                 
-            # TODO: 检查具体权限关联
-            # for perm in role.permissions:
-            #    if perm.name == permission:
-            #        return True
+            # 检查具体权限关联
+            for perm in role.permissions:
+                if perm.code == permission_code:
+                    return True
         
         return False
 

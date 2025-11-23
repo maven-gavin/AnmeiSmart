@@ -23,21 +23,22 @@ class UserService:
 
     async def create_user(self, user_in: UserCreate) -> User:
         """创建用户"""
+        tenant_id = user_in.tenant_id or "system"
         
         try:
-            logger.info(f"[UserService] 开始创建用户: username={user_in.username}, email={user_in.email}")
+            logger.info(f"[UserService] 开始创建用户: username={user_in.username}, email={user_in.email}, tenant_id={tenant_id}")
             logger.debug(f"[UserService] 用户输入完整数据: {user_in.model_dump(exclude={'password'})}")
             
             # 1. 检查唯一性
             logger.debug(f"[UserService] 检查用户名唯一性: {user_in.username}")
-            existing_user = self.get_by_username(user_in.username)
+            existing_user = self.get_by_username(user_in.username, tenant_id)
             if existing_user:
                 logger.warning(f"[UserService] 用户名已存在: {user_in.username}")
                 raise BusinessException("用户名已存在", code=ErrorCode.BUSINESS_ERROR)
             logger.debug(f"[UserService] 用户名唯一性检查通过")
             
             logger.debug(f"[UserService] 检查邮箱唯一性: {user_in.email}")
-            existing_email = self.get_by_email(user_in.email)
+            existing_email = self.get_by_email(user_in.email, tenant_id)
             if existing_email:
                 logger.warning(f"[UserService] 邮箱已存在: {user_in.email}")
                 raise BusinessException("邮箱已存在", code=ErrorCode.BUSINESS_ERROR)
@@ -45,7 +46,7 @@ class UserService:
             
             if user_in.phone:
                 logger.debug(f"[UserService] 检查手机号唯一性: {user_in.phone}")
-                existing_phone = self.get_by_phone(user_in.phone)
+                existing_phone = self.get_by_phone(user_in.phone, tenant_id)
                 if existing_phone:
                     logger.warning(f"[UserService] 手机号已存在: {user_in.phone}")
                     raise BusinessException("手机号已存在", code=ErrorCode.BUSINESS_ERROR)
@@ -61,6 +62,7 @@ class UserService:
                 "operator_info", "administrator_info"
             }
             user_data = user_in.model_dump(exclude=exclude_fields)
+            user_data["tenant_id"] = tenant_id
             logger.debug(f"[UserService] 用户数据（排除密码、角色和扩展信息）: {user_data}")
             
             logger.debug(f"[UserService] 生成密码哈希")
@@ -109,17 +111,17 @@ class UserService:
         """根据ID获取用户"""
         return self.db.query(User).filter(User.id == user_id).first()
 
-    def get_by_username(self, username: str) -> Optional[User]:
+    def get_by_username(self, username: str, tenant_id: str = "system") -> Optional[User]:
         """根据用户名获取用户"""
-        return self.db.query(User).filter(User.username == username).first()
+        return self.db.query(User).filter(User.username == username, User.tenant_id == tenant_id).first()
 
-    def get_by_email(self, email: str) -> Optional[User]:
+    def get_by_email(self, email: str, tenant_id: str = "system") -> Optional[User]:
         """根据邮箱获取用户"""
-        return self.db.query(User).filter(User.email == email).first()
+        return self.db.query(User).filter(User.email == email, User.tenant_id == tenant_id).first()
 
-    def get_by_phone(self, phone: str) -> Optional[User]:
+    def get_by_phone(self, phone: str, tenant_id: str = "system") -> Optional[User]:
         """根据手机号获取用户"""
-        return self.db.query(User).filter(User.phone == phone).first()
+        return self.db.query(User).filter(User.phone == phone, User.tenant_id == tenant_id).first()
 
     async def update_user(self, user_id: str, user_data: UserUpdate) -> User:
         """更新用户"""
@@ -127,17 +129,19 @@ class UserService:
         if not user:
             raise BusinessException("用户不存在", code=ErrorCode.NOT_FOUND)
 
+        current_tenant_id = user.tenant_id
+
         # 检查唯一性冲突
         if user_data.username and user_data.username != user.username:
-            if self.get_by_username(user_data.username):
+            if self.get_by_username(user_data.username, current_tenant_id):
                 raise BusinessException("用户名已存在", code=ErrorCode.BUSINESS_ERROR)
                 
         if user_data.email and user_data.email != user.email:
-            if self.get_by_email(user_data.email):
+            if self.get_by_email(user_data.email, current_tenant_id):
                 raise BusinessException("邮箱已存在", code=ErrorCode.BUSINESS_ERROR)
 
         if user_data.phone and user_data.phone != user.phone:
-            if self.get_by_phone(user_data.phone):
+            if self.get_by_phone(user_data.phone, current_tenant_id):
                     raise BusinessException("手机号已存在", code=ErrorCode.BUSINESS_ERROR)
 
         # 更新字段
@@ -183,11 +187,15 @@ class UserService:
         self,
         search: Optional[str] = None,
         role: Optional[str] = None,
-        is_active: Optional[bool] = None
+        is_active: Optional[bool] = None,
+        tenant_id: Optional[str] = None
     ):
         """构建用户查询，用于复用查询逻辑"""
         query = self.db.query(User)
         
+        if tenant_id:
+            query = query.filter(User.tenant_id == tenant_id)
+
         if is_active is not None:
             query = query.filter(User.is_active == is_active)
             
@@ -210,10 +218,11 @@ class UserService:
         self,
         search: Optional[str] = None,
         role: Optional[str] = None,
-        is_active: Optional[bool] = None
+        is_active: Optional[bool] = None,
+        tenant_id: Optional[str] = None
     ) -> int:
         """统计用户总数（应用筛选条件后）"""
-        query = self._build_users_query(search=search, role=role, is_active=is_active)
+        query = self._build_users_query(search=search, role=role, is_active=is_active, tenant_id=tenant_id)
         # 如果有关联查询（如role），需要去重
         if role:
             return query.distinct().count()
@@ -225,10 +234,11 @@ class UserService:
         limit: int = 100, 
         search: Optional[str] = None,
         role: Optional[str] = None,
-        is_active: Optional[bool] = None
+        is_active: Optional[bool] = None,
+        tenant_id: Optional[str] = None
     ) -> List[User]:
         """获取用户列表"""
-        query = self._build_users_query(search=search, role=role, is_active=is_active)
+        query = self._build_users_query(search=search, role=role, is_active=is_active, tenant_id=tenant_id)
         # 如果有关联查询（如role），需要去重
         if role:
             query = query.distinct()
@@ -297,5 +307,3 @@ class UserService:
         self.db.commit()
         self.db.refresh(setting)
         return setting
-
-

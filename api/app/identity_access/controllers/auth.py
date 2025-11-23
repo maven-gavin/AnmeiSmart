@@ -20,6 +20,7 @@ def _handle_unexpected_error(message: str, exc: Exception) -> SystemException:
 @router.post("/login", response_model=ApiResponse[Token])
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
+    tenant_id: str = Query("system", description="租户ID"),
     auth_service: AuthService = Depends(get_auth_service)
 ) -> ApiResponse[Token]:
     """
@@ -30,7 +31,8 @@ async def login(
         # 为了保持Service接口，这里传入None
         token = await auth_service.login(
             username_or_email=form_data.username,
-            password=form_data.password
+            password=form_data.password,
+            tenant_id=tenant_id
         )
         return ApiResponse.success(token, message="登录成功")
     except BusinessException:

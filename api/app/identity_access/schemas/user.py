@@ -108,6 +108,7 @@ class UserCreate(UserBase):
     """用户创建模型"""
     password: str = Field(..., min_length=8)
     roles: List[str] = ["customer"]  # 默认为客户角色
+    tenant_id: Optional[str] = "system"
     customer_info: Optional["CustomerBase"] = None
     doctor_info: Optional[DoctorBase] = None
     consultant_info: Optional[ConsultantBase] = None
@@ -146,10 +147,13 @@ class UserResponse(UserBase):
     )
     
     id: str
+    tenant_    id: str
+    tenant_id: str
     created_at: datetime
     updated_at: datetime
     last_login_at: Optional[datetime] = None
     roles: List[str] = []
+    permissions: List[str] = []
     active_role: Optional[str] = None
     extended_info: Optional[ExtendedUserInfo] = None
 

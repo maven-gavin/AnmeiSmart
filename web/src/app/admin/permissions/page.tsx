@@ -49,25 +49,23 @@ export default function PermissionsPage() {
   // 权限相关状态
   const [isCreatePermissionDialogOpen, setIsCreatePermissionDialogOpen] = useState(false);
   const [permissionForm, setPermissionForm] = useState<{
+    code: string;
     name: string;
     displayName: string;
     description: string;
     permissionType: 'action' | 'resource' | 'feature' | 'system';
     scope: 'system' | 'tenant' | 'user' | 'resource';
-    resource: string;
-    action: string;
     isActive: boolean;
     isSystem: boolean;
     isAdmin: boolean;
     priority: number;
   }>({
+    code: '',
     name: '',
     displayName: '',
     description: '',
     permissionType: 'action',
     scope: 'tenant',
-    resource: '',
-    action: '',
     isActive: true,
     isSystem: false,
     isAdmin: false,
@@ -120,13 +118,12 @@ export default function PermissionsPage() {
   // 权限相关函数
   const resetPermissionForm = () => {
     setPermissionForm({
+      code: '',
       name: '',
       displayName: '',
       description: '',
       permissionType: 'action',
       scope: 'tenant',
-      resource: '',
-      action: '',
       isActive: true,
       isSystem: false,
       isAdmin: false,
@@ -137,7 +134,12 @@ export default function PermissionsPage() {
 
   const handleCreatePermission = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const code = permissionForm.code.trim();
     const name = permissionForm.name.trim();
+    if (!code) {
+      setPermissionFormError('权限标识码不能为空');
+      return;
+    }
     if (!name) {
       setPermissionFormError('权限名称不能为空');
       return;
@@ -148,13 +150,12 @@ export default function PermissionsPage() {
 
     try {
       await permissionService.createPermission({
+        code,
         name,
         displayName: permissionForm.displayName.trim() || undefined,
         description: permissionForm.description.trim() || undefined,
         permissionType: permissionForm.permissionType,
         scope: permissionForm.scope,
-        resource: permissionForm.resource.trim() || undefined,
-        action: permissionForm.action.trim() || undefined,
         isActive: permissionForm.isActive,
         isSystem: permissionForm.isSystem,
         isAdmin: permissionForm.isAdmin,
@@ -176,13 +177,12 @@ export default function PermissionsPage() {
   const handleOpenEditPermission = (permission: Permission) => {
     setEditingPermission(permission);
     setPermissionForm({
+      code: permission.code,
       name: permission.name,
       displayName: permission.displayName || '',
       description: permission.description || '',
       permissionType: permission.permissionType,
       scope: permission.scope,
-      resource: permission.resource || '',
-      action: permission.action || '',
       isActive: permission.isActive,
       isSystem: permission.isSystem,
       isAdmin: permission.isAdmin,
@@ -205,8 +205,6 @@ export default function PermissionsPage() {
         description: permissionForm.description.trim() || undefined,
         permissionType: permissionForm.permissionType,
         scope: permissionForm.scope,
-        resource: permissionForm.resource.trim() || undefined,
-        action: permissionForm.action.trim() || undefined,
         isActive: permissionForm.isActive,
         isSystem: permissionForm.isSystem,
         isAdmin: permissionForm.isAdmin,
@@ -214,6 +212,7 @@ export default function PermissionsPage() {
       };
 
       if (!editingPermission.isSystem) {
+        payload.code = permissionForm.code.trim();
         payload.name = permissionForm.name.trim();
       }
 
@@ -271,6 +270,7 @@ export default function PermissionsPage() {
     if (searchText.trim()) {
       const searchLower = searchText.toLowerCase();
       data = data.filter((p) => 
+        p.code.toLowerCase().includes(searchLower) ||
         p.name.toLowerCase().includes(searchLower) ||
         (p.displayName && p.displayName.toLowerCase().includes(searchLower)) ||
         (p.description && p.description.toLowerCase().includes(searchLower))
@@ -572,25 +572,35 @@ export default function PermissionsPage() {
             <form onSubmit={handleCreatePermission} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
+                  <Label htmlFor="createPermissionCode">权限标识码 *</Label>
+                  <Input
+                    id="createPermissionCode"
+                    value={permissionForm.code}
+                    onChange={(e) => setPermissionForm({ ...permissionForm, code: e.target.value })}
+                    disabled={permissionFormLoading}
+                    placeholder="例如: user:create"
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="createPermissionName">权限名称 *</Label>
                   <Input
                     id="createPermissionName"
                     value={permissionForm.name}
                     onChange={(e) => setPermissionForm({ ...permissionForm, name: e.target.value })}
                     disabled={permissionFormLoading}
-                    placeholder="例如: user:create"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="createPermissionDisplayName">显示名称</Label>
-                  <Input
-                    id="createPermissionDisplayName"
-                    value={permissionForm.displayName}
-                    onChange={(e) => setPermissionForm({ ...permissionForm, displayName: e.target.value })}
-                    disabled={permissionFormLoading}
                     placeholder="例如: 创建用户"
                   />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="createPermissionDisplayName">显示名称</Label>
+                <Input
+                  id="createPermissionDisplayName"
+                  value={permissionForm.displayName}
+                  onChange={(e) => setPermissionForm({ ...permissionForm, displayName: e.target.value })}
+                  disabled={permissionFormLoading}
+                  placeholder="例如: 创建新用户功能"
+                />
               </div>
 
               <div className="space-y-2">
@@ -644,28 +654,6 @@ export default function PermissionsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="createPermissionResource">资源</Label>
-                  <Input
-                    id="createPermissionResource"
-                    value={permissionForm.resource}
-                    onChange={(e) => setPermissionForm({ ...permissionForm, resource: e.target.value })}
-                    disabled={permissionFormLoading}
-                    placeholder="例如: user"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="createPermissionAction">动作</Label>
-                  <Input
-                    id="createPermissionAction"
-                    value={permissionForm.action}
-                    onChange={(e) => setPermissionForm({ ...permissionForm, action: e.target.value })}
-                    disabled={permissionFormLoading}
-                    placeholder="例如: create"
-                  />
-                </div>
-              </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -769,6 +757,15 @@ export default function PermissionsPage() {
             <form onSubmit={handleEditPermission} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
+                  <Label htmlFor="editPermissionCode">权限标识码 *</Label>
+                  <Input
+                    id="editPermissionCode"
+                    value={permissionForm.code}
+                    onChange={(e) => setPermissionForm({ ...permissionForm, code: e.target.value })}
+                    disabled={permissionFormLoading || editingPermission?.isSystem}
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="editPermissionName">权限名称 *</Label>
                   <Input
                     id="editPermissionName"
@@ -777,15 +774,15 @@ export default function PermissionsPage() {
                     disabled={permissionFormLoading || editingPermission?.isSystem}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="editPermissionDisplayName">显示名称</Label>
-                  <Input
-                    id="editPermissionDisplayName"
-                    value={permissionForm.displayName}
-                    onChange={(e) => setPermissionForm({ ...permissionForm, displayName: e.target.value })}
-                    disabled={permissionFormLoading}
-                  />
-                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editPermissionDisplayName">显示名称</Label>
+                <Input
+                  id="editPermissionDisplayName"
+                  value={permissionForm.displayName}
+                  onChange={(e) => setPermissionForm({ ...permissionForm, displayName: e.target.value })}
+                  disabled={permissionFormLoading}
+                />
               </div>
 
               <div className="space-y-2">
@@ -838,26 +835,6 @@ export default function PermissionsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="editPermissionResource">资源</Label>
-                  <Input
-                    id="editPermissionResource"
-                    value={permissionForm.resource}
-                    onChange={(e) => setPermissionForm({ ...permissionForm, resource: e.target.value })}
-                    disabled={permissionFormLoading}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="editPermissionAction">动作</Label>
-                  <Input
-                    id="editPermissionAction"
-                    value={permissionForm.action}
-                    onChange={(e) => setPermissionForm({ ...permissionForm, action: e.target.value })}
-                    disabled={permissionFormLoading}
-                  />
-                </div>
-              </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">

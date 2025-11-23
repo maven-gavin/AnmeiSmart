@@ -23,14 +23,15 @@ class AuthService:
         self,
         username_or_email: str,
         password: str,
+        tenant_id: str = "system",
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None
     ) -> Token:
         """用户登录"""
         # 1. 查找用户
-        user = self.user_service.get_by_username(username_or_email)
+        user = self.user_service.get_by_username(username_or_email, tenant_id)
         if not user:
-            user = self.user_service.get_by_email(username_or_email)
+            user = self.user_service.get_by_email(username_or_email, tenant_id)
             
         if not user:
             raise BusinessException("用户名或密码错误", code=ErrorCode.INVALID_CREDENTIALS)
