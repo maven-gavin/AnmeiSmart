@@ -42,6 +42,7 @@ async def create_user(
         
         user_data = {
             "id": user.id,
+            "tenant_id": user.tenant_id,
             "email": user.email,
             "username": user.username,
             "phone": user.phone,
@@ -113,6 +114,7 @@ async def read_users(
                 
                 user_data = {
                     "id": user.id,
+                    "tenant_id": user.tenant_id,
                     "email": user.email,
                     "username": user.username,
                     "phone": user.phone,
@@ -210,6 +212,7 @@ async def read_user_me(
     # 构建 UserResponse 数据
     user_data = {
         "id": current_user.id,
+        "tenant_id": current_user.tenant_id,
         "email": current_user.email,
         "username": current_user.username,
         "phone": current_user.phone,
@@ -283,6 +286,7 @@ async def update_user(
         
         user_data = {
             "id": user.id,
+            "tenant_id": user.tenant_id,
             "email": user.email,
             "username": user.username,
             "phone": user.phone,

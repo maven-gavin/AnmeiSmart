@@ -42,7 +42,7 @@ class Tenant(BaseModel):
     display_name = Column(String(50), nullable=True, comment="租户显示名称")
     description = Column(String(255), nullable=True, comment="租户描述")
     tenant_type = Column(String(20), default="standard", comment="租户类型")
-    status = Column(Enum(TenantStatus), default=TenantStatus.ACTIVE, comment="租户状态")
+    status = Column(Enum(TenantStatus, values_callable=lambda obj: [e.value for e in obj]), default=TenantStatus.ACTIVE, comment="租户状态")
 
     is_system = Column(Boolean, default=False, comment="是否系统租户")
     is_admin = Column(Boolean, default=False, comment="是否管理员租户")
@@ -93,8 +93,8 @@ class Permission(BaseModel):
     name = Column(String(50), index=True, nullable=False, comment="权限名称")
     display_name = Column(String(50), nullable=True, comment="权限显示名称")
     description = Column(String(255), nullable=True, comment="权限描述")
-    permission_type = Column(Enum(PermissionType), default=PermissionType.ACTION, comment="权限类型")
-    scope = Column(Enum(PermissionScope), default=PermissionScope.TENANT, comment="权限范围")
+    permission_type = Column(Enum(PermissionType, values_callable=lambda obj: [e.value for e in obj]), default=PermissionType.ACTION, comment="权限类型")
+    scope = Column(Enum(PermissionScope, values_callable=lambda obj: [e.value for e in obj]), default=PermissionScope.TENANT, comment="权限范围")
     
     is_active = Column(Boolean, default=True, comment="是否启用")
     is_system = Column(Boolean, default=False, comment="是否系统权限")
@@ -152,7 +152,7 @@ class User(BaseModel):
     hashed_password = Column(String(255), nullable=False, comment="加密密码")
     phone = Column(String(50), index=True, nullable=True, comment="手机号")
     avatar = Column(String(255), nullable=True, comment="头像URL")
-    status = Column(Enum(UserStatus), default=UserStatus.PENDING, comment="用户状态")
+    status = Column(Enum(UserStatus, values_callable=lambda obj: [e.value for e in obj]), default=UserStatus.PENDING, comment="用户状态")
     
     # 租户关联（明确指定使用 User.tenant_id 作为外键）
     tenant = relationship("Tenant", primaryjoin="User.tenant_id == Tenant.id", back_populates="users")

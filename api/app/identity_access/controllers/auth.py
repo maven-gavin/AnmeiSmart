@@ -27,18 +27,27 @@ async def login(
     """
     用户登录
     """
+    logger.info(f"收到登录请求: username={form_data.username}, tenant_id={tenant_id}")
     try:
         # 获取IP和User-Agent通常在Request对象中，这里为了简单暂不获取或需要修改Controller签名引入Request
         # 为了保持Service接口，这里传入None
+        logger.debug(f"开始调用auth_service.login: username={form_data.username}, tenant_id={tenant_id}")
         token = await auth_service.login(
             username_or_email=form_data.username,
             password=form_data.password,
             tenant_id=tenant_id
         )
+        logger.info(f"登录成功: username={form_data.username}, tenant_id={tenant_id}")
         return ApiResponse.success(token, message="登录成功")
-    except BusinessException:
+    except BusinessException as e:
+        logger.warning(f"登录业务异常: username={form_data.username}, tenant_id={tenant_id}, error={e.message}, code={e.code}")
         raise
     except Exception as e:
+        logger.error(
+            f"登录系统异常: username={form_data.username}, tenant_id={tenant_id}, "
+            f"exception_type={type(e).__name__}, error={str(e)}",
+            exc_info=True
+        )
         raise _handle_unexpected_error("登录失败", e)
 
 @router.post("/refresh-token", response_model=ApiResponse[Token])
@@ -77,6 +86,7 @@ async def get_current_user_info(
     # 构建 UserResponse 数据
     user_data = {
         "id": current_user.id,
+        "tenant_id": current_user.tenant_id,
         "email": current_user.email,
         "username": current_user.username,
         "phone": current_user.phone,

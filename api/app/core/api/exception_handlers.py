@@ -30,7 +30,17 @@ def _build_response(code: int, message: str, data: Any = None, status_code: int 
 
 async def handle_app_exception(request: Request, exc: AppException) -> JSONResponse:
     """处理 AppException 及其子类"""
-    logger.warning("业务异常: %s | details=%s | path=%s", exc.message, exc.details, request.url.path)
+    logger.warning(
+        "业务异常: %s | details=%s | path=%s | method=%s | code=%s",
+        exc.message, exc.details, request.url.path, request.method, exc.code
+    )
+    # 如果是系统错误，记录更详细的信息
+    if exc.code == ErrorCode.SYSTEM_ERROR:
+        logger.error(
+            "系统异常详情: message=%s | path=%s | method=%s | code=%s | details=%s",
+            exc.message, request.url.path, request.method, exc.code, exc.details,
+            exc_info=True
+        )
     return _build_response(
         code=exc.code,
         message=exc.message,

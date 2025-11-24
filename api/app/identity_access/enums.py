@@ -8,11 +8,11 @@ class AdminLevel(str, enum.Enum):
 
 class TenantStatus(str, enum.Enum):
     """租户状态枚举"""
-    ACTIVE = "active"       # 正常
-    FROZEN = "frozen"       # 冻结
-    INACTIVE = "inactive"   # 停用
-    SUSPENDED = "suspended" # 挂起
-    PENDING = "pending"     # 待审核
+    ACTIVE = "ACTIVE"       # 正常
+    FROZEN = "FROZEN"       # 冻结
+    INACTIVE = "INACTIVE"   # 停用
+    SUSPENDED = "SUSPENDED" # 挂起
+    PENDING = "PENDING"     # 待审核
 
 class TenantType(str, enum.Enum):
     """租户类型枚举"""
@@ -41,7 +41,7 @@ class PermissionScope(str, enum.Enum):
 
 class UserStatus(str, enum.Enum):
     """用户状态枚举"""
-    PENDING = "pending"       # 待激活
-    ACTIVE = "active"         # 正常
-    SUSPENDED = "suspended"   # 暂停
-    DELETED = "deleted"       # 已删除
+    PENDING = "PENDING"       # 待激活
+    ACTIVE = "ACTIVE"         # 正常
+    SUSPENDED = "SUSPENDED"   # 暂停
+    DELETED = "DELETED"       # 已删除
