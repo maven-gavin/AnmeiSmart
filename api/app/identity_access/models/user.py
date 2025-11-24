@@ -1,11 +1,11 @@
-from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, Table, Text, JSON, Integer, UniqueConstraint
+from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, Table, Text, JSON, Integer, UniqueConstraint, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.common.models.base_model import BaseModel
 from app.common.deps.database import Base
 from app.common.deps.uuid_utils import user_id, role_id, tenant_id, permission_id, resource_id
-from app.identity_access.enums import AdminLevel
+from app.identity_access.enums import AdminLevel, TenantStatus, UserStatus, PermissionType, PermissionScope
 
 # 用户-角色关联表 (使用String类型的外键)
 user_roles = Table(
@@ -42,9 +42,8 @@ class Tenant(BaseModel):
     display_name = Column(String(50), nullable=True, comment="租户显示名称")
     description = Column(String(255), nullable=True, comment="租户描述")
     tenant_type = Column(String(20), default="standard", comment="租户类型")
-    status = Column(String(20), default="active", comment="租户状态")
+    status = Column(Enum(TenantStatus), default=TenantStatus.ACTIVE, comment="租户状态")
 
-    is_active = Column(Boolean, default=True, comment="是否启用")
     is_system = Column(Boolean, default=False, comment="是否系统租户")
     is_admin = Column(Boolean, default=False, comment="是否管理员租户")
     priority = Column(Integer, default=0, comment="租户优先级")
@@ -60,10 +59,13 @@ class Tenant(BaseModel):
 class Role(BaseModel):
     """角色数据库模型，存储系统中所有角色信息"""
     __tablename__ = "roles"
-    __table_args__ = {"comment": "角色表，存储系统所有角色信息"}
+    __table_args__ = (
+        UniqueConstraint('name', 'tenant_id', name='uq_role_name_tenant'),
+        {"comment": "角色表，存储系统所有角色信息"}
+    )
 
     id = Column(String(36), primary_key=True, default=role_id, comment="角色ID")
-    name = Column(String(50), unique=True, index=True, nullable=False, comment="角色名称")
+    name = Column(String(50), index=True, nullable=False, comment="角色名称")
     display_name = Column(String(50), nullable=True, comment="角色显示名称")
     description = Column(String(255), nullable=True, comment="角色描述")
     is_active = Column(Boolean, default=True, comment="是否启用")
@@ -80,15 +82,19 @@ class Role(BaseModel):
 class Permission(BaseModel):
     """权限配置表，存储系统所有权限配置信息"""
     __tablename__ = "permissions"
-    __table_args__ = {"comment": "权限配置表，存储系统所有权限配置信息"}
+    __table_args__ = (
+        UniqueConstraint('code', 'tenant_id', name='uq_permission_code_tenant'),
+        UniqueConstraint('name', 'tenant_id', name='uq_permission_name_tenant'),
+        {"comment": "权限配置表，存储系统所有权限配置信息"}
+    )
     
     id = Column(String(36), primary_key=True, default=permission_id, comment="权限ID")
-    code = Column(String(100), unique=True, index=True, nullable=False, comment="权限标识码，如 user:create")
-    name = Column(String(50), unique=True, index=True, nullable=False, comment="权限名称")
+    code = Column(String(100), index=True, nullable=False, comment="权限标识码，如 user:create")
+    name = Column(String(50), index=True, nullable=False, comment="权限名称")
     display_name = Column(String(50), nullable=True, comment="权限显示名称")
     description = Column(String(255), nullable=True, comment="权限描述")
-    permission_type = Column(String(20), default="action", comment="权限类型")
-    scope = Column(String(20), default="tenant", comment="权限范围")
+    permission_type = Column(Enum(PermissionType), default=PermissionType.ACTION, comment="权限类型")
+    scope = Column(Enum(PermissionScope), default=PermissionScope.TENANT, comment="权限范围")
     
     is_active = Column(Boolean, default=True, comment="是否启用")
     is_system = Column(Boolean, default=False, comment="是否系统权限")
@@ -105,10 +111,13 @@ class Permission(BaseModel):
 class Resource(BaseModel):
     """资源表：API端点和菜单项"""
     __tablename__ = "resources"
-    __table_args__ = {"comment": "资源表，存储API端点和菜单项"}
+    __table_args__ = (
+        UniqueConstraint('name', 'tenant_id', name='uq_resource_name_tenant'),
+        {"comment": "资源表，存储API端点和菜单项"}
+    )
     
     id = Column(String(36), primary_key=True, default=resource_id, comment="资源ID")
-    name = Column(String(100), unique=True, index=True, nullable=False, comment="资源名称，如 menu:home, api:user:create")
+    name = Column(String(100), index=True, nullable=False, comment="资源名称，如 menu:home, api:user:create")
     display_name = Column(String(50), nullable=True, comment="资源显示名称")
     description = Column(String(255), nullable=True, comment="资源描述")
     resource_type = Column(String(20), nullable=False, comment="资源类型：api 或 menu")
@@ -143,7 +152,7 @@ class User(BaseModel):
     hashed_password = Column(String(255), nullable=False, comment="加密密码")
     phone = Column(String(50), index=True, nullable=True, comment="手机号")
     avatar = Column(String(255), nullable=True, comment="头像URL")
-    is_active = Column(Boolean, default=True, comment="是否激活")
+    status = Column(Enum(UserStatus), default=UserStatus.PENDING, comment="用户状态")
     
     # 租户关联
     tenant = relationship("Tenant", back_populates="users")

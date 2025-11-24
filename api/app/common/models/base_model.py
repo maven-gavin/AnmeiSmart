@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, String, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from app.common.deps.database import Base
 from app.common.deps.uuid_utils import generate_uuid
@@ -13,6 +13,8 @@ class TimestampMixin:
     """提供创建和更新时间戳的Mixin类"""
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, comment="创建人ID")
+    updated_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, comment="修改人ID")
 
 
 class BaseModel(Base, UUIDMixin, TimestampMixin):

@@ -28,8 +28,9 @@ class CustomerService:
     def get_customers(self, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
         """获取客户列表，包含用户信息和聊天统计"""
         # 查询客户用户
+        from app.identity_access.enums import UserStatus
         customers_query = self.db.query(User).join(User.roles).filter(
-            User.is_active == True
+            User.status == UserStatus.ACTIVE
         )
         
         customers = customers_query.offset(skip).limit(limit).all()

@@ -1,11 +1,12 @@
 import logging
 from typing import List
-from fastapi import APIRouter, Depends, status, Body
+from fastapi import APIRouter, Depends, status, Body, Query
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.identity_access.schemas.token import Token, RefreshTokenRequest
 from app.identity_access.schemas.user import UserResponse, RoleResponse
 from app.identity_access.models.user import User
+from app.identity_access.enums import UserStatus
 from app.identity_access.services.auth_service import AuthService
 from app.identity_access.deps.user_deps import get_auth_service
 from app.identity_access.deps.auth_deps import get_current_user
@@ -80,7 +81,7 @@ async def get_current_user_info(
         "username": current_user.username,
         "phone": current_user.phone,
         "avatar": current_user.avatar,
-        "is_active": current_user.is_active,
+        "is_active": current_user.status == UserStatus.ACTIVE,
         "created_at": current_user.created_at,
         "updated_at": current_user.updated_at,
         "last_login_at": getattr(current_user, 'last_login_at', None),

@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from app.identity_access.schemas.user import UserCreate, UserUpdate, UserResponse, RoleResponse, UserListResponse
 from app.identity_access.models.user import User
+from app.identity_access.enums import UserStatus
 from app.identity_access.services.user_service import UserService
 from app.identity_access.services.role_service import RoleService
 from app.identity_access.deps.user_deps import get_user_service, get_role_service
@@ -45,7 +46,7 @@ async def create_user(
             "username": user.username,
             "phone": user.phone,
             "avatar": user.avatar,
-            "is_active": user.is_active,
+            "is_active": user.status == UserStatus.ACTIVE if hasattr(user, 'status') else getattr(user, 'is_active', True),
             "created_at": user.created_at,
             "updated_at": user.updated_at,
             "last_login_at": getattr(user, 'last_login_at', None),
@@ -107,8 +108,8 @@ async def read_users(
                     active_role = roles[0]
                 
                 # 构建 UserResponse 数据
-                # 处理 is_active 字段，确保 None 被转换为 True（默认值）
-                is_active_value = user.is_active if user.is_active is not None else True
+                # 处理 is_active 字段，从status转换为布尔值
+                is_active_value = user.status == UserStatus.ACTIVE if hasattr(user, 'status') else getattr(user, 'is_active', True)
                 
                 user_data = {
                     "id": user.id,
@@ -125,12 +126,10 @@ async def read_users(
                     "extended_info": None
                 }
                 
-                logger.info(f"用户 {user.id} 的原始 is_active 值: {user.is_active} (类型: {type(user.is_active)}, 是否为None: {user.is_active is None})")
+                logger.info(f"用户 {user.id} 的 status 值: {user.status}")
                 logger.info(f"处理后的 is_active 值: {is_active_value} (类型: {type(is_active_value)})")
-                logger.info(f"user_data['is_active'] 值: {user_data['is_active']} (类型: {type(user_data['is_active'])})")
                 
                 user_response = UserResponse(**user_data)
-                logger.info(f"UserResponse 对象的 is_active 值: {user_response.is_active} (类型: {type(user_response.is_active)})")
                 user_responses.append(user_response)
                 logger.info(f"用户 {user.id} 转换成功")
             except Exception as user_error:
@@ -215,7 +214,7 @@ async def read_user_me(
         "username": current_user.username,
         "phone": current_user.phone,
         "avatar": current_user.avatar,
-        "is_active": current_user.is_active,
+        "is_active": current_user.status == UserStatus.ACTIVE,
         "created_at": current_user.created_at,
         "updated_at": current_user.updated_at,
         "last_login_at": getattr(current_user, 'last_login_at', None),
@@ -276,7 +275,7 @@ async def update_user(
         logger.info(f"开始更新用户: user_id={user_id}, current_user_id={current_user.id}")
         logger.info(f"更新数据: {user_in.model_dump(exclude_unset=True)}")
         user = await user_service.update_user(user_id, user_in)
-        logger.info(f"用户更新成功: user_id={user.id}, username={user.username}, is_active={user.is_active}")
+        logger.info(f"用户更新成功: user_id={user.id}, username={user.username}, status={user.status}")
         
         # 转换用户为 UserResponse 格式
         roles = [role.name for role in user.roles] if user.roles else []
@@ -288,7 +287,7 @@ async def update_user(
             "username": user.username,
             "phone": user.phone,
             "avatar": user.avatar,
-            "is_active": user.is_active,
+            "is_active": user.status == UserStatus.ACTIVE if hasattr(user, 'status') else getattr(user, 'is_active', True),
             "created_at": user.created_at,
             "updated_at": user.updated_at,
             "last_login_at": getattr(user, 'last_login_at', None),

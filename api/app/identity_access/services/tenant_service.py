@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.identity_access.models.user import Tenant, User
 from app.identity_access.schemas.tenant_schemas import TenantCreate, TenantUpdate
+from app.identity_access.enums import TenantStatus
 from app.core.api import BusinessException, ErrorCode
 
 class TenantService:
@@ -56,8 +57,7 @@ class TenantService:
         if not tenant:
             raise BusinessException("租户不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
             
-        tenant.status = "active"
-        tenant.is_active = True
+        tenant.status = TenantStatus.ACTIVE
         self.db.commit()
         return True
 
@@ -66,8 +66,7 @@ class TenantService:
         if not tenant:
             raise BusinessException("租户不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
             
-        tenant.status = "inactive"
-        tenant.is_active = False
+        tenant.status = TenantStatus.INACTIVE
         self.db.commit()
         return True
 

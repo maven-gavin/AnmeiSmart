@@ -12,6 +12,7 @@ from app.identity_access.models.user import User, Role, Doctor, Consultant, Oper
 from app.identity_access.models.profile import UserPreferences, UserDefaultRole, LoginHistory
 from app.identity_access.schemas.user import UserCreate, UserUpdate, UserResponse, RoleResponse
 from app.identity_access.schemas.profile import UserPreferencesCreate, UserPreferencesUpdate, ChangePasswordRequest
+from app.identity_access.enums import UserStatus
 from app.core.password_utils import get_password_hash, verify_password
 from app.core.api import BusinessException, ErrorCode
 
@@ -64,6 +65,13 @@ class UserService:
             user_data = user_in.model_dump(exclude=exclude_fields)
             user_data["tenant_id"] = tenant_id
             logger.debug(f"[UserService] 用户数据（排除密码、角色和扩展信息）: {user_data}")
+            
+            # 修复Bug 1: 将is_active转换为status，确保新创建的用户可以登录
+            # 如果is_active=True，设置为ACTIVE状态；否则为PENDING（默认）
+            # 使用user_in.is_active确保即使字段不在user_data中也能获取到默认值
+            is_active = user_data.pop("is_active", user_in.is_active)  # 移除is_active字段，如果不存在则使用schema默认值
+            user_data["status"] = UserStatus.ACTIVE if is_active else UserStatus.PENDING
+            logger.debug(f"[UserService] 转换is_active={is_active} -> status={user_data['status']}")
             
             logger.debug(f"[UserService] 生成密码哈希")
             user_data["hashed_password"] = get_password_hash(user_in.password)
@@ -147,6 +155,13 @@ class UserService:
         # 更新字段
         update_dict = user_data.model_dump(exclude_unset=True, exclude={"roles", "password"})
         logger.info(f"[UserService] 更新字段: {update_dict}")
+        
+        # 修复Bug 1: 将is_active转换为status
+        if "is_active" in update_dict:
+            is_active = update_dict.pop("is_active")  # 移除is_active字段
+            update_dict["status"] = UserStatus.ACTIVE if is_active else UserStatus.PENDING
+            logger.info(f"[UserService] 转换is_active={is_active} -> status={update_dict['status']}")
+        
         for field, value in update_dict.items():
             logger.info(f"[UserService] 设置字段 {field} = {value} (类型: {type(value)})")
             setattr(user, field, value)
@@ -168,9 +183,9 @@ class UserService:
                     raise BusinessException(f"角色 '{role_name}' 不存在", code=ErrorCode.NOT_FOUND)
 
         self.db.commit()
-        logger.info(f"[UserService] 数据库提交成功，刷新前 user.is_active = {user.is_active}")
+        logger.info(f"[UserService] 数据库提交成功，刷新前 user.status = {user.status}")
         self.db.refresh(user)
-        logger.info(f"[UserService] 刷新后 user.is_active = {user.is_active}")
+        logger.info(f"[UserService] 刷新后 user.status = {user.status}")
         return user
 
     async def delete_user(self, user_id: str) -> bool:
@@ -197,7 +212,13 @@ class UserService:
             query = query.filter(User.tenant_id == tenant_id)
 
         if is_active is not None:
-            query = query.filter(User.is_active == is_active)
+            # 将is_active布尔值转换为status枚举过滤
+            if is_active:
+                query = query.filter(User.status == UserStatus.ACTIVE)
+            else:
+                # 修复：根据迁移逻辑，is_active=false 映射为 status=PENDING
+                # 保持向后兼容性，只匹配迁移后的 PENDING 状态
+                query = query.filter(User.status == UserStatus.PENDING)
             
         if role:
             query = query.join(User.roles).filter(Role.name == role)
@@ -245,7 +266,7 @@ class UserService:
         users = query.order_by(User.updated_at.desc()).offset(skip).limit(limit).all()
         # 记录查询返回的用户状态
         for user in users:
-            logger.info(f"[UserService] 查询返回用户: {user.id[:20]}... | username={user.username} | is_active={user.is_active} (类型: {type(user.is_active)})")
+            logger.info(f"[UserService] 查询返回用户: {user.id[:20]}... | username={user.username} | status={user.status}")
         return users
 
     async def change_password(self, user_id: str, password_data: ChangePasswordRequest) -> bool:

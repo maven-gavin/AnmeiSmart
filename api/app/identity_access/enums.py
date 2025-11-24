@@ -9,6 +9,7 @@ class AdminLevel(str, enum.Enum):
 class TenantStatus(str, enum.Enum):
     """租户状态枚举"""
     ACTIVE = "active"       # 正常
+    FROZEN = "frozen"       # 冻结
     INACTIVE = "inactive"   # 停用
     SUSPENDED = "suspended" # 挂起
     PENDING = "pending"     # 待审核
@@ -37,3 +38,10 @@ class PermissionScope(str, enum.Enum):
     GLOBAL = "global"     # 全局级别 (系统级)
     DEPARTMENT = "department" # 部门级别
     PERSONAL = "personal" # 个人级别
+
+class UserStatus(str, enum.Enum):
+    """用户状态枚举"""
+    PENDING = "pending"       # 待激活
+    ACTIVE = "active"         # 正常
+    SUSPENDED = "suspended"   # 暂停
+    DELETED = "deleted"       # 已删除

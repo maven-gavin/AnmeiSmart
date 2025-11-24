@@ -147,7 +147,6 @@ class UserResponse(UserBase):
     )
     
     id: str
-    tenant_    id: str
     tenant_id: str
     created_at: datetime
     updated_at: datetime

@@ -10,6 +10,7 @@ from app.identity_access.models.profile import LoginHistory
 from app.identity_access.schemas.token import Token
 from app.identity_access.services.user_service import UserService
 from app.identity_access.services.jwt_service import JWTService
+from app.identity_access.enums import UserStatus
 from app.core.password_utils import verify_password
 from app.core.api import BusinessException, ErrorCode
 
@@ -40,7 +41,7 @@ class AuthService:
         if not verify_password(password, user.hashed_password):
             raise BusinessException("用户名或密码错误", code=ErrorCode.INVALID_CREDENTIALS)
             
-        if not user.is_active:
+        if user.status != UserStatus.ACTIVE:
             raise BusinessException("账号已被禁用", code=ErrorCode.USER_DISABLED)
 
         # 3. 获取当前角色
