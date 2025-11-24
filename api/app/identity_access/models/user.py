@@ -1,6 +1,6 @@
 from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, Table, Text, JSON, Integer, UniqueConstraint, Enum
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship, foreign, remote
+from sqlalchemy.sql import func, and_
 
 from app.common.models.base_model import BaseModel
 from app.common.deps.database import Base
@@ -53,8 +53,8 @@ class Tenant(BaseModel):
     contact_email = Column(String(50), nullable=True, comment="负责人邮箱")
     contact_name = Column(String(50), nullable=True, comment="负责人姓名")
 
-    # 租户关联的用户
-    users = relationship("User", back_populates="tenant")
+    # 租户关联的用户（明确指定使用 User.tenant_id 作为外键）
+    users = relationship("User", primaryjoin="Tenant.id == User.tenant_id", back_populates="tenant")
 
 class Role(BaseModel):
     """角色数据库模型，存储系统中所有角色信息"""
@@ -154,33 +154,28 @@ class User(BaseModel):
     avatar = Column(String(255), nullable=True, comment="头像URL")
     status = Column(Enum(UserStatus), default=UserStatus.PENDING, comment="用户状态")
     
-    # 租户关联
-    tenant = relationship("Tenant", back_populates="users")
+    # 租户关联（明确指定使用 User.tenant_id 作为外键）
+    tenant = relationship("Tenant", primaryjoin="User.tenant_id == Tenant.id", back_populates="users")
     
     # 用户角色关联
     roles = relationship("Role", secondary="user_roles", back_populates="users")
     
     # 扩展表关联
-    customer = relationship("app.customer.models.customer.Customer", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    doctor = relationship("Doctor", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    consultant = relationship("Consultant", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    operator = relationship("Operator", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    administrator = relationship("Administrator", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    # 使用 backref 自动生成，避免循环依赖
+    # customer, doctor, consultant, operator, administrator 已在各自模型中定义
     
     # 上传会话关联
-    upload_sessions = relationship("app.common.models.upload.UploadSession", back_populates="user", cascade="all, delete-orphan")
+    # 使用 backref 自动生成，避免循环依赖
+    # upload_sessions 已在 UploadSession 模型中定义
     
-    # 数字人关联（新增）
-    digital_humans = relationship("app.digital_humans.models.digital_human.DigitalHuman", back_populates="user", cascade="all, delete-orphan")
+    # 数字人关联
+    # 使用 backref 自动生成，避免循环依赖
+    # digital_humans 已在 DigitalHuman 模型中定义
     owned_conversations = relationship("app.chat.models.chat.Conversation", foreign_keys="app.chat.models.chat.Conversation.owner_id", back_populates="owner")
     
     # 通讯录关联（新增）
-    friendships = relationship("app.contacts.models.contacts.Friendship", foreign_keys="app.contacts.models.contacts.Friendship.user_id", 
-                              back_populates="user", cascade="all, delete-orphan")
-    contact_tags = relationship("app.contacts.models.contacts.ContactTag", back_populates="user", cascade="all, delete-orphan")
-    contact_groups = relationship("app.contacts.models.contacts.ContactGroup", back_populates="user", cascade="all, delete-orphan")
-    contact_privacy_setting = relationship("app.contacts.models.contacts.ContactPrivacySetting", back_populates="user", 
-                                          uselist=False, cascade="all, delete-orphan")
+    # 使用 backref 自动生成，避免循环依赖
+    # friendships, contact_tags, contact_groups, contact_privacy_setting 已在 contacts 模块中定义
 
 class Doctor(BaseModel):
     """医生特有信息表，存储医生扩展信息"""
@@ -193,7 +188,8 @@ class Doctor(BaseModel):
     license_number = Column(String(100), nullable=True, comment="执业证号")
     
     # 关联到基础用户表
-    user = relationship("User", back_populates="doctor")
+    from sqlalchemy.orm import backref
+    user = relationship("User", foreign_keys=[user_id], backref=backref("doctor", uselist=False, cascade="all, delete-orphan"))
 
 class Consultant(BaseModel):
     """医美顾问特有信息表，存储顾问扩展信息"""
@@ -205,7 +201,8 @@ class Consultant(BaseModel):
     performance_metrics = Column(JSON, nullable=True, comment="业绩指标")
     
     # 关联到基础用户表
-    user = relationship("User", back_populates="consultant")
+    from sqlalchemy.orm import backref
+    user = relationship("User", foreign_keys=[user_id], backref=backref("consultant", uselist=False, cascade="all, delete-orphan"))
 
 class Operator(BaseModel):
     """机构运营人员特有信息表，存储运营人员扩展信息"""
@@ -217,7 +214,8 @@ class Operator(BaseModel):
     responsibilities = Column(Text, nullable=True, comment="职责描述")
     
     # 关联到基础用户表
-    user = relationship("User", back_populates="operator")
+    from sqlalchemy.orm import backref
+    user = relationship("User", foreign_keys=[user_id], backref=backref("operator", uselist=False, cascade="all, delete-orphan"))
 
 class Administrator(BaseModel):
     """系统管理员特有信息表，存储管理员扩展信息"""
@@ -229,4 +227,5 @@ class Administrator(BaseModel):
     access_permissions = Column(JSON, nullable=True, comment="权限描述")
     
     # 关联到基础用户表
-    user = relationship("User", back_populates="administrator")
+    from sqlalchemy.orm import backref
+    user = relationship("User", foreign_keys=[user_id], backref=backref("administrator", uselist=False, cascade="all, delete-orphan"))

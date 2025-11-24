@@ -47,7 +47,10 @@ class Friendship(BaseModel):
     interaction_count = Column(Integer, default=0, comment="互动次数")
     
     # 关联关系
-    user = relationship("app.identity_access.models.user.User", foreign_keys=[user_id], back_populates="friendships")
+    from sqlalchemy.orm import backref
+    user = relationship("app.identity_access.models.user.User", 
+                       foreign_keys=[user_id], 
+                       backref=backref("friendships", foreign_keys="[app.contacts.models.contacts.Friendship.user_id]", cascade="all, delete-orphan"))
     friend = relationship("app.identity_access.models.user.User", foreign_keys=[friend_id])
     tags = relationship("FriendshipTag", back_populates="friendship", cascade="all, delete-orphan")
     group_memberships = relationship("ContactGroupMember", back_populates="friendship", cascade="all, delete-orphan")
@@ -87,7 +90,10 @@ class ContactTag(BaseModel):
     usage_count = Column(Integer, default=0, comment="使用次数")
     
     # 关联关系
-    user = relationship("app.identity_access.models.user.User", back_populates="contact_tags")
+    from sqlalchemy.orm import backref
+    user = relationship("app.identity_access.models.user.User", 
+                       foreign_keys=[user_id], 
+                       backref=backref("contact_tags", cascade="all, delete-orphan"))
     friendship_tags = relationship("FriendshipTag", back_populates="tag", cascade="all, delete-orphan")
 
 
@@ -152,7 +158,10 @@ class ContactGroup(BaseModel):
     member_count = Column(Integer, default=0, comment="当前成员数")
     
     # 关联关系
-    user = relationship("app.identity_access.models.user.User", back_populates="contact_groups")
+    from sqlalchemy.orm import backref
+    user = relationship("app.identity_access.models.user.User", 
+                       foreign_keys=[user_id], 
+                       backref=backref("contact_groups", cascade="all, delete-orphan"))
     members = relationship("ContactGroupMember", back_populates="group", cascade="all, delete-orphan")
 
 
@@ -213,7 +222,10 @@ class ContactPrivacySetting(BaseModel):
     show_profile_to_friends = Column(Boolean, default=True, comment="向好友显示详细资料")
     
     # 关联关系
-    user = relationship("app.identity_access.models.user.User", back_populates="contact_privacy_setting", uselist=False)
+    from sqlalchemy.orm import backref
+    user = relationship("app.identity_access.models.user.User", 
+                       foreign_keys=[user_id], 
+                       backref=backref("contact_privacy_setting", uselist=False, cascade="all, delete-orphan"))
 
 
 class InteractionRecord(BaseModel):

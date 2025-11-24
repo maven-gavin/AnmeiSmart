@@ -57,9 +57,9 @@ def init_db():
     # import app.identity_access.infrastructure.db # 已迁移到models
     import app.identity_access.models.user
     import app.identity_access.models.profile
+    import app.digital_humans.models  # Move up before chat
     import app.chat.models
     import app.contacts.models
-    import app.digital_humans.models
     import app.tasks.models
     import app.mcp.models
     # AI模块模型已迁移到新架构，不再需要单独导入

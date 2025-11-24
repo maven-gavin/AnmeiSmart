@@ -103,7 +103,7 @@ class Message(BaseModel):
     # 关联关系
     conversation = relationship("app.chat.models.chat.Conversation", back_populates="messages")
     sender = relationship("app.identity_access.models.user.User", foreign_keys=[sender_id])
-    sender_digital_human = relationship("app.digital_humans.models.digital_human.DigitalHuman", foreign_keys=[sender_digital_human_id])
+    # sender_digital_human = relationship("DigitalHuman", foreign_keys=[sender_digital_human_id])
     confirmed_by_user = relationship("app.identity_access.models.user.User", foreign_keys=[confirmed_by])
     reply_to_message = relationship("app.chat.models.chat.Message", remote_side=[id], backref="replies")
     attachments = relationship("app.chat.models.message_attachment.MessageAttachment", back_populates="message", cascade="all, delete-orphan")
@@ -144,9 +144,9 @@ class ConversationParticipant(BaseModel):
     last_read_at = Column(DateTime(timezone=True), nullable=True, comment="最后阅读时间")
     
     # 关联关系
-    conversation = relationship("app.chat.models.chat.Conversation", back_populates="participants")
-    user = relationship("app.identity_access.models.user.User")
-    digital_human = relationship("app.digital_humans.models.digital_human.DigitalHuman")
+    conversation = relationship("Conversation", back_populates="participants")
+    user = relationship("app.identity_access.models.user.User", foreign_keys=[user_id])
+    # digital_human = relationship("DigitalHuman", foreign_keys=[digital_human_id])
     
     def __repr__(self):
         participant = self.user_id or self.digital_human_id

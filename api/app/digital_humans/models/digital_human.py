@@ -41,7 +41,11 @@ class DigitalHuman(BaseModel):
     last_active_at = Column(DateTime(timezone=True), nullable=True, comment="最后活跃时间")
     
     # 关联关系
-    user = relationship("app.identity_access.models.user.User", back_populates="digital_humans")
+    # 使用 backref 自动在 User 模型上创建 digital_humans 属性
+    from sqlalchemy.orm import backref
+    user = relationship("app.identity_access.models.user.User", 
+                       foreign_keys=[user_id], 
+                       backref=backref("digital_humans", cascade="all, delete-orphan"))
     agent_configs = relationship("DigitalHumanAgentConfig", back_populates="digital_human", cascade="all, delete-orphan")
     
     def __repr__(self):

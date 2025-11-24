@@ -55,7 +55,10 @@ class UploadSession(BaseModel):
     expires_at = Column(DateTime, nullable=True, comment="过期时间（临时文件）")
     
     # 关系
-    user = relationship("User", back_populates="upload_sessions")
+    from sqlalchemy.orm import backref
+    user = relationship("User", 
+                       foreign_keys=[user_id], 
+                       backref=backref("upload_sessions", cascade="all, delete-orphan"))
     chunks = relationship("UploadChunk", back_populates="upload_session", cascade="all, delete-orphan")
     message_attachments = relationship("MessageAttachment", back_populates="upload_session", cascade="all, delete-orphan")
 

@@ -15,7 +15,11 @@ class Customer(BaseModel):
     preferences = Column(Text, nullable=True, comment="偏好")
     
     # 关联到基础用户表
-    user = relationship("app.identity_access.models.user.User", back_populates="customer")
+    # 使用 backref 自动在 User 模型上创建 customer 属性，避免 User 模型中的循环导入问题
+    from sqlalchemy.orm import backref
+    user = relationship("app.identity_access.models.user.User", 
+                       foreign_keys=[user_id], 
+                       backref=backref("customer", uselist=False, cascade="all, delete-orphan"))
     
     # 关联到客户档案
     profile = relationship("CustomerProfile", back_populates="customer", uselist=False, cascade="all, delete-orphan")

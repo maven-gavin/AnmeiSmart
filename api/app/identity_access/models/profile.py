@@ -1,5 +1,5 @@
 from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, Integer, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import func
 
 from app.common.models.base_model import BaseModel
@@ -44,7 +44,7 @@ class UserPreferences(BaseModel):
     )
 
     # 关联到用户表
-    user = relationship("app.identity_access.models.user.User", backref="preferences", uselist=False)
+    user = relationship("app.identity_access.models.user.User", foreign_keys=[user_id], backref=backref("preferences", uselist=False))
 
 
 class UserDefaultRole(BaseModel):
@@ -72,7 +72,7 @@ class UserDefaultRole(BaseModel):
     )
 
     # 关联到用户表
-    user = relationship("app.identity_access.models.user.User", backref="default_role_setting", uselist=False)
+    user = relationship("app.identity_access.models.user.User", foreign_keys=[user_id], backref=backref("default_role_setting", uselist=False))
 
 
 class LoginHistory(BaseModel):
@@ -120,4 +120,4 @@ class LoginHistory(BaseModel):
     )
 
     # 关联到用户表
-    user = relationship("app.identity_access.models.user.User", backref="login_histories") 
+    user = relationship("app.identity_access.models.user.User", foreign_keys=[user_id], backref="login_histories") 

@@ -46,10 +46,7 @@ async def lifespan(app: FastAPI):
         # 初始化Redis连接
         redis_client = await get_redis_client()
         logger.info("Redis连接已建立")
-        
-        # WebSocket连接管理器会在需要时自动初始化
-        logger.info("WebSocket分布式连接管理器将在需要时初始化")
-        
+                
         # 同步API资源到资源库
         try:
             from app.common.deps.database import SessionLocal
