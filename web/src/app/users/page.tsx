@@ -15,6 +15,16 @@ import AppLayout from '@/components/layout/AppLayout';
 import { EnhancedPagination } from '@/components/ui/pagination';
 import { RoleBadge } from '@/components/common/RoleBadge';
 import toast from 'react-hot-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function UsersPage() {
   const { user } = useAuthContext();
@@ -26,10 +36,13 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
   
   // 搜索状态
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -125,6 +138,35 @@ export default function UsersPage() {
   const handleEditUser = (user: User) => {
     setSelectedUser(user);
     setShowEditModal(true);
+  };
+
+  // 处理删除用户
+  const handleDeleteUser = (user: User) => {
+    setDeleteTarget(user);
+    setIsDeleteDialogOpen(true);
+  };
+
+  // 确认删除用户
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    
+    setDeleteLoading(true);
+    try {
+      await userService.deleteUser(deleteTarget.id);
+      toast.success('用户删除成功');
+      setIsDeleteDialogOpen(false);
+      setDeleteTarget(null);
+      // 如果当前页删除后没有数据了，且不是第一页，则跳转到上一页
+      if (users.length === 1 && currentPage > 1) {
+        setCurrentPage(currentPage - 1);
+      } else {
+        fetchUsers();
+      }
+    } catch (err: any) {
+      toast.error(err.message || '删除用户失败');
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   // 格式化日期
@@ -263,14 +305,24 @@ export default function UsersPage() {
                     {formatDate(user.createdAt)}
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEditUser(user)}
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      编辑
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditUser(user)}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        编辑
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteUser(user)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        删除
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -326,6 +378,52 @@ export default function UsersPage() {
             onUserUpdated={handleUserUpdated}
           />
         )}
+
+        {/* 删除确认对话框 */}
+        <AlertDialog
+          open={isDeleteDialogOpen}
+          onOpenChange={(open) => {
+            if (open) {
+              setIsDeleteDialogOpen(true);
+            } else {
+              if (deleteLoading) return;
+              setIsDeleteDialogOpen(false);
+              setDeleteTarget(null);
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>确认删除用户</AlertDialogTitle>
+              <AlertDialogDescription>
+                删除后无法恢复，确定要删除用户
+                <span className="font-semibold text-gray-900">
+                  {deleteTarget?.username}
+                </span>
+                吗？
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel 
+                onClick={() => {
+                  if (deleteLoading) return;
+                  setIsDeleteDialogOpen(false);
+                  setDeleteTarget(null);
+                }}
+                disabled={deleteLoading}
+              >
+                取消
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmDelete}
+                className="bg-red-600 hover:bg-red-700"
+                disabled={deleteLoading}
+              >
+                {deleteLoading ? '删除中...' : '确认删除'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );

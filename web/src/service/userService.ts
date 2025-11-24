@@ -70,6 +70,13 @@ class UserService {
     const response = await apiClient.put<User>(`${this.baseUrl}/me`, user);
     return response.data;
   }
+
+  /**
+   * 删除用户
+   */
+  async deleteUser(userId: string): Promise<void> {
+    await apiClient.delete(`${this.baseUrl}/${userId}`);
+  }
 }
 
 export const userService = new UserService();

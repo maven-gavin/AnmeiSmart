@@ -310,6 +310,32 @@ async def update_user(
         logger.error(f"更新用户失败: error={str(e)}", exc_info=True)
         raise _handle_unexpected_error("更新用户信息失败", e)
 
+@router.delete("/{user_id}", status_code=status.HTTP_200_OK)
+async def delete_user(
+    user_id: str,
+    current_user: User = Depends(require_role("administrator")),
+    user_service: UserService = Depends(get_user_service)
+) -> ApiResponse[dict]:
+    """删除用户（物理删除）"""
+    try:
+        logger.info(f"开始删除用户: user_id={user_id}, current_user_id={current_user.id}")
+        
+        # 防止删除自己
+        if user_id == current_user.id:
+            raise BusinessException("不能删除自己的账户", code=ErrorCode.BAD_REQUEST, status_code=status.HTTP_400_BAD_REQUEST)
+        
+        success = await user_service.delete_user(user_id)
+        if not success:
+            raise BusinessException("用户不存在", code=ErrorCode.NOT_FOUND, status_code=status.HTTP_404_NOT_FOUND)
+        
+        logger.info(f"用户删除成功: user_id={user_id}")
+        return ApiResponse.success({}, message="删除用户成功")
+    except BusinessException:
+        raise
+    except Exception as e:
+        logger.error(f"删除用户失败: error={str(e)}", exc_info=True)
+        raise _handle_unexpected_error("删除用户失败", e)
+
 @router.get("/roles/all", response_model=ApiResponse[List[RoleResponse]])
 async def read_roles(
     current_user: User = Depends(require_role("administrator")),
