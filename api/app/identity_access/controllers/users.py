@@ -112,9 +112,15 @@ async def read_users(
                 # 处理 is_active 字段，从status转换为布尔值
                 is_active_value = user.status == UserStatus.ACTIVE if hasattr(user, 'status') else getattr(user, 'is_active', True)
                 
+                # 获取租户名称
+                tenant_name = None
+                if user.tenant:
+                    tenant_name = user.tenant.display_name or user.tenant.name
+                
                 user_data = {
                     "id": user.id,
                     "tenant_id": user.tenant_id,
+                    "tenant_name": tenant_name,
                     "email": user.email,
                     "username": user.username,
                     "phone": user.phone,

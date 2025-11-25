@@ -1,5 +1,6 @@
 import { apiClient } from './apiClient';
 import { Permission, Role, Tenant, UserPermissionSummary } from '@/types/auth';
+import { Resource } from './resourceService';
 
 class PermissionService {
   private baseUrl = '/permissions';
@@ -7,11 +8,10 @@ class PermissionService {
   // ==================== 权限管理 ====================
 
   /**
-   * 获取所有权限列表
+   * 获取所有权限列表（全局，不区分租户）
    */
-  async getPermissions(tenantId?: string): Promise<Permission[]> {
-    const params = tenantId ? { tenant_id: tenantId } : {};
-    const response = await apiClient.get<{ permissions: Permission[] }>(`${this.baseUrl}`, { params });
+  async getPermissions(): Promise<Permission[]> {
+    const response = await apiClient.get<{ permissions: Permission[] }>(`${this.baseUrl}`);
     // 后端返回的是 ApiResponse[PermissionListResponse]，需要提取 permissions 字段
     return response.data?.permissions || [];
   }
@@ -45,6 +45,32 @@ class PermissionService {
    */
   async deletePermission(permissionId: string): Promise<void> {
     await apiClient.delete<void>(`${this.baseUrl}/${permissionId}`);
+  }
+
+  /**
+   * 获取权限已分配的资源
+   */
+  async getPermissionResources(permissionId: string): Promise<Resource[]> {
+    const response = await apiClient.get<Resource[]>(`${this.baseUrl}/${permissionId}/resources`);
+    return response.data ?? [];
+  }
+
+  /**
+   * 为权限分配资源
+   */
+  async assignResourcesToPermission(permissionId: string, resourceIds: string[]): Promise<void> {
+    // 直接传递数组，normalizeBodyOptions 会将其包装在 body 中
+    // 然后 base 函数会使用 json: body 将其序列化为 JSON
+    await apiClient.post<void>(`${this.baseUrl}/${permissionId}/resources/assign`, resourceIds);
+  }
+
+  /**
+   * 从权限移除资源
+   */
+  async unassignResourcesFromPermission(permissionId: string, resourceIds: string[]): Promise<void> {
+    // 直接传递数组，normalizeBodyOptions 会将其包装在 body 中
+    // 然后 base 函数会使用 json: body 将其序列化为 JSON
+    await apiClient.post<void>(`${this.baseUrl}/${permissionId}/resources/unassign`, resourceIds);
   }
 
   // ==================== 角色管理 ====================

@@ -5,7 +5,7 @@
 
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_
 
 from app.identity_access.models.user import User, Role, Doctor, Consultant, Operator, Administrator
@@ -260,6 +260,8 @@ class UserService:
     ) -> List[User]:
         """获取用户列表"""
         query = self._build_users_query(search=search, role=role, is_active=is_active, tenant_id=tenant_id)
+        # 加载租户关系
+        query = query.options(joinedload(User.tenant))
         # 如果有关联查询（如role），需要去重
         if role:
             query = query.distinct()

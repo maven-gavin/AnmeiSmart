@@ -55,6 +55,8 @@ class Tenant(BaseModel):
 
     # 租户关联的用户（明确指定使用 User.tenant_id 作为外键）
     users = relationship("User", primaryjoin="Tenant.id == User.tenant_id", back_populates="tenant")
+    # 租户关联的角色（资源和权限是全局的，不再关联租户）
+    roles = relationship("Role", primaryjoin="Tenant.id == Role.tenant_id", back_populates="tenant")
 
 class Role(BaseModel):
     """角色数据库模型，存储系统中所有角色信息"""
@@ -74,23 +76,25 @@ class Role(BaseModel):
     priority = Column(Integer, default=0, comment="角色优先级")
     tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), default="system", comment="租户ID")
 
+    # 租户关联
+    tenant = relationship("Tenant", primaryjoin="Role.tenant_id == Tenant.id", back_populates="roles")
     # 角色关联的用户
     users = relationship("User", secondary="user_roles", back_populates="roles")
     # 权限关联
     permissions = relationship("Permission", secondary="role_permissions", back_populates="roles")
 
 class Permission(BaseModel):
-    """权限配置表，存储系统所有权限配置信息"""
+    """权限配置表，存储系统所有权限配置信息（全局，不区分租户）"""
     __tablename__ = "permissions"
     __table_args__ = (
-        UniqueConstraint('code', 'tenant_id', name='uq_permission_code_tenant'),
-        UniqueConstraint('name', 'tenant_id', name='uq_permission_name_tenant'),
-        {"comment": "权限配置表，存储系统所有权限配置信息"}
+        UniqueConstraint('code', name='uq_permission_code'),
+        UniqueConstraint('name', name='uq_permission_name'),
+        {"comment": "权限配置表，存储系统所有权限配置信息（全局）"}
     )
     
     id = Column(String(36), primary_key=True, default=permission_id, comment="权限ID")
-    code = Column(String(100), index=True, nullable=False, comment="权限标识码，如 user:create")
-    name = Column(String(50), index=True, nullable=False, comment="权限名称")
+    code = Column(String(100), unique=True, index=True, nullable=False, comment="权限标识码，如 user:create")
+    name = Column(String(50), unique=True, index=True, nullable=False, comment="权限名称")
     display_name = Column(String(50), nullable=True, comment="权限显示名称")
     description = Column(String(255), nullable=True, comment="权限描述")
     permission_type = Column(Enum(PermissionType, values_callable=lambda obj: [e.value for e in obj]), default=PermissionType.ACTION, comment="权限类型")
@@ -100,7 +104,6 @@ class Permission(BaseModel):
     is_system = Column(Boolean, default=False, comment="是否系统权限")
     is_admin = Column(Boolean, default=False, comment="是否管理员权限")
     priority = Column(Integer, default=0, comment="权限优先级")
-    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), default="system", comment="租户ID")
 
     # 权限关联的角色
     roles = relationship("Role", secondary="role_permissions", back_populates="permissions")
@@ -109,15 +112,15 @@ class Permission(BaseModel):
 
 
 class Resource(BaseModel):
-    """资源表：API端点和菜单项"""
+    """资源表：API端点和菜单项（全局，不区分租户）"""
     __tablename__ = "resources"
     __table_args__ = (
-        UniqueConstraint('name', 'tenant_id', name='uq_resource_name_tenant'),
-        {"comment": "资源表，存储API端点和菜单项"}
+        UniqueConstraint('resource_path', 'http_method', name='uq_resource_path_method'),
+        {"comment": "资源表，存储API端点和菜单项（全局）"}
     )
     
     id = Column(String(36), primary_key=True, default=resource_id, comment="资源ID")
-    name = Column(String(100), index=True, nullable=False, comment="资源名称，如 menu:home, api:user:create")
+    name = Column(String(100), unique=True, index=True, nullable=False, comment="资源名称，如 menu:home, api:user:create")
     display_name = Column(String(50), nullable=True, comment="资源显示名称")
     description = Column(String(255), nullable=True, comment="资源描述")
     resource_type = Column(String(20), nullable=False, comment="资源类型：api 或 menu")
@@ -128,7 +131,6 @@ class Resource(BaseModel):
     is_active = Column(Boolean, default=True, comment="是否启用")
     is_system = Column(Boolean, default=False, comment="是否系统资源")
     priority = Column(Integer, default=0, comment="资源优先级")
-    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), default="system", comment="租户ID")
     
     # 资源关联的权限
     permissions = relationship("Permission", secondary="resource_permissions", back_populates="resources")

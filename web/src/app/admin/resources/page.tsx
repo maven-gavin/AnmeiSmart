@@ -7,17 +7,8 @@ import { usePermission } from '@/hooks/usePermission';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,10 +19,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { resourceService, Resource, CreateResourceRequest, UpdateResourceRequest } from '@/service/resourceService';
+import { resourceService, Resource } from '@/service/resourceService';
 import toast from 'react-hot-toast';
 import AppLayout from '@/components/layout/AppLayout';
 import { EnhancedPagination } from '@/components/ui/pagination';
+import ResourceCreateModal from '@/components/admin/ResourceCreateModal';
+import ResourceEditModal from '@/components/admin/ResourceEditModal';
 
 export default function ResourcesPage() {
   const { user } = useAuthContext();
@@ -43,23 +36,12 @@ export default function ResourcesPage() {
   const [resourceTypeFilter, setResourceTypeFilter] = useState<'all' | 'api' | 'menu'>('all');
 
   // 资源表单状态
-  const [isCreateResourceDialogOpen, setIsCreateResourceDialogOpen] = useState(false);
-  const [resourceForm, setResourceForm] = useState<CreateResourceRequest>({
-    name: '',
-    displayName: '',
-    description: '',
-    resourceType: 'api',
-    resourcePath: '',
-    httpMethod: '',
-    parentId: '',
-    priority: 0,
-  });
-  const [resourceFormLoading, setResourceFormLoading] = useState(false);
-  const [editingResource, setEditingResource] = useState<Resource | null>(null);
-  const [isEditResourceDialogOpen, setIsEditResourceDialogOpen] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [deleteResourceTarget, setDeleteResourceTarget] = useState<Resource | null>(null);
-  const [isDeleteResourceDialogOpen, setIsDeleteResourceDialogOpen] = useState(false);
-  const [deleteResourceLoading, setDeleteResourceLoading] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
 
   // 搜索和分页
@@ -99,73 +81,51 @@ export default function ResourcesPage() {
     }
   };
 
-  // 创建资源
-  const handleCreateResource = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      setResourceFormLoading(true);
-      await resourceService.createResource(resourceForm);
-      toast.success('创建资源成功');
-      setIsCreateResourceDialogOpen(false);
-      setResourceForm({
-        name: '',
-        displayName: '',
-        description: '',
-        resourceType: 'api',
-        resourcePath: '',
-        httpMethod: '',
-        parentId: '',
-        priority: 0,
-      });
-      loadResources();
-    } catch (err: any) {
-      toast.error(err.message || '创建资源失败');
-    } finally {
-      setResourceFormLoading(false);
-    }
+  // 处理资源创建
+  const handleResourceCreated = () => {
+    setShowCreateModal(false);
+    loadResources();
   };
 
-  // 更新资源
-  const handleUpdateResource = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingResource) return;
-    
-    try {
-      setResourceFormLoading(true);
-      const updateData: UpdateResourceRequest = {
-        displayName: resourceForm.displayName,
-        description: resourceForm.description,
-        resourcePath: resourceForm.resourcePath,
-        httpMethod: resourceForm.httpMethod,
-        priority: resourceForm.priority,
-      };
-      await resourceService.updateResource(editingResource.id, updateData);
-      toast.success('更新资源成功');
-      setIsEditResourceDialogOpen(false);
-      setEditingResource(null);
-      loadResources();
-    } catch (err: any) {
-      toast.error(err.message || '更新资源失败');
-    } finally {
-      setResourceFormLoading(false);
-    }
+  // 处理资源更新
+  const handleResourceUpdated = () => {
+    setShowEditModal(false);
+    setSelectedResource(null);
+    loadResources();
   };
 
-  // 删除资源
-  const handleDeleteResource = async () => {
+  // 处理编辑资源
+  const handleEditResource = (resource: Resource) => {
+    setSelectedResource(resource);
+    setShowEditModal(true);
+  };
+
+  // 处理删除资源
+  const handleDeleteResource = (resource: Resource) => {
+    setDeleteResourceTarget(resource);
+    setIsDeleteDialogOpen(true);
+  };
+
+  // 确认删除资源
+  const handleConfirmDelete = async () => {
     if (!deleteResourceTarget) return;
     
+    setDeleteLoading(true);
     try {
-      setDeleteResourceLoading(true);
       await resourceService.deleteResource(deleteResourceTarget.id);
       toast.success('删除资源成功');
-      setIsDeleteResourceDialogOpen(false);
+      setIsDeleteDialogOpen(false);
       setDeleteResourceTarget(null);
-      loadResources();
+      // 如果当前页删除后没有数据了，且不是第一页，则跳转到上一页
+      if (resources.length === 1 && currentPage > 1) {
+        setCurrentPage(currentPage - 1);
+      } else {
+        loadResources();
+      }
     } catch (err: any) {
       toast.error(err.message || '删除资源失败');
     } finally {
-      setDeleteResourceLoading(false);
+      setDeleteLoading(false);
     }
   };
 
@@ -184,21 +144,6 @@ export default function ResourcesPage() {
     }
   };
 
-  // 打开编辑对话框
-  const openEditDialog = (resource: Resource) => {
-    setEditingResource(resource);
-    setResourceForm({
-      name: resource.name,
-      displayName: resource.displayName || '',
-      description: resource.description || '',
-      resourceType: resource.resourceType,
-      resourcePath: resource.resourcePath,
-      httpMethod: resource.httpMethod || '',
-      parentId: resource.parentId || '',
-      priority: resource.priority,
-    });
-    setIsEditResourceDialogOpen(true);
-  };
 
   // 过滤资源
   const filteredResources = resources.filter(resource => {
@@ -215,12 +160,9 @@ export default function ResourcesPage() {
 
   return (
     <AppLayout>
-      <div className="container mx-auto p-6">
+      <div className="container mx-auto px-4 py-6">
         <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">资源管理</h1>
-            <p className="mt-2 text-gray-600">管理API端点和菜单资源</p>
-          </div>
+          <h1 className="text-2xl font-bold text-gray-800">资源管理</h1>
           <div className="flex gap-2">
             <Button
               onClick={handleSyncMenus}
@@ -229,335 +171,257 @@ export default function ResourcesPage() {
             >
               {syncLoading ? '同步中...' : '同步菜单资源'}
             </Button>
-            <Button onClick={() => setIsCreateResourceDialogOpen(true)}>
+            <Button 
+              onClick={() => setShowCreateModal(true)}
+              className="bg-orange-500 hover:bg-orange-600"
+            >
               创建资源
             </Button>
           </div>
         </div>
 
-        {/* 搜索和筛选 */}
-        <div className="mb-4 flex gap-4">
-          <Input
-            placeholder="搜索资源名称、显示名称或路径..."
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            className="max-w-md"
-          />
-          <Select value={resourceTypeFilter} onValueChange={(value: any) => setResourceTypeFilter(value)}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="资源类型" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部</SelectItem>
-              <SelectItem value="api">API资源</SelectItem>
-              <SelectItem value="menu">菜单资源</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* 资源列表 */}
-        {loading ? (
-          <div className="flex h-64 items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
-          </div>
-        ) : error ? (
-          <div className="rounded-lg bg-red-50 p-4 text-red-800">{error}</div>
-        ) : (
-          <>
-            <div className="rounded-lg border bg-white">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">资源名称</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">显示名称</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">类型</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">路径</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">HTTP方法</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">状态</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredResources.map((resource) => (
-                    <tr key={resource.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm">
-                        <div className="font-medium text-gray-900">{resource.name}</div>
-                        {resource.description && (
-                          <div className="mt-1 text-xs text-gray-500">{resource.description}</div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">
-                        {resource.displayName || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <Badge variant={resource.resourceType === 'api' ? 'default' : 'secondary'}>
-                          {resource.resourceType === 'api' ? 'API' : '菜单'}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">{resource.resourcePath}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900">
-                        {resource.httpMethod ? (
-                          <Badge variant="outline">{resource.httpMethod}</Badge>
-                        ) : (
-                          '-'
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <Badge variant={resource.isActive ? 'default' : 'destructive'}>
-                          {resource.isActive ? '启用' : '禁用'}
-                        </Badge>
-                        {resource.isSystem && (
-                          <Badge variant="outline" className="ml-2">系统</Badge>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openEditDialog(resource)}
-                            disabled={resource.isSystem}
-                          >
-                            编辑
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setDeleteResourceTarget(resource);
-                              setIsDeleteResourceDialogOpen(true);
-                            }}
-                            disabled={resource.isSystem}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            删除
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* 分页 */}
-            <div className="mt-4">
-              <EnhancedPagination
-                currentPage={currentPage}
-                totalPages={Math.ceil(total / itemsPerPage)}
-                onPageChange={setCurrentPage}
-                itemsPerPage={itemsPerPage}
-                onItemsPerPageChange={setItemsPerPage}
-                totalItems={total}
+        {/* 搜索区域 */}
+        <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <Label htmlFor="search" className="mb-2 block text-sm font-medium">关键词搜索</Label>
+              <Input
+                id="search"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    loadResources();
+                  }
+                }}
+                placeholder="搜索资源名称、显示名称或路径..."
+                className="w-full max-w-md"
               />
             </div>
-          </>
+            <div className="flex items-end gap-2 pb-1">
+              <Select value={resourceTypeFilter} onValueChange={(value: any) => setResourceTypeFilter(value)}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="资源类型" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部</SelectItem>
+                  <SelectItem value="api">API资源</SelectItem>
+                  <SelectItem value="menu">菜单资源</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={() => {
+                setSearchText('');
+                setResourceTypeFilter('all');
+                setCurrentPage(1);
+                loadResources();
+              }}>
+                重置
+              </Button>
+              <Button className="bg-orange-500 hover:bg-orange-600" onClick={loadResources}>
+                查询
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-4 rounded-md bg-red-50 p-4 text-red-500">
+            {error}
+          </div>
         )}
 
-        {/* 创建资源对话框 */}
-        <Dialog open={isCreateResourceDialogOpen} onOpenChange={setIsCreateResourceDialogOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>创建资源</DialogTitle>
-              <DialogDescription>创建一个新的API或菜单资源</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleCreateResource}>
-              <div className="space-y-4 py-4">
-                <div>
-                  <Label htmlFor="name">资源名称 *</Label>
-                  <Input
-                    id="name"
-                    value={resourceForm.name}
-                    onChange={(e) => setResourceForm({ ...resourceForm, name: e.target.value })}
-                    placeholder="如: api:user:create 或 menu:home"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="displayName">显示名称</Label>
-                  <Input
-                    id="displayName"
-                    value={resourceForm.displayName}
-                    onChange={(e) => setResourceForm({ ...resourceForm, displayName: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="description">描述</Label>
-                  <Textarea
-                    id="description"
-                    value={resourceForm.description}
-                    onChange={(e) => setResourceForm({ ...resourceForm, description: e.target.value })}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="resourceType">资源类型 *</Label>
-                    <Select
-                      value={resourceForm.resourceType}
-                      onValueChange={(value: 'api' | 'menu') =>
-                        setResourceForm({ ...resourceForm, resourceType: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="api">API资源</SelectItem>
-                        <SelectItem value="menu">菜单资源</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {resourceForm.resourceType === 'api' && (
-                    <div>
-                      <Label htmlFor="httpMethod">HTTP方法</Label>
-                      <Select
-                        value={resourceForm.httpMethod || undefined}
-                        onValueChange={(value) => setResourceForm({ ...resourceForm, httpMethod: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="选择HTTP方法" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="GET">GET</SelectItem>
-                          <SelectItem value="POST">POST</SelectItem>
-                          <SelectItem value="PUT">PUT</SelectItem>
-                          <SelectItem value="DELETE">DELETE</SelectItem>
-                          <SelectItem value="PATCH">PATCH</SelectItem>
-                        </SelectContent>
-                      </Select>
+        <div className="overflow-hidden rounded-lg border border-gray-200 shadow">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  资源名称
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  显示名称
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  类型
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  路径
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  HTTP方法
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  状态
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  操作
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 bg-white">
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-12 text-center">
+                    <div className="flex justify-center">
+                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
                     </div>
-                  )}                  
-                </div>
-                <div>
-                  <Label htmlFor="resourcePath">资源路径 *</Label>
-                  <Input
-                    id="resourcePath"
-                    className='flex-1'
-                    value={resourceForm.resourcePath}
-                    onChange={(e) => setResourceForm({ ...resourceForm, resourcePath: e.target.value })}
-                    placeholder="/api/v1/users"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="priority">优先级</Label>
-                  <Input
-                    id="priority"
-                    type="number"
-                    value={(resourceForm.priority ?? 0).toString()}
-                    onChange={(e) => setResourceForm({ ...resourceForm, priority: parseInt(e.target.value) || 0 })}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsCreateResourceDialogOpen(false)}>
-                  取消
-                </Button>
-                <Button type="submit" disabled={resourceFormLoading}>
-                  {resourceFormLoading ? '创建中...' : '创建'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                  </td>
+                </tr>
+              ) : filteredResources.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-4 text-center text-sm text-gray-500">
+                    暂无资源数据
+                  </td>
+                </tr>
+              ) : (
+                filteredResources.map((resource) => (
+                  <tr key={resource.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-sm">
+                      <div className="font-medium text-gray-900">{resource.name}</div>
+                      {resource.description && (
+                        <div className="mt-1 text-xs text-gray-500">{resource.description}</div>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                      {resource.displayName || '-'}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                      <Badge variant={resource.resourceType === 'api' ? 'default' : 'secondary'}>
+                        {resource.resourceType === 'api' ? 'API' : '菜单'}
+                      </Badge>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {resource.resourcePath}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                      {resource.httpMethod ? (
+                        <Badge variant="outline">{resource.httpMethod}</Badge>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm">
+                      <div className="flex flex-wrap gap-1">
+                        <span className={`px-2 py-1 rounded-full text-xs ${resource.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          {resource.isActive ? '启用' : '禁用'}
+                        </span>
+                        {resource.isSystem && (
+                          <span className="px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800">
+                            系统
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditResource(resource)}
+                          disabled={resource.isSystem}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          编辑
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteResource(resource)}
+                          disabled={resource.isSystem}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          删除
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        
+        {/* 分页组件 */}
+        {filteredResources.length > 0 && (
+          <div className="mt-6">
+            <EnhancedPagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(total / itemsPerPage)}
+              totalItems={total}
+              itemsPerPage={itemsPerPage}
+              itemsPerPageOptions={[5, 10, 20, 50, 100]}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={(newLimit) => {
+                setItemsPerPage(newLimit);
+                setCurrentPage(1);
+              }}
+              showPageInput={true}
+            />
+          </div>
+        )}
 
-        {/* 编辑资源对话框 */}
-        <Dialog open={isEditResourceDialogOpen} onOpenChange={setIsEditResourceDialogOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>编辑资源</DialogTitle>
-              <DialogDescription>更新资源信息</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleUpdateResource}>
-              <div className="space-y-4 py-4">
-                <div>
-                  <Label>资源名称</Label>
-                  <Input value={editingResource?.name || ''} disabled />
-                </div>
-                <div>
-                  <Label htmlFor="edit-displayName">显示名称</Label>
-                  <Input
-                    id="edit-displayName"
-                    value={resourceForm.displayName || ''}
-                    onChange={(e) => setResourceForm({ ...resourceForm, displayName: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-description">描述</Label>
-                  <Textarea
-                    id="edit-description"
-                    value={resourceForm.description || ''}
-                    onChange={(e) => setResourceForm({ ...resourceForm, description: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-resourcePath">资源路径</Label>
-                  <Input
-                    id="edit-resourcePath"
-                    value={resourceForm.resourcePath || ''}
-                    onChange={(e) => setResourceForm({ ...resourceForm, resourcePath: e.target.value })}
-                    required
-                  />
-                </div>
-                {resourceForm.resourceType === 'api' && (
-                  <div>
-                    <Label htmlFor="edit-httpMethod">HTTP方法</Label>
-                    <Select
-                      value={resourceForm.httpMethod || undefined}
-                      onValueChange={(value) => setResourceForm({ ...resourceForm, httpMethod: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="选择HTTP方法" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="GET">GET</SelectItem>
-                        <SelectItem value="POST">POST</SelectItem>
-                        <SelectItem value="PUT">PUT</SelectItem>
-                        <SelectItem value="DELETE">DELETE</SelectItem>
-                        <SelectItem value="PATCH">PATCH</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                <div>
-                  <Label htmlFor="edit-priority">优先级</Label>
-                  <Input
-                    id="edit-priority"
-                    type="number"
-                    value={(resourceForm.priority ?? 0).toString()}
-                    onChange={(e) => setResourceForm({ ...resourceForm, priority: parseInt(e.target.value) || 0 })}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsEditResourceDialogOpen(false)}>
-                  取消
-                </Button>
-                <Button type="submit" disabled={resourceFormLoading}>
-                  {resourceFormLoading ? '更新中...' : '更新'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        {/* 创建资源模态框 */}
+        {showCreateModal && (
+          <ResourceCreateModal
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            onResourceCreated={handleResourceCreated}
+          />
+        )}
+
+        {/* 编辑资源模态框 */}
+        {showEditModal && selectedResource && (
+          <ResourceEditModal
+            isOpen={showEditModal}
+            onClose={() => {
+              setShowEditModal(false);
+              setSelectedResource(null);
+            }}
+            resource={selectedResource}
+            onResourceUpdated={handleResourceUpdated}
+          />
+        )}
 
         {/* 删除确认对话框 */}
-        <AlertDialog open={isDeleteResourceDialogOpen} onOpenChange={setIsDeleteResourceDialogOpen}>
+        <AlertDialog
+          open={isDeleteDialogOpen}
+          onOpenChange={(open) => {
+            if (open) {
+              setIsDeleteDialogOpen(true);
+            } else {
+              if (deleteLoading) return;
+              setIsDeleteDialogOpen(false);
+              setDeleteResourceTarget(null);
+            }
+          }}
+        >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>确认删除</AlertDialogTitle>
+              <AlertDialogTitle>确认删除资源</AlertDialogTitle>
               <AlertDialogDescription>
-                确定要删除资源 "{deleteResourceTarget?.name}" 吗？此操作不可撤销。
+                删除后无法恢复，确定要删除资源
+                <span className="font-semibold text-gray-900">
+                  {deleteResourceTarget?.name}
+                </span>
+                吗？
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>取消</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDeleteResource}
-                disabled={deleteResourceLoading}
-                className="bg-red-600 hover:bg-red-700"
+              <AlertDialogCancel 
+                onClick={() => {
+                  if (deleteLoading) return;
+                  setIsDeleteDialogOpen(false);
+                  setDeleteResourceTarget(null);
+                }}
+                disabled={deleteLoading}
               >
-                {deleteResourceLoading ? '删除中...' : '删除'}
+                取消
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmDelete}
+                className="bg-red-600 hover:bg-red-700"
+                disabled={deleteLoading}
+              >
+                {deleteLoading ? '删除中...' : '确认删除'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

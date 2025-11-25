@@ -737,7 +737,12 @@ const FETCH_OPTION_KEYS = new Set([
  * 标准化请求体选项
  */
 const normalizeBodyOptions = (options: unknown): FetchOptionType => {
-  if (!options || typeof options !== 'object' || Array.isArray(options)) {
+  // 如果是数组，将其包装在 body 字段中
+  if (Array.isArray(options)) {
+    return { body: options } as FetchOptionType
+  }
+  
+  if (!options || typeof options !== 'object') {
     return options as FetchOptionType
   }
 

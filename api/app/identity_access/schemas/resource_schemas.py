@@ -32,10 +32,9 @@ class ResourceBase(BaseModel):
     resource_path: str = Field(..., description="API路径或菜单路径", max_length=255)
     http_method: Optional[str] = Field(None, description="HTTP方法：GET, POST, PUT, DELETE（仅API资源）", max_length=10)
     parent_id: Optional[str] = Field(None, description="父资源ID（菜单层级）")
-    tenant_id: Optional[str] = Field(None, description="租户ID")
     priority: int = Field(0, description="资源优先级")
     
-    @field_validator('parent_id', 'tenant_id', mode='before')
+    @field_validator('parent_id', mode='before')
     @classmethod
     def empty_str_to_none(cls, v):
         """将空字符串转换为 None，避免外键约束错误"""

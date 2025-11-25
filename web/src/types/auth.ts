@@ -22,7 +22,8 @@ export interface User {
   avatar?: string;
   roles: string[];
   isActive: boolean;
-  tenantId?: string; // 新增租户ID
+  tenantId?: string;
+  tenantName?: string; // 租户名称
   createdAt: string;
   updatedAt?: string;
   lastLoginAt?: string;
@@ -54,7 +55,7 @@ export interface RoleOption {
   icon?: string;
 }
 
-// 新增权限相关类型定义
+// 新增权限相关类型定义（全局，不区分租户）
 export interface Permission {
   id: string;
   code: string; // 权限标识码
@@ -67,7 +68,6 @@ export interface Permission {
   isSystem: boolean;
   isAdmin: boolean;
   priority: number;
-  tenantId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -82,6 +82,7 @@ export interface Role {
   isAdmin: boolean;
   priority: number;
   tenantId?: string;
+  tenantName?: string; // 租户名称
   createdAt: string;
   updatedAt: string;
 }

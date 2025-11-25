@@ -8,6 +8,8 @@ import { permissionService } from '@/service/permissionService';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tenant } from '@/types/auth';
 import toast from 'react-hot-toast';
 
 interface UserCreateModalProps {
@@ -22,26 +24,44 @@ export default function UserCreateModal({ isOpen, onClose, onUserCreated }: User
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [roles, setRoles] = useState<UserRole[]>([]);
+  const [tenantId, setTenantId] = useState<string>('system'); // 默认系统租户
   const [loading, setLoading] = useState(false);
   const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
   const [loadingRoles, setLoadingRoles] = useState(false);
+  const [availableTenants, setAvailableTenants] = useState<Tenant[]>([]);
+  const [loadingTenants, setLoadingTenants] = useState(false);
   
-  // 从后端获取角色列表
+  // 从后端获取角色列表和租户列表
   useEffect(() => {
     if (isOpen) {
-      const fetchRoles = async () => {
+      const fetchData = async () => {
         setLoadingRoles(true);
+        setLoadingTenants(true);
         try {
-          const rolesList = await permissionService.getRoles();
+          const [rolesList, tenantsList] = await Promise.all([
+            permissionService.getRoles(),
+            permissionService.getTenants()
+          ]);
           setAvailableRoles(rolesList);
+          setAvailableTenants(tenantsList);
+          // 如果没有设置租户，默认选择系统租户
+          if (!tenantId && tenantsList.length > 0) {
+            const systemTenant = tenantsList.find(t => t.id === 'system' || t.isSystem);
+            if (systemTenant) {
+              setTenantId(systemTenant.id);
+            } else {
+              setTenantId(tenantsList[0].id);
+            }
+          }
         } catch (err: any) {
-          toast.error(err.message || '获取角色列表失败');
-          console.error('获取角色列表失败:', err);
+          toast.error(err.message || '获取数据失败');
+          console.error('获取数据失败:', err);
         } finally {
           setLoadingRoles(false);
+          setLoadingTenants(false);
         }
       };
-      fetchRoles();
+      fetchData();
     }
   }, [isOpen]);
 
@@ -99,7 +119,8 @@ export default function UserCreateModal({ isOpen, onClose, onUserCreated }: User
         email,
         password,
         phone: phone || undefined,
-        roles
+        roles,
+        tenantId: tenantId || 'system'
       });
       
       onUserCreated();
@@ -167,6 +188,30 @@ export default function UserCreateModal({ isOpen, onClose, onUserCreated }: User
               onChange={(e) => setPhone(e.target.value)}
               disabled={loading}
             />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="create-tenant">租户 *</Label>
+            {loadingTenants ? (
+              <div className="text-sm text-gray-500">加载租户列表...</div>
+            ) : (
+              <Select
+                value={tenantId}
+                onValueChange={setTenantId}
+                disabled={loading}
+              >
+                <SelectTrigger id="create-tenant">
+                  <SelectValue placeholder="选择租户" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTenants.map((tenant) => (
+                    <SelectItem key={tenant.id} value={tenant.id}>
+                      {tenant.displayName || tenant.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           
           <div className="space-y-2">

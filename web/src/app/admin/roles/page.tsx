@@ -29,6 +29,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { permissionService } from '@/service/permissionService';
 import { handleApiError } from '@/service/apiClient';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import toast from 'react-hot-toast';
 import AppLayout from '@/components/layout/AppLayout';
 import { EnhancedPagination } from '@/components/ui/pagination';
@@ -43,6 +45,7 @@ type RoleItem = {
   isAdmin?: boolean;
   priority?: number | null;
   tenantId?: string | null;
+  tenantName?: string | null;
 };
 
 const normalizeRole = (role: any): RoleItem => {
@@ -57,6 +60,7 @@ const normalizeRole = (role: any): RoleItem => {
     isAdmin: role?.isAdmin ?? role?.is_admin ?? false,
     priority: typeof role?.priority === 'number' ? role.priority : Number(role?.priority ?? 0),
     tenantId: role?.tenantId ?? role?.tenant_id ?? null,
+    tenantName: role?.tenantName ?? role?.tenant_name ?? null,
   };
 };
 
@@ -75,8 +79,11 @@ export default function RolesPage() {
   const [roleIsSystem, setRoleIsSystem] = useState(false);
   const [roleIsAdmin, setRoleIsAdmin] = useState(false);
   const [rolePriority, setRolePriority] = useState<number>(0);
+  const [roleTenantId, setRoleTenantId] = useState<string>('system');
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [availableTenants, setAvailableTenants] = useState<any[]>([]);
+  const [loadingTenants, setLoadingTenants] = useState(false);
   // 添加分页状态
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
@@ -88,6 +95,7 @@ export default function RolesPage() {
     name: '', 
     displayName: '', 
     description: '',
+    tenantId: 'system',
     isActive: true,
     isSystem: false,
     isAdmin: false,
@@ -99,6 +107,11 @@ export default function RolesPage() {
   const [deleteTarget, setDeleteTarget] = useState<RoleItem | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [assignPermissionsTarget, setAssignPermissionsTarget] = useState<RoleItem | null>(null);
+  const [isAssignPermissionsDialogOpen, setIsAssignPermissionsDialogOpen] = useState(false);
+  const [assignPermissionsLoading, setAssignPermissionsLoading] = useState(false);
+  const [availablePermissions, setAvailablePermissions] = useState<any[]>([]);
+  const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>([]);
 
   const createNameRef = useRef(roleName);
 
@@ -114,6 +127,7 @@ export default function RolesPage() {
     setRoleIsSystem(false);
     setRoleIsAdmin(false);
     setRolePriority(0);
+    setRoleTenantId('system');
     setFormError(null);
   }
 
@@ -168,6 +182,25 @@ export default function RolesPage() {
 
   useEffect(() => {
     fetchRoles();
+    // 加载租户列表
+    const fetchTenants = async () => {
+      setLoadingTenants(true);
+      try {
+        const tenantsList = await permissionService.getTenants();
+        setAvailableTenants(tenantsList);
+        if (tenantsList.length > 0) {
+          const systemTenant = tenantsList.find(t => t.id === 'system' || t.isSystem);
+          if (systemTenant) {
+            setRoleTenantId(systemTenant.id);
+          }
+        }
+      } catch (err: any) {
+        console.error('获取租户列表失败:', err);
+      } finally {
+        setLoadingTenants(false);
+      }
+    };
+    fetchTenants();
   }, []);
 
   useEffect(() => {
@@ -195,6 +228,7 @@ export default function RolesPage() {
         name: roleName.trim(),
         displayName: nextDisplayName || undefined,
         description: roleDescription.trim() || undefined,
+        tenantId: roleTenantId,
         isActive: roleIsActive,
         isSystem: roleIsSystem,
         isAdmin: roleIsAdmin,
@@ -223,6 +257,7 @@ export default function RolesPage() {
       name: role.name,
       displayName: role.displayName ?? role.name,
       description: role.description ?? '',
+      tenantId: role.tenantId || 'system',
       isActive: role.isActive ?? true,
       isSystem: role.isSystem ?? false,
       isAdmin: role.isAdmin ?? false,
@@ -253,6 +288,7 @@ export default function RolesPage() {
         name?: string; 
         displayName?: string; 
         description?: string;
+        tenantId?: string;
         isActive?: boolean;
         isSystem?: boolean;
         isAdmin?: boolean;
@@ -264,6 +300,9 @@ export default function RolesPage() {
       }
       payload.displayName = nextDisplayName || undefined;
       payload.description = editForm.description.trim() || undefined;
+      if (editForm.tenantId && editForm.tenantId !== editingRole.tenantId) {
+        payload.tenantId = editForm.tenantId;
+      }
       payload.isActive = editForm.isActive;
       payload.isSystem = editForm.isSystem;
       payload.isAdmin = editForm.isAdmin;
@@ -306,6 +345,40 @@ export default function RolesPage() {
       // 删除操作不需要设置表单错误，只显示 toast（已在 handleApiError 中处理）
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  // 处理分配权限
+  const handleAssignPermissions = async (role: RoleItem) => {
+    setAssignPermissionsTarget(role);
+    setIsAssignPermissionsDialogOpen(true);
+    // 加载可用权限列表
+    try {
+      const permissionsList = await permissionService.getPermissions({ skip: 0, limit: 1000 });
+      setAvailablePermissions(permissionsList.permissions || []);
+      // 加载当前角色已分配的权限
+      // TODO: 需要添加获取角色权限的API
+      setSelectedPermissionIds([]);
+    } catch (err: any) {
+      toast.error(err.message || '加载权限列表失败');
+    }
+  };
+
+  const handleConfirmAssignPermissions = async () => {
+    if (!assignPermissionsTarget) return;
+    
+    setAssignPermissionsLoading(true);
+    try {
+      // TODO: 需要添加分配权限的API
+      toast.success('权限分配成功');
+      setIsAssignPermissionsDialogOpen(false);
+      setAssignPermissionsTarget(null);
+      setSelectedPermissionIds([]);
+      fetchRoles();
+    } catch (err: any) {
+      toast.error(err.message || '分配权限失败');
+    } finally {
+      setAssignPermissionsLoading(false);
     }
   };
 
@@ -427,6 +500,9 @@ export default function RolesPage() {
                 <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
                   优先级
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  租户
+                </th>
                 <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
                   操作
                 </th>
@@ -486,6 +562,9 @@ export default function RolesPage() {
                   <td className="whitespace-nowrap px-6 py-4 text-center text-sm font-medium text-gray-900">
                     {role.priority ?? 0}
                   </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                    {role.tenantName || role.tenantId || '-'}
+                  </td>
                   <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                     <div className="flex justify-end space-x-2">
                       <Button
@@ -495,6 +574,14 @@ export default function RolesPage() {
                         className="text-blue-600 hover:text-blue-800"
                       >
                         编辑
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleAssignPermissions(role)}
+                        className="text-green-600 hover:text-green-800"
+                      >
+                        分配权限
                       </Button>
                       <Button
                         variant="ghost"
@@ -513,7 +600,7 @@ export default function RolesPage() {
 
               {roles.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-6 py-4 text-center text-sm text-gray-500">
+                  <td colSpan={10} className="px-6 py-4 text-center text-sm text-gray-500">
                     暂无角色数据
                   </td>
                 </tr>
@@ -644,18 +731,43 @@ export default function RolesPage() {
               <p className="text-xs text-gray-500">管理员角色拥有系统管理权限</p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="createRolePriority">角色优先级</Label>
-              <Input
-                id="createRolePriority"
-                type="number"
-                value={rolePriority}
-                onChange={(e) => setRolePriority(Number(e.target.value) || 0)}
-                disabled={formLoading}
-                placeholder="数字越大优先级越高"
-                min="0"
-              />
-              <p className="text-xs text-gray-500">用于角色排序和权限判断，数字越大优先级越高</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="createRoleTenant">所属租户 *</Label>
+                {loadingTenants ? (
+                  <div className="text-sm text-gray-500">加载租户列表...</div>
+                ) : (
+                  <Select
+                    value={roleTenantId}
+                    onValueChange={(value) => setRoleTenantId(value)}
+                    disabled={formLoading}
+                  >
+                    <SelectTrigger id="createRoleTenant">
+                      <SelectValue placeholder="选择租户" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableTenants.map((tenant) => (
+                        <SelectItem key={tenant.id} value={tenant.id}>
+                          {tenant.displayName || tenant.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="createRolePriority">角色优先级</Label>
+                <Input
+                  id="createRolePriority"
+                  type="number"
+                  value={rolePriority}
+                  onChange={(e) => setRolePriority(Number(e.target.value) || 0)}
+                  disabled={formLoading}
+                  placeholder="数字越大优先级越高"
+                  min="0"
+                />
+                <p className="text-xs text-gray-500">用于角色排序和权限判断，数字越大优先级越高</p>
+              </div>
             </div>
 
             <DialogFooter>
@@ -791,18 +903,43 @@ export default function RolesPage() {
               <p className="text-xs text-gray-500">管理员角色拥有系统管理权限</p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="editRolePriority">角色优先级</Label>
-              <Input
-                id="editRolePriority"
-                type="number"
-                value={editForm.priority}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, priority: Number(e.target.value) || 0 }))}
-                disabled={editLoading}
-                placeholder="数字越大优先级越高"
-                min="0"
-              />
-              <p className="text-xs text-gray-500">用于角色排序和权限判断，数字越大优先级越高</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editRoleTenant">所属租户</Label>
+                {loadingTenants ? (
+                  <div className="text-sm text-gray-500">加载租户列表...</div>
+                ) : (
+                  <Select
+                    value={editForm.tenantId || editingRole?.tenantId || 'system'}
+                    onValueChange={(value) => setEditForm((prev) => ({ ...prev, tenantId: value }))}
+                    disabled={editLoading}
+                  >
+                    <SelectTrigger id="editRoleTenant">
+                      <SelectValue placeholder="选择租户" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableTenants.map((tenant) => (
+                        <SelectItem key={tenant.id} value={tenant.id}>
+                          {tenant.displayName || tenant.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editRolePriority">角色优先级</Label>
+                <Input
+                  id="editRolePriority"
+                  type="number"
+                  value={editForm.priority}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, priority: Number(e.target.value) || 0 }))}
+                  disabled={editLoading}
+                  placeholder="数字越大优先级越高"
+                  min="0"
+                />
+                <p className="text-xs text-gray-500">用于角色排序和权限判断，数字越大优先级越高</p>
+              </div>
             </div>
             <DialogFooter>
               <Button
@@ -863,6 +1000,69 @@ export default function RolesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 分配权限对话框 */}
+      <Dialog open={isAssignPermissionsDialogOpen} onOpenChange={setIsAssignPermissionsDialogOpen}>
+        <DialogContent className="sm:max-w-2xl bg-white max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>分配权限</DialogTitle>
+            <DialogDescription>
+              为角色 "{assignPermissionsTarget?.displayName || assignPermissionsTarget?.name}" 分配权限
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="max-h-96 overflow-y-auto border rounded-lg p-4">
+              {availablePermissions.length === 0 ? (
+                <div className="text-center text-gray-500 py-8">暂无权限</div>
+              ) : (
+                <div className="space-y-2">
+                  {availablePermissions.map((permission) => (
+                    <div key={permission.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
+                      <Checkbox
+                        id={`permission-${permission.id}`}
+                        checked={selectedPermissionIds.includes(permission.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedPermissionIds([...selectedPermissionIds, permission.id]);
+                          } else {
+                            setSelectedPermissionIds(selectedPermissionIds.filter(id => id !== permission.id));
+                          }
+                        }}
+                      />
+                      <Label htmlFor={`permission-${permission.id}`} className="flex-1 cursor-pointer">
+                        <div className="font-medium">{permission.displayName || permission.name}</div>
+                        <div className="text-xs text-gray-500">{permission.code}</div>
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsAssignPermissionsDialogOpen(false);
+                setAssignPermissionsTarget(null);
+                setSelectedPermissionIds([]);
+              }}
+              disabled={assignPermissionsLoading}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmAssignPermissions}
+              disabled={assignPermissionsLoading}
+              className="bg-green-500 hover:bg-green-600"
+            >
+              {assignPermissionsLoading ? '分配中...' : '确认分配'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 } 

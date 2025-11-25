@@ -16,7 +16,6 @@ export interface Resource {
   isActive: boolean;
   isSystem: boolean;
   priority: number;
-  tenantId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -36,7 +35,6 @@ export interface CreateResourceRequest {
   resourcePath: string;
   httpMethod?: string;
   parentId?: string;
-  tenantId?: string;
   priority?: number;
 }
 
@@ -59,13 +57,11 @@ class ResourceService {
    * 获取资源列表
    */
   async getResources(params?: {
-    tenantId?: string;
     resourceType?: 'api' | 'menu';
     skip?: number;
     limit?: number;
   }): Promise<ResourceListResponse> {
     const queryParams = new URLSearchParams();
-    if (params?.tenantId) queryParams.append('tenant_id', params.tenantId);
     if (params?.resourceType) queryParams.append('resource_type', params.resourceType);
     if (params?.skip !== undefined) queryParams.append('skip', params.skip.toString());
     if (params?.limit !== undefined) queryParams.append('limit', params.limit.toString());
@@ -100,7 +96,6 @@ class ResourceService {
       resource_path: data.resourcePath,
       http_method: data.httpMethod,
       parent_id: data.parentId && data.parentId.trim() ? data.parentId : null,
-      tenant_id: data.tenantId && data.tenantId.trim() ? data.tenantId : null,
       priority: data.priority ?? 0,
     };
     const response = await apiClient.post<Resource>(

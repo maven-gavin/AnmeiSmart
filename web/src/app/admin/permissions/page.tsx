@@ -30,21 +30,21 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { permissionService } from '@/service/permissionService';
+import { resourceService, Resource } from '@/service/resourceService';
 import { handleApiError } from '@/service/apiClient';
-import { Permission, Role, Tenant } from '@/types/auth';
+import { Permission, Role } from '@/types/auth';
 import toast from 'react-hot-toast';
 import AppLayout from '@/components/layout/AppLayout';
 import { EnhancedPagination } from '@/components/ui/pagination';
+import ResourceTransfer from '@/components/admin/ResourceTransfer';
 
 export default function PermissionsPage() {
   const { user } = useAuthContext();
   const { isAdmin } = usePermission();
   const router = useRouter();
   const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedTenant, setSelectedTenant] = useState<string>('all');
 
   // 权限相关状态
   const [isCreatePermissionDialogOpen, setIsCreatePermissionDialogOpen] = useState(false);
@@ -78,6 +78,11 @@ export default function PermissionsPage() {
   const [deletePermissionTarget, setDeletePermissionTarget] = useState<Permission | null>(null);
   const [isDeletePermissionDialogOpen, setIsDeletePermissionDialogOpen] = useState(false);
   const [deletePermissionLoading, setDeletePermissionLoading] = useState(false);
+  const [assignResourcesTarget, setAssignResourcesTarget] = useState<Permission | null>(null);
+  const [isAssignResourcesDialogOpen, setIsAssignResourcesDialogOpen] = useState(false);
+  const [assignResourcesLoading, setAssignResourcesLoading] = useState(false);
+  const [availableResources, setAvailableResources] = useState<Resource[]>([]);
+  const [assignedResources, setAssignedResources] = useState<Resource[]>([]);
 
 
   // 搜索和分页
@@ -95,18 +100,14 @@ export default function PermissionsPage() {
   // 加载数据
   useEffect(() => {
     loadData();
-  }, [selectedTenant]);
+  }, []);
 
   const loadData = async () => {
     try {
       setLoading(true);
       setError(null);
-      const [permissionsData, tenantsData] = await Promise.all([
-        permissionService.getPermissions(selectedTenant === 'all' ? undefined : selectedTenant),
-        permissionService.getTenants()
-      ]);
+      const permissionsData = await permissionService.getPermissions();
       setPermissions(permissionsData);
-      setTenants(tenantsData);
     } catch (err) {
       const message = handleApiError(err, '加载数据失败');
       setError(message);
@@ -159,8 +160,7 @@ export default function PermissionsPage() {
         isActive: permissionForm.isActive,
         isSystem: permissionForm.isSystem,
         isAdmin: permissionForm.isAdmin,
-        priority: permissionForm.priority,
-        tenantId: selectedTenant === 'all' ? undefined : selectedTenant
+        priority: permissionForm.priority
       });
       toast.success('权限创建成功');
       resetPermissionForm();
@@ -251,6 +251,64 @@ export default function PermissionsPage() {
     }
   };
 
+  // 处理分配资源
+  const handleAssignResources = async (permission: Permission) => {
+    setAssignResourcesTarget(permission);
+    setIsAssignResourcesDialogOpen(true);
+    setAssignResourcesLoading(true);
+    
+    try {
+      // 并行加载所有资源和已分配的资源
+      const [allResourcesResponse, assignedResourcesResponse] = await Promise.all([
+        resourceService.getResources({ skip: 0, limit: 1000 }),
+        permissionService.getPermissionResources(permission.id)
+      ]);
+      
+      setAvailableResources(allResourcesResponse.resources);
+      setAssignedResources(assignedResourcesResponse);
+    } catch (err: any) {
+      toast.error(err.message || '加载资源列表失败');
+      setIsAssignResourcesDialogOpen(false);
+    } finally {
+      setAssignResourcesLoading(false);
+    }
+  };
+
+  const handleAssign = async (resourceIds: string[]) => {
+    if (!assignResourcesTarget) return;
+    
+    setAssignResourcesLoading(true);
+    try {
+      await permissionService.assignResourcesToPermission(assignResourcesTarget.id, resourceIds);
+      toast.success('资源分配成功');
+      
+      // 重新加载已分配的资源
+      const assignedResourcesResponse = await permissionService.getPermissionResources(assignResourcesTarget.id);
+      setAssignedResources(assignedResourcesResponse);
+    } catch (err: any) {
+      toast.error(err.message || '分配资源失败');
+    } finally {
+      setAssignResourcesLoading(false);
+    }
+  };
+
+  const handleUnassign = async (resourceIds: string[]) => {
+    if (!assignResourcesTarget) return;
+    
+    setAssignResourcesLoading(true);
+    try {
+      await permissionService.unassignResourcesFromPermission(assignResourcesTarget.id, resourceIds);
+      toast.success('资源移除成功');
+      
+      // 重新加载已分配的资源
+      const assignedResourcesResponse = await permissionService.getPermissionResources(assignResourcesTarget.id);
+      setAssignedResources(assignedResourcesResponse);
+    } catch (err: any) {
+      toast.error(err.message || '移除资源失败');
+    } finally {
+      setAssignResourcesLoading(false);
+    }
+  };
 
   // 搜索和过滤
   const filterItems = () => {
@@ -327,22 +385,6 @@ export default function PermissionsPage() {
             <p className="text-sm text-gray-600 mt-1">管理系统权限</p>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="tenant-select" className="text-sm">选择租户:</Label>
-              <Select value={selectedTenant} onValueChange={setSelectedTenant}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="选择租户" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部租户</SelectItem>
-                  {tenants.map((tenant) => (
-                    <SelectItem key={tenant.id} value={tenant.id}>
-                      {tenant.displayName || tenant.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <Button
               onClick={() => {
                 setPermissionFormError(null);
@@ -499,6 +541,14 @@ export default function PermissionsPage() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => handleAssignResources(permission)}
+                            className="text-green-600 hover:text-green-800"
+                          >
+                            分配资源
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleRequestDeletePermission(permission)}
                             className="text-red-600 hover:text-red-800"
                             disabled={permission.isSystem}
@@ -513,7 +563,7 @@ export default function PermissionsPage() {
                 })}
                 {currentPermissions.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="px-6 py-4 text-center text-sm text-gray-500">
+                    <td colSpan={9} className="px-6 py-4 text-center text-sm text-gray-500">
                       暂无权限数据
                     </td>
                   </tr>
@@ -927,7 +977,45 @@ export default function PermissionsPage() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* 删除权限确认对话框 */}
+        {/* 分配资源对话框 - 穿梭机模式 */}
+        <Dialog open={isAssignResourcesDialogOpen} onOpenChange={setIsAssignResourcesDialogOpen}>
+          <DialogContent className="sm:max-w-6xl bg-white max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>分配资源</DialogTitle>
+              <DialogDescription>
+                为权限 "{assignResourcesTarget?.displayName || assignResourcesTarget?.name}" 分配可访问的资源
+              </DialogDescription>
+            </DialogHeader>
+            {assignResourcesLoading && availableResources.length === 0 ? (
+              <div className="flex items-center justify-center h-[600px]">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
+              </div>
+            ) : (
+              <ResourceTransfer
+                availableResources={availableResources}
+                assignedResources={assignedResources}
+                onAssign={handleAssign}
+                onUnassign={handleUnassign}
+                loading={assignResourcesLoading}
+              />
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsAssignResourcesDialogOpen(false);
+                  setAssignResourcesTarget(null);
+                  setAvailableResources([]);
+                  setAssignedResources([]);
+                }}
+                disabled={assignResourcesLoading}
+              >
+                关闭
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <AlertDialog open={isDeletePermissionDialogOpen} onOpenChange={setIsDeletePermissionDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>

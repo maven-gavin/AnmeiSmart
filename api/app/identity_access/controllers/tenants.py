@@ -5,6 +5,7 @@ from app.identity_access.schemas.tenant_schemas import TenantCreate, TenantUpdat
 from app.identity_access.models.user import Tenant, User
 from app.identity_access.services.tenant_service import TenantService
 from app.identity_access.deps.auth_deps import get_current_user, require_role
+from app.identity_access.enums import TenantStatus, TenantType
 from app.common.deps import get_db
 from app.core.api import ApiResponse, BusinessException, ErrorCode, SystemException
 from sqlalchemy.orm import Session
@@ -16,6 +17,44 @@ def get_tenant_service(db: Session = Depends(get_db)) -> TenantService:
 
 def _handle_unexpected_error(message: str, exc: Exception) -> SystemException:
     return SystemException(message=message, code=ErrorCode.SYSTEM_ERROR)
+
+def _convert_tenant_to_response(tenant: Tenant) -> TenantResponse:
+    """将 Tenant 模型转换为 TenantResponse"""
+    # 处理 tenant_type：如果为 None 或 'system'，使用 STANDARD 作为默认值
+    tenant_type_value = tenant.tenant_type
+    if tenant_type_value is None or tenant_type_value == 'system':
+        tenant_type_value = TenantType.STANDARD
+    else:
+        try:
+            tenant_type_value = TenantType(tenant_type_value)
+        except ValueError:
+            tenant_type_value = TenantType.STANDARD
+    
+    # 处理 status：确保不为 None
+    tenant_status_value = tenant.status
+    if tenant_status_value is None:
+        tenant_status_value = TenantStatus.ACTIVE
+    
+    # 构建响应数据
+    tenant_data = {
+        "id": tenant.id,
+        "name": tenant.name,
+        "display_name": tenant.display_name,
+        "description": tenant.description,
+        "tenant_type": tenant_type_value,
+        "status": tenant_status_value,
+        "is_active": tenant.status == TenantStatus.ACTIVE if tenant.status else True,
+        "is_system": tenant.is_system if tenant.is_system is not None else False,
+        "is_admin": tenant.is_admin if tenant.is_admin is not None else False,
+        "priority": tenant.priority if tenant.priority is not None else 0,
+        "encrypted_pub_key": tenant.encrypted_pub_key,
+        "contact_name": tenant.contact_name,
+        "contact_email": tenant.contact_email,
+        "contact_phone": tenant.contact_phone,
+        "created_at": tenant.created_at,
+        "updated_at": tenant.updated_at,
+    }
+    return TenantResponse(**tenant_data)
 
 @router.get("", response_model=ApiResponse[TenantListResponse])
 async def list_tenants(
@@ -32,9 +71,12 @@ async def list_tenants(
         # 简单切片分页
         paged_tenants = tenants[skip:skip + limit]
         
+        # 转换 Tenant 模型为 TenantResponse
+        tenant_responses = [_convert_tenant_to_response(tenant) for tenant in paged_tenants]
+        
         return ApiResponse.success(
             data=TenantListResponse(
-                tenants=paged_tenants,
+                tenants=tenant_responses,
                 total=total,
                 skip=skip,
                 limit=limit
@@ -60,7 +102,8 @@ async def get_tenant(
         tenant = tenant_service.get_tenant(tenant_id)
         if not tenant:
             raise BusinessException("租户不存在", code=ErrorCode.NOT_FOUND, status_code=status.HTTP_404_NOT_FOUND)
-        return ApiResponse.success(tenant, message="获取租户详情成功")
+        tenant_response = _convert_tenant_to_response(tenant)
+        return ApiResponse.success(tenant_response, message="获取租户详情成功")
     except BusinessException:
         raise
     except Exception as e:
@@ -75,7 +118,8 @@ async def create_tenant(
     """创建新租户"""
     try:
         tenant = tenant_service.create_tenant(tenant_in)
-        return ApiResponse.success(tenant, message="创建租户成功")
+        tenant_response = _convert_tenant_to_response(tenant)
+        return ApiResponse.success(tenant_response, message="创建租户成功")
     except BusinessException:
         raise
     except Exception as e:
@@ -91,7 +135,8 @@ async def update_tenant(
     """更新租户"""
     try:
         tenant = tenant_service.update_tenant(tenant_id, tenant_in)
-        return ApiResponse.success(tenant, message="更新租户成功")
+        tenant_response = _convert_tenant_to_response(tenant)
+        return ApiResponse.success(tenant_response, message="更新租户成功")
     except BusinessException:
         raise
     except Exception as e:

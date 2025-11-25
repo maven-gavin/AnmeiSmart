@@ -261,6 +261,9 @@ export default function UsersPage() {
                   手机
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  租户
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                   角色
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -288,6 +291,9 @@ export default function UsersPage() {
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
                     {user.phone || '-'}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                    {user.tenantName || user.tenantId || '-'}
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
                     <div className="flex flex-wrap gap-1">

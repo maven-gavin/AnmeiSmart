@@ -16,7 +16,24 @@ class TenantService:
     def list_tenants(self, status: Optional[str] = None) -> List[Tenant]:
         query = self.db.query(Tenant)
         if status:
-            query = query.filter(Tenant.status == status)
+            # 将字符串状态转换为枚举值
+            # 处理大小写不匹配：枚举值是小写，但允许传入大写或小写
+            status_lower = status.lower()
+            try:
+                # 先尝试通过枚举值匹配（小写）
+                tenant_status = TenantStatus(status_lower)
+                query = query.filter(Tenant.status == tenant_status)
+            except ValueError:
+                # 如果通过值匹配失败，尝试通过枚举名匹配（大写）
+                try:
+                    tenant_status = TenantStatus[status.upper()]
+                    query = query.filter(Tenant.status == tenant_status)
+                except KeyError:
+                    # 如果都不匹配，抛出业务异常
+                    raise BusinessException(
+                        f"无效的租户状态: {status}。有效值: {', '.join([e.value for e in TenantStatus])}",
+                        code=ErrorCode.INVALID_PARAMETER
+                    )
         return query.all()
         
     def create_tenant(self, tenant_in: TenantCreate) -> Tenant:

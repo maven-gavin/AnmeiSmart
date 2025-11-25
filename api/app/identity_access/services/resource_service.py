@@ -2,7 +2,7 @@
 资源服务 - 资源管理逻辑
 """
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.identity_access.models.user import Resource
 from app.identity_access.schemas.resource_schemas import ResourceCreate, ResourceUpdate
@@ -29,7 +29,7 @@ class ResourceService:
         resource_type: Optional[ResourceType] = None,
         is_active: Optional[bool] = None
     ) -> List[Resource]:
-        """获取所有资源"""
+        """获取所有资源（全局，不区分租户）"""
         query = self.db.query(Resource)
         
         if resource_type:
@@ -41,11 +41,14 @@ class ResourceService:
         return query.order_by(Resource.priority.desc()).all()
     
     def create_resource(self, resource_in: ResourceCreate) -> Resource:
-        """创建资源"""
+        """创建资源（全局，不区分租户）"""
         if self.get_by_name(resource_in.name):
             raise BusinessException("资源名称已存在", code=ErrorCode.RESOURCE_ALREADY_EXISTS)
         
         resource_data = resource_in.model_dump()
+        # 移除 tenant_id（如果存在）
+        resource_data.pop('tenant_id', None)
+        
         resource = Resource(**resource_data)
         
         self.db.add(resource)
@@ -59,6 +62,10 @@ class ResourceService:
         if not resource:
             raise BusinessException("资源不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
         
+        # 系统资源不允许修改
+        if resource.is_system:
+            raise BusinessException("系统资源无法修改", code=ErrorCode.PERMISSION_DENIED)
+        
         # 更新字段（ResourceUpdate 不包含 name 字段，资源名称通常不允许修改）
         update_data = resource_data.model_dump(exclude_unset=True)
         for key, value in update_data.items():
@@ -67,6 +74,20 @@ class ResourceService:
         self.db.commit()
         self.db.refresh(resource)
         return resource
+    
+    def delete_resource(self, resource_id: str) -> bool:
+        """删除资源（物理删除）"""
+        resource = self.get_by_id(resource_id)
+        if not resource:
+            raise BusinessException("资源不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
+        
+        # 系统资源不允许删除
+        if resource.is_system:
+            raise BusinessException("系统资源无法删除", code=ErrorCode.PERMISSION_DENIED)
+        
+        self.db.delete(resource)
+        self.db.commit()
+        return True
     
     def create_or_update_resource(
         self,

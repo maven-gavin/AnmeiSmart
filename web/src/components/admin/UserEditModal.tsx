@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tenant } from '@/types/auth';
 import toast from 'react-hot-toast';
 
 interface UserEditModalProps {
@@ -24,27 +26,36 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [roles, setRoles] = useState<UserRole[]>([]);
+  const [tenantId, setTenantId] = useState<string>('system');
   const [isActive, setIsActive] = useState(true);
   const [loading, setLoading] = useState(false);
   const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
   const [loadingRoles, setLoadingRoles] = useState(false);
+  const [availableTenants, setAvailableTenants] = useState<Tenant[]>([]);
+  const [loadingTenants, setLoadingTenants] = useState(false);
   
-  // 从后端获取角色列表
+  // 从后端获取角色列表和租户列表
   useEffect(() => {
     if (isOpen) {
-      const fetchRoles = async () => {
+      const fetchData = async () => {
         setLoadingRoles(true);
+        setLoadingTenants(true);
         try {
-          const rolesList = await permissionService.getRoles();
+          const [rolesList, tenantsList] = await Promise.all([
+            permissionService.getRoles(),
+            permissionService.getTenants()
+          ]);
           setAvailableRoles(rolesList);
+          setAvailableTenants(tenantsList);
         } catch (err: any) {
-          toast.error(err.message || '获取角色列表失败');
-          console.error('获取角色列表失败:', err);
+          toast.error(err.message || '获取数据失败');
+          console.error('获取数据失败:', err);
         } finally {
           setLoadingRoles(false);
+          setLoadingTenants(false);
         }
       };
-      fetchRoles();
+      fetchData();
     }
   }, [isOpen]);
 
@@ -57,6 +68,8 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
       // 类型断言，假设后端返回的角色字符串是合法的 UserRole
       setRoles((user.roles as UserRole[]) ?? []);
       setIsActive(user.isActive ?? true);
+      // 设置租户ID，如果没有则使用系统租户
+      setTenantId(user.tenantId || 'system');
     }
   }, [user]);
 
@@ -110,6 +123,7 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
     if (email !== user.email) updateData.email = email;
     if (password) updateData.password = password;
     if (phone !== user.phone) updateData.phone = phone || undefined;
+    if (tenantId !== (user.tenantId || 'system')) updateData.tenantId = tenantId;
     
     // 角色处理：比较是否变化
     const rolesChanged = JSON.stringify(roles.sort()) !== JSON.stringify([...(user.roles as string[])].sort());
@@ -204,6 +218,30 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
               onChange={(e) => setPhone(e.target.value)}
               disabled={loading}
             />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="edit-tenant">租户 *</Label>
+            {loadingTenants ? (
+              <div className="text-sm text-gray-500">加载租户列表...</div>
+            ) : (
+              <Select
+                value={tenantId}
+                onValueChange={setTenantId}
+                disabled={loading}
+              >
+                <SelectTrigger id="edit-tenant">
+                  <SelectValue placeholder="选择租户" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTenants.map((tenant) => (
+                    <SelectItem key={tenant.id} value={tenant.id}>
+                      {tenant.displayName || tenant.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           
           <div className="space-y-2">

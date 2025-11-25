@@ -8,11 +8,11 @@ class AdminLevel(str, enum.Enum):
 
 class TenantStatus(str, enum.Enum):
     """租户状态枚举"""
-    ACTIVE = "ACTIVE"       # 正常
-    FROZEN = "FROZEN"       # 冻结
-    INACTIVE = "INACTIVE"   # 停用
-    SUSPENDED = "SUSPENDED" # 挂起
-    PENDING = "PENDING"     # 待审核
+    ACTIVE = "active"       # 正常
+    FROZEN = "frozen"       # 冻结
+    INACTIVE = "inactive"   # 停用
+    SUSPENDED = "suspended" # 挂起
+    PENDING = "pending"     # 待审核
 
 class TenantType(str, enum.Enum):
     """租户类型枚举"""
@@ -28,16 +28,22 @@ class ResourceType(str, enum.Enum):
 
 class PermissionType(str, enum.Enum):
     """权限类型枚举"""
-    ACTION = "action"   # 操作权限
-    DATA = "data"       # 数据权限
-    MENU = "menu"       # 菜单权限
+    ACTION = "action"     # 操作权限
+    DATA = "data"         # 数据权限
+    MENU = "menu"         # 菜单权限
+    RESOURCE = "resource" # 资源权限（前端使用）
+    FEATURE = "feature"   # 功能权限（前端使用）
+    SYSTEM = "system"     # 系统权限（前端使用）
 
 class PermissionScope(str, enum.Enum):
     """权限范围枚举"""
     TENANT = "tenant"     # 租户级别
     GLOBAL = "global"     # 全局级别 (系统级)
+    SYSTEM = "system"     # 系统级别（与 global 同义）
     DEPARTMENT = "department" # 部门级别
     PERSONAL = "personal" # 个人级别
+    USER = "user"         # 用户级别（与 personal 同义）
+    RESOURCE = "resource" # 资源级别
 
 class UserStatus(str, enum.Enum):
     """用户状态枚举"""

@@ -31,6 +31,7 @@ class RoleBase(CamelModel):
     name: str
     display_name: Optional[str] = None
     description: Optional[str] = None
+    tenant_id: Optional[str] = Field(default="system", description="租户ID")
 
 class RoleCreate(RoleBase):
     """角色创建模型"""
@@ -41,6 +42,7 @@ class RoleUpdate(CamelModel):
     name: Optional[str] = None
     display_name: Optional[str] = None
     description: Optional[str] = None
+    tenant_id: Optional[str] = None
     is_active: Optional[bool] = None
     is_system: Optional[bool] = None
     is_admin: Optional[bool] = None
@@ -56,6 +58,7 @@ class RoleResponse(RoleBase):
     is_admin: Optional[bool] = Field(default=False, description="是否管理员角色")
     priority: Optional[int] = Field(default=0, description="角色优先级")
     tenant_id: Optional[str] = None
+    tenant_name: Optional[str] = Field(None, description="租户名称")
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
@@ -124,6 +127,7 @@ class UserUpdate(CamelModel):
     avatar: Optional[str] = None
     is_active: Optional[bool] = None
     roles: Optional[List[str]] = None
+    tenant_id: Optional[str] = None
     customer_info: Optional["CustomerBase"] = None
     doctor_info: Optional[DoctorBase] = None
     consultant_info: Optional[ConsultantBase] = None
@@ -148,6 +152,7 @@ class UserResponse(UserBase):
     
     id: str
     tenant_id: str
+    tenant_name: Optional[str] = None  # 租户名称
     created_at: datetime
     updated_at: datetime
     last_login_at: Optional[datetime] = None
