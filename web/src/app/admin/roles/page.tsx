@@ -362,8 +362,26 @@ export default function RolesPage() {
         permissionService.getRolePermissions(role.id)
       ]);
       
-      setAvailablePermissions(allPermissionsResponse.permissions || []);
-      setAssignedPermissions(assignedPermissionsResponse);
+      // 调试日志
+      console.log('所有权限响应:', allPermissionsResponse);
+      console.log('所有权限响应类型:', typeof allPermissionsResponse);
+      console.log('是否有 permissions 字段:', 'permissions' in (allPermissionsResponse as any));
+      console.log('已分配权限响应:', assignedPermissionsResponse);
+      
+      // 处理响应格式
+      let permissionsList: Permission[] = [];
+      if (allPermissionsResponse && typeof allPermissionsResponse === 'object') {
+        if ('permissions' in allPermissionsResponse) {
+          // 是 PermissionListResponse 格式
+          permissionsList = (allPermissionsResponse as { permissions: Permission[] }).permissions || [];
+        } else if (Array.isArray(allPermissionsResponse)) {
+          // 直接是数组格式
+          permissionsList = allPermissionsResponse;
+        }
+      }
+      
+      setAvailablePermissions(permissionsList);
+      setAssignedPermissions(assignedPermissionsResponse || []);
     } catch (err: any) {
       toast.error(err.message || '加载权限列表失败');
       setIsAssignPermissionsDialogOpen(false);

@@ -37,9 +37,11 @@ export default function TaskFilters({
   onClose
 }: TaskFiltersProps) {
   const handleFilterChange = (key: keyof TaskFilters, value: any) => {
+    // 如果值是 "all" 或空字符串，则设置为 undefined 以清除筛选
+    const filterValue = value === 'all' || value === '' ? undefined : value;
     onFiltersChange({
       ...filters,
-      [key]: value
+      [key]: filterValue
     });
   };
 
@@ -63,7 +65,7 @@ export default function TaskFilters({
       if (key === 'dateRange') {
         return value && (value.start || value.end);
       }
-      return value && value !== '';
+      return value && value !== '' && value !== 'all';
     });
   };
 
@@ -101,14 +103,14 @@ export default function TaskFilters({
         <div>
           <Label htmlFor="status">状态</Label>
           <Select
-            value={filters.status || ''}
-            onValueChange={(value) => handleFilterChange('status', value || undefined)}
+            value={filters.status || 'all'}
+            onValueChange={(value) => handleFilterChange('status', value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="选择状态" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">全部状态</SelectItem>
+              <SelectItem value="all">全部状态</SelectItem>
               <SelectItem value="pending">待认领</SelectItem>
               <SelectItem value="assigned">已分配</SelectItem>
               <SelectItem value="in_progress">进行中</SelectItem>
@@ -122,14 +124,14 @@ export default function TaskFilters({
         <div>
           <Label htmlFor="priority">优先级</Label>
           <Select
-            value={filters.priority || ''}
-            onValueChange={(value) => handleFilterChange('priority', value || undefined)}
+            value={filters.priority || 'all'}
+            onValueChange={(value) => handleFilterChange('priority', value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="选择优先级" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">全部优先级</SelectItem>
+              <SelectItem value="all">全部优先级</SelectItem>
               <SelectItem value="urgent">紧急</SelectItem>
               <SelectItem value="high">高</SelectItem>
               <SelectItem value="medium">中</SelectItem>
@@ -142,14 +144,14 @@ export default function TaskFilters({
         <div>
           <Label htmlFor="taskType">任务类型</Label>
           <Select
-            value={filters.taskType || ''}
-            onValueChange={(value) => handleFilterChange('taskType', value || undefined)}
+            value={filters.taskType || 'all'}
+            onValueChange={(value) => handleFilterChange('taskType', value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="选择任务类型" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">全部类型</SelectItem>
+              <SelectItem value="all">全部类型</SelectItem>
               <SelectItem value="new_user_reception">新用户接待</SelectItem>
               <SelectItem value="consultation_upgrade">咨询升级</SelectItem>
               <SelectItem value="system_exception">系统异常</SelectItem>

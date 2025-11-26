@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { profileService, type BasicUserInfo } from '@/service/profileService';
+import { authService } from '@/service/authService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -22,7 +24,8 @@ export function BasicInfoPanel() {
     username: '',
     email: '',
     phone: '',
-    avatar: ''
+    avatar: '',
+    active_role: '' // 当前角色
   });
 
   // 获取用户基本信息
@@ -31,6 +34,13 @@ export function BasicInfoPanel() {
       setLoading(true);
       setError(null);
       const info = await profileService.getMyBasicInfo();
+      
+      // 调试日志
+      console.log('[BasicInfoPanel] 获取到的用户信息:', info);
+      console.log('[BasicInfoPanel] is_active:', info.is_active, typeof info.is_active);
+      console.log('[BasicInfoPanel] active_role:', info.active_role);
+      console.log('[BasicInfoPanel] created_at:', info.created_at);
+      
       setUserInfo(info);
       
       // 更新表单数据
@@ -38,7 +48,8 @@ export function BasicInfoPanel() {
         username: info.username || '',
         email: info.email || '',
         phone: info.phone || '',
-        avatar: info.avatar || ''
+        avatar: info.avatar || '',
+        active_role: info.active_role || (info.roles && info.roles.length > 0 ? info.roles[0] : '')
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '获取用户信息失败';
@@ -74,7 +85,8 @@ export function BasicInfoPanel() {
         username: userInfo.username || '',
         email: userInfo.email || '',
         phone: userInfo.phone || '',
-        avatar: userInfo.avatar || ''
+        avatar: userInfo.avatar || '',
+        active_role: userInfo.active_role || (userInfo.roles && userInfo.roles.length > 0 ? userInfo.roles[0] : '')
       });
     }
   };
@@ -101,15 +113,38 @@ export function BasicInfoPanel() {
       if (formData.phone !== userInfo?.phone) updateData.phone = formData.phone;
       if (formData.avatar !== userInfo?.avatar) updateData.avatar = formData.avatar;
 
-      if (Object.keys(updateData).length === 0) {
+      // 检查角色是否有变化
+      const currentActiveRole = userInfo?.active_role || (userInfo?.roles && userInfo.roles.length > 0 ? userInfo.roles[0] : '');
+      const roleChanged = formData.active_role && formData.active_role !== currentActiveRole;
+
+      if (Object.keys(updateData).length === 0 && !roleChanged) {
         setEditing(false);
         setSuccessMessage('信息无变化');
         return;
       }
 
-      // 更新用户信息
-      const updatedInfo = await profileService.updateMyBasicInfo(updateData);
-      setUserInfo(updatedInfo);
+      // 更新用户基本信息
+      if (Object.keys(updateData).length > 0) {
+        const updatedInfo = await profileService.updateMyBasicInfo(updateData);
+        setUserInfo(updatedInfo);
+      }
+
+      // 如果角色有变化，切换角色
+      if (roleChanged && formData.active_role) {
+        try {
+          // 将后端的 'administrator' 映射为前端的 'admin'
+          const frontendRole = formData.active_role === 'administrator' ? 'admin' : formData.active_role as any;
+          await authService.switchRole(frontendRole);
+          
+          // 刷新用户信息以获取最新的角色
+          const refreshedInfo = await profileService.getMyBasicInfo();
+          setUserInfo(refreshedInfo);
+        } catch (roleError) {
+          console.error('切换角色失败:', roleError);
+          throw new Error(`切换角色失败: ${roleError instanceof Error ? roleError.message : '未知错误'}`);
+        }
+      }
+
       setEditing(false);
       setSuccessMessage('用户信息更新成功');
 
@@ -155,12 +190,18 @@ export function BasicInfoPanel() {
                 <Button 
                   onClick={handleSave}
                   disabled={saving}
+                  className="bg-orange-500 hover:bg-orange-600"
                 >
                   {saving ? '保存中...' : '保存'}
                 </Button>
               </>
             ) : (
-              <Button onClick={() => setEditing(true)}>
+              <Button 
+                onClick={() => setEditing(true)}
+                variant="ghost"
+                size="sm"
+                className="text-blue-600 hover:text-blue-800"
+              >
                 编辑
               </Button>
             )}
@@ -292,21 +333,61 @@ export function BasicInfoPanel() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="space-y-1">
               <p className="text-sm font-medium text-gray-500">账户状态</p>
-              <p className={`text-sm ${userInfo?.is_active ? 'text-green-600' : 'text-red-600'}`}>
-                {userInfo?.is_active ? '激活' : '未激活'}
+              <p className={`text-sm font-medium ${
+                userInfo?.is_active === true 
+                  ? 'text-green-600' 
+                  : userInfo?.is_active === false
+                  ? 'text-red-600'
+                  : 'text-gray-500'
+              }`}>
+                {userInfo?.is_active === true 
+                  ? '已激活' 
+                  : userInfo?.is_active === false
+                  ? '未激活'
+                  : '未知'
+                }
               </p>
             </div>
             <div className="space-y-1">
               <p className="text-sm font-medium text-gray-500">当前角色</p>
-              <p className="text-sm text-gray-900">
-                {userInfo?.active_role || '未设置'}
-              </p>
+              {editing ? (
+                <Select
+                  value={formData.active_role}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, active_role: value }))}
+                  disabled={saving}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="选择角色" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {userInfo?.roles && userInfo.roles.length > 0 ? (
+                      userInfo.roles.map((role) => (
+                        <SelectItem key={role} value={role}>
+                          {role}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="" disabled>无可用角色</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-sm font-medium text-gray-900">
+                  {userInfo?.active_role || (userInfo?.roles && userInfo.roles.length > 0 ? userInfo.roles[0] : '未设置')}
+                </p>
+              )}
             </div>
             <div className="space-y-1">
               <p className="text-sm font-medium text-gray-500">创建时间</p>
-              <p className="text-sm text-gray-900">
+              <p className="text-sm font-medium text-gray-900">
                 {userInfo?.created_at 
-                  ? new Date(userInfo.created_at).toLocaleDateString('zh-CN')
+                  ? new Date(userInfo.created_at).toLocaleString('zh-CN', {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })
                   : '未知'
                 }
               </p>

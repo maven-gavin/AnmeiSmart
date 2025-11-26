@@ -51,7 +51,30 @@ async def handle_app_exception(request: Request, exc: AppException) -> JSONRespo
 
 async def handle_http_exception(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     """处理 FastAPI/Starlette 抛出的 HTTPException"""
-    logger.warning("HTTP异常: status=%s detail=%s path=%s", exc.status_code, exc.detail, request.url.path)
+    # 详细的调试信息
+    logger.warning("=" * 80)
+    logger.warning("HTTP异常详情:")
+    logger.warning(f"  状态码: {exc.status_code}")
+    logger.warning(f"  错误详情: {exc.detail}")
+    logger.warning(f"  请求路径: {request.url.path}")
+    logger.warning(f"  请求方法: {request.method}")
+    logger.warning(f"  查询参数: {dict(request.query_params)}")
+    logger.warning(f"  请求头:")
+    for header, value in request.headers.items():
+        if header.lower() not in ['authorization', 'cookie']:  # 不记录敏感信息
+            logger.warning(f"    {header}: {value}")
+    
+    # 分析可能的错误原因
+    path = request.url.path
+    if path == "/api/v1/auth/roles":
+        logger.warning("  分析: 前端请求了 /api/v1/auth/roles，但后端只有 /api/v1/auth/roles/details 端点")
+        logger.warning("  建议: 检查前端代码，应该使用 /api/v1/auth/roles/details")
+    elif path.startswith("/api/v1/profile/"):
+        logger.warning("  分析: 前端请求了 /api/v1/profile/*，但 profile 路由已被注释掉")
+        logger.warning("  建议: 检查前端代码，profile 相关功能已合并到 /api/v1/users/me")
+    
+    logger.warning("=" * 80)
+    
     message = exc.detail if isinstance(exc.detail, str) else "请求处理失败"
     code = ErrorCode.BUSINESS_ERROR if exc.status_code < 500 else ErrorCode.SYSTEM_ERROR
     return _build_response(code=code, message=message, status_code=exc.status_code)

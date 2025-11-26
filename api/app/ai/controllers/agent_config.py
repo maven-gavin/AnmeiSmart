@@ -203,7 +203,25 @@ def test_agent_connection_endpoint(
 ):
     """测试Agent连接"""
     try:
+        logger.info("=" * 80)
+        logger.info("收到测试连接请求")
+        logger.info(f"配置ID: {config.id}")
+        logger.info(f"应用ID: {config.appId}")
+        logger.info(f"应用名称: {config.appName}")
+        logger.info(f"环境: {config.environment}")
+        logger.info(f"基础URL: {config.baseUrl}")
+        logger.info(f"超时时间: {config.timeoutSeconds}")
+        logger.info(f"最大重试次数: {config.maxRetries}")
+        logger.info(f"是否启用: {config.enabled}")
+        logger.info(f"智能体类型: {config.agentType}")
+        logger.info(f"描述: {config.description}")
+        logger.info(f"创建时间: {getattr(config, 'createdAt', 'N/A')}")
+        logger.info(f"更新时间: {getattr(config, 'updatedAt', 'N/A')}")
+        logger.info("=" * 80)
+        
         result = service.test_agent_connection(config)
+        
+        logger.info(f"测试结果: success={result.get('success')}, message={result.get('message')}")
         
         return {
             "success": result["success"],
@@ -211,6 +229,7 @@ def test_agent_connection_endpoint(
             "details": result.get("details", {})
         }
     except Exception as e:
+        logger.error(f"测试连接异常: {e}", exc_info=True)
         return {
             "success": False,
             "message": f"连接测试失败: {str(e)}",

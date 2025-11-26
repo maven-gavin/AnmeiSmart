@@ -375,8 +375,10 @@ class AuthService {
    */
   async getRoles(): Promise<string[]> {
     try {
-      const response = await apiClient.get<string[]>("/auth/roles");
-      return response.data || [];
+      // 使用 /auth/roles/details 端点获取角色详情，然后提取角色名称列表
+      const response = await apiClient.get<UserRoleDetailsResponse>("/auth/roles/details");
+      const roles = response.data || [];
+      return roles.map(role => role.name);
     } catch (error) {
       console.error('获取用户角色失败:', error);
       return [];

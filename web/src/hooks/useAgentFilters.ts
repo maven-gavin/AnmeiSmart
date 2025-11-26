@@ -18,15 +18,17 @@ export function useAgentFilters(allConfigs: AgentConfig[]) {
     let result = [...allConfigs];
     
     if (filters.environment && filters.environment !== 'all') {
-      result = result.filter(config => 
-        config.environment.toLowerCase().includes(filters.environment.toLowerCase())
-      );
+      result = result.filter(config => {
+        const env = config.environment?.toLowerCase() || '';
+        return env.includes(filters.environment.toLowerCase());
+      });
     }
     
     if (filters.appName) {
-      result = result.filter(config => 
-        config.appName.toLowerCase().includes(filters.appName.toLowerCase())
-      );
+      result = result.filter(config => {
+        const appName = config.appName?.toLowerCase() || '';
+        return appName.includes(filters.appName.toLowerCase());
+      });
     }
     
     if (filters.status && filters.status !== 'all') {

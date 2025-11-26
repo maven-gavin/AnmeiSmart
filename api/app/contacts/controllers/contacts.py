@@ -50,6 +50,16 @@ from app.contacts.schemas.contacts import (
     ContactAnalyticsResponse
 )
 from app.core.api import BusinessException, ErrorCode
+from app.chat.deps.chat import get_chat_service
+from app.chat.services.chat_service import ChatService
+from app.chat.schemas.chat import ConversationInfo
+from app.contacts.models.contacts import Friendship
+from app.chat.models.chat import Conversation
+from app.identity_access.models.user import User as UserModel
+from sqlalchemy import and_
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -247,6 +257,85 @@ async def batch_friend_operations(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail="批量操作失败")
+
+
+@router.post("/friends/{friend_id}/conversation", response_model=ConversationInfo)
+async def create_friend_conversation(
+    friend_id: str,
+    current_user: User = Depends(get_current_user),
+    contact_service: ContactService = Depends(get_contact_service),
+    chat_service: ChatService = Depends(get_chat_service)
+):
+    """创建或获取与好友的会话"""
+    try:
+        # 验证好友关系是否存在且已接受
+        friendship = contact_service.db.query(Friendship).filter(
+            and_(
+                Friendship.user_id == str(current_user.id),
+                Friendship.friend_id == friend_id,
+                Friendship.status == "accepted"
+            )
+        ).first()
+        
+        if not friendship:
+            raise HTTPException(status_code=404, detail="好友关系不存在或未接受")
+        
+        # 查找已存在的会话（检查 extra_metadata 中是否包含 friend_id）
+        existing_conversations = chat_service.db.query(Conversation).filter(
+            and_(
+                Conversation.owner_id == str(current_user.id),
+                Conversation.chat_mode == "single",
+                Conversation.tag == "chat"
+            )
+        ).all()
+        
+        # 检查是否有会话的 extra_metadata 中包含该好友ID
+        for conv in existing_conversations:
+            if conv.extra_metadata and conv.extra_metadata.get("friend_id") == friend_id:
+                return ConversationInfo.from_model(conv, last_message=None)
+        
+        # 获取好友信息用于生成会话标题
+        friend_user = contact_service.db.query(UserModel).filter(
+            UserModel.id == friend_id
+        ).first()
+        
+        friend_name = friend_user.username if friend_user else "好友"
+        
+        # 创建新会话
+        conversation_info = chat_service.create_conversation(
+            title=f"与 {friend_name} 的对话",
+            owner_id=str(current_user.id),
+            chat_mode="single",
+            tag="chat"
+        )
+        
+        # 设置 extra_metadata 标记这是好友会话
+        conv_model = chat_service.db.query(Conversation).filter(
+            Conversation.id == conversation_info.id
+        ).first()
+        if conv_model:
+            conv_model.extra_metadata = {"friend_id": friend_id}
+            chat_service.db.commit()
+            chat_service.db.refresh(conv_model)
+            # 重新获取最后一条消息
+            from app.chat.models.chat import Message
+            from sqlalchemy import desc
+            last_msg = chat_service.db.query(Message).filter(
+                Message.conversation_id == conv_model.id
+            ).order_by(desc(Message.timestamp)).limit(1).first()
+            from app.chat.schemas.chat import MessageInfo
+            last_message = MessageInfo.from_model(last_msg) if last_msg else None
+            conversation_info = ConversationInfo.from_model(conv_model, last_message=last_message)
+        
+        return conversation_info
+        
+    except HTTPException:
+        raise
+    except BusinessException as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"创建好友会话失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="创建好友会话失败")
 
 
 # ============================================================================

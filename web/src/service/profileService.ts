@@ -82,7 +82,8 @@ class ProfileService {
    */
   async getMyProfile(): Promise<UserProfile> {
     try {
-      const response = await apiClient.get<UserProfile>(`${ProfileService.BASE_PATH}/me`);
+      // 使用 /users/me 端点（profile 路由已被注释）
+      const response = await apiClient.get<UserProfile>("/users/me");
       
       if (!response.data) {
         throw new ApiClientError('获取个人信息失败', {
@@ -103,7 +104,8 @@ class ProfileService {
    */
   async getMyPreferences(): Promise<UserPreferences> {
     try {
-      const response = await apiClient.get<UserPreferences>(`${ProfileService.BASE_PATH}/preferences`);
+      // 使用 /users/me/preferences 端点（profile 路由已被注释）
+      const response = await apiClient.get<UserPreferences>("/users/me/preferences");
       
       if (!response.data) {
         throw new ApiClientError('获取偏好设置失败', {
@@ -124,8 +126,9 @@ class ProfileService {
    */
   async updateMyPreferences(preferences: UserPreferencesUpdate): Promise<UserPreferences> {
     try {
+      // 使用 /users/me/preferences 端点（profile 路由已被注释）
       const response = await apiClient.put<UserPreferences>(
-        `${ProfileService.BASE_PATH}/preferences`, 
+        "/users/me/preferences", 
         preferences
       );
       
@@ -148,7 +151,8 @@ class ProfileService {
    */
   async getMyDefaultRole(): Promise<UserDefaultRole | null> {
     try {
-      const response = await apiClient.get<UserDefaultRole>(`${ProfileService.BASE_PATH}/default-role`);
+      // 使用 /users/me/default-role 端点（profile 路由已被注释）
+      const response = await apiClient.get<UserDefaultRole>("/users/me/default-role");
       return response.data || null;
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 404) {
@@ -164,8 +168,9 @@ class ProfileService {
    */
   async setMyDefaultRole(defaultRole: UserDefaultRoleUpdate): Promise<UserDefaultRole> {
     try {
+      // 使用 /users/me/default-role 端点（profile 路由已被注释）
       const response = await apiClient.put<UserDefaultRole>(
-        `${ProfileService.BASE_PATH}/default-role`, 
+        "/users/me/default-role", 
         defaultRole
       );
       
@@ -188,8 +193,9 @@ class ProfileService {
    */
   async getMyLoginHistory(limit: number = 10): Promise<LoginHistory[]> {
     try {
+      // 使用 /users/me/login-history 端点（profile 路由已被注释）
       const response = await apiClient.get<LoginHistory[]>(
-        `${ProfileService.BASE_PATH}/login-history?limit=${limit}`
+        `/users/me/login-history?limit=${limit}`
       );
       
       return response.data || [];
@@ -204,8 +210,9 @@ class ProfileService {
    */
   async createLoginRecord(loginRole?: string): Promise<LoginHistory> {
     try {
+      // 使用 /users/me/login-history 端点（profile 路由已被注释）
       const response = await apiClient.post<LoginHistory>(
-        `${ProfileService.BASE_PATH}/login-history`,
+        "/users/me/login-history",
         { login_role: loginRole }
       );
       
@@ -225,14 +232,13 @@ class ProfileService {
 
   /**
    * 检查是否应该应用默认角色（首次登录逻辑）
+   * 注意：此功能可能需要根据业务逻辑实现，暂时返回 false
    */
   async shouldApplyDefaultRole(): Promise<{ should_apply: boolean; default_role?: string }> {
     try {
-      const response = await apiClient.get<{ should_apply: boolean; default_role?: string }>(
-        `${ProfileService.BASE_PATH}/should-apply-default-role`
-      );
-      
-      return response.data || { should_apply: false };
+      // profile 路由已被注释，此功能暂时返回 false
+      // 如果需要实现，可以在后端添加 /users/me/should-apply-default-role 端点
+      return { should_apply: false };
     } catch (error) {
       console.error('检查默认角色应用失败:', error);
       return { should_apply: false };
@@ -244,7 +250,8 @@ class ProfileService {
    */
   async getMyBasicInfo(): Promise<BasicUserInfo> {
     try {
-      const response = await apiClient.get<BasicUserInfo>('/auth/me');
+      // 后端返回的是 UserResponse，需要映射到 BasicUserInfo
+      const response = await apiClient.get<any>('/auth/me');
       
       if (!response.data) {
         throw new ApiClientError('获取用户基本信息失败', {
@@ -253,7 +260,33 @@ class ProfileService {
         })
       }
       
-      return response.data;
+      const userData = response.data;
+      
+      // 调试日志
+      console.log('[getMyBasicInfo] 后端返回的原始数据:', userData);
+      console.log('[getMyBasicInfo] is_active:', userData.is_active, typeof userData.is_active);
+      console.log('[getMyBasicInfo] isActive:', userData.isActive, typeof userData.isActive);
+      console.log('[getMyBasicInfo] active_role:', userData.active_role);
+      console.log('[getMyBasicInfo] activeRole:', userData.activeRole);
+      console.log('[getMyBasicInfo] created_at:', userData.created_at);
+      console.log('[getMyBasicInfo] createdAt:', userData.createdAt);
+      
+      // 映射数据，支持驼峰和下划线两种格式
+      const basicInfo: BasicUserInfo = {
+        id: userData.id || '',
+        username: userData.username || '',
+        email: userData.email || '',
+        phone: userData.phone || undefined,
+        avatar: userData.avatar || undefined,
+        is_active: userData.is_active ?? userData.isActive ?? true,
+        created_at: userData.created_at || userData.createdAt || '',
+        roles: userData.roles || [],
+        active_role: userData.active_role || userData.activeRole || undefined
+      };
+      
+      console.log('[getMyBasicInfo] 映射后的数据:', basicInfo);
+      
+      return basicInfo;
     } catch (error) {
       console.error('获取用户基本信息失败:', error);
       throw this.handleError(error, '获取用户基本信息失败');
@@ -286,8 +319,9 @@ class ProfileService {
    */
   async changePassword(passwordData: ChangePasswordRequest): Promise<{ success: boolean; message: string }> {
     try {
+      // 使用 /users/me/change-password 端点（profile 路由已被注释）
       const response = await apiClient.post<{ success: boolean; message: string }>(
-        `${ProfileService.BASE_PATH}/change-password`,
+        "/users/me/change-password",
         passwordData
       );
       

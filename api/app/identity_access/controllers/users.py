@@ -13,6 +13,11 @@ from app.identity_access.schemas.user_permission_schemas import (
     UserPermissionCheckResponse, UserRoleCheckResponse,
     UserPermissionSummaryResponse, UserPermissionsResponse, UserRolesResponse
 )
+from app.identity_access.schemas.profile import (
+    UserDefaultRoleUpdate, UserDefaultRoleInfo,
+    UserPreferencesUpdate, UserPreferencesInfo,
+    LoginHistoryInfo, LoginHistoryBase, ChangePasswordRequest
+)
 from app.core.api import ApiResponse, BusinessException, ErrorCode, SystemException
 
 logger = logging.getLogger(__name__)
@@ -236,6 +241,210 @@ async def read_user_me(
     user_response = UserResponse(**user_data)
     return ApiResponse.success(user_response, message="获取当前用户成功")
 
+@router.get("/me/default-role", response_model=ApiResponse[UserDefaultRoleInfo])
+async def get_user_default_role(
+    current_user: User = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service)
+) -> ApiResponse[UserDefaultRoleInfo]:
+    """获取当前用户的默认角色设置"""
+    try:
+        from app.identity_access.models.profile import UserDefaultRole as UserDefaultRoleModel
+        
+        setting = user_service.db.query(UserDefaultRoleModel).filter(
+            UserDefaultRoleModel.user_id == current_user.id
+        ).first()
+        
+        if not setting:
+            raise BusinessException("用户未设置默认角色", code=ErrorCode.NOT_FOUND, status_code=status.HTTP_404_NOT_FOUND)
+        
+        default_role_info = UserDefaultRoleInfo(
+            user_id=setting.user_id,
+            default_role=setting.default_role,
+            created_at=setting.created_at,
+            updated_at=setting.updated_at
+        )
+        
+        return ApiResponse.success(default_role_info, message="获取默认角色成功")
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise _handle_unexpected_error("获取默认角色失败", e)
+
+@router.put("/me/default-role", response_model=ApiResponse[UserDefaultRoleInfo])
+async def set_user_default_role(
+    default_role: UserDefaultRoleUpdate,
+    current_user: User = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service)
+) -> ApiResponse[UserDefaultRoleInfo]:
+    """设置当前用户的默认角色"""
+    try:
+        setting = await user_service.set_user_default_role(current_user.id, default_role.default_role)
+        
+        default_role_info = UserDefaultRoleInfo(
+            user_id=setting.user_id,
+            default_role=setting.default_role,
+            created_at=setting.created_at,
+            updated_at=setting.updated_at
+        )
+        
+        return ApiResponse.success(default_role_info, message="设置默认角色成功")
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise _handle_unexpected_error("设置默认角色失败", e)
+
+@router.get("/me/preferences", response_model=ApiResponse[UserPreferencesInfo])
+async def get_user_preferences(
+    current_user: User = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service)
+) -> ApiResponse[UserPreferencesInfo]:
+    """获取当前用户的偏好设置"""
+    try:
+        from app.identity_access.models.profile import UserPreferences as UserPreferencesModel
+        
+        preferences = await user_service.get_user_preferences(current_user.id)
+        
+        if not preferences:
+            # 如果用户还没有偏好设置，返回默认值
+            preferences_info = UserPreferencesInfo(
+                user_id=current_user.id,
+                notification_enabled=True,
+                email_notification=True,
+                push_notification=True,
+                created_at=None,
+                updated_at=None
+            )
+        else:
+            preferences_info = UserPreferencesInfo(
+                user_id=preferences.user_id,
+                notification_enabled=preferences.notification_enabled,
+                email_notification=preferences.email_notification,
+                push_notification=preferences.push_notification,
+                created_at=preferences.created_at,
+                updated_at=preferences.updated_at
+            )
+        
+        return ApiResponse.success(preferences_info, message="获取偏好设置成功")
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise _handle_unexpected_error("获取偏好设置失败", e)
+
+@router.put("/me/preferences", response_model=ApiResponse[UserPreferencesInfo])
+async def update_user_preferences(
+    preferences: UserPreferencesUpdate,
+    current_user: User = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service)
+) -> ApiResponse[UserPreferencesInfo]:
+    """更新当前用户的偏好设置"""
+    try:
+        updated_preferences = await user_service.update_user_preferences(current_user.id, preferences)
+        
+        preferences_info = UserPreferencesInfo(
+            user_id=updated_preferences.user_id,
+            notification_enabled=updated_preferences.notification_enabled,
+            email_notification=updated_preferences.email_notification,
+            push_notification=updated_preferences.push_notification,
+            created_at=updated_preferences.created_at,
+            updated_at=updated_preferences.updated_at
+        )
+        
+        return ApiResponse.success(preferences_info, message="更新偏好设置成功")
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise _handle_unexpected_error("更新偏好设置失败", e)
+
+@router.get("/me/login-history", response_model=ApiResponse[List[LoginHistoryInfo]])
+async def get_user_login_history(
+    limit: int = Query(10, ge=1, le=100, description="返回记录数量"),
+    current_user: User = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service)
+) -> ApiResponse[List[LoginHistoryInfo]]:
+    """获取当前用户的登录历史"""
+    try:
+        from app.identity_access.models.profile import LoginHistory as LoginHistoryModel
+        
+        histories = user_service.db.query(LoginHistoryModel).filter(
+            LoginHistoryModel.user_id == current_user.id
+        ).order_by(LoginHistoryModel.login_time.desc()).limit(limit).all()
+        
+        history_infos = [
+            LoginHistoryInfo(
+                id=history.id,
+                user_id=history.user_id,
+                ip_address=history.ip_address,
+                user_agent=history.user_agent,
+                login_time=history.login_time,
+                login_role=history.login_role,
+                location=history.location,
+                created_at=history.created_at,
+                updated_at=history.updated_at
+            )
+            for history in histories
+        ]
+        
+        return ApiResponse.success(history_infos, message="获取登录历史成功")
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise _handle_unexpected_error("获取登录历史失败", e)
+
+@router.post("/me/login-history", response_model=ApiResponse[LoginHistoryInfo], status_code=status.HTTP_201_CREATED)
+async def create_login_history(
+    login_data: LoginHistoryBase,
+    current_user: User = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service)
+) -> ApiResponse[LoginHistoryInfo]:
+    """创建登录历史记录"""
+    try:
+        from app.identity_access.models.profile import LoginHistory as LoginHistoryModel
+        
+        login_history = LoginHistoryModel(
+            user_id=current_user.id,
+            ip_address=login_data.ip_address,
+            user_agent=login_data.user_agent,
+            login_role=login_data.login_role,
+            location=login_data.location
+        )
+        
+        user_service.db.add(login_history)
+        user_service.db.commit()
+        user_service.db.refresh(login_history)
+        
+        history_info = LoginHistoryInfo(
+            id=login_history.id,
+            user_id=login_history.user_id,
+            ip_address=login_history.ip_address,
+            user_agent=login_history.user_agent,
+            login_time=login_history.login_time,
+            login_role=login_history.login_role,
+            location=login_history.location,
+            created_at=login_history.created_at,
+            updated_at=login_history.updated_at
+        )
+        
+        return ApiResponse.success(history_info, message="创建登录记录成功")
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise _handle_unexpected_error("创建登录记录失败", e)
+
+@router.post("/me/change-password", response_model=ApiResponse[dict])
+async def change_password(
+    password_data: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service)
+) -> ApiResponse[dict]:
+    """修改当前用户密码"""
+    try:
+        await user_service.change_password(current_user.id, password_data)
+        return ApiResponse.success({}, message="修改密码成功")
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise _handle_unexpected_error("修改密码失败", e)
+
 @router.put("/me", response_model=ApiResponse[UserResponse])
 async def update_user_me(
     user_in: UserUpdate,
@@ -249,7 +458,51 @@ async def update_user_me(
             user_in.roles = None
         
         user = await user_service.update_user(current_user.id, user_in)
-        return ApiResponse.success(user, message="更新当前用户成功")
+        
+        # 将 Role 对象列表转换为角色名称字符串列表
+        roles = [role.name for role in user.roles] if user.roles else []
+        
+        # 获取活跃角色（从 JWT token 中获取，或使用默认角色）
+        active_role = None
+        if hasattr(user, '_active_role') and user._active_role:
+            active_role = user._active_role
+        else:
+            # 尝试从用户服务获取默认角色
+            try:
+                active_role = await user_service.get_user_default_role(user.id)
+            except:
+                pass
+            if not active_role and roles:
+                active_role = roles[0]
+        
+        # 获取权限列表（从所有角色中收集）
+        permissions = []
+        for role in user.roles:
+            if role.permissions:
+                for perm in role.permissions:
+                    if perm.code not in permissions:
+                        permissions.append(perm.code)
+        
+        # 构建 UserResponse 数据
+        user_data = {
+            "id": user.id,
+            "tenant_id": user.tenant_id,
+            "email": user.email,
+            "username": user.username,
+            "phone": user.phone,
+            "avatar": user.avatar,
+            "is_active": user.status == UserStatus.ACTIVE,
+            "created_at": user.created_at,
+            "updated_at": user.updated_at,
+            "last_login_at": getattr(user, 'last_login_at', None),
+            "roles": roles,
+            "permissions": permissions,
+            "active_role": active_role,
+            "extended_info": None  # 可以后续扩展
+        }
+        
+        user_response = UserResponse(**user_data)
+        return ApiResponse.success(user_response, message="更新当前用户成功")
     except BusinessException:
         raise
     except Exception as e:

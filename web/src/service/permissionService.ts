@@ -9,11 +9,38 @@ class PermissionService {
 
   /**
    * 获取所有权限列表（全局，不区分租户）
+   * @param params - 可选的分页参数 { skip?: number, limit?: number }
+   * @returns 如果传入了参数，返回 PermissionListResponse；否则返回 Permission[]
    */
-  async getPermissions(): Promise<Permission[]> {
-    const response = await apiClient.get<{ permissions: Permission[] }>(`${this.baseUrl}`);
-    // 后端返回的是 ApiResponse[PermissionListResponse]，需要提取 permissions 字段
-    return response.data?.permissions || [];
+  async getPermissions(params?: { skip?: number; limit?: number }): Promise<Permission[] | { permissions: Permission[]; total: number; skip: number; limit: number }> {
+    const queryParams = new URLSearchParams();
+    if (params?.skip !== undefined) queryParams.append('skip', params.skip.toString());
+    if (params?.limit !== undefined) queryParams.append('limit', params.limit.toString());
+    
+    const url = params ? `${this.baseUrl}?${queryParams.toString()}` : `${this.baseUrl}`;
+    // 后端返回的是 ApiResponse[PermissionListResponse]
+    // apiClient.get 会提取 data 字段，所以 response.data 就是 PermissionListResponse
+    const response = await apiClient.get<{ permissions: Permission[]; total: number; skip: number; limit: number }>(url);
+    
+    // 调试日志
+    console.log('[getPermissions] 请求参数:', params);
+    console.log('[getPermissions] 响应数据:', response.data);
+    console.log('[getPermissions] 响应数据类型:', typeof response.data);
+    console.log('[getPermissions] 是否是数组:', Array.isArray(response.data));
+    console.log('[getPermissions] 是否有 permissions 字段:', response.data && typeof response.data === 'object' && 'permissions' in response.data);
+    
+    // 如果传入了参数，返回完整的分页响应；否则只返回权限数组（兼容旧代码）
+    if (params) {
+      // response.data 应该是 PermissionListResponse，直接返回
+      return response.data || { permissions: [], total: 0, skip: 0, limit: 0 };
+    } else {
+      // 如果没有参数，返回权限数组（兼容旧代码）
+      // response.data 可能是 PermissionListResponse 或 Permission[]
+      if (response.data && typeof response.data === 'object' && 'permissions' in response.data) {
+        return (response.data as { permissions: Permission[] }).permissions || [];
+      }
+      return (response.data as Permission[]) || [];
+    }
   }
 
   /**

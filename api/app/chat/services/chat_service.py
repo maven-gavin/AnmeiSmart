@@ -94,11 +94,21 @@ class ChatService:
         self.db.refresh(conversation)
         
         # 加载关联数据
+        # 注意：joinedload 不支持 limit，需要在查询后手动处理最后一条消息
         conversation = self.db.query(Conversation).options(
             joinedload(Conversation.owner),
-            joinedload(Conversation.participants).joinedload(ConversationParticipant.user),
-            joinedload(Conversation.messages).limit(1).order_by(desc(Message.timestamp))
+            joinedload(Conversation.participants).joinedload(ConversationParticipant.user)
         ).filter(Conversation.id == conversation.id).first()
+        
+        # 手动加载最后一条消息
+        if conversation:
+            last_message = self.db.query(Message).filter(
+                Message.conversation_id == conversation.id
+            ).order_by(desc(Message.timestamp)).limit(1).first()
+            if last_message:
+                conversation.messages = [last_message]
+            else:
+                conversation.messages = []
         
         # 转换为响应Schema
         from app.chat.schemas.chat import ConversationInfo, MessageInfo
@@ -128,8 +138,7 @@ class ChatService:
     ) -> List[ConversationInfo]:
         """获取用户会话列表（支持角色过滤）"""
         query = self.db.query(Conversation).options(
-            joinedload(Conversation.owner),
-            joinedload(Conversation.messages).limit(1).order_by(desc(Message.timestamp))
+            joinedload(Conversation.owner)
         ).filter(Conversation.owner_id == user_id)
         
         # 根据角色过滤（如果需要）
@@ -141,15 +150,19 @@ class ChatService:
             desc(Conversation.created_at)
         ).offset(skip).limit(limit).all()
         
-        # 转换为响应Schema
+        # 转换为响应Schema，并手动加载最后一条消息
         from app.chat.schemas.chat import ConversationInfo, MessageInfo
         result = []
         for conv in conversations:
+            # 手动查询最后一条消息
+            last_msg = self.db.query(Message).filter(
+                Message.conversation_id == conv.id
+            ).order_by(desc(Message.timestamp)).limit(1).first()
+            
             last_message = None
-            if conv.messages:
-                last_msg = conv.messages[0] if conv.messages else None
-                if last_msg:
-                    last_message = MessageInfo.from_model(last_msg)
+            if last_msg:
+                last_message = MessageInfo.from_model(last_msg)
+            
             result.append(ConversationInfo.from_model(conv, last_message=last_message))
         return result
     
@@ -164,8 +177,7 @@ class ChatService:
     ) -> List[ConversationInfo]:
         """获取用户会话列表（旧方法，保持兼容）"""
         query = self.db.query(Conversation).options(
-            joinedload(Conversation.owner),
-            joinedload(Conversation.messages).limit(1).order_by(desc(Message.timestamp))
+            joinedload(Conversation.owner)
         ).filter(Conversation.owner_id == user_id)
         
         # 应用筛选
@@ -181,15 +193,19 @@ class ChatService:
             desc(Conversation.created_at)
         ).offset(offset).limit(limit).all()
         
-        # 转换为响应Schema
+        # 转换为响应Schema，并手动加载最后一条消息
         from app.chat.schemas.chat import ConversationInfo, MessageInfo
         result = []
         for conv in conversations:
+            # 手动查询最后一条消息
+            last_msg = self.db.query(Message).filter(
+                Message.conversation_id == conv.id
+            ).order_by(desc(Message.timestamp)).limit(1).first()
+            
             last_message = None
-            if conv.messages:
-                last_msg = conv.messages[0] if conv.messages else None
-                if last_msg:
-                    last_message = MessageInfo.from_model(last_msg)
+            if last_msg:
+                last_message = MessageInfo.from_model(last_msg)
+            
             result.append(ConversationInfo.from_model(conv, last_message=last_message))
         return result
     
@@ -199,10 +215,10 @@ class ChatService:
         user_id: Optional[str] = None
     ) -> Optional[ConversationInfo]:
         """获取会话详情"""
+        # 注意：joinedload 不支持 order_by，需要在查询后手动处理消息
         query = self.db.query(Conversation).options(
             joinedload(Conversation.owner),
-            joinedload(Conversation.participants).joinedload(ConversationParticipant.user),
-            joinedload(Conversation.messages).order_by(Message.timestamp)
+            joinedload(Conversation.participants).joinedload(ConversationParticipant.user)
         ).filter(Conversation.id == conversation_id)
         
         # 权限检查
@@ -216,11 +232,15 @@ class ChatService:
         
         # 转换为响应Schema
         from app.chat.schemas.chat import ConversationInfo, MessageInfo
+        # 手动查询最后一条消息（按时间戳排序）
+        last_msg = self.db.query(Message).filter(
+            Message.conversation_id == conversation.id
+        ).order_by(desc(Message.timestamp)).limit(1).first()
+        
         last_message = None
-        if conversation.messages:
-            last_msg = conversation.messages[0] if conversation.messages else None
-            if last_msg:
-                last_message = MessageInfo.from_model(last_msg)
+        if last_msg:
+            last_message = MessageInfo.from_model(last_msg)
+        
         return ConversationInfo.from_model(conversation, last_message=last_message)
     
     def get_conversation_by_id_use_case(
@@ -264,16 +284,20 @@ class ChatService:
         # 加载关联数据并转换
         conversation = self.db.query(Conversation).options(
             joinedload(Conversation.owner),
-            joinedload(Conversation.participants).joinedload(ConversationParticipant.user),
-            joinedload(Conversation.messages).limit(1).order_by(desc(Message.timestamp))
+            joinedload(Conversation.participants).joinedload(ConversationParticipant.user)
         ).filter(Conversation.id == conversation.id).first()
         
         from app.chat.schemas.chat import ConversationInfo, MessageInfo
         last_message = None
-        if conversation.messages:
-            last_msg = conversation.messages[0] if conversation.messages else None
+        if conversation:
+            # 手动查询最后一条消息
+            last_msg = self.db.query(Message).filter(
+                Message.conversation_id == conversation.id
+            ).order_by(desc(Message.timestamp)).limit(1).first()
+            
             if last_msg:
                 last_message = MessageInfo.from_model(last_msg)
+        
         return ConversationInfo.from_model(conversation, last_message=last_message)
     
     # ============ 消息管理 ============

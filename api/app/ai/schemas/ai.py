@@ -106,8 +106,8 @@ class AgentConfigInfo(BaseModel):
     maxRetries: int = Field(3, description="最大重试次数", alias="max_retries")
     enabled: bool = Field(True, description="是否启用配置", alias="enabled")
     description: Optional[str] = Field(None, description="配置描述", alias="description")
-    createdAt: datetime = Field(..., description="创建时间", alias="created_at")
-    updatedAt: datetime = Field(..., description="更新时间", alias="updated_at")
+    createdAt: Optional[datetime] = Field(None, description="创建时间", alias="created_at")
+    updatedAt: Optional[datetime] = Field(None, description="更新时间", alias="updated_at")
 
 
 class AgentConfigResponse(BaseModel):

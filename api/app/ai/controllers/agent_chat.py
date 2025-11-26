@@ -79,7 +79,8 @@ async def get_agent_conversations(
 ):
     """获取 Agent 会话列表"""
     try:
-        return await service.get_conversations(
+        # get_conversations 不是异步方法，不需要 await
+        return service.get_conversations(
             agent_config_id=agent_config_id,
             user_id=str(current_user.id)
         )
@@ -116,7 +117,8 @@ async def get_conversation_messages(
 ):
     """获取会话消息历史"""
     try:
-        return await service.get_messages(
+        # get_messages 不是异步方法，不需要 await
+        return service.get_messages(
             conversation_id=conversation_id,
             user_id=str(current_user.id),
             limit=limit

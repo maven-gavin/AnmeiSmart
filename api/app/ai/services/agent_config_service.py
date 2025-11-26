@@ -140,6 +140,26 @@ class AgentConfigService:
     
     def test_agent_connection(self, config: AgentConfigInfo) -> Dict[str, Any]:
         """测试Agent连接（通过配置ID查库解密api_key）"""
+        logger.info("=" * 80)
+        logger.info("开始测试Agent连接")
+        logger.info(f"接收到的配置对象: {config}")
+        logger.info(f"配置ID: {config.id}")
+        logger.info(f"配置类型: {type(config)}")
+        logger.info(f"配置属性: {dir(config)}")
+        
+        # 验证 appId
+        app_id = config.appId or getattr(config, 'app_id', None)
+        logger.info(f"提取的appId: {app_id}")
+        logger.info(f"config.appId值: {config.appId}")
+        
+        if not app_id:
+            logger.warning("appId为空或未找到")
+            return {
+                "success": False,
+                "message": "未指定appId，无法测试连接",
+                "details": {}
+            }
+        
         # 1. 通过 config.id 查询数据库，获取 AgentConfig ORM 实例
         db_config = self.db.query(AgentConfig).filter(AgentConfig.id == config.id).first()
         if not db_config:
@@ -156,8 +176,8 @@ class AgentConfigService:
                 "message": "未配置API密钥，无法测试连接",
                 "details": {}
             }
-        base_url = config.baseUrl
-        timeout_seconds = config.timeoutSeconds
+        base_url = config.baseUrl or getattr(config, 'base_url', '')
+        timeout_seconds = config.timeoutSeconds or getattr(config, 'timeout_seconds', 30)
         try:
             # 验证基础URL格式
             if not base_url.startswith(('http://', 'https://')):
@@ -168,8 +188,8 @@ class AgentConfigService:
                 }
             
             # 构建测试URL - 使用通用的聊天接口进行测试
-            if(config.appId == "AGENT_CHAT_API_KEY"):
-                logger.debug(f"测试Agent连接={config.appId}")
+            if(app_id == "AGENT_CHAT_API_KEY"):
+                logger.debug(f"测试Agent连接={app_id}")
                 test_data = {
                     "inputs": {},
                     "query": "Hello, this is a connection test.",
@@ -180,8 +200,8 @@ class AgentConfigService:
                 test_url = f"{base_url}/chat-messages"
 
             # 构建测试URL - 使用医美专家接口进行测试
-            elif(config.appId == "AGENT_BEAUTY_API_KEY"):
-                logger.debug(f"测试Agent连接={config.appId}")
+            elif(app_id == "AGENT_BEAUTY_API_KEY"):
+                logger.debug(f"测试Agent连接={app_id}")
                 test_data = {
                     "inputs": {},
                     "query": "Hello, this is a connection test.",
@@ -192,8 +212,8 @@ class AgentConfigService:
                 test_url = f"{base_url}/chat-messages"
 
             # 构建测试URL - 使用咨询总结工作流接口进行测试
-            elif(config.appId == "AGENT_SUMMARY_API_KEY"):
-                logger.debug(f"测试Agent连接={config.appId}")
+            elif(app_id == "AGENT_SUMMARY_API_KEY"):
+                logger.debug(f"测试Agent连接={app_id}")
                 test_data = {
                     "inputs": {
                         "conversation_text": "Hello, this is a connection test.",

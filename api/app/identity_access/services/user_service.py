@@ -193,7 +193,32 @@ class UserService:
         user = await self.get_user_by_id(user_id)
         if not user:
             raise BusinessException("用户不存在", code=ErrorCode.NOT_FOUND)
+        
+        # 手动删除关联的登录历史记录，避免外键约束问题
+        from app.identity_access.models.profile import LoginHistory
+        login_histories = self.db.query(LoginHistory).filter(
+            LoginHistory.user_id == user_id
+        ).all()
+        for history in login_histories:
+            self.db.delete(history)
+        
+        # 手动删除关联的用户偏好设置
+        from app.identity_access.models.profile import UserPreferences
+        preferences = self.db.query(UserPreferences).filter(
+            UserPreferences.user_id == user_id
+        ).first()
+        if preferences:
+            self.db.delete(preferences)
+        
+        # 手动删除关联的默认角色设置
+        from app.identity_access.models.profile import UserDefaultRole
+        default_role = self.db.query(UserDefaultRole).filter(
+            UserDefaultRole.user_id == user_id
+        ).first()
+        if default_role:
+            self.db.delete(default_role)
             
+        # 删除用户（这会自动删除关联的角色关系，因为 user_roles 表设置了 CASCADE）
         self.db.delete(user)
         self.db.commit()
         return True
