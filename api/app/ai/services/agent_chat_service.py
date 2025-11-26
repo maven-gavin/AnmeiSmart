@@ -118,6 +118,7 @@ class AgentChatService:
             
             # 3. 流式转发响应
             chunk_count = 0
+            event_types = {}  # 统计事件类型
             async for chunk in dify_client.create_chat_message(
                 query=message,
                 user=user_identifier,
@@ -126,15 +127,41 @@ class AgentChatService:
                 response_mode="streaming"
             ):
                 chunk_count += 1
-                # 前几个 chunk 打印详细日志
-                if chunk_count <= 3:
-                    chunk_str = chunk.decode('utf-8') if isinstance(chunk, bytes) else chunk
-                    logger.info(f"📦 收到第 {chunk_count} 个 chunk: {chunk_str[:200]}...")
-                elif chunk_count % 10 == 0:
+                chunk_str = chunk.decode('utf-8') if isinstance(chunk, bytes) else chunk
+                
+                # 解析事件类型用于统计
+                if chunk_str.startswith('data: '):
+                    try:
+                        data = json.loads(chunk_str[6:])
+                        event_type = data.get('event', 'unknown')
+                        event_types[event_type] = event_types.get(event_type, 0) + 1
+                        
+                        # 前几个 chunk 打印详细日志
+                        if chunk_count <= 5:
+                            logger.info(f"📦 收到第 {chunk_count} 个 chunk [事件: {event_type}]: {chunk_str[:300]}...")
+                        
+                        # 对于message事件，打印完整内容用于调试
+                        if event_type == 'message':
+                            answer = data.get('answer', '')
+                            message_id = data.get('message_id') or data.get('id', '')
+                            logger.info(f"📨 Message事件详情:")
+                            logger.info(f"   message_id: {message_id}")
+                            logger.info(f"   answer长度: {len(answer)} 字符")
+                            logger.info(f"   answer内容: {answer[:200]}..." if len(answer) > 200 else f"   answer内容: {answer}")
+                    except json.JSONDecodeError:
+                        pass
+                elif chunk_count <= 5:
+                    logger.info(f"📦 收到第 {chunk_count} 个 chunk (非JSON): {chunk_str[:200]}...")
+                
+                if chunk_count % 10 == 0:
                     logger.debug(f"📦 已收到 {chunk_count} 个 chunks...")
                 
                 # 直接转发给前端
                 yield chunk
+            
+            # 打印事件类型统计
+            if event_types:
+                logger.info(f"📊 事件类型统计: {event_types}")
             
             logger.info(f"✅ Agent 对话完成")
             logger.info(f"   dify_conversation_id: {dify_conv_id or '(由Dify自动创建)'}")

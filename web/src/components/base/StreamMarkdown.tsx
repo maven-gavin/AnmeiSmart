@@ -12,22 +12,53 @@ interface StreamMarkdownProps {
 /**
  * 处理 LLM 特殊标签
  * 将 <think> 等标签转换为可折叠的展示
+ * 使用逐字符解析，完美处理流式传输中的未闭合标签
  */
 function processSpecialTags(content: string): { processedContent: string; thinkSections: string[] } {
   const thinkSections: string[] = [];
+  let processedContent = '';
+  let thinkContent = '';
+  let isInThinkTag = false;
+  let i = 0;
   
-  // 提取所有 <think> 标签内容
-  const thinkRegex = /<think>([\s\S]*?)<\/think>/gi;
-  let match;
+  const OPEN_TAG = '<think>';
+  const CLOSE_TAG = '</think>';
   
-  while ((match = thinkRegex.exec(content)) !== null) {
-    thinkSections.push(match[1].trim());
+  while (i < content.length) {
+    // 检查是否遇到开始标签
+    if (!isInThinkTag && content.substring(i, i + OPEN_TAG.length) === OPEN_TAG) {
+      isInThinkTag = true;
+      thinkContent = '';
+      i += OPEN_TAG.length;
+      continue;
+    }
+    
+    // 检查是否遇到结束标签
+    if (isInThinkTag && content.substring(i, i + CLOSE_TAG.length) === CLOSE_TAG) {
+      // 保存思考内容
+      if (thinkContent.trim()) {
+        thinkSections.push(thinkContent.trim());
+      }
+      isInThinkTag = false;
+      thinkContent = '';
+      i += CLOSE_TAG.length;
+      continue;
+    }
+    
+    // 根据当前状态追加内容
+    if (isInThinkTag) {
+      thinkContent += content[i];
+    } else {
+      processedContent += content[i];
+    }
+    
+    i++;
   }
   
-  // 移除 <think> 标签，保留其他内容
-  const processedContent = content.replace(thinkRegex, '').trim();
+  // 如果最后还在 think 标签内（未闭合），不追加到 processedContent，避免显示未闭合标签
+  // thinkContent 中的内容会在标签闭合后自动处理
   
-  return { processedContent, thinkSections };
+  return { processedContent: processedContent.trim(), thinkSections };
 }
 
 /**

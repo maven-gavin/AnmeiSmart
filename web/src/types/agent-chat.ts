@@ -93,6 +93,19 @@ export interface SSECallbacks {
   onFile?: (file: MessageFile) => void;
   onMessageEnd?: (data: any) => void;
   onMessageReplace?: (data: any) => void;
+  onTextChunk?: (textChunk: { task_id: string; workflow_run_id: string; event: string; data: { text: string } }) => void;
+  onWorkflowFinished?: (workflowData: { 
+    task_id: string; 
+    workflow_run_id: string; 
+    event: string; 
+    data: { 
+      id: string; 
+      workflow_id: string; 
+      status: string; 
+      outputs?: Record<string, any> | string;
+      error?: string;
+    } 
+  }) => void;
   onCompleted: (hasError?: boolean) => void;
   onError?: (error: string) => void;
   getAbortController?: (controller: AbortController) => void;

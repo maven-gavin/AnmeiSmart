@@ -243,20 +243,44 @@ const createEventHandlers = (
 ) => {
   return {
     'message': () => {
-      handlers.onData(unicodeToChar(bufferObj.answer || ''), isFirstMessage.current, {
+      // Dify message事件使用message_id字段，不是id字段
+      const messageId = bufferObj.message_id || bufferObj.id || ''
+      const answer = bufferObj.answer || ''
+      
+      // 调试日志
+      console.log('[SSE] message事件:', {
+        messageId,
+        answerLength: answer.length,
+        answerPreview: answer.substring(0, 100),
         conversationId: bufferObj.conversation_id,
         taskId: bufferObj.task_id,
-        messageId: bufferObj.id || '',
+        fullBufferObj: bufferObj
       })
-      isFirstMessage.current = false
+      
+      if (answer) {
+        handlers.onData(unicodeToChar(answer), isFirstMessage.current, {
+          conversationId: bufferObj.conversation_id,
+          taskId: bufferObj.task_id,
+          messageId: messageId,
+        })
+        isFirstMessage.current = false
+      } else {
+        console.warn('[SSE] message事件没有answer字段，bufferObj:', bufferObj)
+      }
     },
     'agent_message': () => {
-      handlers.onData(unicodeToChar(bufferObj.answer || ''), isFirstMessage.current, {
-        conversationId: bufferObj.conversation_id,
-        taskId: bufferObj.task_id,
-        messageId: bufferObj.id || '',
-      })
-      isFirstMessage.current = false
+      // Dify agent_message事件使用message_id字段，不是id字段
+      const messageId = bufferObj.message_id || bufferObj.id || ''
+      const answer = bufferObj.answer || ''
+      
+      if (answer) {
+        handlers.onData(unicodeToChar(answer), isFirstMessage.current, {
+          conversationId: bufferObj.conversation_id,
+          taskId: bufferObj.task_id,
+          messageId: messageId,
+        })
+        isFirstMessage.current = false
+      }
     },
     'agent_thought': () => handlers.onThought?.(bufferObj as ThoughtItem),
     'message_file': () => handlers.onFile?.(bufferObj as VisionFile),
@@ -301,7 +325,6 @@ function handleStream(response: Response, handlers: StreamHandlers & { onData: I
   let buffer = ''
   let bufferObj: SSEEventData = {}
   const isFirstMessage = { current: true }
-  const eventHandlers = createEventHandlers(handlers, bufferObj, isFirstMessage)
 
   function read(): void {
     let hasError = false
@@ -344,10 +367,14 @@ function handleStream(response: Response, handlers: StreamHandlers & { onData: I
             continue
           }
 
-          // 使用映射表处理事件
+          // 每次解析后重新创建eventHandlers，确保使用最新的bufferObj
+          const eventHandlers = createEventHandlers(handlers, bufferObj, isFirstMessage)
           const handler = eventHandlers[bufferObj.event as keyof typeof eventHandlers]
           if (handler) {
             handler()
+          } else {
+            // 调试：未处理的事件类型
+            console.warn('[SSE] 未处理的事件类型:', bufferObj.event, bufferObj)
           }
         }
 
@@ -554,10 +581,13 @@ export const ssePost = async (
           if (moreInfo.errorMessage) {
             onError?.(moreInfo.errorMessage, moreInfo.errorCode)
             const errorMsg = moreInfo.errorMessage
-            if (
-              errorMsg !== 'AbortError: The user aborted a request.' &&
-              !errorMsg.includes('TypeError: Cannot assign to read only property')
-            ) {
+            // 检查是否是用户主动停止（AbortError），不显示错误提示
+            const isAborted = 
+              errorMsg.includes('AbortError') || 
+              errorMsg.includes('aborted') ||
+              errorMsg === 'AbortError: The user aborted a request.'
+            
+            if (!isAborted && !errorMsg.includes('TypeError: Cannot assign to read only property')) {
               toast.error(errorMsg)
             }
             return
@@ -593,10 +623,13 @@ export const ssePost = async (
     })
     .catch((e) => {
       const errorStr = String(e)
-      if (
-        errorStr !== 'AbortError: The user aborted a request.' &&
-        !errorStr.includes('TypeError: Cannot assign to read only property')
-      ) {
+      // 检查是否是用户主动停止（AbortError），不显示错误提示
+      const isAborted = 
+        errorStr.includes('AbortError') || 
+        errorStr.includes('aborted') ||
+        errorStr === 'AbortError: The user aborted a request.'
+      
+      if (!isAborted && !errorStr.includes('TypeError: Cannot assign to read only property')) {
         toast.error(errorStr)
       }
       onError?.(errorStr)

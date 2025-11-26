@@ -89,9 +89,6 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
       timestamp: new Date().toISOString(),
     };
 
-    // 添加用户消息
-    setMessages([...getMessages(), userMessage]);
-
     // 创建占位 AI 消息
     const placeholderAnswerId = `answer-placeholder-${Date.now()}`;
     const placeholderMessage: AgentMessage = {
@@ -102,8 +99,9 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
       timestamp: new Date().toISOString(),
       isStreaming: true,
     };
-    setMessages([...getMessages(), userMessage, placeholderMessage]);
-
+    
+    // 一次性添加用户消息和占位消息，避免重复添加
+    setMessages((prev) => [...prev, userMessage, placeholderMessage]);
     setIsResponding(true);
 
     // AI 响应消息
@@ -114,6 +112,45 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
       isAnswer: true,
       timestamp: new Date().toISOString(),
       agentThoughts: [],
+    };
+
+    // 打字机效果：用于处理大块文本的分块显示
+    let typewriterTimer: NodeJS.Timeout | null = null;
+    let pendingContent = '';
+    let displayedLength = 0;
+    const TYPEWRITER_CHUNK_SIZE = 10; // 每次显示的字符数
+    const TYPEWRITER_DELAY = 20; // 每次显示的延迟（毫秒）
+
+    const flushTypewriter = () => {
+      if (typewriterTimer) {
+        clearInterval(typewriterTimer);
+        typewriterTimer = null;
+      }
+      
+      if (pendingContent.length > displayedLength) {
+        // 每次显示一小块
+        const chunk = pendingContent.substring(displayedLength, displayedLength + TYPEWRITER_CHUNK_SIZE);
+        displayedLength += chunk.length;
+        aiMessage.content = pendingContent.substring(0, displayedLength);
+        
+        // 更新消息列表
+        setMessages(
+          produce((draft) => {
+            const idx = draft.findIndex(m => m.id === placeholderAnswerId || m.id === aiMessage.id);
+            if (idx !== -1) {
+              draft[idx] = { ...aiMessage, isStreaming: true };
+            }
+          })
+        );
+        
+        // 如果还有内容，继续显示
+        if (displayedLength < pendingContent.length) {
+          typewriterTimer = setTimeout(flushTypewriter, TYPEWRITER_DELAY);
+        } else {
+          // 显示完成
+          typewriterTimer = null;
+        }
+      }
     };
 
     try {
@@ -129,6 +166,15 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
             // 更新消息 ID
             if (meta.messageId && !aiMessage.id) {
               aiMessage.id = meta.messageId;
+              // 更新占位消息的ID
+              setMessages(
+                produce((draft) => {
+                  const idx = draft.findIndex(m => m.id === placeholderAnswerId);
+                  if (idx !== -1) {
+                    draft[idx].id = aiMessage.id;
+                  }
+                })
+              );
             }
             if (meta.conversationId && !currentConversationId) {
               setCurrentConversationId(meta.conversationId);
@@ -139,18 +185,49 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
               setCurrentTaskId(meta.taskId);
             }
 
-            // 追加内容
-            aiMessage.content += chunk;
-
-            // 更新消息列表
-            setMessages(
-              produce(getMessages(), (draft) => {
-                const idx = draft.findIndex(m => m.id === placeholderAnswerId);
-                if (idx !== -1) {
-                  draft[idx] = { ...aiMessage, isStreaming: true };
-                }
-              })
-            );
+            // 更新待显示内容
+            pendingContent = aiMessage.content + chunk;
+            
+            // 如果chunk很大（一次性返回完整答案），使用打字机效果
+            if (chunk.length > 100) {
+              // 大块文本：使用打字机效果
+              // 如果打字机没有运行，启动它
+              if (!typewriterTimer) {
+                flushTypewriter();
+              }
+            } else {
+              // 小块文本：直接显示（真正的流式输出）
+              aiMessage.content = pendingContent;
+              displayedLength = pendingContent.length;
+              
+              // 更新消息列表
+              setMessages(
+                produce((draft) => {
+                  const idx = draft.findIndex(m => m.id === placeholderAnswerId || m.id === aiMessage.id);
+                  if (idx !== -1) {
+                    draft[idx] = { ...aiMessage, isStreaming: true };
+                  }
+                })
+              );
+            }
+          },
+          onTextChunk: (textChunk) => {
+            // 处理 workflow 的 text_chunk 事件（流式文本输出）
+            const text = textChunk.data?.text || '';
+            if (text) {
+              // 追加内容
+              aiMessage.content += text;
+              
+              // 更新消息列表
+              setMessages(
+                produce(getMessages(), (draft) => {
+                  const idx = draft.findIndex(m => m.id === placeholderAnswerId);
+                  if (idx !== -1) {
+                    draft[idx] = { ...aiMessage, isStreaming: true };
+                  }
+                })
+              );
+            }
           },
           onThought: (thought) => {
             if (!aiMessage.agentThoughts) {
@@ -181,13 +258,79 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
             }
             aiMessage.files.push(file);
           },
+          onMessageEnd: (messageEndData) => {
+            // message_end事件表示流式输出结束
+            // 如果此时还没有内容，可能需要从其他地方获取
+            console.log('[useAgentChat] message_end事件:', messageEndData);
+            
+            // 检查是否有metadata中包含完整答案
+            if (!aiMessage.content && messageEndData?.metadata) {
+              // 某些情况下，完整答案可能在metadata中
+              const metadata = messageEndData.metadata;
+              if (metadata.answer && typeof metadata.answer === 'string') {
+                aiMessage.content = metadata.answer;
+                setMessages(
+                  produce(getMessages(), (draft) => {
+                    const idx = draft.findIndex(m => m.id === placeholderAnswerId);
+                    if (idx !== -1) {
+                      draft[idx] = { ...aiMessage, isStreaming: true };
+                    }
+                  })
+                );
+              }
+            }
+          },
+          onWorkflowFinished: (workflowData) => {
+            // 处理 workflow_finished 事件，可能包含最终输出
+            // 如果还没有收到任何内容，尝试从outputs中提取
+            if (!aiMessage.content && workflowData.data?.outputs) {
+              // 尝试从outputs中提取文本内容
+              const outputs = workflowData.data.outputs;
+              if (typeof outputs === 'string') {
+                aiMessage.content = outputs;
+              } else if (outputs && typeof outputs === 'object') {
+                // 尝试找到文本字段
+                const textFields = ['text', 'answer', 'output', 'result', 'content'];
+                for (const field of textFields) {
+                  if (outputs[field] && typeof outputs[field] === 'string') {
+                    aiMessage.content = outputs[field];
+                    break;
+                  }
+                }
+              }
+              
+              // 如果有内容，更新消息列表
+              if (aiMessage.content) {
+                setMessages(
+                  produce(getMessages(), (draft) => {
+                    const idx = draft.findIndex(m => m.id === placeholderAnswerId);
+                    if (idx !== -1) {
+                      draft[idx] = { ...aiMessage, isStreaming: true };
+                    }
+                  })
+                );
+              }
+            }
+          },
           onCompleted: (hasError) => {
+            // 清理打字机定时器
+            if (typewriterTimer) {
+              clearTimeout(typewriterTimer);
+              typewriterTimer = null;
+            }
+            
+            // 确保所有内容都已显示
+            if (pendingContent && displayedLength < pendingContent.length) {
+              aiMessage.content = pendingContent;
+              displayedLength = pendingContent.length;
+            }
+            
             setIsResponding(false);
             setCurrentTaskId(null);
             
             // 标记流式结束
             setMessages(
-              produce(getMessages(), (draft) => {
+              produce((draft) => {
                 const idx = draft.findIndex(m => m.id === placeholderAnswerId || m.id === aiMessage.id);
                 if (idx !== -1) {
                   draft[idx] = { ...aiMessage, isStreaming: false, isError: hasError };
@@ -204,11 +347,20 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
             setIsResponding(false);
             
             // 检查是否是用户主动停止（AbortError）
-            const isAborted = error === 'AbortError' || (error && typeof error === 'object' && 'name' in error && (error as any).name === 'AbortError');
+            // 支持多种格式：字符串 "AbortError"、"AbortError: The user aborted a request."
+            // 或 Error 对象 { name: "AbortError" }
+            const errorStr = typeof error === 'string' ? error : (error?.toString?.() || '');
+            const isAborted = 
+              errorStr.includes('AbortError') || 
+              (error && typeof error === 'object' && 'name' in error && (error as any).name === 'AbortError') ||
+              errorStr.includes('aborted');
             
             if (!isAborted) {
               toast.error(error || '发送消息失败');
               onError?.(error);
+            } else {
+              // 用户主动停止，静默处理，不显示错误提示
+              console.log('[useAgentChat] 用户主动停止生成');
             }
 
             // 移除占位消息
