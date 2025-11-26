@@ -18,6 +18,7 @@ export interface AgentConversation {
 
 interface ConversationHistoryPanelProps {
   agentName: string;
+  agentConfigId: string;  // 新增：Agent 配置ID
   conversations: AgentConversation[];
   selectedConversationId: string | null;
   onSelectConversation: (conversationId: string) => void;
@@ -28,6 +29,7 @@ interface ConversationHistoryPanelProps {
 
 export function ConversationHistoryPanel({
   agentName,
+  agentConfigId,
   conversations,
   selectedConversationId,
   onSelectConversation,
@@ -59,7 +61,7 @@ export function ConversationHistoryPanel({
     }
 
     try {
-      await renameAgentConversation(conversationId, editingTitle.trim());
+      await renameAgentConversation(agentConfigId, conversationId, editingTitle.trim());
       onConversationUpdate?.(conversationId, editingTitle.trim());
       setEditingTitleId(null);
       setEditingTitle('');

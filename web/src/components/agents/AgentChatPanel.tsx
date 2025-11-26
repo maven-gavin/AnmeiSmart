@@ -114,6 +114,7 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
       {selectedAgent && (
         <ConversationHistoryPanel
           agentName={selectedAgent.appName}
+          agentConfigId={selectedAgent.id}
           conversations={conversationsForPanel}
           selectedConversationId={chatState.currentConversationId}
           onSelectConversation={handleSelectConversation}

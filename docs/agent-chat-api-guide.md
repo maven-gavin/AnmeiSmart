@@ -95,7 +95,7 @@ data: {"event": "message_end", "metadata": {...}}
 
 #### 1.4 获取会话消息历史
 
-**端点**: `GET /conversations/{conversation_id}/messages`
+**端点**: `GET /agent/{agent_config_id}/conversations/{conversation_id}/messages`
 
 **查询参数**:
 - `limit`: 返回数量限制（默认 50）
@@ -128,7 +128,7 @@ data: {"event": "message_end", "metadata": {...}}
 
 #### 1.5 更新会话
 
-**端点**: `PUT /conversations/{conversation_id}`
+**端点**: `PUT /agent/{agent_config_id}/conversations/{conversation_id}`
 
 **请求参数**:
 ```json
@@ -141,7 +141,7 @@ data: {"event": "message_end", "metadata": {...}}
 
 #### 1.6 删除会话
 
-**端点**: `DELETE /conversations/{conversation_id}`
+**端点**: `DELETE /agent/{agent_config_id}/conversations/{conversation_id}`
 
 **响应**: 204 No Content
 

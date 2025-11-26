@@ -62,11 +62,11 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
 
   // 加载消息历史
   const loadMessages = useCallback(async (conversationId: string) => {
-    if (!conversationId) return;
+    if (!conversationId || !isValidAgent) return;
     
     setIsLoading(true);
     try {
-      const history = await agentChatService.getAgentMessages(conversationId);
+      const history = await agentChatService.getAgentMessages(agentConfig.id, conversationId);
       setMessages(history);
     } catch (error) {
       console.error('加载消息历史失败:', error);
@@ -74,7 +74,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
     } finally {
       setIsLoading(false);
     }
-  }, [setMessages]);
+  }, [agentConfig.id, isValidAgent, setMessages]);
 
   // 发送消息
   const sendMessage = useCallback(async (text: string, inputs?: Record<string, any>) => {
@@ -269,8 +269,10 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
 
   // 删除会话
   const deleteConversation = useCallback(async (conversationId: string) => {
+    if (!isValidAgent) return;
+    
     try {
-      await agentChatService.deleteAgentConversation(conversationId);
+      await agentChatService.deleteAgentConversation(agentConfig.id, conversationId);
       setConversations(conversations.filter(c => c.id !== conversationId));
       
       if (currentConversationId === conversationId) {
@@ -283,7 +285,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
       console.error('删除会话失败:', error);
       toast.error('删除会话失败');
     }
-  }, [conversations, currentConversationId, setMessages]);
+  }, [agentConfig.id, isValidAgent, conversations, currentConversationId, setMessages]);
 
   // 停止响应
   const stopResponding = useCallback(async () => {

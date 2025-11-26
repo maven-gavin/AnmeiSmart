@@ -50,11 +50,12 @@ export const getAgentConversations = async (
  * 获取会话消息历史
  */
 export const getAgentMessages = async (
+  agentConfigId: string,
   conversationId: string,
   limit: number = 50
 ): Promise<AgentMessage[]> => {
   const response = await apiClient.get<any[]>(
-    `/agent/conversations/${conversationId}/messages`,
+    `/agent/${agentConfigId}/conversations/${conversationId}/messages`,
     { params: { limit } }
   );
   
@@ -90,20 +91,22 @@ export const createAgentConversation = async (
  * 删除会话
  */
 export const deleteAgentConversation = async (
+  agentConfigId: string,
   conversationId: string
 ): Promise<void> => {
-  await apiClient.delete(`/agent/conversations/${conversationId}`);
+  await apiClient.delete(`/agent/${agentConfigId}/conversations/${conversationId}`);
 };
 
 /**
  * 重命名会话
  */
 export const renameAgentConversation = async (
+  agentConfigId: string,
   conversationId: string,
   title: string
 ): Promise<void> => {
   await apiClient.put(
-    `/agent/conversations/${conversationId}`,
+    `/agent/${agentConfigId}/conversations/${conversationId}`,
     { body: { title } }
   );
 };

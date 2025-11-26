@@ -79,8 +79,7 @@ async def get_agent_conversations(
 ):
     """获取 Agent 会话列表"""
     try:
-        # get_conversations 不是异步方法，不需要 await
-        return service.get_conversations(
+        return await service.get_conversations(
             agent_config_id=agent_config_id,
             user_id=str(current_user.id)
         )
@@ -108,8 +107,9 @@ async def create_agent_conversation(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="创建会话失败")
 
 
-@router.get("/conversations/{conversation_id}/messages", response_model=List[AgentMessageResponse])
+@router.get("/{agent_config_id}/conversations/{conversation_id}/messages", response_model=List[AgentMessageResponse])
 async def get_conversation_messages(
+    agent_config_id: str,
     conversation_id: str,
     limit: int = 50,
     current_user: User = Depends(get_current_user),
@@ -117,8 +117,8 @@ async def get_conversation_messages(
 ):
     """获取会话消息历史"""
     try:
-        # get_messages 不是异步方法，不需要 await
-        return service.get_messages(
+        return await service.get_messages(
+            agent_config_id=agent_config_id,
             conversation_id=conversation_id,
             user_id=str(current_user.id),
             limit=limit
@@ -131,8 +131,9 @@ async def get_conversation_messages(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="获取消息历史失败")
 
 
-@router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{agent_config_id}/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_conversation(
+    agent_config_id: str,
     conversation_id: str,
     current_user: User = Depends(get_current_user),
     service: AgentChatService = Depends(get_agent_chat_service)
@@ -140,6 +141,7 @@ async def delete_conversation(
     """删除会话"""
     try:
         await service.delete_conversation(
+            agent_config_id=agent_config_id,
             conversation_id=conversation_id,
             user_id=str(current_user.id)
         )
@@ -151,8 +153,9 @@ async def delete_conversation(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="删除会话失败")
 
 
-@router.put("/conversations/{conversation_id}", response_model=AgentConversationResponse)
+@router.put("/{agent_config_id}/conversations/{conversation_id}", response_model=AgentConversationResponse)
 async def update_conversation(
+    agent_config_id: str,
     conversation_id: str,
     request: AgentConversationUpdate,
     current_user: User = Depends(get_current_user),
@@ -161,6 +164,7 @@ async def update_conversation(
     """更新会话"""
     try:
         return await service.update_conversation(
+            agent_config_id=agent_config_id,
             conversation_id=conversation_id,
             user_id=str(current_user.id),
             title=request.title
