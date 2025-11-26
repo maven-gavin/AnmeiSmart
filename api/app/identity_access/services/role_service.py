@@ -101,4 +101,52 @@ class RoleService:
                     return True
         
         return False
+    
+    def get_role_permissions(self, role_id: str):
+        """获取角色已分配的权限"""
+        role = self.get_role_by_id(role_id)
+        if not role:
+            raise BusinessException("角色不存在", code=ErrorCode.NOT_FOUND)
+        
+        # 通过关系获取权限
+        return role.permissions
+    
+    def assign_permissions_to_role(self, role_id: str, permission_ids: list[str]):
+        """为角色分配权限"""
+        role = self.get_role_by_id(role_id)
+        if not role:
+            raise BusinessException("角色不存在", code=ErrorCode.NOT_FOUND)
+        
+        # 获取权限对象
+        from app.identity_access.models.user import Permission
+        permissions = self.db.query(Permission).filter(Permission.id.in_(permission_ids)).all()
+        
+        if len(permissions) != len(permission_ids):
+            raise BusinessException("部分权限不存在", code=ErrorCode.NOT_FOUND)
+        
+        # 添加权限到角色（避免重复）
+        for permission in permissions:
+            if permission not in role.permissions:
+                role.permissions.append(permission)
+        
+        self.db.commit()
+        return role
+    
+    def unassign_permissions_from_role(self, role_id: str, permission_ids: list[str]):
+        """从角色移除权限"""
+        role = self.get_role_by_id(role_id)
+        if not role:
+            raise BusinessException("角色不存在", code=ErrorCode.NOT_FOUND)
+        
+        # 获取权限对象
+        from app.identity_access.models.user import Permission
+        permissions = self.db.query(Permission).filter(Permission.id.in_(permission_ids)).all()
+        
+        # 从角色移除权限
+        for permission in permissions:
+            if permission in role.permissions:
+                role.permissions.remove(permission)
+        
+        self.db.commit()
+        return role
 

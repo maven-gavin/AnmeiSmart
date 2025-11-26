@@ -30,10 +30,11 @@ import {
 import { permissionService } from '@/service/permissionService';
 import { handleApiError } from '@/service/apiClient';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import toast from 'react-hot-toast';
 import AppLayout from '@/components/layout/AppLayout';
 import { EnhancedPagination } from '@/components/ui/pagination';
+import PermissionTransfer from '@/components/admin/PermissionTransfer';
+import { Permission } from '@/types/auth';
 
 type RoleItem = {
   id: string;
@@ -110,8 +111,8 @@ export default function RolesPage() {
   const [assignPermissionsTarget, setAssignPermissionsTarget] = useState<RoleItem | null>(null);
   const [isAssignPermissionsDialogOpen, setIsAssignPermissionsDialogOpen] = useState(false);
   const [assignPermissionsLoading, setAssignPermissionsLoading] = useState(false);
-  const [availablePermissions, setAvailablePermissions] = useState<any[]>([]);
-  const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>([]);
+  const [availablePermissions, setAvailablePermissions] = useState<Permission[]>([]);
+  const [assignedPermissions, setAssignedPermissions] = useState<Permission[]>([]);
 
   const createNameRef = useRef(roleName);
 
@@ -352,31 +353,56 @@ export default function RolesPage() {
   const handleAssignPermissions = async (role: RoleItem) => {
     setAssignPermissionsTarget(role);
     setIsAssignPermissionsDialogOpen(true);
-    // 加载可用权限列表
+    setAssignPermissionsLoading(true);
+    
     try {
-      const permissionsList = await permissionService.getPermissions({ skip: 0, limit: 1000 });
-      setAvailablePermissions(permissionsList.permissions || []);
-      // 加载当前角色已分配的权限
-      // TODO: 需要添加获取角色权限的API
-      setSelectedPermissionIds([]);
+      // 并行加载所有权限和已分配的权限
+      const [allPermissionsResponse, assignedPermissionsResponse] = await Promise.all([
+        permissionService.getPermissions({ skip: 0, limit: 1000 }),
+        permissionService.getRolePermissions(role.id)
+      ]);
+      
+      setAvailablePermissions(allPermissionsResponse.permissions || []);
+      setAssignedPermissions(assignedPermissionsResponse);
     } catch (err: any) {
       toast.error(err.message || '加载权限列表失败');
+      setIsAssignPermissionsDialogOpen(false);
+    } finally {
+      setAssignPermissionsLoading(false);
     }
   };
 
-  const handleConfirmAssignPermissions = async () => {
+  const handleAssign = async (permissionIds: string[]) => {
     if (!assignPermissionsTarget) return;
     
     setAssignPermissionsLoading(true);
     try {
-      // TODO: 需要添加分配权限的API
+      await permissionService.assignPermissionsToRole(assignPermissionsTarget.id, permissionIds);
       toast.success('权限分配成功');
-      setIsAssignPermissionsDialogOpen(false);
-      setAssignPermissionsTarget(null);
-      setSelectedPermissionIds([]);
-      fetchRoles();
+      
+      // 重新加载已分配的权限
+      const assignedPermissionsResponse = await permissionService.getRolePermissions(assignPermissionsTarget.id);
+      setAssignedPermissions(assignedPermissionsResponse);
     } catch (err: any) {
       toast.error(err.message || '分配权限失败');
+    } finally {
+      setAssignPermissionsLoading(false);
+    }
+  };
+
+  const handleUnassign = async (permissionIds: string[]) => {
+    if (!assignPermissionsTarget) return;
+    
+    setAssignPermissionsLoading(true);
+    try {
+      await permissionService.unassignPermissionsFromRole(assignPermissionsTarget.id, permissionIds);
+      toast.success('权限移除成功');
+      
+      // 重新加载已分配的权限
+      const assignedPermissionsResponse = await permissionService.getRolePermissions(assignPermissionsTarget.id);
+      setAssignedPermissions(assignedPermissionsResponse);
+    } catch (err: any) {
+      toast.error(err.message || '移除权限失败');
     } finally {
       setAssignPermissionsLoading(false);
     }
@@ -1001,44 +1027,28 @@ export default function RolesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* 分配权限对话框 */}
+      {/* 分配权限对话框 - 穿梭机模式 */}
       <Dialog open={isAssignPermissionsDialogOpen} onOpenChange={setIsAssignPermissionsDialogOpen}>
-        <DialogContent className="sm:max-w-2xl bg-white max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-6xl bg-white max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>分配权限</DialogTitle>
             <DialogDescription>
               为角色 "{assignPermissionsTarget?.displayName || assignPermissionsTarget?.name}" 分配权限
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="max-h-96 overflow-y-auto border rounded-lg p-4">
-              {availablePermissions.length === 0 ? (
-                <div className="text-center text-gray-500 py-8">暂无权限</div>
-              ) : (
-                <div className="space-y-2">
-                  {availablePermissions.map((permission) => (
-                    <div key={permission.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
-                      <Checkbox
-                        id={`permission-${permission.id}`}
-                        checked={selectedPermissionIds.includes(permission.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedPermissionIds([...selectedPermissionIds, permission.id]);
-                          } else {
-                            setSelectedPermissionIds(selectedPermissionIds.filter(id => id !== permission.id));
-                          }
-                        }}
-                      />
-                      <Label htmlFor={`permission-${permission.id}`} className="flex-1 cursor-pointer">
-                        <div className="font-medium">{permission.displayName || permission.name}</div>
-                        <div className="text-xs text-gray-500">{permission.code}</div>
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              )}
+          {assignPermissionsLoading && availablePermissions.length === 0 ? (
+            <div className="flex items-center justify-center h-[600px]">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
             </div>
-          </div>
+          ) : (
+            <PermissionTransfer
+              availablePermissions={availablePermissions}
+              assignedPermissions={assignedPermissions}
+              onAssign={handleAssign}
+              onUnassign={handleUnassign}
+              loading={assignPermissionsLoading}
+            />
+          )}
           <DialogFooter>
             <Button
               type="button"
@@ -1046,19 +1056,12 @@ export default function RolesPage() {
               onClick={() => {
                 setIsAssignPermissionsDialogOpen(false);
                 setAssignPermissionsTarget(null);
-                setSelectedPermissionIds([]);
+                setAvailablePermissions([]);
+                setAssignedPermissions([]);
               }}
               disabled={assignPermissionsLoading}
             >
-              取消
-            </Button>
-            <Button
-              type="button"
-              onClick={handleConfirmAssignPermissions}
-              disabled={assignPermissionsLoading}
-              className="bg-green-500 hover:bg-green-600"
-            >
-              {assignPermissionsLoading ? '分配中...' : '确认分配'}
+              关闭
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,12 +1,18 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status, Request
+import logging
+import json
 
 from app.identity_access.schemas.user import RoleCreate, RoleUpdate, RoleResponse
+from app.identity_access.schemas.permission_schemas import PermissionResponse
 from app.identity_access.models.user import User, Role
 from app.identity_access.services.role_service import RoleService
 from app.identity_access.deps.user_deps import get_role_service
 from app.identity_access.deps.auth_deps import get_current_user, require_role
+from app.identity_access.controllers.permissions import _convert_permission_to_response
 from app.core.api import ApiResponse, BusinessException, ErrorCode, SystemException
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -118,3 +124,116 @@ async def delete_role(
         raise
     except Exception as e:
         raise _handle_unexpected_error("删除角色失败", e)
+
+@router.get("/{role_id}/permissions", response_model=ApiResponse[List[PermissionResponse]])
+async def get_role_permissions(
+    role_id: str,
+    current_user: User = Depends(require_role("administrator")),
+    role_service: RoleService = Depends(get_role_service)
+) -> ApiResponse[List[PermissionResponse]]:
+    """获取角色已分配的权限"""
+    try:
+        permissions = role_service.get_role_permissions(role_id)
+        
+        permission_responses = [
+            _convert_permission_to_response(permission)
+            for permission in permissions
+        ]
+        
+        return ApiResponse.success(permission_responses, message="获取角色权限成功")
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise _handle_unexpected_error("获取角色权限失败", e)
+
+@router.post("/{role_id}/permissions/assign", response_model=ApiResponse[dict])
+async def assign_permissions_to_role(
+    role_id: str,
+    request: Request,
+    current_user: User = Depends(require_role("administrator")),
+    role_service: RoleService = Depends(get_role_service)
+) -> ApiResponse[dict]:
+    """为角色分配权限"""
+    try:
+        # 读取原始请求体
+        body_bytes = await request.body()
+        
+        if not body_bytes:
+            raise BusinessException("请求体为空，请检查前端是否正确发送数据", code=ErrorCode.VALIDATION_ERROR)
+        
+        # 解析请求体
+        try:
+            body_data = await request.json()
+            
+            # 处理不同的数据格式
+            if isinstance(body_data, list):
+                permission_ids = body_data
+            elif isinstance(body_data, dict):
+                if 'permission_ids' in body_data:
+                    permission_ids = body_data['permission_ids']
+                elif 'json' in body_data:
+                    permission_ids = body_data['json']
+                elif 'body' in body_data and isinstance(body_data['body'], list):
+                    permission_ids = body_data['body']
+                else:
+                    raise BusinessException("请求体格式错误：缺少 permission_ids 字段", code=ErrorCode.VALIDATION_ERROR)
+            else:
+                raise BusinessException("请求体格式错误", code=ErrorCode.VALIDATION_ERROR)
+        except json.JSONDecodeError as e:
+            raise BusinessException("请求体格式错误，无法解析JSON", code=ErrorCode.VALIDATION_ERROR)
+        
+        if not permission_ids or not isinstance(permission_ids, list):
+            raise BusinessException("权限ID列表不能为空", code=ErrorCode.VALIDATION_ERROR)
+        
+        role_service.assign_permissions_to_role(role_id, permission_ids)
+        return ApiResponse.success({}, message="分配权限成功")
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise _handle_unexpected_error("分配权限失败", e)
+
+@router.post("/{role_id}/permissions/unassign", response_model=ApiResponse[dict])
+async def unassign_permissions_from_role(
+    role_id: str,
+    request: Request,
+    current_user: User = Depends(require_role("administrator")),
+    role_service: RoleService = Depends(get_role_service)
+) -> ApiResponse[dict]:
+    """从角色移除权限"""
+    try:
+        # 读取原始请求体
+        body_bytes = await request.body()
+        
+        if not body_bytes:
+            raise BusinessException("请求体为空，请检查前端是否正确发送数据", code=ErrorCode.VALIDATION_ERROR)
+        
+        # 解析请求体
+        try:
+            body_data = await request.json()
+            
+            # 处理不同的数据格式
+            if isinstance(body_data, list):
+                permission_ids = body_data
+            elif isinstance(body_data, dict):
+                if 'permission_ids' in body_data:
+                    permission_ids = body_data['permission_ids']
+                elif 'json' in body_data:
+                    permission_ids = body_data['json']
+                elif 'body' in body_data and isinstance(body_data['body'], list):
+                    permission_ids = body_data['body']
+                else:
+                    raise BusinessException("请求体格式错误：缺少 permission_ids 字段", code=ErrorCode.VALIDATION_ERROR)
+            else:
+                raise BusinessException("请求体格式错误", code=ErrorCode.VALIDATION_ERROR)
+        except json.JSONDecodeError as e:
+            raise BusinessException("请求体格式错误，无法解析JSON", code=ErrorCode.VALIDATION_ERROR)
+        
+        if not permission_ids or not isinstance(permission_ids, list):
+            raise BusinessException("权限ID列表不能为空", code=ErrorCode.VALIDATION_ERROR)
+        
+        role_service.unassign_permissions_from_role(role_id, permission_ids)
+        return ApiResponse.success({}, message="移除权限成功")
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise _handle_unexpected_error("移除权限失败", e)

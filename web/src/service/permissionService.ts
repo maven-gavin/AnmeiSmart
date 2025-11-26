@@ -146,11 +146,27 @@ class PermissionService {
   }
 
   /**
-   * 获取角色的权限列表
+   * 获取角色已分配的权限
    */
   async getRolePermissions(roleId: string): Promise<Permission[]> {
     const response = await apiClient.get<Permission[]>(`/roles/${roleId}/permissions`);
-    return response.data;
+    return response.data ?? [];
+  }
+
+  /**
+   * 为角色分配权限
+   */
+  async assignPermissionsToRole(roleId: string, permissionIds: string[]): Promise<void> {
+    // 直接传递数组，normalizeBodyOptions 会将其包装在 body 中
+    await apiClient.post<void>(`/roles/${roleId}/permissions/assign`, permissionIds);
+  }
+
+  /**
+   * 从角色移除权限
+   */
+  async unassignPermissionsFromRole(roleId: string, permissionIds: string[]): Promise<void> {
+    // 直接传递数组，normalizeBodyOptions 会将其包装在 body 中
+    await apiClient.post<void>(`/roles/${roleId}/permissions/unassign`, permissionIds);
   }
 
   /**
