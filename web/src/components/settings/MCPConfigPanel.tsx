@@ -102,8 +102,10 @@ export function MCPConfigPanel() {
 
   // 更新数据状态
   React.useEffect(() => {
-    setAllGroups(groups)
-    setFilteredGroups(groups)
+    // 确保 groups 是数组
+    const groupsArray = Array.isArray(groups) ? groups : []
+    setAllGroups(groupsArray)
+    setFilteredGroups(groupsArray)
   }, [groups])
 
   React.useEffect(() => {
@@ -889,11 +891,15 @@ export function MCPConfigPanel() {
                   <SelectValue placeholder="选择工具分组" />
                 </SelectTrigger>
                 <SelectContent>
-                  {groups.map((group) => (
-                    <SelectItem key={group.id} value={group.id}>
-                      {group.name}
-                    </SelectItem>
-                  ))}
+                  {Array.isArray(groups) && groups.length > 0 ? (
+                    groups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="no-groups" disabled>暂无分组</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>

@@ -76,8 +76,18 @@ class MCPConfigService {
    * 获取MCP分组列表
    */
   async getGroups(): Promise<MCPGroup[]> {
-    const response = await apiClient.get<MCPGroup[]>('/mcp/admin/groups')
-    return response.data
+    const response = await apiClient.get<{ success: boolean; data: MCPGroup[]; message: string }>('/mcp/admin/groups')
+    // 确保返回的是数组
+    if (response.data && Array.isArray(response.data.data)) {
+      return response.data.data
+    }
+    // 如果响应格式不同，尝试直接返回 data
+    if (Array.isArray(response.data)) {
+      return response.data
+    }
+    // 默认返回空数组
+    console.warn('getGroups: 响应格式异常', response.data)
+    return []
   }
 
   /**
@@ -134,8 +144,18 @@ class MCPConfigService {
    */
   async getTools(groupId?: string): Promise<MCPTool[]> {
     const url = groupId ? `/mcp/admin/tools?group_id=${groupId}` : '/mcp/admin/tools'
-    const response = await apiClient.get<MCPTool[]>(url)
-    return response.data
+    const response = await apiClient.get<{ success: boolean; data: MCPTool[]; message: string } | MCPTool[]>(url)
+    // 确保返回的是数组
+    if (response.data && typeof response.data === 'object' && 'data' in response.data && Array.isArray(response.data.data)) {
+      return response.data.data
+    }
+    // 如果响应格式不同，尝试直接返回 data
+    if (Array.isArray(response.data)) {
+      return response.data
+    }
+    // 默认返回空数组
+    console.warn('getTools: 响应格式异常', response.data)
+    return []
   }
 
   /**

@@ -85,24 +85,45 @@ async def require_bearer_token(request: Request) -> str:
 @router.get("/server/info")
 async def get_server_info():
     """获取MCP服务器基本信息"""
+    logger.info("=" * 80)
     logger.info("收到MCP服务器信息请求")
     
     try:
         server_info = session_manager.get_server_info()
         capabilities = session_manager.get_server_capabilities()
         
+        logger.info(f"服务器信息对象类型: {type(server_info)}")
+        logger.info(f"服务器能力对象类型: {type(capabilities)}")
+        logger.info(f"服务器信息原始对象: {server_info}")
+        logger.info(f"服务器能力原始对象: {capabilities}")
+        
+        # Pydantic V2: 使用 model_dump() 方法（推荐方式）
+        # model_dump() 是 V2 的标准方法，性能更好，支持更多选项
+        # 使用 mode='json' 确保所有值都是 JSON 可序列化的
+        server_info_dict = server_info.model_dump(mode='json')
+        capabilities_dict = capabilities.model_dump(mode='json')
+        
+        logger.info(f"服务器信息字典: {server_info_dict}")
+        logger.info(f"服务器能力字典: {capabilities_dict}")
+        
         response_data = {
-            "server": server_info,
-            "capabilities": capabilities,
+            "server": server_info_dict,
+            "capabilities": capabilities_dict,
             "status": "running",
             "protocol_version": types.SERVER_LATEST_PROTOCOL_VERSION
         }
         
-        logger.info(f"返回MCP服务器信息: {response_data}")
+        logger.info(f"最终响应数据: {response_data}")
+        logger.info("=" * 80)
+        
         return JSONResponse(content=response_data)
         
     except Exception as e:
-        logger.error(f"获取MCP服务器信息失败: {e}")
+        logger.error("=" * 80)
+        logger.error(f"获取MCP服务器信息失败: {e}", exc_info=True)
+        logger.error(f"错误类型: {type(e)}")
+        logger.error(f"错误详情: {str(e)}")
+        logger.error("=" * 80)
         return JSONResponse(
             content={"error": f"Failed to get server info: {str(e)}"},
             status_code=500

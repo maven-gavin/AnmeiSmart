@@ -187,79 +187,62 @@ class AgentConfigService:
                     "details": {"error_type": "invalid_url", "url": base_url}
                 }
             
-            # 构建测试URL - 使用通用的聊天接口进行测试
-            if(app_id == "AGENT_CHAT_API_KEY"):
-                logger.debug(f"测试Agent连接={app_id}")
-                test_data = {
-                    "inputs": {},
-                    "query": "Hello, this is a connection test.",
-                    "response_mode": "blocking",
-                    "conversation_id": "",
-                    "user": "test_user"
-                }
-                test_url = f"{base_url}/chat-messages"
+            # 统一使用 Dify 的 /info 接口测试连接
+            # 该接口适用于所有类型的智能体，只需获取应用基本信息即可验证配置正确性
+            test_url = f"{base_url}/info"
+            logger.info(f"使用 Dify /info 接口测试连接")
+            logger.info(f"测试URL: {test_url}")
+            logger.info(f"appId: {app_id}")
 
-            # 构建测试URL - 使用医美专家接口进行测试
-            elif(app_id == "AGENT_BEAUTY_API_KEY"):
-                logger.debug(f"测试Agent连接={app_id}")
-                test_data = {
-                    "inputs": {},
-                    "query": "Hello, this is a connection test.",
-                    "response_mode": "streaming",
-                    "conversation_id": "",
-                    "user": "test_user"
-                }
-                test_url = f"{base_url}/chat-messages"
-
-            # 构建测试URL - 使用咨询总结工作流接口进行测试
-            elif(app_id == "AGENT_SUMMARY_API_KEY"):
-                logger.debug(f"测试Agent连接={app_id}")
-                test_data = {
-                    "inputs": {
-                        "conversation_text": "Hello, this is a connection test.",
-                        "user_id": "test_user",
-                    },
-                    "response_mode": "streaming",
-                    "user": "test_user"
-                }
-                test_url = f"{base_url}/workflows/run"
-            else:
-                return {
-                    "success": False,
-                    "message": "未指定appId，无法测试连接",
-                    "details": {}
-                }
-
-            # 发送测试请求
+            # 发送测试请求（GET 请求）
             headers = {
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json"
             }
             import requests
-            response = requests.post(
+            response = requests.get(
                 test_url,
-                json=test_data,
                 headers=headers,
                 timeout=timeout_seconds
             )
             if response.status_code == 200:
+                # 尝试解析响应，获取应用信息
+                try:
+                    app_info = response.json()
+                    app_name_from_api = app_info.get("name", "未知")
+                    app_mode = app_info.get("mode", "未知")
+                    logger.info(f"成功获取应用信息: name={app_name_from_api}, mode={app_mode}")
+                except Exception as e:
+                    logger.warning(f"解析应用信息失败: {e}")
+                    app_name_from_api = "未知"
+                    app_mode = "未知"
+                
                 return {
                     "success": True,
                     "message": "连接测试成功",
                     "details": {
                         "status_code": response.status_code,
                         "app_name": config.appName,
+                        "app_name_from_api": app_name_from_api,
+                        "app_mode": app_mode,
                         "environment": config.environment,
                         "response_time": f"{response.elapsed.total_seconds():.2f}s"
                     }
                 }
             else:
+                error_detail = ""
+                try:
+                    error_response = response.json()
+                    error_detail = error_response.get("message", response.text[:200])
+                except:
+                    error_detail = response.text[:200]
+                
                 return {
                     "success": False,
                     "message": f"连接测试失败: HTTP {response.status_code}",
                     "details": {
                         "status_code": response.status_code,
-                        "response_text": response.text[:200]
+                        "error_detail": error_detail
                     }
                 }
         except requests.exceptions.Timeout:

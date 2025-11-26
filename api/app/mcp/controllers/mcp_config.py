@@ -321,11 +321,40 @@ async def _check_mcp_server_health() -> dict:
     """检查MCP服务器健康状态 - 私有辅助函数"""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get("http://localhost:8000/mcp/server/info", timeout=5.0)
+            # 使用完整的API路径，包含 /api/v1 前缀
+            response = await client.get("http://localhost:8000/api/v1/mcp/server/info", timeout=5.0)
             if response.status_code == 200:
-                return response.json()
+                data = response.json()
+                # 适配响应格式，提取服务器信息
+                return {
+                    "status": data.get("status", "running"),
+                    "server_info": data.get("server", {}),
+                    "total_tools": data.get("capabilities", {}).get("tools", {}).get("listChanged", False) if data.get("capabilities") else 0
+                }
             else:
                 raise Exception(f"MCP Server返回错误: {response.status_code}")
+    except httpx.HTTPStatusError as e:
+        logger.warning(f"无法连接到统一MCP Server: HTTP {e.response.status_code}")
+        return {
+            "status": "offline",
+            "error": f"HTTP {e.response.status_code}",
+            "server_info": {
+                "name": "AnmeiSmart Unified MCP Server",
+                "version": "unknown"
+            },
+            "total_tools": 0
+        }
+    except httpx.RequestError as e:
+        logger.warning(f"无法连接到统一MCP Server: 请求错误 - {e}")
+        return {
+            "status": "offline",
+            "error": str(e),
+            "server_info": {
+                "name": "AnmeiSmart Unified MCP Server",
+                "version": "unknown"
+            },
+            "total_tools": 0
+        }
     except Exception as e:
         logger.warning(f"无法连接到统一MCP Server: {e}")
         return {
