@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/select'
 import { useMCPConfigs } from '@/hooks/useMCPConfigs'
 import { MCPGroup, MCPTool } from '@/service/mcpConfigService'
+import { EnhancedPagination } from '@/components/ui/pagination'
 
 export function MCPConfigPanel() {
   const {
@@ -88,16 +89,14 @@ export function MCPConfigPanel() {
   // 分组查询和分页状态
   const [groupSearchName, setGroupSearchName] = useState('')
   const [groupCurrentPage, setGroupCurrentPage] = useState(1)
-  const [groupItemsPerPage] = useState(5)
-  const [filteredGroups, setFilteredGroups] = useState<MCPGroup[]>([])
+  const [groupItemsPerPage, setGroupItemsPerPage] = useState(5)
   const [allGroups, setAllGroups] = useState<MCPGroup[]>([])
 
   // 工具查询和分页状态
   const [toolSearchName, setToolSearchName] = useState('')
   const [toolSearchGroup, setToolSearchGroup] = useState('all')
   const [toolCurrentPage, setToolCurrentPage] = useState(1)
-  const [toolItemsPerPage] = useState(5)
-  const [filteredTools, setFilteredTools] = useState<MCPTool[]>([])
+  const [toolItemsPerPage, setToolItemsPerPage] = useState(5)
   const [allTools, setAllTools] = useState<MCPTool[]>([])
 
   // 更新数据状态
@@ -105,43 +104,41 @@ export function MCPConfigPanel() {
     // 确保 groups 是数组
     const groupsArray = Array.isArray(groups) ? groups : []
     setAllGroups(groupsArray)
-    setFilteredGroups(groupsArray)
+    // 重置到第一页
+    setGroupCurrentPage(1)
   }, [groups])
 
   React.useEffect(() => {
-    setAllTools(tools)
-    setFilteredTools(tools)
+    const toolsArray = Array.isArray(tools) ? tools : []
+    setAllTools(toolsArray)
+    // 重置到第一页
+    setToolCurrentPage(1)
   }, [tools])
 
-  // 分组查询功能
-  const filterGroups = () => {
-    setGroupCurrentPage(1)
+  // 分组过滤逻辑（前端过滤）
+  const filteredGroups = React.useMemo(() => {
     let filtered = [...allGroups]
     
     if (groupSearchName) {
+      const searchLower = groupSearchName.toLowerCase()
       filtered = filtered.filter(group => 
-        group.name.toLowerCase().includes(groupSearchName.toLowerCase())
+        group.name.toLowerCase().includes(searchLower) ||
+        (group.description && group.description.toLowerCase().includes(searchLower))
       )
     }
     
-    setFilteredGroups(filtered)
-  }
+    return filtered
+  }, [allGroups, groupSearchName])
 
-  // 重置分组查询
-  const resetGroupFilters = () => {
-    setGroupSearchName('')
-    setFilteredGroups(allGroups)
-    setGroupCurrentPage(1)
-  }
-
-  // 工具查询功能
-  const filterTools = () => {
-    setToolCurrentPage(1)
+  // 工具过滤逻辑（前端过滤）
+  const filteredTools = React.useMemo(() => {
     let filtered = [...allTools]
     
     if (toolSearchName) {
+      const searchLower = toolSearchName.toLowerCase()
       filtered = filtered.filter(tool => 
-        tool.tool_name.toLowerCase().includes(toolSearchName.toLowerCase())
+        tool.tool_name.toLowerCase().includes(searchLower) ||
+        (tool.description && tool.description.toLowerCase().includes(searchLower))
       )
     }
     
@@ -151,16 +148,8 @@ export function MCPConfigPanel() {
       )
     }
     
-    setFilteredTools(filtered)
-  }
-
-  // 重置工具查询
-  const resetToolFilters = () => {
-    setToolSearchName('')
-    setToolSearchGroup('all')
-    setFilteredTools(allTools)
-    setToolCurrentPage(1)
-  }
+    return filtered
+  }, [allTools, toolSearchName, toolSearchGroup])
 
   // 分组分页逻辑
   const groupIndexOfLastItem = groupCurrentPage * groupItemsPerPage
@@ -173,6 +162,29 @@ export function MCPConfigPanel() {
   const toolIndexOfFirstItem = toolIndexOfLastItem - toolItemsPerPage
   const currentTools = filteredTools.slice(toolIndexOfFirstItem, toolIndexOfLastItem)
   const toolTotalPages = Math.ceil(filteredTools.length / toolItemsPerPage)
+
+  // 分组查询功能
+  const filterGroups = () => {
+    setGroupCurrentPage(1)
+  }
+
+  // 重置分组查询
+  const resetGroupFilters = () => {
+    setGroupSearchName('')
+    setGroupCurrentPage(1)
+  }
+
+  // 工具查询功能
+  const filterTools = () => {
+    setToolCurrentPage(1)
+  }
+
+  // 重置工具查询
+  const resetToolFilters = () => {
+    setToolSearchName('')
+    setToolSearchGroup('all')
+    setToolCurrentPage(1)
+  }
 
   // 显示Loading状态
   if (isLoading) {
@@ -445,23 +457,25 @@ export function MCPConfigPanel() {
               </div>
             </CardHeader>
             <CardContent>
-              {/* 分组查询区域 */}
-              {allGroups.length > 0 && (
-                <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                  <h3 className="mb-4 text-sm font-medium text-gray-800">分组查询</h3>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <div>
-                      <Label htmlFor="groupName" className="mb-2 block text-sm font-medium">分组名称</Label>
-                      <Input
-                        id="groupName"
-                        value={groupSearchName}
-                        onChange={(e) => setGroupSearchName(e.target.value)}
-                        placeholder="搜索分组名称"
-                        className="w-full"
-                      />
-                    </div>
+              {/* 搜索区域 - 参考资源管理模块样式 */}
+              <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow">
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <Label htmlFor="groupSearch" className="mb-2 block text-sm font-medium">关键词搜索</Label>
+                    <Input
+                      id="groupSearch"
+                      value={groupSearchName}
+                      onChange={(e) => setGroupSearchName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          filterGroups()
+                        }
+                      }}
+                      placeholder="搜索分组名称或描述..."
+                      className="w-full max-w-md"
+                    />
                   </div>
-                  <div className="mt-4 flex justify-end space-x-2">
+                  <div className="flex items-end gap-2 pb-1">
                     <Button variant="outline" onClick={resetGroupFilters}>
                       重置
                     </Button>
@@ -470,47 +484,70 @@ export function MCPConfigPanel() {
                     </Button>
                   </div>
                 </div>
-              )}
+              </div>
 
-              {filteredGroups.length === 0 && allGroups.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="text-gray-400 mb-2">
-                    <Settings className="w-12 h-12 mx-auto" />
-                  </div>
-                  <p className="text-gray-600">暂无MCP分组</p>
-                  <p className="text-sm text-gray-500">点击上方"添加分组"按钮创建第一个工具分组</p>
-                </div>
-              ) : filteredGroups.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="text-gray-400 mb-2">
-                    <Settings className="w-12 h-12 mx-auto" />
-                  </div>
-                  <p className="text-gray-600">未找到匹配的分组</p>
-                  <p className="text-sm text-gray-500">请调整查询条件或重置查询</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-16">序号</TableHead>
-                        <TableHead>分组名称</TableHead>
-                        <TableHead>分组描述</TableHead>
-                        <TableHead>API密钥</TableHead>
-                        <TableHead>MCP Server URL</TableHead>
-                        <TableHead className="w-24">工具数量</TableHead>
-                        <TableHead className="w-20">状态</TableHead>
-                        <TableHead className="w-28">创建时间</TableHead>
-                        <TableHead className="w-32">操作</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {currentGroups.map((group, index) => (
-                        <TableRow key={group.id}>
-                          <TableCell className="font-medium">{groupIndexOfFirstItem + index + 1}</TableCell>
-                          <TableCell className="font-medium text-gray-800">{group.name}</TableCell>
-                          <TableCell className="text-gray-600 max-w-xs truncate">{group.description || '-'}</TableCell>
-                          <TableCell>
+              {/* 表格区域 - 参考资源管理模块样式 */}
+              <div className="overflow-hidden rounded-lg border border-gray-200 shadow">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        序号
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        分组名称
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        分组描述
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        API密钥
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        MCP Server URL
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        工具数量
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        状态
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        创建时间
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        操作
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {isLoading ? (
+                      <tr>
+                        <td colSpan={9} className="px-6 py-12 text-center">
+                          <div className="flex justify-center">
+                            <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : filteredGroups.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="px-6 py-4 text-center text-sm text-gray-500">
+                          {allGroups.length === 0 ? '暂无MCP分组，点击上方"添加分组"按钮创建第一个工具分组' : '未找到匹配的分组，请调整查询条件或重置查询'}
+                        </td>
+                      </tr>
+                    ) : (
+                      currentGroups.map((group, index) => (
+                        <tr key={group.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                            {groupIndexOfFirstItem + index + 1}
+                          </td>
+                          <td className="px-6 py-4 text-sm">
+                            <div className="font-medium text-gray-900">{group.name}</div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            {group.description || '-'}
+                          </td>
+                          <td className="px-6 py-4 text-sm">
                             <div className="flex items-center space-x-2">
                               <code className="text-xs bg-gray-50 border px-2 py-1 rounded font-mono">
                                 {group.api_key_preview}
@@ -529,8 +566,8 @@ export function MCPConfigPanel() {
                                 )}
                               </Button>
                             </div>
-                          </TableCell>
-                          <TableCell>
+                          </td>
+                          <td className="px-6 py-4 text-sm">
                             <div className="flex items-center space-x-2">
                               {group.enabled ? (
                                 <>
@@ -542,7 +579,7 @@ export function MCPConfigPanel() {
                                     size="sm"
                                     onClick={() => handleCopyServerUrl(group.id)}
                                     className="h-8 w-8 p-0"
-                                    title={urlCopySuccess === group.id ? "已复制完整URL" : "复制完整MCP Server URL"}
+                                    title={urlCopySuccess === group.id ? "已复制" : "复制Server URL"}
                                   >
                                     {urlCopySuccess === group.id ? (
                                       <Check className="w-4 h-4 text-green-600" />
@@ -552,27 +589,24 @@ export function MCPConfigPanel() {
                                   </Button>
                                 </>
                               ) : (
-                                <span className="text-sm text-gray-400">分组已禁用</span>
+                                <span className="text-xs text-gray-400">未启用</span>
                               )}
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary" className="text-xs">
-                              {group.tools_count || 0} 个
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            {group.tools_count || 0}个
+                          </td>
+                          <td className="px-6 py-4 text-sm">
                             <Switch
                               checked={group.enabled}
                               onCheckedChange={(checked) => handleToggleGroup(group.id, checked)}
-                              disabled={isSubmitting}
                             />
-                          </TableCell>
-                          <TableCell className="text-sm text-gray-600">
-                            {new Date(group.created_at).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-1">
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            {new Date(group.created_at).toLocaleDateString('zh-CN')}
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                            <div className="flex items-center gap-2">
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -581,17 +615,17 @@ export function MCPConfigPanel() {
                                   setGroupForm({ name: group.name, description: group.description || '' })
                                   setIsGroupDialogOpen(true)
                                 }}
-                                disabled={isSubmitting}
-                                className="h-8 w-8 p-0"
+                                className="text-blue-600 hover:text-blue-800"
                               >
-                                <Edit className="w-4 h-4" />
+                                <Edit className="w-4 h-4 mr-1" />
+                                编辑
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleRegenerateApiKey(group.id)}
-                                disabled={isSubmitting}
-                                className="h-8 w-8 p-0"
+                                className="text-green-600 hover:text-green-800"
+                                title="重新生成API密钥"
                               >
                                 <RotateCcw className="w-4 h-4" />
                               </Button>
@@ -599,56 +633,35 @@ export function MCPConfigPanel() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleDeleteGroup(group.id)}
-                                disabled={isSubmitting}
-                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                className="text-red-600 hover:text-red-800"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
               
-              {/* 分组分页组件 */}
-              {filteredGroups.length > 0 && groupTotalPages > 1 && (
-                <div className="mt-6 flex justify-center">
-                  <div className="flex space-x-2">
-                    <Button
-                      onClick={() => setGroupCurrentPage(groupCurrentPage - 1)}
-                      disabled={groupCurrentPage === 1}
-                      variant="outline"
-                      size="sm"
-                      className="px-3"
-                    >
-                      上一页
-                    </Button>
-                    
-                    {Array.from({ length: groupTotalPages }, (_, i) => (
-                      <Button
-                        key={i}
-                        onClick={() => setGroupCurrentPage(i + 1)}
-                        variant={groupCurrentPage === i + 1 ? "default" : "outline"}
-                        size="sm"
-                        className={`px-3 ${groupCurrentPage === i + 1 ? 'bg-orange-500 hover:bg-orange-600' : ''}`}
-                      >
-                        {i + 1}
-                      </Button>
-                    ))}
-                    
-                    <Button
-                      onClick={() => setGroupCurrentPage(groupCurrentPage + 1)}
-                      disabled={groupCurrentPage === groupTotalPages}
-                      variant="outline"
-                      size="sm"
-                      className="px-3"
-                    >
-                      下一页
-                    </Button>
-                  </div>
+              {/* 分页组件 - 参考资源管理模块 */}
+              {filteredGroups.length > 0 && (
+                <div className="mt-6">
+                  <EnhancedPagination
+                    currentPage={groupCurrentPage}
+                    totalPages={groupTotalPages}
+                    totalItems={filteredGroups.length}
+                    itemsPerPage={groupItemsPerPage}
+                    itemsPerPageOptions={[5, 10, 20, 50, 100]}
+                    onPageChange={setGroupCurrentPage}
+                    onItemsPerPageChange={(newLimit) => {
+                      setGroupItemsPerPage(newLimit)
+                      setGroupCurrentPage(1)
+                    }}
+                    showPageInput={true}
+                  />
                 </div>
               )}
             </CardContent>
@@ -677,39 +690,38 @@ export function MCPConfigPanel() {
               </div>
             </CardHeader>
             <CardContent>
-              {/* 工具查询区域 */}
-              {allTools.length > 0 && (
-                <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                  <h3 className="mb-4 text-sm font-medium text-gray-800">工具查询</h3>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <div>
-                      <Label htmlFor="toolName" className="mb-2 block text-sm font-medium">工具名称</Label>
-                      <Input
-                        id="toolName"
-                        value={toolSearchName}
-                        onChange={(e) => setToolSearchName(e.target.value)}
-                        placeholder="搜索工具名称"
-                        className="w-full"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="toolGroup" className="mb-2 block text-sm font-medium">所属分组</Label>
-                      <Select value={toolSearchGroup} onValueChange={setToolSearchGroup}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="选择分组" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">全部分组</SelectItem>
-                          {allGroups.map((group) => (
-                            <SelectItem key={group.id} value={group.name}>
-                              {group.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+              {/* 搜索区域 - 参考资源管理模块样式 */}
+              <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow">
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <Label htmlFor="toolSearch" className="mb-2 block text-sm font-medium">关键词搜索</Label>
+                    <Input
+                      id="toolSearch"
+                      value={toolSearchName}
+                      onChange={(e) => setToolSearchName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          filterTools()
+                        }
+                      }}
+                      placeholder="搜索工具名称或描述..."
+                      className="w-full max-w-md"
+                    />
                   </div>
-                  <div className="mt-4 flex justify-end space-x-2">
+                  <div className="flex items-end gap-2 pb-1">
+                    <Select value={toolSearchGroup} onValueChange={setToolSearchGroup}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="所属分组" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部分组</SelectItem>
+                        {Array.isArray(allGroups) && allGroups.length > 0 && allGroups.map((group) => (
+                          <SelectItem key={group.id} value={group.name}>
+                            {group.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <Button variant="outline" onClick={resetToolFilters}>
                       重置
                     </Button>
@@ -718,126 +730,129 @@ export function MCPConfigPanel() {
                     </Button>
                   </div>
                 </div>
-              )}
+              </div>
 
-              {filteredTools.length === 0 && allTools.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="text-gray-400 mb-2">
-                    <Settings className="w-12 h-12 mx-auto" />
-                  </div>
-                  <p className="text-gray-600">暂无MCP工具</p>
-                  <p className="text-sm text-gray-500">点击上方"刷新工具列表"按钮从服务器同步工具信息</p>
-                </div>
-              ) : filteredTools.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="text-gray-400 mb-2">
-                    <Settings className="w-12 h-12 mx-auto" />
-                  </div>
-                  <p className="text-gray-600">未找到匹配的工具</p>
-                  <p className="text-sm text-gray-500">请调整查询条件或重置查询</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-16">序号</TableHead>
-                        <TableHead>工具名称</TableHead>
-                        <TableHead>所属分组</TableHead>
-                        <TableHead className="w-20">版本</TableHead>
-                        <TableHead>描述</TableHead>
-                        <TableHead className="w-24">超时时间</TableHead>
-                        <TableHead className="w-20">状态</TableHead>
-                        <TableHead className="w-24">操作</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {currentTools.map((tool, index) => (
-                        <TableRow key={tool.id}>
-                          <TableCell className="font-medium">{toolIndexOfFirstItem + index + 1}</TableCell>
-                          <TableCell className="font-medium text-gray-800">{tool.tool_name}</TableCell>
-                          <TableCell>
+              {/* 表格区域 - 参考资源管理模块样式 */}
+              <div className="overflow-hidden rounded-lg border border-gray-200 shadow">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        序号
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        工具名称
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        所属分组
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        版本
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        描述
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        超时时间
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        状态
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        操作
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {isLoading ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-12 text-center">
+                          <div className="flex justify-center">
+                            <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : filteredTools.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-4 text-center text-sm text-gray-500">
+                          {allTools.length === 0 ? '暂无MCP工具，点击上方"刷新工具列表"按钮从服务器同步工具信息' : '未找到匹配的工具，请调整查询条件或重置查询'}
+                        </td>
+                      </tr>
+                    ) : (
+                      currentTools.map((tool, index) => (
+                        <tr key={tool.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                            {toolIndexOfFirstItem + index + 1}
+                          </td>
+                          <td className="px-6 py-4 text-sm">
+                            <div className="font-medium text-gray-900">{tool.tool_name}</div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-500">
                             <Badge variant="outline" className="text-xs">
                               {tool.group_name || '未分组'}
                             </Badge>
-                          </TableCell>
-                          <TableCell className="text-sm text-gray-600">{tool.version}</TableCell>
-                          <TableCell className="text-gray-600 max-w-xs truncate">{tool.description || '-'}</TableCell>
-                          <TableCell className="text-sm text-gray-600">{tool.timeout_seconds}秒</TableCell>
-                          <TableCell>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            {tool.version}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            {tool.description || '-'}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            {tool.timeout_seconds}秒
+                          </td>
+                          <td className="px-6 py-4 text-sm">
                             <Switch
                               checked={tool.enabled}
                               onCheckedChange={(checked) => handleToggleTool(tool.id, checked)}
                               disabled={isSubmitting}
                             />
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-1">
-                              <Button 
-                                variant="ghost" 
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
                                 size="sm"
                                 onClick={() => handleEditTool(tool)}
-                                disabled={isSubmitting}
-                                className="h-8 w-8 p-0"
-                                title="编辑工具基本信息"
+                                className="text-blue-600 hover:text-blue-800"
                               >
-                                <Edit className="w-4 h-4" />
+                                <Edit className="w-4 h-4 mr-1" />
+                                编辑
                               </Button>
-                              <Button 
-                                variant="ghost" 
+                              <Button
+                                variant="ghost"
                                 size="sm"
                                 onClick={() => handleConfigTool(tool)}
-                                disabled={isSubmitting}
-                                className="h-8 w-8 p-0"
-                                title="高级配置参数"
+                                className="text-gray-600 hover:text-gray-800"
+                                title="高级配置"
                               >
                                 <Settings className="w-4 h-4" />
                               </Button>
                             </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
               
-              {/* 工具分页组件 */}
-              {filteredTools.length > 0 && toolTotalPages > 1 && (
-                <div className="mt-6 flex justify-center">
-                  <div className="flex space-x-2">
-                    <Button
-                      onClick={() => setToolCurrentPage(toolCurrentPage - 1)}
-                      disabled={toolCurrentPage === 1}
-                      variant="outline"
-                      size="sm"
-                      className="px-3"
-                    >
-                      上一页
-                    </Button>
-                    
-                    {Array.from({ length: toolTotalPages }, (_, i) => (
-                      <Button
-                        key={i}
-                        onClick={() => setToolCurrentPage(i + 1)}
-                        variant={toolCurrentPage === i + 1 ? "default" : "outline"}
-                        size="sm"
-                        className={`px-3 ${toolCurrentPage === i + 1 ? 'bg-orange-500 hover:bg-orange-600' : ''}`}
-                      >
-                        {i + 1}
-                      </Button>
-                    ))}
-                    
-                    <Button
-                      onClick={() => setToolCurrentPage(toolCurrentPage + 1)}
-                      disabled={toolCurrentPage === toolTotalPages}
-                      variant="outline"
-                      size="sm"
-                      className="px-3"
-                    >
-                      下一页
-                    </Button>
-                  </div>
+              {/* 分页组件 - 参考资源管理模块 */}
+              {filteredTools.length > 0 && (
+                <div className="mt-6">
+                  <EnhancedPagination
+                    currentPage={toolCurrentPage}
+                    totalPages={toolTotalPages}
+                    totalItems={filteredTools.length}
+                    itemsPerPage={toolItemsPerPage}
+                    itemsPerPageOptions={[5, 10, 20, 50, 100]}
+                    onPageChange={setToolCurrentPage}
+                    onItemsPerPageChange={(newLimit) => {
+                      setToolItemsPerPage(newLimit)
+                      setToolCurrentPage(1)
+                    }}
+                    showPageInput={true}
+                  />
                 </div>
               )}
             </CardContent>

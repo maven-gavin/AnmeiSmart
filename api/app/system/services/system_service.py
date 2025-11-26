@@ -8,8 +8,8 @@ from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-from app.system.models.system import SystemSettings
-from app.system.schemas.system import SystemSettingsUpdate, SystemSettingsResponse, SystemSettings
+from app.system.models.system import SystemSettings as SystemSettingsModel
+from app.system.schemas.system import SystemSettingsUpdate, SystemSettingsResponse, SystemSettings as SystemSettingsSchema
 from app.common.deps.uuid_utils import system_id
 from app.core.api import BusinessException, ErrorCode
 
@@ -24,11 +24,11 @@ class SystemService:
     
     def get_system_settings(self) -> SystemSettingsResponse:
         """获取系统设置"""
-        settings = self.db.query(SystemSettings).first()
+        settings = self.db.query(SystemSettingsModel).first()
         
         if not settings:
             # 创建默认设置
-            settings = SystemSettings(
+            settings = SystemSettingsModel(
                 id=system_id(),
                 site_name="安美智能咨询系统",
                 logo_url="/logo.png",
@@ -42,7 +42,7 @@ class SystemService:
             logger.info("创建了默认系统设置")
         
         # 手动构建响应Schema（因为字段名不同：snake_case vs camelCase）
-        settings_schema = SystemSettings(
+        settings_schema = SystemSettingsSchema(
             siteName=settings.site_name,
             logoUrl=settings.logo_url,
             defaultModelId=settings.default_model_id,
@@ -58,10 +58,10 @@ class SystemService:
     
     def update_system_settings(self, settings_update: SystemSettingsUpdate) -> SystemSettingsResponse:
         """更新系统设置"""
-        settings = self.db.query(SystemSettings).first()
+        settings = self.db.query(SystemSettingsModel).first()
         
         if not settings:
-            raise BusinessException("系统设置未找到，请先初始化系统", code=ErrorCode.RESOURCE_NOT_FOUND)
+            raise BusinessException("系统设置未找到，请先初始化系统", code=ErrorCode.NOT_FOUND)
         
         # 更新字段
         update_dict = settings_update.model_dump(exclude_unset=True)
@@ -84,7 +84,7 @@ class SystemService:
         self.db.refresh(settings)
         
         # 手动构建响应Schema（因为字段名不同：snake_case vs camelCase）
-        settings_schema = SystemSettings(
+        settings_schema = SystemSettingsSchema(
             siteName=settings.site_name,
             logoUrl=settings.logo_url,
             defaultModelId=settings.default_model_id,
