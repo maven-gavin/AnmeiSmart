@@ -484,6 +484,34 @@ INFO  顾问回复广播完成: conversation_id=conv_123, consultant_id=consulta
 - **消息广播**：`ws:broadcast` Channel进行跨实例消息传递
 - **状态同步**：`ws:presence` Channel同步用户上下线状态
 
+#### ⚠️ Redis Pub/Sub 重要特性
+
+**关键发现**：Redis Pub/Sub 有一个重要特性：**发布者不会收到自己发布的消息**。
+
+这意味着：
+- 如果消息发布到Redis，只有**其他实例**的监听器会收到
+- **当前实例**的监听器不会收到自己发布的消息
+- 如果目标用户在当前实例有连接，消息会丢失
+
+**解决方案**：在 `DistributedConnectionManager.send_to_user()` 中实现智能路由：
+1. **先检查本地连接**：如果目标用户在当前实例有连接，直接发送到本地WebSocket（不经过Redis）
+2. **否则通过Redis广播**：如果用户在其他实例，通过Redis广播，其他实例的监听器会接收并发送
+
+```python
+async def send_to_user(self, user_id: str, payload: dict):
+    """向指定用户发送消息"""
+    # Redis Pub/Sub的特性：发布者不会收到自己发布的消息
+    # 所以如果用户在当前实例有连接，直接发送；否则通过Redis广播
+    is_locally_connected = self.connection_manager.is_user_connected(user_id)
+    
+    if is_locally_connected:
+        # 直接发送到本地连接
+        await self._send_to_local_user(user_id, payload)
+    else:
+        # 通过Redis广播（其他实例的监听器会收到）
+        await self.message_router.send_to_user(user_id, payload)
+```
+
 ### 多设备支持
 
 - 按用户ID组织连接（兼容现有逻辑）
@@ -495,14 +523,22 @@ INFO  顾问回复广播完成: conversation_id=conv_123, consultant_id=consulta
 ### ✅ 推荐做法
 
 - **前端**：使用页面级连接管理，配置驱动的WebSocket需求定义
-- **后端**：复用数据库会话，使用依赖注入管理服务实例
+- **后端**：
+  - 复用数据库会话，使用依赖注入管理服务实例
+  - **消息发送优先本地**：如果目标用户在当前实例有连接，直接发送，避免Redis Pub/Sub的局限性
+  - **统一连接管理器实例**：确保 `broadcasting_factory` 和 `websocket_factory` 使用同一个 `DistributedConnectionManager` 实例
+  - **在线状态检查优化**：先检查本地连接（更可靠），再检查Redis状态
 - **推送**：合理使用设备类型过滤，减少不必要的推送
 - **错误处理**：提供清晰的连接状态反馈和错误恢复机制
 
 ### ❌ 避免做法
 
 - **前端**：手动管理全局连接，在不需要的页面开启WebSocket
-- **后端**：频繁创建广播服务实例，忽视数据库会话管理
+- **后端**：
+  - 频繁创建广播服务实例，忽视数据库会话管理
+  - **避免**：总是通过Redis发送消息，忽略本地连接检查（会导致消息丢失）
+  - **避免**：创建多个 `DistributedConnectionManager` 实例（会导致监听器不一致）
+  - **避免**：只依赖Redis检查在线状态（可能存在同步延迟）
 - **通用**：忽视错误处理，频繁连接断开
 
 ## 监控和调试
@@ -523,6 +559,47 @@ INFO  顾问回复广播完成: conversation_id=conv_123, consultant_id=consulta
 - 推送成功率
 - 设备连接分布
 - Redis发布订阅性能
+
+### 关键日志追踪
+
+系统提供了详细的日志追踪机制，帮助快速定位问题：
+
+#### 后端日志标签
+
+- `[广播]`：消息广播流程（开始、参与者列表、发送统计）
+- `[参与者]`：参与者列表获取过程
+- `[发送]`：用户在线状态检查、消息发送成功/失败
+- `[路由]`：Redis消息发布和路由决策
+- `[监听器]`：Redis监听器接收和处理消息
+- `[广播处理]`：接收到的广播消息处理
+- `[本地发送]`：本地连接检查和发送结果
+- `[本地连接]`：WebSocket实际发送到连接的日志
+- `[在线状态]`：在线状态检查和管理
+
+#### 前端日志标签
+
+- `[WebSocket]`：原始消息和适配后消息
+- `[MessageEventHandler]`：事件处理过程
+- `[useWebSocketByPage]`：回调触发和消息设置
+- `[page.tsx]`：消息添加到列表的过程
+
+#### 故障排查流程
+
+1. **消息未实时显示**
+   - 检查后端 `[广播]` 日志，确认消息是否开始广播
+   - 检查 `[发送]` 日志，确认用户在线状态
+   - 检查 `[路由]` 日志，确认是否通过Redis或本地发送
+   - 检查前端 `[WebSocket]` 日志，确认是否收到消息
+   - 检查 `[MessageEventHandler]` 日志，确认事件是否被处理
+
+2. **在线状态不准确**
+   - 检查 `[在线状态]` 日志，查看本地连接和Redis状态
+   - 确认连接建立时是否调用了 `add_user_to_online`
+   - 检查是否有多个连接管理器实例
+
+3. **Redis消息丢失**
+   - 确认是否因为Redis Pub/Sub特性导致（发布者收不到自己的消息）
+   - 检查是否实现了本地优先发送策略
 
 ## 配置文件和环境变量
 
@@ -633,8 +710,120 @@ except Exception as e:
     # 服务内部会自动记录错误并继续运行
 ```
 
+## 重要修复经验
+
+### 1. Redis Pub/Sub 消息路由优化（2025-11-27）
+
+**问题**：用户发送消息后，接收方无法实时收到，需要刷新页面才能看到。
+
+**根本原因**：
+- Redis Pub/Sub 的特性：发布者不会收到自己发布的消息
+- 如果目标用户在当前实例有连接，消息通过Redis发布后，当前实例的监听器收不到
+- 导致消息丢失，用户无法实时看到
+
+**解决方案**：
+- 在 `DistributedConnectionManager.send_to_user()` 中实现智能路由
+- 先检查用户是否在当前实例有连接
+- 如果有，直接发送到本地WebSocket连接（不经过Redis）
+- 如果没有，通过Redis广播（其他实例的监听器会接收）
+
+**关键代码**：
+```python
+async def send_to_user(self, user_id: str, payload: dict):
+    is_locally_connected = self.connection_manager.is_user_connected(user_id)
+    
+    if is_locally_connected:
+        # 直接发送到本地连接
+        await self._send_to_local_user(user_id, payload)
+    else:
+        # 通过Redis广播
+        await self.message_router.send_to_user(user_id, payload)
+```
+
+### 2. 在线状态检查优化（2025-11-27）
+
+**问题**：在线状态检查不准确，导致消息被误判为离线推送。
+
+**解决方案**：
+- 先检查本地连接（更可靠）
+- 如果本地有连接但Redis显示离线，自动更新Redis状态
+- 返回本地连接或Redis在线的结果
+
+**关键代码**：
+```python
+async def is_user_online(self, user_id: str) -> bool:
+    # 先检查本地连接（更可靠）
+    is_locally_connected = self.connection_manager.is_user_connected(user_id)
+    is_redis_online = await self.presence_manager.is_user_online(user_id)
+    
+    # 如果本地有连接但Redis显示离线，更新Redis状态
+    if is_locally_connected and not is_redis_online:
+        await self.presence_manager.add_user_to_online(user_id)
+        return True
+    
+    return is_locally_connected or is_redis_online
+```
+
+### 3. 连接管理器实例统一（2025-11-27）
+
+**问题**：`broadcasting_factory` 和 `websocket_factory` 各自创建了 `DistributedConnectionManager` 实例，导致监听器不一致。
+
+**解决方案**：
+- `broadcasting_factory` 现在使用 `websocket_factory` 的连接管理器实例
+- 确保整个应用只有一个 `DistributedConnectionManager` 实例
+- 所有服务共享同一个Redis监听器
+
+### 4. sender_type 枚举值简化（2025-11-27）
+
+**问题**：`sender_type` 枚举包含多个角色类型（customer、consultant、doctor等），但实际业务只需要区分智能聊天消息和系统消息。
+
+**解决方案**：
+- 将枚举值简化为两种：`'chat'`（智能聊天消息）和 `'system'`（系统消息）
+- 所有智能聊天消息统一使用 `sender_type='chat'`
+- 系统消息使用 `sender_type='system'`
+- 移除了角色映射逻辑，简化了代码
+
+**数据库迁移**：
+- 创建迁移文件，将现有数据中的非 `system` 值更新为 `chat`
+- 重建枚举类型，只保留 `chat` 和 `system`
+
+### 5. 参与者列表获取优化（2025-11-27）
+
+**问题**：`_get_conversation_participants` 只查询了 `ConversationParticipant` 表，未包含会话的 `owner`。
+
+**解决方案**：
+- 同时包含 `owner` 和 `participants`
+- 确保所有相关用户都能收到广播消息
+
+**关键代码**：
+```python
+async def _get_conversation_participants(self, conversation_id: str) -> List[str]:
+    # 查询会话信息（获取owner）
+    conversation = self.db.query(Conversation).filter(
+        Conversation.id == conversation_id
+    ).first()
+    
+    participant_ids = set()
+    
+    # 添加owner
+    if conversation and conversation.owner_id:
+        participant_ids.add(str(conversation.owner_id))
+    
+    # 添加所有参与者
+    participants = self.db.query(ConversationParticipant).filter(
+        ConversationParticipant.conversation_id == conversation_id,
+        ConversationParticipant.is_active == True
+    ).all()
+    
+    for p in participants:
+        if p.user_id:
+            participant_ids.add(str(p.user_id))
+    
+    return list(participant_ids)
+```
+
 ---
 
 **架构版本**：WebSocket V2 + BroadcastingService V1 + 重构完成
 **状态**：重构完成，已完全部署并投入使用
-**最后更新**：基于重构后的实际代码实现整理
+**最后更新**：2025-11-27 - 添加Redis Pub/Sub优化、在线状态检查优化、连接管理器统一等重要修复经验
