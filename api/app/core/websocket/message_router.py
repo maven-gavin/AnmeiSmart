@@ -99,7 +99,7 @@ class MessageRouter:
         self.message_counters[user_id][str(current_time)] += 1
     
     async def send_to_user(self, user_id: str, payload: Dict[str, Any]) -> None:
-        """向指定用户发送消息"""
+        """向指定用户发送消息（通过Redis广播）"""
         try:
             # 验证消息大小
             self._validate_message_size(payload)
@@ -118,11 +118,13 @@ class MessageRouter:
             }
             
             # 发布到Redis
+            # 注意：Redis Pub/Sub的特性是发布者不会收到自己发布的消息
+            # 所以如果目标用户在当前实例，需要在调用此方法前先检查并直接发送
             await self.redis_client.publish(self.broadcast_channel, json.dumps(message))
-            logger.debug(f"消息已发布到Redis: user_id={user_id}")
+            logger.info(f"[路由] 消息已发布到Redis: user_id={user_id}, action={payload.get('action')}, message_id={payload.get('data', {}).get('id')}, instance_id={self.instance_id}, channel={self.broadcast_channel}")
             
         except Exception as e:
-            logger.error(f"发送消息到用户失败: {e}")
+            logger.error(f"[路由] 发送消息到用户失败: user_id={user_id}, error={e}", exc_info=True)
             raise
     
     async def send_to_device(self, connection_id: str, payload: Dict[str, Any]) -> None:
@@ -212,16 +214,18 @@ class MessageRouter:
         success_count = 0
         disconnected_connections = []
         
+        logger.info(f"[本地连接] 开始发送到 {len(connections)} 个连接, action={payload.get('action')}")
+        
         for websocket in connections:
             try:
                 await websocket.send_json(payload)
                 success_count += 1
+                logger.debug(f"[本地连接] WebSocket消息发送成功: connection_count={success_count}")
             except Exception as e:
-                logger.warning(f"向WebSocket发送消息失败: {e}")
+                logger.warning(f"[本地连接] 向WebSocket发送消息失败: {e}", exc_info=True)
                 disconnected_connections.append(websocket)
         
-        if success_count > 0:
-            logger.debug(f"本地消息发送成功: count={success_count}")
+        logger.info(f"[本地连接] 发送完成: success={success_count}, failed={len(disconnected_connections)}, total={len(connections)}")
         
         return success_count, disconnected_connections
     

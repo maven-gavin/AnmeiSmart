@@ -81,8 +81,8 @@ class Message(BaseModel):
     sender_id = Column(String(36), ForeignKey("users.id"), nullable=True, comment="发送者用户ID")
     sender_digital_human_id = Column(String(36), ForeignKey("digital_humans.id"), nullable=True, 
                                     comment="发送者数字人ID")
-    sender_type = Column(Enum("customer", "consultant", "doctor", "system", "digital_human", name="sender_type"), 
-                         nullable=False, comment="发送者类型")
+    sender_type = Column(Enum("chat", "system", name="sender_type"), 
+                         nullable=False, default="chat", comment="发送者类型：chat(智能聊天消息), system(系统消息)")
     
     # 消息状态
     is_read = Column(Boolean, default=False, comment="是否已读")

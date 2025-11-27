@@ -121,30 +121,6 @@ class ChatService:
         
         return ConversationInfo.from_model(conversation, last_message=last_message)
     
-    def get_user_role(self, user: User) -> str:
-        """获取用户的当前角色，并映射到sender_type枚举值"""
-        from app.identity_access.deps.permission_deps import get_user_primary_role
-        logger.info(f"服务：获取用户角色 - user_id={user.id}")
-        role = get_user_primary_role(user)
-        logger.info(f"服务：获取到用户角色 = {role}")
-        
-        # 将角色映射到sender_type枚举值
-        # sender_type枚举值：customer, consultant, doctor, system, digital_human
-        role_mapping = {
-            "admin": "consultant",  # 管理员映射为顾问
-            "administrator": "consultant",
-            "super_admin": "consultant",
-            "customer": "customer",
-            "consultant": "consultant",
-            "doctor": "doctor",
-            "operator": "consultant",  # 操作员映射为顾问
-            "system": "system",
-            "digital_human": "digital_human"
-        }
-        
-        mapped_role = role_mapping.get(role, "customer")  # 默认映射为customer
-        logger.info(f"服务：角色映射 {role} -> {mapped_role}")
-        return mapped_role
     
     def get_conversations(
         self,
@@ -376,7 +352,7 @@ class ChatService:
         conversation_id: str,
         sender_id: str,
         content: str,
-        sender_type: str = "customer",
+        sender_type: str = "chat",
         reply_to_message_id: Optional[str] = None
     ) -> MessageInfo:
         """创建文本消息"""
@@ -408,7 +384,8 @@ class ChatService:
         # 更新会话统计
         conversation.message_count = (conversation.message_count or 0) + 1
         conversation.last_message_at = datetime.now()
-        if sender_type != "customer":
+        # 如果发送者不是会话所有者，增加未读计数
+        if sender_id != str(conversation.owner_id):
             conversation.unread_count = (conversation.unread_count or 0) + 1
         
         self.db.commit()
@@ -430,7 +407,7 @@ class ChatService:
         media_type: str,
         media_url: str,
         text: Optional[str] = None,
-        sender_type: str = "customer"
+        sender_type: str = "chat"
     ) -> MessageInfo:
         """创建媒体消息"""
         # 验证会话存在
@@ -462,7 +439,8 @@ class ChatService:
         # 更新会话统计
         conversation.message_count = (conversation.message_count or 0) + 1
         conversation.last_message_at = datetime.now()
-        if sender_type != "customer":
+        # 如果发送者不是会话所有者，增加未读计数
+        if sender_id != str(conversation.owner_id):
             conversation.unread_count = (conversation.unread_count or 0) + 1
         
         self.db.commit()
@@ -604,8 +582,6 @@ class ChatService:
         sender: User
     ) -> MessageInfo:
         """创建通用消息用例"""
-        sender_role = self.get_user_role(sender)
-        
         # 验证content字段
         if not request.content:
             raise BusinessException("消息内容不能为空", code=ErrorCode.INVALID_INPUT)
@@ -627,7 +603,7 @@ class ChatService:
                 conversation_id=conversation_id,
                 sender_id=str(sender.id),
                 content=text,
-                sender_type=sender_role,
+                sender_type="chat",  # 智能聊天消息统一使用chat
                 reply_to_message_id=request.reply_to_message_id
             )
         elif request.type == "media":
@@ -642,7 +618,7 @@ class ChatService:
                     media_type=media_type,
                     media_url=media_url,
                     text=text,
-                    sender_type=sender_role
+                    sender_type="chat"  # 智能聊天消息统一使用chat
                 )
             else:
                 raise ValueError("媒体消息内容格式不正确")
@@ -656,12 +632,11 @@ class ChatService:
         sender: User
     ) -> MessageInfo:
         """创建文本消息用例"""
-        sender_role = self.get_user_role(sender)
         return self.create_text_message(
             conversation_id=conversation_id,
             sender_id=str(sender.id),
             content=request.text,
-            sender_type=sender_role,
+            sender_type="chat",  # 智能聊天消息统一使用chat
             reply_to_message_id=request.reply_to_message_id
         )
     
@@ -672,7 +647,6 @@ class ChatService:
         sender: User
     ) -> MessageInfo:
         """创建媒体消息用例"""
-        sender_role = self.get_user_role(sender)
         # 从请求中提取媒体类型（可以根据 media_url 或 mime_type 推断）
         media_type = getattr(request, 'media_type', 'image')
         if hasattr(request, 'mime_type') and request.mime_type:
@@ -690,7 +664,7 @@ class ChatService:
             media_type=media_type,
             media_url=request.media_url,
             text=getattr(request, 'text', None),
-            sender_type=sender_role
+            sender_type="chat"  # 智能聊天消息统一使用chat
         )
     
     def create_system_event_message_use_case(
@@ -701,8 +675,9 @@ class ChatService:
     ) -> MessageInfo:
         """创建系统事件消息用例"""
         # 权限检查：只有管理员可以创建系统事件消息
-        sender_role = self.get_user_role(sender)
-        if sender_role not in ["admin", "system"]:
+        from app.identity_access.deps.permission_deps import get_user_primary_role
+        sender_role = get_user_primary_role(sender)
+        if sender_role not in ["admin", "administrator", "super_admin"]:
             raise PermissionError("只有管理员可以创建系统事件消息")
         
         # 验证会话存在
@@ -748,8 +723,6 @@ class ChatService:
         sender: User
     ) -> MessageInfo:
         """创建结构化消息用例"""
-        sender_role = self.get_user_role(sender)
-        
         # 验证会话存在
         conversation = self.db.query(Conversation).filter(
             Conversation.id == conversation_id
@@ -771,7 +744,7 @@ class ChatService:
             },
             type="structured",
             sender_id=str(sender.id),
-            sender_type=sender_role,
+            sender_type="chat",  # 智能聊天消息统一使用chat
             is_read=False,
             extra_metadata=getattr(request, 'metadata', None)
         )
@@ -781,7 +754,8 @@ class ChatService:
         # 更新会话统计
         conversation.message_count = (conversation.message_count or 0) + 1
         conversation.last_message_at = datetime.now()
-        if sender_role != "customer":
+        # 如果发送者不是会话所有者，增加未读计数
+        if str(sender.id) != str(conversation.owner_id):
             conversation.unread_count = (conversation.unread_count or 0) + 1
         
         self.db.commit()
@@ -834,7 +808,6 @@ class ChatService:
         self,
         conversation_id: str,
         sender_id: str,
-        sender_type: str,
         media_url: str,
         media_name: Optional[str] = None,
         mime_type: Optional[str] = None,
@@ -880,7 +853,7 @@ class ChatService:
             content=content,
             type="media",
             sender_id=sender_id,
-            sender_type=sender_type,
+            sender_type="chat",  # 智能聊天消息统一使用chat
             is_read=False,
             is_important=is_important
         )
@@ -894,7 +867,8 @@ class ChatService:
         if conversation:
             conversation.message_count = (conversation.message_count or 0) + 1
             conversation.last_message_at = datetime.now()
-            if sender_type != "customer":
+            # 如果发送者不是会话所有者，增加未读计数
+            if sender_id != str(conversation.owner_id):
                 conversation.unread_count = (conversation.unread_count or 0) + 1
         
         self.db.commit()

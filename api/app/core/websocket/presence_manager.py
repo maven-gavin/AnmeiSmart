@@ -33,11 +33,11 @@ class PresenceManager:
             async with self._cache_lock:
                 self._local_online_users.add(user_id)
             
-            logger.debug(f"用户添加到在线列表: {user_id}, 之前在线: {was_online}")
+            logger.info(f"[在线状态] 用户添加到在线列表: user_id={user_id}, 之前在线: {was_online}, redis_result={result}")
             return was_online
             
         except Exception as e:
-            logger.error(f"添加用户到在线列表失败: {e}")
+            logger.error(f"[在线状态] 添加用户到在线列表失败: user_id={user_id}, error={e}", exc_info=True)
             return False
     
     async def remove_user_from_online(self, user_id: str) -> bool:
@@ -64,11 +64,14 @@ class PresenceManager:
             # 先检查本地缓存
             async with self._cache_lock:
                 if user_id in self._local_online_users:
+                    logger.debug(f"[在线状态] 本地缓存命中: user_id={user_id}, 在线=True")
                     return True
             
             # 如果本地缓存没有，检查Redis
             result = await self.redis_client.execute_command("SISMEMBER", self.online_users_key, user_id)
             is_online = bool(result)
+            
+            logger.info(f"[在线状态] Redis检查: user_id={user_id}, is_online={is_online}, redis_result={result}")
             
             # 更新本地缓存
             async with self._cache_lock:
@@ -80,7 +83,7 @@ class PresenceManager:
             return is_online
             
         except Exception as e:
-            logger.error(f"检查用户在线状态失败: {e}")
+            logger.error(f"[在线状态] 检查用户在线状态失败: user_id={user_id}, error={e}", exc_info=True)
             return False
     
     async def get_online_users(self) -> Set[str]:

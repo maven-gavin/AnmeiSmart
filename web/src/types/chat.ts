@@ -19,7 +19,7 @@ export interface Customer {
   priority?: 'low' | 'medium' | 'high';
 }
 
-export type SenderType = 'user' | 'consultant' | 'doctor' | 'ai' | 'system' | 'customer' | 'operator' | 'admin' | 'digital_human';
+export type SenderType = 'chat' | 'system';
 
 // 消息发送状态
 export type MessageStatus = 'pending' | 'sent' | 'failed';

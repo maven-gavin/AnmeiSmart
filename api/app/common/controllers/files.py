@@ -74,7 +74,6 @@ async def upload_file(
         message_info = chat_service.create_media_message_with_details(
             conversation_id=conversation_id,
             sender_id=current_user.id,
-            sender_type=get_user_primary_role(current_user),
             media_url=file_info_dict["file_url"],
             media_name=file_info_dict["file_name"],
             mime_type=file_info_dict["mime_type"],
@@ -504,7 +503,6 @@ async def complete_upload(
         message_info = chat_service.create_media_message_with_details(
             conversation_id=request.conversation_id,
             sender_id=current_user.id,
-            sender_type=get_user_primary_role(current_user),
             media_url=file_info_dict["file_url"],
             media_name=file_info_dict["file_name"],
             mime_type=file_info_dict["mime_type"],

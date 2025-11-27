@@ -16,24 +16,12 @@ logger = logging.getLogger(__name__)
 
 # 全局服务实例缓存
 _broadcasting_service: Optional[BroadcastingService] = None
-_connection_manager: Optional[DistributedConnectionManager] = None
 
-
+# 注意：连接管理器应该从 websocket_factory 获取，确保使用同一个实例
 async def get_connection_manager() -> DistributedConnectionManager:
-    """获取或创建分布式连接管理器实例"""
-    global _connection_manager
-    
-    if _connection_manager is None:
-        try:
-            redis_client = await get_redis_client()
-            _connection_manager = DistributedConnectionManager(redis_client)
-            await _connection_manager.initialize()
-            logger.info("分布式连接管理器初始化成功")
-        except Exception as e:
-            logger.error(f"初始化分布式连接管理器失败: {e}")
-            raise
-    
-    return _connection_manager
+    """获取分布式连接管理器实例（从websocket_factory获取，确保单例）"""
+    from app.websocket.websocket_factory import get_connection_manager as get_ws_connection_manager
+    return await get_ws_connection_manager()
 
 
 async def create_broadcasting_service(db: Optional[Session] = None, notification_service: Optional[NotificationService] = None) -> BroadcastingService:
@@ -89,13 +77,10 @@ async def get_broadcasting_service(db: Optional[Session] = None) -> Broadcasting
 
 async def cleanup_broadcasting_services():
     """清理广播服务资源（应用关闭时调用）"""
-    global _broadcasting_service, _connection_manager
+    global _broadcasting_service
     
     try:
-        if _connection_manager:
-            await _connection_manager.cleanup()
-            _connection_manager = None
-            
+        # 注意：连接管理器由 websocket_factory 管理，这里不需要清理
         _broadcasting_service = None
         logger.info("广播服务资源清理完成")
         

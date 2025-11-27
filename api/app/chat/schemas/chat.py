@@ -19,7 +19,7 @@ class MessageSender(BaseModel):
     id: str
     name: str
     avatar: Optional[str] = None
-    type: Literal["customer", "consultant", "doctor", "ai", "system", "digital_human"]
+    type: Literal["chat", "system"]
 
 
 # ===== 消息内容结构定义 =====
@@ -197,34 +197,20 @@ class MessageInfo(MessageBase):
         # 获取sender信息
         sender_id = getattr(message, 'sender_id', None)
         sender_digital_human_id = getattr(message, 'sender_digital_human_id', None)
-        sender_type = getattr(message, 'sender_type', 'system')
+        sender_type = getattr(message, 'sender_type', 'chat')  # 默认为chat
         
         # 构建sender对象
-        sender_name = "系统"
+        sender_name = "未知用户"
         sender_avatar = None
-        actual_sender_id = "system"
+        actual_sender_id = "unknown"
         
         if sender_type == "system":
+            # 系统消息
             sender_name = "系统"
             sender_avatar = "/avatars/system.png"
             actual_sender_id = "system"
-        elif sender_type == "digital_human":
-            # 数字人发送者
-            digital_human_obj = getattr(message, 'sender_digital_human', None)
-            if digital_human_obj:
-                sender_name = getattr(digital_human_obj, "name", "数字人助手")
-                sender_avatar = getattr(digital_human_obj, "avatar", "/avatars/ai.png")
-                actual_sender_id = sender_digital_human_id or "digital_human"
-            else:
-                sender_name = "数字人助手"
-                sender_avatar = "/avatars/ai.png"
-                actual_sender_id = sender_digital_human_id or "digital_human"
-        elif sender_type == "ai":
-            sender_name = "AI助手"
-            sender_avatar = "/avatars/ai.png"
-            actual_sender_id = sender_id or "ai"
         else:
-            # 用户发送者
+            # chat类型：智能聊天消息（用户发送）
             sender_obj = getattr(message, 'sender', None)
             if sender_obj:
                 sender_name = getattr(sender_obj, "username", "未知用户")

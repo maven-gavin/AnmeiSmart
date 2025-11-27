@@ -66,14 +66,10 @@ async def get_conversations(
     logger.info(f"端点：开始获取会话列表 - user_id={current_user.id}, skip={skip}, limit={limit}")
     
     try:
-        logger.info(f"端点：获取用户角色")
-        user_role = chat_service.get_user_role(current_user)
-        logger.info(f"端点：用户角色 = {user_role}")
-        
         logger.info(f"端点：调用服务获取会话列表")
         conversations = chat_service.get_conversations(
             user_id=str(current_user.id),
-            user_role=user_role,
+            user_role=None,  # 不再需要角色映射，sender_type统一为chat
             skip=skip,
             limit=limit
         )
@@ -356,11 +352,10 @@ async def get_conversation_summary(
     """获取会话摘要"""
     try:
         # 暂时返回会话信息作为摘要，后续可以添加专门的摘要功能
-        user_role = chat_service.get_user_role(current_user)
         summary = chat_service.get_conversation_by_id_use_case(
             conversation_id=conversation_id,
             user_id=str(current_user.id),
-            user_role=user_role
+            user_role=None  # 不再需要角色映射，sender_type统一为chat
         )
         
         if not summary:

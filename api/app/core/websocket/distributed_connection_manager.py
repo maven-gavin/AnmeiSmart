@@ -103,18 +103,27 @@ class DistributedConnectionManager:
         redis_client = await self.redis_client.get_client()
         async with redis_client.pubsub() as pubsub:
             await pubsub.subscribe(self.message_router.broadcast_channel)
-            logger.info(f"开始监听广播频道: {self.message_router.broadcast_channel}")
+            logger.info(f"[监听器] 开始监听广播频道: {self.message_router.broadcast_channel}, 实例ID={self.instance_id}")
             
             while True:
                 try:
                     message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-                    if message and message.get("type") == "message":
-                        await self._handle_broadcast_message(json.loads(message["data"]))
+                    if message:
+                        logger.debug(f"[监听器] 收到Redis消息: type={message.get('type')}, channel={message.get('channel')}")
+                        if message.get("type") == "message":
+                            try:
+                                data = json.loads(message["data"])
+                                logger.info(f"[监听器] 解析广播消息: target_user_id={data.get('target_user_id')}, instance_id={data.get('instance_id')}, 当前实例={self.instance_id}")
+                                await self._handle_broadcast_message(data)
+                            except json.JSONDecodeError as e:
+                                logger.error(f"[监听器] JSON解析失败: {e}, raw_data={message.get('data')}")
+                            except Exception as e:
+                                logger.error(f"[监听器] 处理广播消息异常: {e}", exc_info=True)
                 except asyncio.CancelledError:
-                    logger.info("广播监听器已取消")
+                    logger.info("[监听器] 广播监听器已取消")
                     break
                 except Exception as e:
-                    logger.error(f"处理广播消息失败: {e}")
+                    logger.error(f"[监听器] 广播监听器异常: {e}", exc_info=True)
                     await asyncio.sleep(1)
     
     async def _presence_listener(self):
@@ -170,11 +179,15 @@ class DistributedConnectionManager:
         try:
             parsed_data = self.message_router.parse_broadcast_message(data)
             if not parsed_data:
+                logger.warning(f"[广播处理] 无法解析广播消息: data={data}")
                 return
             
             payload = parsed_data.get("payload")
             if not payload:
+                logger.warning(f"[广播处理] 广播消息无payload: parsed_data={parsed_data}")
                 return
+            
+            logger.info(f"[广播处理] 收到广播消息: target_user_id={parsed_data.get('target_user_id')}, target_connection_id={parsed_data.get('target_connection_id')}, action={payload.get('action')}")
             
             # 按连接ID发送（精确设备）
             target_connection_id = parsed_data.get("target_connection_id")
@@ -192,9 +205,11 @@ class DistributedConnectionManager:
             # 按用户ID发送（所有设备）
             if target_user_id:
                 await self._send_to_local_user(target_user_id, payload)
+            else:
+                logger.warning(f"[广播处理] 广播消息无目标用户ID: parsed_data={parsed_data}")
                 
         except Exception as e:
-            logger.error(f"处理广播消息失败: {e}")
+            logger.error(f"[广播处理] 处理广播消息失败: {e}", exc_info=True)
     
     async def _handle_presence_message(self, data: dict):
         """处理在线状态变化消息"""
@@ -290,7 +305,18 @@ class DistributedConnectionManager:
     async def send_to_user(self, user_id: str, payload: dict):
         """向指定用户发送消息"""
         try:
-            await self.message_router.send_to_user(user_id, payload)
+            # Redis Pub/Sub的特性：发布者不会收到自己发布的消息
+            # 所以如果用户在当前实例有连接，直接发送；否则通过Redis广播
+            is_locally_connected = self.connection_manager.is_user_connected(user_id)
+            
+            if is_locally_connected:
+                logger.info(f"[路由] 用户在当前实例有连接，直接发送: user_id={user_id}, action={payload.get('action')}")
+                # 直接发送到本地连接
+                await self._send_to_local_user(user_id, payload)
+            else:
+                logger.info(f"[路由] 用户不在当前实例，通过Redis广播: user_id={user_id}, action={payload.get('action')}")
+                # 通过Redis广播（其他实例的监听器会收到）
+                await self.message_router.send_to_user(user_id, payload)
         except (MessageTooLarge, MessageRateLimitExceeded) as e:
             logger.warning(f"发送消息失败: {e}")
             raise
@@ -323,7 +349,9 @@ class DistributedConnectionManager:
     async def _send_to_local_user(self, user_id: str, payload: dict):
         """向本地连接的用户发送消息"""
         connections = self.connection_manager.get_user_connections(user_id)
+        logger.info(f"[本地发送] 检查本地连接: user_id={user_id}, connection_count={len(connections) if connections else 0}")
         if not connections:
+            logger.warning(f"[本地发送] 用户无本地连接: user_id={user_id}")
             return
         
         success_count, disconnected_connections = await self.message_router.send_to_local_connections(connections, payload)
@@ -332,8 +360,7 @@ class DistributedConnectionManager:
         for websocket in disconnected_connections:
             await self.disconnect(websocket)
         
-        if success_count > 0:
-            logger.debug(f"本地消息发送成功: user_id={user_id}, count={success_count}")
+        logger.info(f"[本地发送] 本地消息发送完成: user_id={user_id}, success={success_count}, disconnected={len(disconnected_connections)}, action={payload.get('action')}")
     
     async def _send_to_local_connection(self, connection_id: str, payload: dict):
         """向本地特定连接发送消息"""
@@ -366,7 +393,20 @@ class DistributedConnectionManager:
     # 代理方法 - 提供统一的接口
     async def is_user_online(self, user_id: str) -> bool:
         """检查用户是否在线"""
-        return await self.presence_manager.is_user_online(user_id)
+        # 先检查本地连接（更可靠）
+        is_locally_connected = self.connection_manager.is_user_connected(user_id)
+        
+        # 再检查Redis中的在线状态
+        is_redis_online = await self.presence_manager.is_user_online(user_id)
+        
+        # 如果本地有连接但Redis显示离线，更新Redis状态
+        if is_locally_connected and not is_redis_online:
+            logger.warning(f"[在线状态] 本地有连接但Redis显示离线，更新状态: user_id={user_id}")
+            await self.presence_manager.add_user_to_online(user_id)
+            return True
+        
+        logger.info(f"[在线状态] 检查结果: user_id={user_id}, 本地连接={is_locally_connected}, Redis在线={is_redis_online}")
+        return is_locally_connected or is_redis_online
     
     async def get_online_users(self) -> Set[str]:
         """获取所有在线用户列表"""

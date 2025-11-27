@@ -175,11 +175,19 @@ export function useWebSocketByPage() {
       // MessageEventHandler.handleNewMessage 会调用 invokeCallbacks('new_message', eventData)
       // 这里的 eventData 是 data 字段的内容（扁平化的消息数据）
       const newMessageCallback = (eventData: any): void => {
+        console.log('[useWebSocketByPage] 收到新消息回调:', {
+          eventData,
+          eventDataType: typeof eventData,
+          eventDataKeys: eventData ? Object.keys(eventData) : [],
+          conversationId: eventData?.conversation_id,
+          messageId: eventData?.id
+        });
         // 构造与page.tsx期望格式一致的消息对象
         setLastMessage({
           action: 'new_message',
           data: eventData  // eventData 已经是扁平化的消息数据
         });
+        console.log('[useWebSocketByPage] 已设置lastMessage');
       };
       
       // 注册通用事件回调（处理所有事件类型）

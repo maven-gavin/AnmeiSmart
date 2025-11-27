@@ -76,21 +76,41 @@ function SmartCommunicationContent() {
       console.log('处理WebSocket消息:', { action, data, selectedConversationId });
       
       if (action === 'new_message' && data) {
-        console.log('收到新消息:', data);
+        console.log('[page.tsx] 收到新消息:', {
+          action,
+          data,
+          dataType: typeof data,
+          dataKeys: data ? Object.keys(data) : [],
+          conversationId: data?.conversation_id,
+          selectedConversationId,
+          messageId: data?.id,
+          content: data?.content,
+          contentType: typeof data?.content
+        });
         
         // 检查消息是否属于当前会话
         if (data.conversation_id === selectedConversationId) {
-          console.log('消息属于当前会话，准备添加到消息列表');
+          console.log('[page.tsx] 消息属于当前会话，准备添加到消息列表');
+          
+          // 确保content是对象格式
+          let messageContent = data.content;
+          if (typeof messageContent === 'string') {
+            // 如果content是字符串，转换为对象格式
+            messageContent = { text: messageContent };
+          } else if (!messageContent || typeof messageContent !== 'object') {
+            // 如果content不存在或不是对象，使用默认值
+            messageContent = { text: '' };
+          }
           
           // 将后端消息格式转换为前端格式
           const newMessage: Message = {
             id: data.id,
             conversationId: data.conversation_id,
-            content: data.content,
+            content: messageContent,
             type: data.type || 'text',
             sender: {
               id: data.sender_id,
-              type: data.sender_type || 'user',
+              type: (data.sender_type as 'chat' | 'system') || 'chat',
               name: data.sender_name || '未知用户',
               avatar: data.sender_avatar || '/avatars/user.png'
             },
@@ -99,19 +119,19 @@ function SmartCommunicationContent() {
             is_important: data.is_important || false
           };
           
-          console.log('转换后的消息:', newMessage);
+          console.log('[page.tsx] 转换后的消息:', newMessage);
           
           // 添加到消息列表
           saveMessage(newMessage);
-          console.log('消息已添加到列表');
+          console.log('[page.tsx] 消息已添加到列表');
         } else {
-          console.log('消息不属于当前会话:', {
+          console.log('[page.tsx] 消息不属于当前会话:', {
             messageConversationId: data.conversation_id,
             currentConversationId: selectedConversationId
           });
         }
       } else {
-        console.log('不是新消息事件:', { action, data });
+        console.log('[page.tsx] 不是新消息事件:', { action, data });
       }
     }
   }, [websocketState.lastMessage, selectedConversationId, saveMessage]);

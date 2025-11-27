@@ -119,7 +119,7 @@ export class ChatDataMapper {
     // 回退到单独的字段
     return {
       id: apiResponse.sender_id || 'unknown',
-      type: (apiResponse.sender_type as any) || 'user',
+      type: (apiResponse.sender_type as 'chat' | 'system') || 'chat',
       name: apiResponse.sender_name || '未知用户',
       avatar: apiResponse.sender_avatar || '/avatars/user.png'
     };

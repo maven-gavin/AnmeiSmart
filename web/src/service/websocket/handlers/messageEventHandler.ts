@@ -97,6 +97,13 @@ export class MessageEventHandler extends MessageHandler {
    * 处理新消息事件
    */
   private handleNewMessage(eventData: any): void {
+    console.log('[MessageEventHandler] 处理新消息事件:', {
+      eventData,
+      eventDataType: typeof eventData,
+      eventDataKeys: eventData ? Object.keys(eventData) : [],
+      conversationId: eventData?.conversation_id,
+      messageId: eventData?.id
+    });
     this.invokeCallbacks('new_message', eventData);
   }
   

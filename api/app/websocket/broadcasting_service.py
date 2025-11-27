@@ -39,8 +39,11 @@ class BroadcastingService:
             exclude_user_id: 要排除的用户ID（通常是发送者）
         """
         try:
-            # 获取会话参与者（这里需要根据实际业务逻辑获取）
+            logger.info(f"[广播] 开始广播消息: conversation_id={conversation_id}, exclude_user_id={exclude_user_id}, message_id={message_data.get('id')}")
+            
+            # 获取会话参与者（包括owner和participants）
             participants = await self._get_conversation_participants(conversation_id)
+            logger.info(f"[广播] 获取到参与者列表: conversation_id={conversation_id}, participants={participants}, count={len(participants)}")
             
             # 将MessageInfo格式转换为前端期望的扁平化格式
             timestamp = message_data.get("timestamp")
@@ -72,10 +75,15 @@ class BroadcastingService:
             }
             
             # 向每个参与者发送消息
+            sent_count = 0
+            skipped_count = 0
             for participant_id in participants:
                 if exclude_user_id and participant_id == exclude_user_id:
+                    logger.info(f"[广播] 跳过发送者: user_id={participant_id}")
+                    skipped_count += 1
                     continue
                 
+                logger.info(f"[广播] 准备发送消息给用户: user_id={participant_id}, conversation_id={conversation_id}")
                 await self._send_to_user_with_fallback(
                     user_id=participant_id,
                     payload=websocket_payload,
@@ -85,8 +93,9 @@ class BroadcastingService:
                         "conversation_id": conversation_id
                     }
                 )
+                sent_count += 1
             
-            logger.info(f"消息广播完成: conversation_id={conversation_id}, participants={len(participants)}")
+            logger.info(f"[广播] 消息广播完成: conversation_id={conversation_id}, total_participants={len(participants)}, sent={sent_count}, skipped={skipped_count}")
             
         except Exception as e:
             logger.error(f"广播消息失败: {e}")
@@ -211,17 +220,18 @@ class BroadcastingService:
         try:
             # 检查用户是否在线
             is_online = await self.connection_manager.is_user_online(user_id)
+            logger.info(f"[发送] 检查用户在线状态: user_id={user_id}, is_online={is_online}")
             
             if is_online:
                 # 在线：通过WebSocket发送
                 if target_device_type:
                     # 发送到特定设备类型
                     await self.connection_manager.send_to_device_type(user_id, target_device_type, payload)
-                    logger.debug(f"实时消息已发送到设备类型: user_id={user_id}, device_type={target_device_type}")
+                    logger.info(f"[发送] 实时消息已发送到设备类型: user_id={user_id}, device_type={target_device_type}, action={payload.get('action')}")
                 else:
                     # 发送到所有设备
                     await self.connection_manager.send_to_user(user_id, payload)
-                    logger.debug(f"实时消息已发送: user_id={user_id}")
+                    logger.info(f"[发送] 实时消息已发送: user_id={user_id}, action={payload.get('action')}, message_id={payload.get('data', {}).get('id')}")
             else:
                 # 离线：发送推送通知
                 if notification_data:
@@ -229,32 +239,52 @@ class BroadcastingService:
                         user_id=user_id,
                         notification_data=notification_data
                     )
-                    logger.debug(f"离线推送已发送: user_id={user_id}")
+                    logger.info(f"[发送] 离线推送已发送: user_id={user_id}")
                 else:
-                    logger.warning(f"用户离线且无推送数据: user_id={user_id}")
+                    logger.warning(f"[发送] 用户离线且无推送数据: user_id={user_id}")
                     
         except Exception as e:
-            logger.error(f"发送消息失败: user_id={user_id}, error={e}")
+            logger.error(f"[发送] 发送消息失败: user_id={user_id}, error={e}", exc_info=True)
     
     async def _get_conversation_participants(self, conversation_id: str) -> List[str]:
-        """获取会话参与者列表"""
+        """获取会话参与者列表（包括owner和participants）"""
         try:
             if not self.db:
-                logger.warning("数据库会话不可用，无法获取会话参与者")
+                logger.warning("[参与者] 数据库会话不可用，无法获取会话参与者")
                 return []
             
-            # 查询会话参与者
-            from app.chat.models.chat import ConversationParticipant
+            from app.chat.models.chat import ConversationParticipant, Conversation
             
+            # 查询会话信息（获取owner）
+            conversation = self.db.query(Conversation).filter(
+                Conversation.id == conversation_id
+            ).first()
+            
+            participant_ids = set()
+            
+            # 添加owner
+            if conversation and conversation.owner_id:
+                participant_ids.add(str(conversation.owner_id))
+                logger.info(f"[参与者] 添加会话owner: conversation_id={conversation_id}, owner_id={conversation.owner_id}")
+            
+            # 查询会话参与者
             participants = self.db.query(ConversationParticipant).filter(
                 ConversationParticipant.conversation_id == conversation_id,
                 ConversationParticipant.is_active == True
             ).all()
             
-            return [str(p.user_id) for p in participants if p.user_id is not None]
+            # 添加所有参与者
+            for p in participants:
+                if p.user_id:
+                    participant_ids.add(str(p.user_id))
+                    logger.info(f"[参与者] 添加参与者: conversation_id={conversation_id}, user_id={p.user_id}")
+            
+            result = list(participant_ids)
+            logger.info(f"[参与者] 获取参与者列表完成: conversation_id={conversation_id}, total={len(result)}, participants={result}")
+            return result
             
         except Exception as e:
-            logger.error(f"获取会话参与者失败: conversation_id={conversation_id}, error={e}")
+            logger.error(f"[参与者] 获取会话参与者失败: conversation_id={conversation_id}, error={e}", exc_info=True)
             return []
     
     def _extract_notification_content(self, message_data: Dict[str, Any]) -> str:

@@ -283,10 +283,21 @@ export class WebSocketClient {
       }
       
       // 适配消息格式
+      console.log('[WebSocket] 原始消息:', message);
       const adaptedMessage = this.adapter.adapt(message);
+      console.log('[WebSocket] 适配后消息:', {
+        id: adaptedMessage.id,
+        conversation_id: adaptedMessage.conversation_id,
+        type: adaptedMessage.type,
+        action: (adaptedMessage as any).action,
+        event_type: (adaptedMessage as any).event_type,
+        data: (adaptedMessage as any).data,
+        hasData: !!(adaptedMessage as any).data
+      });
       
       // 分发到处理器
       const handled = this.handlerRegistry.dispatchMessage(adaptedMessage);
+      console.log('[WebSocket] 消息分发结果:', { handled, action: (adaptedMessage as any).action });
       
       // 只在开发模式下且消息类型重要时输出日志
       if (this.config.debug && this.shouldLogMessage(adaptedMessage)) {
