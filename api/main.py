@@ -102,9 +102,15 @@ app = FastAPI(
 )
 
 # CORS配置
+# 注意：当 allow_credentials=True 时，不能使用通配符 "*"
+# 过滤掉通配符，只保留明确的源地址
+allowed_origins = [
+    str(origin) for origin in settings.BACKEND_CORS_ORIGINS 
+    if origin != "*"
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     
     # CORS配置
+    # 注意：当 allow_credentials=True 时，不能使用通配符 "*"
+    # 必须明确列出所有允许的源地址
     BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost:3000",  # Next.js frontend
         "http://localhost:8000",  # FastAPI Swagger UI
@@ -17,7 +19,6 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8000",  # FastAPI on localhost IP
         "http://169.254.89.234:3000",  # Remote access IP (shown in terminal)
         "http://192.168.0.192:8000",  # MCP Inspector access IP
-        "*",  # 允许所有来源（开发环境）
     ]
     
     # 数据库配置

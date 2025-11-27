@@ -97,6 +97,8 @@ class AuthService {
         username: credentials.username,
         password: credentials.password,
       });
+      // Safari 浏览器需要显式转换为字符串，确保特殊字符（如 @）被正确编码
+      const formDataString = formData.toString();
 
       const params: Record<string, string> = {};
       if (credentials.tenantId) {
@@ -110,7 +112,7 @@ class AuthService {
       }>(
         '/auth/login',
         {
-          body: formData,
+          body: formDataString,
           headers: new Headers({ 'Content-Type': ContentType.form }),
           params,
         },
