@@ -1,0 +1,247 @@
+---
+description: 前端web项目模块化架构标准
+globs: web/src/**/*.{ts,tsx}
+alwaysApply: false
+---
+# 前端模块化架构规范 (Frontend Modular Architecture)
+
+## 核心原则
+采用 **Page-Component-Service-Hook-Type** 的分层结构，遵循 Next.js App Router 约定。
+
+## 目录结构标准
+以功能模块 `module_name` 为例：
+```text
+web/src/
+├── app/                    # Next.js App Router 页面路由
+│   ├── module_name/        # 模块页面
+│   │   └── page.tsx        # 页面组件
+│   └── ...
+├── components/             # 可复用组件
+│   ├── module_name/        # 模块相关组件
+│   │   ├── ModuleList.tsx
+│   │   ├── ModuleForm.tsx
+│   │   └── ...
+│   ├── ui/                 # shadcn/ui 基础组件
+│   └── ...
+├── service/                # API 服务层
+│   ├── moduleService.ts    # 模块服务
+│   └── ...
+├── hooks/                  # 自定义 Hooks
+│   ├── useModule.ts        # 模块相关 Hook
+│   └── ...
+├── types/                  # TypeScript 类型定义
+│   ├── module.ts           # 模块类型
+│   └── ...
+├── contexts/               # React Context 全局状态
+├── utils/                  # 工具函数
+└── config/                 # 配置文件
+```
+
+## 实现规范
+
+### 1. Pages (页面组件)
+- 存放于 `app/` 目录，遵循 Next.js App Router 约定。
+- 使用 `page.tsx` 作为页面文件名。
+- **职责**：页面级布局、数据获取（Server Components）、路由处理。
+- **原则**：
+  - 优先使用 Server Components，仅在需要交互时使用 `'use client'`。
+  - 页面组件应保持简洁，复杂逻辑委托给子组件或 Hooks。
+  - 使用命名导出：`export default function ModulePage() { ... }`
+
+### 2. Components (组件)
+- 存放于 `components/` 目录，按功能模块组织子目录。
+- **职责**：UI 渲染、用户交互、组件级状态管理。
+- **原则**：
+  - 使用函数组件，优先使用 shadcn/ui 组件库。
+  - 保持组件单一职责，可复用。
+  - 组件文件使用 PascalCase：`ModuleList.tsx`。
+  - 复杂组件拆分为更小的子组件。
+  - 使用 TypeScript 定义 Props 类型。
+  - 优先使用命名导出，便于代码提示和重构。
+
+### 3. Services (服务层)
+- 存放于 `service/` 目录。
+- **职责**：封装 API 调用，处理数据转换，统一错误处理。
+- **实现方式**：
+  - 使用类或函数导出，推荐使用类（单例模式）。
+  - 统一使用 `apiClient` 进行 HTTP 请求。
+  - 服务方法返回类型明确，使用 TypeScript 类型。
+  - 示例：
+    ```typescript
+    class ModuleService {
+      private baseUrl = '/modules';
+      
+      async getModules(params?: GetModulesParams): Promise<Module[]> {
+        const response = await apiClient.get<ModuleListResponse>(this.baseUrl, { params });
+        return response.data.items || [];
+      }
+      
+      async createModule(data: CreateModuleRequest): Promise<Module> {
+        const response = await apiClient.post<Module>(this.baseUrl, data);
+        return response.data;
+      }
+    }
+    
+    export const moduleService = new ModuleService();
+    ```
+
+### 4. Hooks (自定义 Hooks)
+- 存放于 `hooks/` 目录。
+- **职责**：封装业务逻辑、状态管理、副作用处理。
+- **命名规范**：以 `use` 开头，如 `useModule.ts`。
+- **原则**：
+  - 每个 Hook 专注单一功能。
+  - 使用 `useState`、`useEffect`、`useCallback`、`useMemo` 等 React Hooks。
+  - 复杂业务逻辑封装在 Hook 中，组件只负责渲染。
+  - 示例：
+    ```typescript
+    export function useModule() {
+      const [modules, setModules] = useState<Module[]>([]);
+      const [loading, setLoading] = useState(false);
+      
+      const fetchModules = useCallback(async () => {
+        setLoading(true);
+        try {
+          const data = await moduleService.getModules();
+          setModules(data);
+        } catch (error) {
+          handleApiError(error, '获取列表失败');
+        } finally {
+          setLoading(false);
+        }
+      }, []);
+      
+      return { modules, loading, fetchModules };
+    }
+    ```
+
+### 5. Types (类型定义)
+- 存放于 `types/` 目录。
+- **职责**：定义 TypeScript 类型、接口、枚举。
+- **原则**：
+  - 按功能模块组织类型文件：`types/module.ts`。
+  - 使用清晰的类型命名，避免使用 `any`。
+  - 共享类型定义在独立的类型文件中。
+  - API 请求/响应类型与后端 Schema 保持一致。
+
+### 6. Contexts (全局状态)
+- 存放于 `contexts/` 目录。
+- **职责**：管理全局状态（如用户认证、主题等）。
+- **原则**：
+  - 仅在需要跨组件共享状态时使用 Context。
+  - 避免过度使用 Context，优先使用 Props 和 Hooks。
+  - 提供清晰的 Provider 和 Hook：`useAuthContext()`。
+
+### 7. Utils (工具函数)
+- 存放于 `utils/` 目录。
+- **职责**：纯函数工具、格式化、验证等。
+- **原则**：
+  - 保持函数纯函数特性（无副作用）。
+  - 使用 TypeScript 类型注解。
+  - 按功能分类组织文件。
+
+## 数据流规范
+
+### API 调用流程
+1. **组件** → 调用 **Hook** 或直接调用 **Service**
+2. **Service** → 使用 `apiClient` 发起 HTTP 请求
+3. **apiClient** → 统一处理认证、错误、响应格式
+4. **响应数据** → 返回给 Service，再返回给组件/Hook
+
+### 状态管理流程
+1. **本地状态**：使用 `useState` 管理组件内部状态
+2. **业务状态**：使用自定义 Hook 封装业务逻辑和状态
+3. **全局状态**：使用 Context API 管理跨组件共享状态
+4. **服务器状态**：通过 Service 和 Hook 管理，必要时使用缓存
+
+## 错误处理规范
+
+### API 错误处理
+- **Service 层**：不处理 UI 错误提示，只抛出异常。
+- **Hook 层**：捕获异常，使用 `handleApiError` 统一处理。
+- **组件层**：显示错误状态 UI，不直接处理 API 错误。
+
+### 错误处理示例
+```typescript
+// Service: 只抛出异常
+async getModule(id: string): Promise<Module> {
+  const response = await apiClient.get<Module>(`${this.baseUrl}/${id}`);
+  return response.data;
+}
+
+// Hook: 捕获并处理错误
+const fetchModule = useCallback(async (id: string) => {
+  setLoading(true);
+  try {
+    const data = await moduleService.getModule(id);
+    setModule(data);
+  } catch (error) {
+    handleApiError(error, '获取详情失败');
+  } finally {
+    setLoading(false);
+  }
+}, []);
+```
+
+## 组件通信规范
+
+### Props 传递
+- 父组件通过 Props 向子组件传递数据和回调。
+- 避免过度使用 Props drilling，超过 3 层时考虑 Context 或状态提升。
+
+### 事件回调
+- 使用回调函数处理子组件事件：`onAction={(action) => handleAction(action)}`。
+- 回调函数命名以 `on` 或 `handle` 开头。
+
+### 状态提升
+- 共享状态提升到最近的公共父组件。
+- 使用自定义 Hook 封装共享逻辑。
+
+## 性能优化规范
+
+### 组件优化
+- 使用 `React.memo` 优化纯组件。
+- 使用 `useMemo` 缓存计算结果。
+- 使用 `useCallback` 缓存回调函数。
+
+### 数据获取优化
+- 使用 Next.js Server Components 进行服务端数据获取。
+- 客户端数据获取使用 Hook 封装，支持缓存和刷新。
+- 列表数据使用分页，避免一次性加载大量数据。
+
+### 代码分割
+- 使用动态导入进行代码分割：`const Component = dynamic(() => import('./Component'))`。
+- 大型组件或第三方库使用懒加载。
+
+## 样式规范
+
+### TailwindCSS
+- 优先使用 TailwindCSS 工具类。
+- 使用 `cn()` 工具函数合并类名。
+- 响应式设计使用 Tailwind 响应式前缀。
+
+### shadcn/ui
+- 优先使用 shadcn/ui 组件库。
+- 自定义组件基于 shadcn/ui 组件扩展。
+- 使用 CSS 变量管理主题和设计令牌。
+
+## 测试规范
+
+### 单元测试
+- 为工具函数和纯函数编写单元测试。
+- 为自定义 Hooks 编写测试。
+- 测试文件放在 `__tests__/` 目录。
+
+### 组件测试
+- 使用 React Testing Library 测试组件。
+- 测试用户交互和渲染结果。
+- 测试错误场景和边界情况。
+
+## 禁止事项
+
+- **禁止**：在组件中直接使用 `fetch`，必须通过 Service 层。
+- **禁止**：在 Service 中处理 UI 逻辑（如显示 toast）。
+- **禁止**：在组件中直接操作 DOM，使用 React 方式。
+- **禁止**：使用 `any` 类型，必须定义明确的类型。
+- **禁止**：在 Server Components 中使用客户端 Hooks。
+- **禁止**：过度使用 Context，优先使用 Props 和 Hooks。

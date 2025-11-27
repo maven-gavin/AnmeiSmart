@@ -1,0 +1,253 @@
+---
+description: 重构或创建模块时，采用实用"模块化服务架构"标准
+globs: api/app/**/*.py
+alwaysApply: false
+---
+# 实用模块化服务架构规范 (Pragmatic Modular Service Architecture)
+
+## 核心原则
+采用 **Controller-Service-Model-Schema** 的扁平化分层结构。
+
+## 目录结构标准
+以模块 `module_name` 为例：
+```text
+api/app/module_name/
+├── __init__.py        # 模块导出定义
+├── controllers/       # API 路由定义 
+│   ├── __init__.py    # 导出 router
+│   ├── entity_controller.py
+│   └── ...
+├── services/          # 业务逻辑层 
+│   ├── __init__.py    # 导出 Service 类
+│   ├── entity_service.py
+│   └── ...
+├── models/            # 数据库模型 (SQLAlchemy)
+│   ├── __init__.py    # 导出 Model 类
+│   ├── entity.py
+│   └── ...
+├── schemas/           # 数据传输对象 (Pydantic V2)
+│   ├── entity.py
+│   └── ...
+├── deps/              # 依赖注入
+│   ├── __init__.py
+│   └── module_deps.py
+└── enums.py           # (可选) 共享枚举
+```
+
+## 实现规范
+
+### 1. Models (数据库模型)
+- 存放于 `models/` 目录。
+- 直接定义 SQLAlchemy 模型，继承自 `BaseModel`。
+- **禁止**：不要再次包装为 Domain Entity。
+- **必须**：在 `models/__init__.py` 中导出所有模型类，便于其他模块导入。
+- 示例：
+  ```python
+  # models/entity.py
+  from app.common.models.base_model import BaseModel
+  
+  class Entity(BaseModel):
+      __tablename__ = "entities"
+      id = Column(String(36), primary_key=True)
+      # ...
+  
+  # models/__init__.py
+  from .entity import Entity
+  __all__ = ["Entity"]
+  ```
+
+### 2. Schemas (DTO)
+- 存放于 `schemas/` 目录。
+- 使用 Pydantic V2。
+- **必须**：Response Schema 配置 `from_attributes=True`：
+  ```python
+  class UserResponse(BaseModel):
+      model_config = ConfigDict(from_attributes=True)  # 允许从 ORM 对象读取
+      id: str
+      username: str
+      # ...
+  ```
+- **转换方式**：优先使用 `Schema.model_validate(model_instance)` 进行转换。
+- **禁止**：不要手动构建字典再转换为 Schema，直接使用 `model_validate`。
+- 示例：
+  ```python
+  # ✅ 正确方式
+  user_response = UserResponse.model_validate(user_model)
+  
+  # ❌ 错误方式：手动构建字典
+  user_data = {
+      "id": user.id,
+      "username": user.username,
+      # ...
+  }
+  user_response = UserResponse(**user_data)
+  ```
+
+### 3. Services (业务服务)
+- 存放于 `services/` 目录。
+- 职责：包含所有业务逻辑和数据库操作（CRUD）。
+- **禁止**：不要创建独立的 Repository 层，Service 直接操作 `db: Session`。
+- **异步支持**：Service 方法可以是同步或异步，根据业务需求选择。
+- **依赖注入**：Service 可以依赖其他 Service，通过构造函数注入。
+- **必须**：在 `services/__init__.py` 中导出 Service 类。
+- 示例：
+  ```python
+  # services/entity_service.py
+  class EntityService:
+      def __init__(self, db: Session, other_service: Optional[OtherService] = None):
+          self.db = db
+          self.other_service = other_service
+      
+      def get_entity(self, id: str) -> Optional[Entity]:
+          return self.db.query(Entity).filter(Entity.id == id).first()
+      
+      async def create_entity(self, data: EntityCreate) -> Entity:
+          # 异步操作示例
+          entity = Entity(**data.model_dump())
+          self.db.add(entity)
+          await self.db.commit()
+          return entity
+  
+  # services/__init__.py
+  from .entity_service import EntityService
+  __all__ = ["EntityService"]
+  ```
+
+### 4. Controllers (控制器)
+- 存放于 `controllers/` 目录。
+- 职责：处理 HTTP 请求/响应，参数解析，调用 Service。
+- **路由定义**：每个 controller 文件定义一个 `router = APIRouter()`。
+- **必须**：在 `controllers/__init__.py` 中导出 router，命名格式：`{module}_router`。
+- **响应格式**：使用 `ApiResponse[T]` 包装响应数据（可选，根据项目统一规范）。
+- **必须**：遵循 `docs/ERROR_HANDLING_STANDARD.md` 进行错误处理。
+- 示例：
+  ```python
+  # controllers/entity_controller.py
+  from fastapi import APIRouter, Depends
+  from app.core.api import ApiResponse, BusinessException, SystemException
+  
+  router = APIRouter()
+  
+  @router.post("", response_model=ApiResponse[EntityResponse])
+  async def create_entity(
+      entity_in: EntityCreate,
+      current_user: User = Depends(get_current_user),
+      entity_service: EntityService = Depends(get_entity_service)
+  ):
+      try:
+          entity = await entity_service.create_entity(entity_in)
+          return ApiResponse.success(EntityResponse.model_validate(entity))
+      except BusinessException:
+          raise  # 业务异常直接抛出，由异常处理器处理
+      except Exception as e:
+          logger.error(f"创建实体失败: {e}", exc_info=True)
+          raise SystemException("创建实体失败")
+  
+  # controllers/__init__.py
+  from .entity_controller import router as entity_router
+  __all__ = ["entity_router"]
+  ```
+
+### 5. Dependencies (依赖注入)
+- 存放于 `deps/` 目录。
+- **职责**：提供 Service 和其他依赖的注入函数。
+- **命名规范**：函数名以 `get_` 开头，如 `get_entity_service`。
+- **依赖链**：可以依赖其他模块的 Service，通过 FastAPI 的 `Depends` 实现。
+- 示例：
+  ```python
+  # deps/module_deps.py
+  from fastapi import Depends
+  from sqlalchemy.orm import Session
+  from app.common.deps import get_db
+  from app.module_name.services import EntityService
+  from app.other_module.deps import get_other_service
+  
+  def get_entity_service(
+      db: Session = Depends(get_db),
+      other_service: OtherService = Depends(get_other_service)
+  ) -> EntityService:
+      return EntityService(db=db, other_service=other_service)
+  ```
+
+### 6. 模块导出规范
+- **必须**：每个模块的 `__init__.py` 统一导出 controllers、models、services。
+- **导出格式**：
+  ```python
+  # 模块 __init__.py
+  """
+  模块名称 - 新架构
+  """
+  
+  # 导出控制器
+  from .controllers import module_router
+  
+  # 导出模型
+  from .models import Entity, RelatedEntity
+  
+  # 导出服务
+  from .services import EntityService
+  
+  __all__ = [
+      "module_router",
+      "Entity",
+      "RelatedEntity",
+      "EntityService",
+  ]
+  ```
+
+### 7. 路由注册规范
+- **统一注册**：所有模块的路由在 `api/app/api.py` 中统一注册。
+- **注册格式**：
+  ```python
+  # api/app/api.py
+  from app.module_name import module_router
+  
+  api_router = APIRouter()
+  api_router.include_router(module_router, prefix="/modules", tags=["modules"])
+  ```
+
+### 8. 错误处理规范
+- **业务错误**：使用 `BusinessException`，包含明确的错误码和消息。
+- **系统错误**：使用 `SystemException`，记录详细日志。
+- **异常捕获**：Controller 中捕获 `BusinessException` 直接抛出，捕获其他异常转换为 `SystemException`。
+- **错误码定义**：使用 `app.core.api.errors.ErrorCode` 中定义的错误码。
+- 示例：
+  ```python
+  from app.core.api import BusinessException, SystemException, ErrorCode
+  
+  try:
+      result = service.do_something()
+  except BusinessException:
+      raise  # 业务异常直接抛出
+  except Exception as e:
+      logger.error(f"操作失败: {e}", exc_info=True)
+      raise SystemException("操作失败", code=ErrorCode.SYSTEM_ERROR)
+  ```
+
+### 9. 日志记录规范
+- **使用标准库**：使用 Python `logging` 模块。
+- **日志级别**：
+  - `DEBUG`: 详细的调试信息
+  - `INFO`: 一般信息（如操作开始、成功）
+  - `WARNING`: 警告信息（如业务规则违反）
+  - `ERROR`: 错误信息（必须记录 `exc_info=True`）
+- **日志格式**：包含关键上下文信息（如 user_id、entity_id）。
+- 示例：
+  ```python
+  import logging
+  logger = logging.getLogger(__name__)
+  
+  logger.info(f"开始创建用户: username={username}, email={email}")
+  logger.error(f"创建用户失败: {e}", exc_info=True)
+  ```
+
+## 禁止事项
+
+- **禁止**：在 Service 中直接抛出 `HTTPException`，使用 `BusinessException` 或 `SystemException`。
+- **禁止**：在 Controller 中编写业务逻辑，所有业务逻辑应在 Service 中。
+- **禁止**：手动构建 Schema 字典，使用 `model_validate` 自动转换。
+- **禁止**：创建独立的 Repository 层，Service 直接操作数据库。
+- **禁止**：在 Model 中添加业务逻辑，Model 只负责数据定义。
+- **禁止**：跨模块直接导入 Model，通过 Service 接口访问。
+- **禁止**：在 `__init__.py` 中执行复杂逻辑，只用于导出。
+

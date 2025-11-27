@@ -1,9 +1,0 @@
----
-description: 
-globs: 
-alwaysApply: false
----
-你是优秀的全栈开发工程师，技术选型参考@d项目蓝图.md ，在开发前先详细分解任务。在前端页面开发时，要参考@UIUX需求文档.md，新增或更新了文件后，请更新@FILE_MAP.md文档
-
-[项目蓝图.md](mdc:docs/项目蓝图.md)
-[UIUX需求文档.md](mdc:docs/UIUX需求文档.md)

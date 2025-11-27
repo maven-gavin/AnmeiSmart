@@ -1,26 +1,79 @@
 ---
-description: 
-globs: **/*.py
-alwaysApply: false
----
----
-description: 该规则解释了 Python 编码、最佳实践、 整洁高效的代码模式.
+description: Python 编码规则和最佳实践
 globs: **/*.py
 alwaysApply: false
 ---
 
 # Python 规则
 
-- 遵循 PEP 8 风格指南和命名约定
+## 类型系统
 - 使用类型注解增强代码可读性和类型安全性
-- 使用虚拟环境管理依赖：
-  - 优先使用 `venv` 或 `poetry` 进行环境隔离
-  - 使用 `requirements.txt` 或 `pyproject.toml` 记录依赖
-- 使用上下文管理器处理资源（如文件操作）
-- 优先使用列表推导式、生成器表达式和字典推导式
-- 使用 `pytest` 进行测试，保持高测试覆盖率
-- 使用文档字符串（docstrings）记录函数、类和模块
-- 遵循面向对象设计原则（SOLID）
-- 使用异常处理保证程序健壮性
+- 优先使用 `typing` 模块提供的类型（如 `List`, `Dict`, `Optional`, `Union`）
+- Python 3.9+ 优先使用内置泛型（如 `list[str]` 而非 `List[str]`）
+- 使用 `typing.Protocol` 定义结构化的接口
+- 使用 `typing.Generic` 实现可复用的类型模式
+- 使用 `dataclasses` 或 `pydantic` 模型表示数据结构
+- 使用 `typing.overload` 处理函数重载场景
+- 避免使用 `Any`，优先使用更具体的类型或 `object`
 
-- 使用 `dataclasses` 或 `pydantic` 模型表示数据
+## 命名约定
+- 遵循 PEP 8 风格指南
+- 类名使用 PascalCase（例如：`UserService`）
+- 函数和变量名使用 snake_case（例如：`get_user_data`）
+- 常量使用 UPPER_CASE（例如：`MAX_RETRIES`）
+- 私有成员使用单下划线前缀（例如：`_internal_method`）
+- 避免与内置名称冲突的名称（例如：避免使用 `list`, `dict` 作为变量名）
+- 使用描述性的名称，反映其用途和含义
+
+## 代码组织
+- 使用模块和包组织代码，遵循单一职责原则
+- 导入语句按标准库、第三方库、本地模块的顺序组织
+- 使用 `__init__.py` 控制包的公共接口
+- 共享的类型和常量从专用模块导出
+- 将相关的功能放在同一模块中
+- 使用 `if __name__ == "__main__"` 保护主程序入口
+
+## 函数
+- 为公共函数使用类型注解，包括参数和返回值
+- 使用文档字符串（docstrings）记录函数、类和模块
+- 优先使用关键字参数提高可读性
+- 复杂函数考虑使用装饰器模式
+- 优先使用 `async/await` 处理异步操作
+- 使用 `functools.wraps` 保留装饰器函数的元数据
+
+## 最佳实践
+- 使用虚拟环境管理依赖：
+  - 优先使用 `venv` 进行环境隔离
+  - 使用 `requirements.txt` 或 `pyproject.toml` 记录依赖
+- 使用上下文管理器处理资源（如文件操作、数据库连接）
+- 优先使用列表推导式、生成器表达式和字典推导式
+- 使用 `pathlib` 而非 `os.path` 处理文件路径
+- 使用 `enum.Enum` 定义常量集合
+- 遵循面向对象设计原则（SOLID）
+- 使用 `dataclasses` 简化数据类的定义
+- 使用 `collections.abc` 中的抽象基类定义接口
+
+## 错误处理
+- 使用异常处理保证程序健壮性
+- 为领域特定错误创建自定义异常类型
+- 捕获具体的异常类型，避免使用裸露的 `except:`
+- 使用 `try-except-else-finally` 结构处理资源清理
+- 在异常消息中提供有用的上下文信息
+- 使用 `contextlib.suppress` 忽略预期的异常
+- 使用 `typing.NoReturn` 标注永不返回的函数
+
+## 测试
+- 使用 `pytest` 进行测试，保持高测试覆盖率
+- 使用 `pytest.fixture` 管理测试依赖
+- 使用 `pytest.parametrize` 进行参数化测试
+- 测试函数使用 `test_` 前缀命名
+- 使用 `unittest.mock` 进行模拟和打桩
+- 为测试创建独立的测试目录结构
+
+## 模式
+- 复杂对象创建使用构建者模式或工厂模式
+- 数据访问实现仓储模式
+- 使用依赖注入提高可测试性
+- 使用装饰器模式扩展函数功能
+- 使用上下文管理器模式管理资源生命周期
+- 使用生成器模式处理大数据集
