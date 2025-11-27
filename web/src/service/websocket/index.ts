@@ -439,6 +439,14 @@ export class WebSocketClient {
   }
   
   /**
+   * 获取消息处理器注册表
+   * @returns 消息处理器注册表
+   */
+  public getHandlerRegistry(): MessageHandlerRegistry {
+    return this.handlerRegistry;
+  }
+  
+  /**
    * 获取连接状态
    */
   public getConnectionStatus(): ConnectionStatus {

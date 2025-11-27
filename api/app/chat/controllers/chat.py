@@ -122,6 +122,14 @@ async def get_conversation_messages(
 ):
     """获取会话消息列表"""
     try:
+        # 先检查用户是否有权限访问该会话
+        conversation = chat_service.get_conversation(
+            conversation_id=conversation_id,
+            user_id=str(current_user.id)
+        )
+        if not conversation:
+            raise HTTPException(status_code=404, detail="会话不存在")
+        
         messages = chat_service.get_conversation_messages(
             conversation_id=conversation_id,
             limit=limit,
@@ -129,6 +137,8 @@ async def get_conversation_messages(
         )
         return messages
         
+    except HTTPException:
+        raise
     except BusinessException as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -145,6 +155,7 @@ async def create_message(
 ):
     """创建通用消息"""
     try:
+        logger.info(f"创建消息请求: conversation_id={conversation_id}, type={request.type}, content={request.content}")
         message = chat_service.create_message_use_case(
             conversation_id=conversation_id,
             request=request,
@@ -161,9 +172,11 @@ async def create_message(
         return message
         
     except ValueError as e:
+        logger.error(f"创建消息参数错误: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="创建消息失败")
+        logger.error(f"创建消息失败: conversation_id={conversation_id}, error={str(e)}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"创建消息失败: {str(e)}")
 
 
 @router.post("/conversations/{conversation_id}/messages/text", response_model=MessageInfo)

@@ -54,8 +54,15 @@ export default function SystemMessage({ message, searchTerm, compact }: MessageC
       case 'conversation_closed':
         return '会话已结束';
       
+      case 'welcome':
+        return content.message || '欢迎来到安美智享！我是您的AI助手，有什么可以帮助您的吗？';
+      
       default:
-        return `系统事件：${system_event_type}`;
+        // 如果有message字段，优先使用
+        if (content.message) {
+          return content.message;
+        }
+        return `系统事件：${system_event_type || '未知'}`;
     }
   };
 

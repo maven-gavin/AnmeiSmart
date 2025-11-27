@@ -162,19 +162,69 @@ export function useWebSocketByPage() {
   useEffect(() => {
     if (!config?.enabled) return;
 
-    const messageHandler = (data: any): boolean => {
-      setLastMessage(data);
-      return true; // 表示已处理
-    };
-
-    // 注册消息处理器
     const wsClient = getWebSocketClientSafely();
-    const handler = createCustomHandler('page-message-handler', [], messageHandler);
-    wsClient.registerHandler(handler);
+    
+    // 通过MessageEventHandler的回调接收消息，而不是自定义处理器
+    // 这样可以确保事件消息（如new_message）能正确传递
+    const messageEventHandler = wsClient.getHandlerRegistry()?.getHandlers().find(
+      h => h.getName() === 'MessageEventHandler'
+    ) as any;
+    
+    if (messageEventHandler) {
+      // 注册新消息回调
+      // MessageEventHandler.handleNewMessage 会调用 invokeCallbacks('new_message', eventData)
+      // 这里的 eventData 是 data 字段的内容（扁平化的消息数据）
+      const newMessageCallback = (eventData: any): void => {
+        // 构造与page.tsx期望格式一致的消息对象
+        setLastMessage({
+          action: 'new_message',
+          data: eventData  // eventData 已经是扁平化的消息数据
+        });
+      };
+      
+      // 注册通用事件回调（处理所有事件类型）
+      // MessageEventHandler 会调用 invokeCallbacks('event', eventData)
+      const eventCallback = (eventData: any): void => {
+        // eventData 是 data 字段的内容，需要从原始消息中获取 action
+        // 但由于我们无法访问原始消息，这里假设 eventData 包含完整信息
+        // 实际上，我们需要在 MessageEventHandler 中传递完整的消息对象
+        setLastMessage({
+          action: 'new_message', // 默认使用 new_message，因为这是最常见的情况
+          data: eventData
+        });
+      };
+      
+      messageEventHandler.addNewMessageCallback(newMessageCallback);
+      messageEventHandler.addEventCallback(eventCallback);
+      
+      return () => {
+        // 清理回调
+        messageEventHandler.removeCallback('new_message', newMessageCallback);
+        messageEventHandler.removeCallback('event', eventCallback);
+      };
+    } else {
+      // 如果没有MessageEventHandler，使用自定义处理器作为fallback
+      const messageHandler = (data: any): boolean => {
+        // 检查是否是事件消息格式
+        if ((data as any).action && (data as any).data) {
+          setLastMessage(data);
+        } else {
+          // 尝试构造事件消息格式
+          setLastMessage({
+            action: (data as any).event_type || 'unknown',
+            data: data
+          });
+        }
+        return false; // 不阻止其他处理器处理
+      };
 
-    return () => {
-      wsClient.unregisterHandler('page-message-handler');
-    };
+      const handler = createCustomHandler('page-message-handler', [], messageHandler, 30); // 更低优先级
+      wsClient.registerHandler(handler);
+
+      return () => {
+        wsClient.unregisterHandler('page-message-handler');
+      };
+    }
   }, [config, pathname]);
 
   // 连接管理

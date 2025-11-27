@@ -255,6 +255,10 @@ class MessageInfo(MessageBase):
             content = {"text": str(content)} if content else {"text": ""}
             message_type = 'text'
         
+        # 向后兼容：如果系统消息使用event_type，转换为system_event_type
+        if message_type == 'system' and 'event_type' in content and 'system_event_type' not in content:
+            content['system_event_type'] = content.pop('event_type')
+        
         # 获取其他字段
         reactions = getattr(message, 'reactions', None)
         extra_metadata = getattr(message, 'extra_metadata', None)

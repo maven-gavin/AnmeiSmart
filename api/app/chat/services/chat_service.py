@@ -77,7 +77,7 @@ class ChatService:
             conversation_id=conversation.id,
             content={
                 "type": "system",
-                "event_type": "welcome",
+                "system_event_type": "welcome",
                 "message": "欢迎来到安美智享！我是您的AI助手，有什么可以帮助您的吗？"
             },
             type="system",
@@ -122,12 +122,29 @@ class ChatService:
         return ConversationInfo.from_model(conversation, last_message=last_message)
     
     def get_user_role(self, user: User) -> str:
-        """获取用户的当前角色"""
+        """获取用户的当前角色，并映射到sender_type枚举值"""
         from app.identity_access.deps.permission_deps import get_user_primary_role
         logger.info(f"服务：获取用户角色 - user_id={user.id}")
         role = get_user_primary_role(user)
         logger.info(f"服务：获取到用户角色 = {role}")
-        return role
+        
+        # 将角色映射到sender_type枚举值
+        # sender_type枚举值：customer, consultant, doctor, system, digital_human
+        role_mapping = {
+            "admin": "consultant",  # 管理员映射为顾问
+            "administrator": "consultant",
+            "super_admin": "consultant",
+            "customer": "customer",
+            "consultant": "consultant",
+            "doctor": "doctor",
+            "operator": "consultant",  # 操作员映射为顾问
+            "system": "system",
+            "digital_human": "digital_human"
+        }
+        
+        mapped_role = role_mapping.get(role, "customer")  # 默认映射为customer
+        logger.info(f"服务：角色映射 {role} -> {mapped_role}")
+        return mapped_role
     
     def get_conversations(
         self,
@@ -137,13 +154,30 @@ class ChatService:
         limit: int = 100
     ) -> List[ConversationInfo]:
         """获取用户会话列表（支持角色过滤）"""
+        # 查询用户作为参与者的会话ID列表
+        participant_conv_ids_query = self.db.query(ConversationParticipant.conversation_id).filter(
+            ConversationParticipant.user_id == user_id,
+            ConversationParticipant.is_active == True
+        )
+        participant_conv_ids = [row[0] for row in participant_conv_ids_query.all()]
+        
+        # 查询用户作为owner或参与者的会话
         query = self.db.query(Conversation).options(
             joinedload(Conversation.owner)
-        ).filter(Conversation.owner_id == user_id)
+        )
+        
+        if participant_conv_ids:
+            query = query.filter(
+                or_(
+                    Conversation.owner_id == user_id,
+                    Conversation.id.in_(participant_conv_ids)
+                )
+            )
+        else:
+            query = query.filter(Conversation.owner_id == user_id)
         
         # 根据角色过滤（如果需要）
-        # 目前简化处理，只返回用户的会话
-        # 后续可以根据角色扩展权限逻辑
+        # 目前简化处理，后续可以根据角色扩展权限逻辑
         
         conversations = query.order_by(
             desc(Conversation.last_message_at),
@@ -176,9 +210,27 @@ class ChatService:
         offset: int = 0
     ) -> List[ConversationInfo]:
         """获取用户会话列表（旧方法，保持兼容）"""
+        # 查询用户作为参与者的会话ID列表
+        participant_conv_ids_query = self.db.query(ConversationParticipant.conversation_id).filter(
+            ConversationParticipant.user_id == user_id,
+            ConversationParticipant.is_active == True
+        )
+        participant_conv_ids = [row[0] for row in participant_conv_ids_query.all()]
+        
+        # 查询用户作为owner或参与者的会话
         query = self.db.query(Conversation).options(
             joinedload(Conversation.owner)
-        ).filter(Conversation.owner_id == user_id)
+        )
+        
+        if participant_conv_ids:
+            query = query.filter(
+                or_(
+                    Conversation.owner_id == user_id,
+                    Conversation.id.in_(participant_conv_ids)
+                )
+            )
+        else:
+            query = query.filter(Conversation.owner_id == user_id)
         
         # 应用筛选
         if chat_mode:
@@ -221,14 +273,31 @@ class ChatService:
             joinedload(Conversation.participants).joinedload(ConversationParticipant.user)
         ).filter(Conversation.id == conversation_id)
         
-        # 权限检查
+        # 权限检查：检查用户是否是owner或参与者
         if user_id:
-            query = query.filter(Conversation.owner_id == user_id)
-        
-        conversation = query.first()
-        
-        if not conversation:
-            return None
+            # 先查询会话是否存在
+            conversation = query.first()
+            if not conversation:
+                return None
+            
+            # 检查用户是否是owner
+            if str(conversation.owner_id) == user_id:
+                pass  # 是owner，允许访问
+            else:
+                # 检查用户是否是参与者
+                participant = self.db.query(ConversationParticipant).filter(
+                    ConversationParticipant.conversation_id == conversation_id,
+                    ConversationParticipant.user_id == user_id,
+                    ConversationParticipant.is_active == True
+                ).first()
+                
+                if not participant:
+                    # 既不是owner也不是参与者，拒绝访问
+                    return None
+        else:
+            conversation = query.first()
+            if not conversation:
+                return None
         
         # 转换为响应Schema
         from app.chat.schemas.chat import ConversationInfo, MessageInfo
@@ -537,10 +606,23 @@ class ChatService:
         """创建通用消息用例"""
         sender_role = self.get_user_role(sender)
         
+        # 验证content字段
+        if not request.content:
+            raise BusinessException("消息内容不能为空", code=ErrorCode.INVALID_INPUT)
+        
         # 根据消息类型分发到对应的创建方法
         if request.type == "text":
             # 从 content 中提取文本
-            text = request.content.get("text", "") if isinstance(request.content, dict) else str(request.content)
+            if not isinstance(request.content, dict):
+                logger.error(f"文本消息content格式错误: content={request.content}, type={type(request.content)}")
+                raise ValueError(f"文本消息内容格式不正确，期望字典格式，实际: {type(request.content)}")
+            
+            text = request.content.get("text", "")
+            if not text:
+                logger.error(f"文本消息内容为空: content={request.content}")
+                raise BusinessException("消息文本内容不能为空", code=ErrorCode.INVALID_INPUT)
+            
+            logger.info(f"创建文本消息: conversation_id={conversation_id}, text_length={len(text)}")
             return self.create_text_message(
                 conversation_id=conversation_id,
                 sender_id=str(sender.id),
@@ -632,13 +714,14 @@ class ChatService:
             raise BusinessException("会话不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
         
         # 创建系统消息
+        event_data = request.event_data or {}
         message = Message(
             id=message_id(),
             conversation_id=conversation_id,
             content={
                 "type": "system",
-                "event_type": request.event_type,
-                **request.event_data
+                "system_event_type": request.event_type,
+                **event_data
             },
             type="system",
             sender_type="system",

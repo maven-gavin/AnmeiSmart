@@ -12,6 +12,11 @@ export class MessageAdapter {
    */
   public adapt(rawMessage: any): MessageData {
     try {
+      // 优先检查是否是事件消息格式（带action和data字段）
+      if (rawMessage.action && rawMessage.data) {
+        return this.adaptGenericMessage(rawMessage);
+      }
+      
       // 如果已经是标准格式，直接返回
       if (this.isStandardMessage(rawMessage)) {
         return rawMessage;
@@ -145,6 +150,34 @@ export class MessageAdapter {
    */
   private adaptGenericMessage(rawMessage: any): MessageData {
     const now = new Date().toISOString();
+    
+    // 检查是否是事件消息格式（带action和data字段）
+    if (rawMessage.action && rawMessage.data) {
+      // 这是事件消息格式，保留action和data字段
+      const adaptedMessage: any = {
+        id: rawMessage.data?.id || rawMessage.id || rawMessage.messageId || this.generateId(),
+        conversation_id: rawMessage.data?.conversation_id || rawMessage.conversation_id || rawMessage.conversationId || '',
+        content: rawMessage.data?.content || rawMessage.content || rawMessage.message || '',
+        type: this.inferMessageType(rawMessage.data || rawMessage),
+        sender: this.extractSender(rawMessage.data || rawMessage),
+        timestamp: rawMessage.data?.timestamp || rawMessage.timestamp || rawMessage.time || rawMessage.date || now,
+        // 保留事件相关字段
+        action: rawMessage.action,
+        data: rawMessage.data,
+        event_type: rawMessage.event_type || rawMessage.action,
+        metadata: {
+          originalMessage: rawMessage,
+          adaptedBy: 'event',
+        },
+      };
+      
+      // 添加可选字段
+      if (rawMessage.data?.is_important !== undefined) {
+        adaptedMessage.is_important = rawMessage.data.is_important;
+      }
+      
+      return adaptedMessage;
+    }
     
     // 尝试推断消息类型
     const messageType = this.inferMessageType(rawMessage);

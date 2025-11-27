@@ -309,12 +309,25 @@ async def create_friend_conversation(
             tag="chat"
         )
         
-        # 设置 extra_metadata 标记这是好友会话
+        # 设置 extra_metadata 标记这是好友会话，并添加好友作为参与者
         conv_model = chat_service.db.query(Conversation).filter(
             Conversation.id == conversation_info.id
         ).first()
         if conv_model:
             conv_model.extra_metadata = {"friend_id": friend_id}
+            
+            # 添加好友作为参与者
+            from app.chat.models.chat import ConversationParticipant
+            from app.common.deps.uuid_utils import conversation_id
+            friend_participant = ConversationParticipant(
+                id=conversation_id(),
+                conversation_id=conv_model.id,
+                user_id=friend_id,
+                role="member",  # 好友作为普通成员
+                is_active=True
+            )
+            chat_service.db.add(friend_participant)
+            
             chat_service.db.commit()
             chat_service.db.refresh(conv_model)
             # 重新获取最后一条消息
