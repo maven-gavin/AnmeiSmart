@@ -1,231 +1,244 @@
-Advanced Chat App API
+# Dify Advanced Chat App API 文档
+
 Chat applications support session persistence, allowing previous chat history to be used as context for responses. This can be applicable for chatbot, customer service AI, etc.
 
-Base URL
-Code
+## 目录
+
+- [基础信息](#基础信息)
+  - [Base URL](#base-url)
+  - [认证](#认证)
+- [消息相关 API](#消息相关-api)
+  - [发送聊天消息](#发送聊天消息)
+  - [停止生成](#停止生成)
+  - [获取会话历史消息](#获取会话历史消息)
+  - [获取建议问题](#获取建议问题)
+  - [消息反馈](#消息反馈)
+  - [获取应用反馈列表](#获取应用反馈列表)
+- [会话相关 API](#会话相关-api)
+  - [获取会话列表](#获取会话列表)
+  - [删除会话](#删除会话)
+  - [重命名会话](#重命名会话)
+  - [获取会话变量](#获取会话变量)
+- [文件相关 API](#文件相关-api)
+  - [文件上传](#文件上传)
+- [语音相关 API](#语音相关-api)
+  - [语音转文字](#语音转文字)
+  - [文字转语音](#文字转语音)
+- [应用信息 API](#应用信息-api)
+  - [获取应用基本信息](#获取应用基本信息)
+  - [获取应用参数信息](#获取应用参数信息)
+  - [获取应用元信息](#获取应用元信息)
+  - [获取应用 WebApp 设置](#获取应用-webapp-设置)
+- [标注相关 API](#标注相关-api)
+  - [获取标注列表](#获取标注列表)
+  - [创建标注](#创建标注)
+  - [更新标注](#更新标注)
+  - [删除标注](#删除标注)
+  - [初始化标注回复设置](#初始化标注回复设置)
+  - [查询标注回复设置任务状态](#查询标注回复设置任务状态)
+
+---
+
+## 基础信息
+
+### Base URL
+
+```
 http://localhost/v1
+```
 
-Copy
-Copied!
-Authentication
-The Service API uses API-Key authentication. Strongly recommend storing your API Key on the server-side, not shared or stored on the client-side, to avoid possible API-Key leakage that can lead to serious consequences.
+### 认证
 
-For all API requests, include your API Key in the AuthorizationHTTP Header, as shown below:
+Service API 使用 API-Key 认证。强烈建议将 API Key 存储在服务端，不要共享或存储在客户端，以避免 API Key 泄露导致严重后果。
 
-Code
-  Authorization: Bearer {API_KEY}
+所有 API 请求都需要在 HTTP Header 中包含 API Key：
 
+```
+Authorization: Bearer {API_KEY}
+```
 
-Copy
-Copied!
-POST
-/chat-messages
-Send Chat Message
-Send a request to the chat application.
+---
 
-Request Body
-Name
-query
-Type
-string
-Description
-User Input/Question content
+## 消息相关 API
 
-Name
-inputs
-Type
-object
-Description
-Allows the entry of various variable values defined by the App. The inputs parameter contains multiple key/value pairs, with each key corresponding to a specific variable and each value being the specific value for that variable. If the variable is of file type, specify an object that has the keys described in files below. Default {}
+### 发送聊天消息
 
-Name
-response_mode
-Type
-string
-Description
-The mode of response return, supporting:
+**POST** `/chat-messages`
 
-streaming Streaming mode (recommended), implements a typewriter-like output through SSE (Server-Sent Events).
-blocking Blocking mode, returns result after execution is complete. (Requests may be interrupted if the process is long) Due to Cloudflare restrictions, the request will be interrupted without a return after 100 seconds.
-Name
-user
-Type
-string
-Description
-User identifier, used to define the identity of the end-user for retrieval and statistics. Should be uniquely defined by the developer within the application. The Service API does not share conversations created by the WebApp.
+发送请求到聊天应用。
 
-Name
-conversation_id
-Type
-string
-Description
-Conversation ID, to continue the conversation based on previous chat records, it is necessary to pass the previous message's conversation_id.
+#### 请求参数
 
-Name
-files
-Type
-array[object]
-Description
-File list, suitable for inputting files combined with text understanding and answering questions, available only when the model supports Vision capability.
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `query` | string | 是 | 用户输入/问题内容 |
+| `inputs` | object | 否 | 应用定义的各种变量值。inputs 参数包含多个键值对，每个键对应一个特定变量，每个值是该变量的具体值。如果变量是文件类型，需要指定一个包含以下 files 中描述的键的对象。默认值：`{}` |
+| `response_mode` | string | 否 | 响应返回模式：<br>- `streaming`：流式模式（推荐），通过 SSE（Server-Sent Events）实现打字机式输出<br>- `blocking`：阻塞模式，执行完成后返回结果（如果过程较长，请求可能会被中断）。由于 Cloudflare 限制，请求将在 100 秒后中断且无返回 |
+| `user` | string | 是 | 用户标识符，用于定义终端用户的身份以进行检索和统计。应在应用程序内由开发者唯一定义。Service API 不共享由 WebApp 创建的对话 |
+| `conversation_id` | string | 否 | 会话 ID，要基于之前的聊天记录继续对话，需要传递之前消息的 `conversation_id` |
+| `files` | array[object] | 否 | 文件列表，适用于结合文本理解和问答输入文件，仅在模型支持 Vision 能力时可用。文件对象包含：<br>- `type` (string)：支持的类型：<br>  - `document`: 'TXT', 'MD', 'MARKDOWN', 'PDF', 'HTML', 'XLSX', 'XLS', 'DOCX', 'CSV', 'EML', 'MSG', 'PPTX', 'PPT', 'XML', 'EPUB'<br>  - `image`: 'JPG', 'JPEG', 'PNG', 'GIF', 'WEBP', 'SVG'<br>  - `audio`: 'MP3', 'M4A', 'WAV', 'WEBM', 'AMR'<br>  - `video`: 'MP4', 'MOV', 'MPEG', 'MPGA'<br>  - `custom`: 其他文件类型<br>- `transfer_method` (string)：传输方式，`remote_url` 用于图片 URL，`local_file` 用于文件上传<br>- `url` (string)：图片 URL（当传输方式为 `remote_url` 时）<br>- `upload_file_id` (string)：已上传的文件 ID，必须通过文件上传 API 预先上传获得（当传输方式为 `local_file` 时） |
+| `auto_generate_name` | bool | 否 | 自动生成标题，默认为 `true`。如果设置为 `false`，可以通过调用会话重命名 API 并设置 `auto_generate` 为 `true` 来实现异步标题生成 |
 
-type (string) Supported type:
-document ('TXT', 'MD', 'MARKDOWN', 'PDF', 'HTML', 'XLSX', 'XLS', 'DOCX', 'CSV', 'EML', 'MSG', 'PPTX', 'PPT', 'XML', 'EPUB')
-image ('JPG', 'JPEG', 'PNG', 'GIF', 'WEBP', 'SVG')
-audio ('MP3', 'M4A', 'WAV', 'WEBM', 'AMR')
-video ('MP4', 'MOV', 'MPEG', 'MPGA')
-custom (Other file types)
-transfer_method (string) Transfer method, remote_url for image URL / local_file for file upload
-url (string) Image URL (when the transfer method is remote_url)
-upload_file_id (string) Uploaded file ID, which must be obtained by uploading through the File Upload API in advance (when the transfer method is local_file)
-Name
-auto_generate_name
-Type
-bool
-Description
-Auto-generate title, default is true. If set to false, can achieve async title generation by calling the conversation rename API and setting auto_generate to true.
+#### 响应
 
-Response
-When response_mode is blocking, return a CompletionResponse object. When response_mode is streaming, return a ChunkCompletionResponse stream.
+当 `response_mode` 为 `blocking` 时，返回 `ChatCompletionResponse` 对象。当 `response_mode` 为 `streaming` 时，返回 `ChunkChatCompletionResponse` 流。
 
-ChatCompletionResponse
-Returns the complete App result, Content-Type is application/json.
+##### ChatCompletionResponse
 
-event (string) Event type, fixed to message
-task_id (string) Task ID, used for request tracking and the below Stop Generate API
-id (string) unique ID
-message_id (string) Unique message ID
-conversation_id (string) Conversation ID
-mode (string) App mode, fixed as chat
-answer (string) Complete response content
-metadata (object) Metadata
-usage (Usage) Model usage information
-retriever_resources (array[RetrieverResource]) Citation and Attribution List
-created_at (int) Message creation timestamp, e.g., 1705395332
-ChunkChatCompletionResponse
-Returns the stream chunks outputted by the App, Content-Type is text/event-stream. Each streaming chunk starts with data:, separated by two newline characters \n\n, as shown below:
+返回完整的应用结果，Content-Type 为 `application/json`。
 
-data: {"event": "message", "task_id": "900bbd43-dc0b-4383-a372-aa6e6c414227", "id": "663c5084-a254-4040-8ad3-51f2a3c1a77c", "answer": "Hi", "created_at": 1705398420}\n\n
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `event` | string | 事件类型，固定为 `message` |
+| `task_id` | string | 任务 ID，用于请求跟踪和停止生成 API |
+| `id` | string | 唯一 ID |
+| `message_id` | string | 唯一消息 ID |
+| `conversation_id` | string | 会话 ID |
+| `mode` | string | 应用模式，固定为 `chat` |
+| `answer` | string | 完整响应内容 |
+| `metadata` | object | 元数据 |
+| `metadata.usage` | Usage | 模型使用信息 |
+| `metadata.retriever_resources` | array[RetrieverResource] | 引用和归属列表 |
+| `created_at` | int | 消息创建时间戳，例如：1705395332 |
 
-Copy
-Copied!
-The structure of the streaming chunks varies depending on the event:
+##### ChunkChatCompletionResponse
 
-event: message LLM returns text chunk event, i.e., the complete text is output in a chunked fashion.
-task_id (string) Task ID, used for request tracking and the below Stop Generate API
-message_id (string) Unique message ID
-conversation_id (string) Conversation ID
-answer (string) LLM returned text chunk content
-created_at (int) Creation timestamp, e.g., 1705395332
-event: message_file Message file event, a new file has created by tool
-id (string) File unique ID
-type (string) File type，only allow "image" currently
-belongs_to (string) Belongs to, it will only be an 'assistant' here
-url (string) Remote url of file
-conversation_id (string) Conversation ID
-event: message_end Message end event, receiving this event means streaming has ended.
-task_id (string) Task ID, used for request tracking and the below Stop Generate API
-message_id (string) Unique message ID
-conversation_id (string) Conversation ID
-metadata (object) Metadata
-usage (Usage) Model usage information
-retriever_resources (array[RetrieverResource]) Citation and Attribution List
-event: tts_message TTS audio stream event, that is, speech synthesis output. The content is an audio block in Mp3 format, encoded as a base64 string. When playing, simply decode the base64 and feed it into the player. (This message is available only when auto-play is enabled)
-task_id (string) Task ID, used for request tracking and the stop response interface below
-message_id (string) Unique message ID
-audio (string) The audio after speech synthesis, encoded in base64 text content, when playing, simply decode the base64 and feed it into the player
-created_at (int) Creation timestamp, e.g.: 1705395332
-event: tts_message_end TTS audio stream end event, receiving this event indicates the end of the audio stream.
-task_id (string) Task ID, used for request tracking and the stop response interface below
-message_id (string) Unique message ID
-audio (string) The end event has no audio, so this is an empty string
-created_at (int) Creation timestamp, e.g.: 1705395332
-event: message_replace Message content replacement event. When output content moderation is enabled, if the content is flagged, then the message content will be replaced with a preset reply through this event.
-task_id (string) Task ID, used for request tracking and the below Stop Generate API
-message_id (string) Unique message ID
-conversation_id (string) Conversation ID
-answer (string) Replacement content (directly replaces all LLM reply text)
-created_at (int) Creation timestamp, e.g., 1705395332
-event: workflow_started workflow starts execution
-task_id (string) Task ID, used for request tracking and the below Stop Generate API
-workflow_run_id (string) Unique ID of workflow execution
-event (string) fixed to workflow_started
-data (object) detail
-id (string) Unique ID of workflow execution
-workflow_id (string) ID of related workflow
-created_at (timestamp) Creation timestamp, e.g., 1705395332
-event: node_started node execution started
-task_id (string) Task ID, used for request tracking and the below Stop Generate API
-workflow_run_id (string) Unique ID of workflow execution
-event (string) fixed to node_started
-data (object) detail
-id (string) Unique ID of workflow execution
-node_id (string) ID of node
-node_type (string) type of node
-title (string) name of node
-index (int) Execution sequence number, used to display Tracing Node sequence
-predecessor_node_id (string) optional Prefix node ID, used for canvas display execution path
-inputs (object) Contents of all preceding node variables used in the node
-created_at (timestamp) timestamp of start, e.g., 1705395332
-event: node_finished node execution ends, success or failure in different states in the same event
-task_id (string) Task ID, used for request tracking and the below Stop Generate API
-workflow_run_id (string) Unique ID of workflow execution
-event (string) fixed to node_finished
-data (object) detail
-id (string) Unique ID of workflow execution
-node_id (string) ID of node
-node_type (string) type of node
-title (string) name of node
-index (int) Execution sequence number, used to display Tracing Node sequence
-predecessor_node_id (string) optional Prefix node ID, used for canvas display execution path
-inputs (object) Contents of all preceding node variables used in the node
-process_data (json) Optional node process data
-outputs (json) Optional content of output
-status (string) status of execution, running / succeeded / failed / stopped
-error (string) Optional reason of error
-elapsed_time (float) Optional total seconds to be used
-execution_metadata (json) meta data
-total_tokens (int) optional tokens to be used
-total_price (decimal) optional Total cost
-currency (string) optional e.g. USD / RMB
-created_at (timestamp) timestamp of start, e.g., 1705395332
-event: workflow_finished workflow execution ends, success or failure in different states in the same event
-task_id (string) Task ID, used for request tracking and the below Stop Generate API
-workflow_run_id (string) Unique ID of workflow execution
-event (string) fixed to workflow_finished
-data (object) detail
-id (string) ID of workflow execution
-workflow_id (string) ID of related workflow
-status (string) status of execution, running / succeeded / failed / stopped
-outputs (json) Optional content of output
-error (string) Optional reason of error
-elapsed_time (float) Optional total seconds to be used
-total_tokens (int) Optional tokens to be used
-total_steps (int) default 0
-created_at (timestamp) start time
-finished_at (timestamp) end time
-event: error Exceptions that occur during the streaming process will be output in the form of stream events, and reception of an error event will end the stream.
-task_id (string) Task ID, used for request tracking and the below Stop Generate API
-message_id (string) Unique message ID
-status (int) HTTP status code
-code (string) Error code
-message (string) Error message
-event: ping Ping event every 10 seconds to keep the connection alive.
-Errors
-404, Conversation does not exists
-400, invalid_param, abnormal parameter input
-400, app_unavailable, App configuration unavailable
-400, provider_not_initialize, no available model credential configuration
-400, provider_quota_exceeded, model invocation quota insufficient
-400, model_currently_not_support, current model unavailable
-400, completion_request_error, text generation failed
-500, internal server error
-Request
-POST
-/chat-messages
+返回应用输出的流式数据块，Content-Type 为 `text/event-stream`。每个流式数据块以 `data:` 开头，由两个换行符 `\n\n` 分隔。
+
+流式数据块的结构根据事件类型而变化：
+
+**event: message** - LLM 返回文本块事件，即完整文本以分块方式输出
+- `task_id` (string): 任务 ID
+- `message_id` (string): 唯一消息 ID
+- `conversation_id` (string): 会话 ID
+- `answer` (string): LLM 返回的文本块内容
+- `created_at` (int): 创建时间戳
+
+**event: message_file** - 消息文件事件，工具创建了新文件
+- `id` (string): 文件唯一 ID
+- `type` (string): 文件类型，目前仅允许 "image"
+- `belongs_to` (string): 归属，这里只会是 'assistant'
+- `url` (string): 文件的远程 URL
+- `conversation_id` (string): 会话 ID
+
+**event: message_end** - 消息结束事件，接收此事件表示流式传输已结束
+- `task_id` (string): 任务 ID
+- `message_id` (string): 唯一消息 ID
+- `conversation_id` (string): 会话 ID
+- `metadata` (object): 元数据
+- `metadata.usage` (Usage): 模型使用信息
+- `metadata.retriever_resources` (array[RetrieverResource]): 引用和归属列表
+
+**event: tts_message** - TTS 音频流事件，即语音合成输出。内容为 Mp3 格式的音频块，编码为 base64 字符串。播放时，只需解码 base64 并输入播放器（仅在启用自动播放时可用）
+- `task_id` (string): 任务 ID
+- `message_id` (string): 唯一消息 ID
+- `audio` (string): 语音合成后的音频，编码为 base64 文本内容
+- `created_at` (int): 创建时间戳
+
+**event: tts_message_end** - TTS 音频流结束事件，接收此事件表示音频流已结束
+- `task_id` (string): 任务 ID
+- `message_id` (string): 唯一消息 ID
+- `audio` (string): 结束事件没有音频，因此为空字符串
+- `created_at` (int): 创建时间戳
+
+**event: message_replace** - 消息内容替换事件。当启用输出内容审核时，如果内容被标记，则通过此事件将消息内容替换为预设回复
+- `task_id` (string): 任务 ID
+- `message_id` (string): 唯一消息 ID
+- `conversation_id` (string): 会话 ID
+- `answer` (string): 替换内容（直接替换所有 LLM 回复文本）
+- `created_at` (int): 创建时间戳
+
+**event: workflow_started** - 工作流开始执行
+- `task_id` (string): 任务 ID
+- `workflow_run_id` (string): 工作流执行的唯一 ID
+- `event` (string): 固定为 `workflow_started`
+- `data` (object): 详细信息
+  - `id` (string): 工作流执行的唯一 ID
+  - `workflow_id` (string): 相关工作流的 ID
+  - `created_at` (timestamp): 创建时间戳
+
+**event: node_started** - 节点执行开始
+- `task_id` (string): 任务 ID
+- `workflow_run_id` (string): 工作流执行的唯一 ID
+- `event` (string): 固定为 `node_started`
+- `data` (object): 详细信息
+  - `id` (string): 工作流执行的唯一 ID
+  - `node_id` (string): 节点 ID
+  - `node_type` (string): 节点类型
+  - `title` (string): 节点名称
+  - `index` (int): 执行序号，用于显示追踪节点序列
+  - `predecessor_node_id` (string, 可选): 前置节点 ID，用于画布显示执行路径
+  - `inputs` (object): 节点中使用的所有前置节点变量的内容
+  - `created_at` (timestamp): 开始时间戳
+
+**event: node_finished** - 节点执行结束，成功或失败在同一事件的不同状态中
+- `task_id` (string): 任务 ID
+- `workflow_run_id` (string): 工作流执行的唯一 ID
+- `event` (string): 固定为 `node_finished`
+- `data` (object): 详细信息
+  - `id` (string): 工作流执行的唯一 ID
+  - `node_id` (string): 节点 ID
+  - `node_type` (string): 节点类型
+  - `title` (string): 节点名称
+  - `index` (int): 执行序号
+  - `predecessor_node_id` (string, 可选): 前置节点 ID
+  - `inputs` (object): 节点中使用的所有前置节点变量的内容
+  - `process_data` (json, 可选): 节点处理数据
+  - `outputs` (json, 可选): 输出内容
+  - `status` (string): 执行状态，`running` / `succeeded` / `failed` / `stopped`
+  - `error` (string, 可选): 错误原因
+  - `elapsed_time` (float, 可选): 使用的总秒数
+  - `execution_metadata` (json): 元数据
+  - `total_tokens` (int, 可选): 使用的 tokens
+  - `total_price` (decimal, 可选): 总成本
+  - `currency` (string, 可选): 货币，例如 USD / RMB
+  - `created_at` (timestamp): 开始时间戳
+
+**event: workflow_finished** - 工作流执行结束，成功或失败在同一事件的不同状态中
+- `task_id` (string): 任务 ID
+- `workflow_run_id` (string): 工作流执行的唯一 ID
+- `event` (string): 固定为 `workflow_finished`
+- `data` (object): 详细信息
+  - `id` (string): 工作流执行的 ID
+  - `workflow_id` (string): 相关工作流的 ID
+  - `status` (string): 执行状态，`running` / `succeeded` / `failed` / `stopped`
+  - `outputs` (json, 可选): 输出内容
+  - `error` (string, 可选): 错误原因
+  - `elapsed_time` (float, 可选): 使用的总秒数
+  - `total_tokens` (int, 可选): 使用的 tokens
+  - `total_steps` (int): 默认 0
+  - `created_at` (timestamp): 开始时间
+  - `finished_at` (timestamp): 结束时间
+
+**event: error** - 流式处理过程中发生的异常将以流事件的形式输出，接收错误事件将结束流
+- `task_id` (string): 任务 ID
+- `message_id` (string): 唯一消息 ID
+- `status` (int): HTTP 状态码
+- `code` (string): 错误代码
+- `message` (string): 错误消息
+
+**event: ping** - 每 10 秒发送一次 ping 事件以保持连接活跃
+
+#### 错误码
+
+| HTTP 状态码 | 错误代码 | 说明 |
+|------------|---------|------|
+| 404 | - | 会话不存在 |
+| 400 | `invalid_param` | 参数输入异常 |
+| 400 | `app_unavailable` | 应用配置不可用 |
+| 400 | `provider_not_initialize` | 没有可用的模型凭证配置 |
+| 400 | `provider_quota_exceeded` | 模型调用配额不足 |
+| 400 | `model_currently_not_support` | 当前模型不可用 |
+| 400 | `completion_request_error` | 文本生成失败 |
+| 500 | - | 内部服务器错误 |
+
+#### 请求示例
+
+```bash
 curl -X POST 'http://localhost/v1/chat-messages' \
---header 'Authorization: Bearer {api_key}' \
---header 'Content-Type: application/json' \
---data-raw '{
+  --header 'Authorization: Bearer {api_key}' \
+  --header 'Content-Type: application/json' \
+  --data-raw '{
     "inputs": {},
     "query": "What are the specs of the iPhone 13 Pro Max?",
     "response_mode": "streaming",
@@ -238,458 +251,398 @@ curl -X POST 'http://localhost/v1/chat-messages' \
         "url": "https://cloud.dify.ai/logo/logo-site.png"
       }
     ]
-}'
+  }'
+```
 
-Copy
-Copied!
-Blocking Mode
-Response
+#### 响应示例
+
+**阻塞模式响应：**
+
+```json
 {
-    "event": "message",
-    "task_id": "c3800678-a077-43df-a102-53f23ed20b88", 
-    "id": "9da23599-e713-473b-982c-4328d4f5c78a",
-    "message_id": "9da23599-e713-473b-982c-4328d4f5c78a",
-    "conversation_id": "45701982-8118-4bc5-8e9b-64562b4555f2",
-    "mode": "chat",
-    "answer": "iPhone 13 Pro Max specs are listed here:...",
-    "metadata": {
-        "usage": {
-            "prompt_tokens": 1033,
-            "prompt_unit_price": "0.001",
-            "prompt_price_unit": "0.001",
-            "prompt_price": "0.0010330",
-            "completion_tokens": 128,
-            "completion_unit_price": "0.002",
-            "completion_price_unit": "0.001",
-            "completion_price": "0.0002560",
-            "total_tokens": 1161,
-            "total_price": "0.0012890",
-            "currency": "USD",
-            "latency": 0.7682376249867957
-        },
-        "retriever_resources": [
-            {
-                "position": 1,
-                "dataset_id": "101b4c97-fc2e-463c-90b1-5261a4cdcafb",
-                "dataset_name": "iPhone",
-                "document_id": "8dd1ad74-0b5f-4175-b735-7d98bbbb4e00",
-                "document_name": "iPhone List",
-                "segment_id": "ed599c7f-2766-4294-9d1d-e5235a61270a",
-                "score": 0.98457545,
-                "content": "\"Model\",\"Release Date\",\"Display Size\",\"Resolution\",\"Processor\",\"RAM\",\"Storage\",\"Camera\",\"Battery\",\"Operating System\"\n\"iPhone 13 Pro Max\",\"September 24, 2021\",\"6.7 inch\",\"1284 x 2778\",\"Hexa-core (2x3.23 GHz Avalanche + 4x1.82 GHz Blizzard)\",\"6 GB\",\"128, 256, 512 GB, 1TB\",\"12 MP\",\"4352 mAh\",\"iOS 15\""
-            }
-        ]
+  "event": "message",
+  "task_id": "c3800678-a077-43df-a102-53f23ed20b88",
+  "id": "9da23599-e713-473b-982c-4328d4f5c78a",
+  "message_id": "9da23599-e713-473b-982c-4328d4f5c78a",
+  "conversation_id": "45701982-8118-4bc5-8e9b-64562b4555f2",
+  "mode": "chat",
+  "answer": "iPhone 13 Pro Max specs are listed here:...",
+  "metadata": {
+    "usage": {
+      "prompt_tokens": 1033,
+      "prompt_unit_price": "0.001",
+      "prompt_price_unit": "0.001",
+      "prompt_price": "0.0010330",
+      "completion_tokens": 128,
+      "completion_unit_price": "0.002",
+      "completion_price_unit": "0.001",
+      "completion_price": "0.0002560",
+      "total_tokens": 1161,
+      "total_price": "0.0012890",
+      "currency": "USD",
+      "latency": 0.7682376249867957
     },
-    "created_at": 1705407629
-}
-
-Copy
-Copied!
-Streaming Mode
-Response
-  data: {"event": "workflow_started", "task_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "workflow_run_id": "5ad498-f0c7-4085-b384-88cbe6290", "data": {"id": "5ad498-f0c7-4085-b384-88cbe6290", "workflow_id": "dfjasklfjdslag", "created_at": 1679586595}}
-  data: {"event": "node_started", "task_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "workflow_run_id": "5ad498-f0c7-4085-b384-88cbe6290", "data": {"id": "5ad498-f0c7-4085-b384-88cbe6290", "node_id": "dfjasklfjdslag", "node_type": "start", "title": "Start", "index": 0, "predecessor_node_id": "fdljewklfklgejlglsd", "inputs": {}, "created_at": 1679586595}}
-  data: {"event": "node_finished", "task_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "workflow_run_id": "5ad498-f0c7-4085-b384-88cbe6290", "data": {"id": "5ad498-f0c7-4085-b384-88cbe6290", "node_id": "dfjasklfjdslag", "node_type": "start", "title": "Start", "index": 0, "predecessor_node_id": "fdljewklfklgejlglsd", "inputs": {}, "outputs": {}, "status": "succeeded", "elapsed_time": 0.324, "execution_metadata": {"total_tokens": 63127864, "total_price": 2.378, "currency": "USD"},  "created_at": 1679586595}}
-  data: {"event": "workflow_finished", "task_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "workflow_run_id": "5ad498-f0c7-4085-b384-88cbe6290", "data": {"id": "5ad498-f0c7-4085-b384-88cbe6290", "workflow_id": "dfjasklfjdslag", "outputs": {}, "status": "succeeded", "elapsed_time": 0.324, "total_tokens": 63127864, "total_steps": "1", "created_at": 1679586595, "finished_at": 1679976595}}
-  data: {"event": "message", "message_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "conversation_id": "45701982-8118-4bc5-8e9b-64562b4555f2", "answer": " I", "created_at": 1679586595}
-  data: {"event": "message", "message_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "conversation_id": "45701982-8118-4bc5-8e9b-64562b4555f2", "answer": "'m", "created_at": 1679586595}
-  data: {"event": "message", "message_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "conversation_id": "45701982-8118-4bc5-8e9b-64562b4555f2", "answer": " glad", "created_at": 1679586595}
-  data: {"event": "message", "message_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "conversation_id": "45701982-8118-4bc5-8e9b-64562b4555f2", "answer": " to", "created_at": 1679586595}
-  data: {"event": "message", "message_id" : "5ad4cb98-f0c7-4085-b384-88c403be6290", "conversation_id": "45701982-8118-4bc5-8e9b-64562b4555f2", "answer": " meet", "created_at": 1679586595}
-  data: {"event": "message", "message_id" : "5ad4cb98-f0c7-4085-b384-88c403be6290", "conversation_id": "45701982-8118-4bc5-8e9b-64562b4555f2", "answer": " you", "created_at": 1679586595}
-  data: {"event": "message_end", "id": "5e52ce04-874b-4d27-9045-b3bc80def685", "conversation_id": "45701982-8118-4bc5-8e9b-64562b4555f2", "metadata": {"usage": {"prompt_tokens": 1033, "prompt_unit_price": "0.001", "prompt_price_unit": "0.001", "prompt_price": "0.0010330", "completion_tokens": 135, "completion_unit_price": "0.002", "completion_price_unit": "0.001", "completion_price": "0.0002700", "total_tokens": 1168, "total_price": "0.0013030", "currency": "USD", "latency": 1.381760165997548}, "retriever_resources": [{"position": 1, "dataset_id": "101b4c97-fc2e-463c-90b1-5261a4cdcafb", "dataset_name": "iPhone", "document_id": "8dd1ad74-0b5f-4175-b735-7d98bbbb4e00", "document_name": "iPhone List", "segment_id": "ed599c7f-2766-4294-9d1d-e5235a61270a", "score": 0.98457545, "content": "\"Model\",\"Release Date\",\"Display Size\",\"Resolution\",\"Processor\",\"RAM\",\"Storage\",\"Camera\",\"Battery\",\"Operating System\"\n\"iPhone 13 Pro Max\",\"September 24, 2021\",\"6.7 inch\",\"1284 x 2778\",\"Hexa-core (2x3.23 GHz Avalanche + 4x1.82 GHz Blizzard)\",\"6 GB\",\"128, 256, 512 GB, 1TB\",\"12 MP\",\"4352 mAh\",\"iOS 15\""}]}}
-  data: {"event": "tts_message", "conversation_id": "23dd85f3-1a41-4ea0-b7a9-062734ccfaf9", "message_id": "a8bdc41c-13b2-4c18-bfd9-054b9803038c", "created_at": 1721205487, "task_id": "3bf8a0bb-e73b-4690-9e66-4e429bad8ee7", "audio": "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"}
-  data: {"event": "tts_message_end", "conversation_id": "23dd85f3-1a41-4ea0-b7a9-062734ccfaf9", "message_id": "a8bdc41c-13b2-4c18-bfd9-054b9803038c", "created_at": 1721205487, "task_id": "3bf8a0bb-e73b-4690-9e66-4e429bad8ee7", "audio": ""}
-
-Copy
-Copied!
-POST
-/files/upload
-File Upload
-Upload a file for use when sending messages, enabling multimodal understanding of images and text. Supports any formats that are supported by your application. Uploaded files are for use by the current end-user only.
-
-Request Body
-This interface requires a multipart/form-data request.
-
-file (File) Required The file to be uploaded.
-user (string) Required User identifier, defined by the developer's rules, must be unique within the application. The Service API does not share conversations created by the WebApp.
-Response
-After a successful upload, the server will return the file's ID and related information.
-
-id (uuid) ID
-name (string) File name
-size (int) File size (bytes)
-extension (string) File extension
-mime_type (string) File mime-type
-created_by (uuid) End-user ID
-created_at (timestamp) Creation timestamp, e.g., 1705395332
-Errors
-400, no_file_uploaded, a file must be provided
-400, too_many_files, currently only one file is accepted
-400, unsupported_preview, the file does not support preview
-400, unsupported_estimate, the file does not support estimation
-413, file_too_large, the file is too large
-415, unsupported_file_type, unsupported extension, currently only document files are accepted
-503, s3_connection_failed, unable to connect to S3 service
-503, s3_permission_denied, no permission to upload files to S3
-503, s3_file_too_large, file exceeds S3 size limit
-500, internal server error
-Request Example
-Request
-POST
-/files/upload
-curl -X POST 'http://localhost/v1/files/upload' \
---header 'Authorization: Bearer {api_key}' \
---form 'file=@localfile;type=image/[png|jpeg|jpg|webp|gif]' \
---form 'user=abc-123'
-
-Copy
-Copied!
-Response Example
-Response
-{
-  "id": "72fa9618-8f89-4a37-9b33-7e1178a24a67",
-  "name": "example.png",
-  "size": 1024,
-  "extension": "png",
-  "mime_type": "image/png",
-  "created_by": "6ad1ab0a-73ff-4ac1-b9e4-cdb312f71f13",
-  "created_at": 1577836800,
-}
-
-Copy
-Copied!
-POST
-/chat-messages/:task_id/stop
-Stop Generate
-Only supported in streaming mode.
-
-Path
-task_id (string) Task ID, can be obtained from the streaming chunk return
-Request Body
-user (string) Required User identifier, used to define the identity of the end-user, must be consistent with the user passed in the message sending interface. The Service API does not share conversations created by the WebApp.
-Response
-result (string) Always returns "success"
-Request Example
-Request
-POST
-/chat-messages/:task_id/stop
-curl -X POST 'http://localhost/v1/chat-messages/:task_id/stop' \
--H 'Authorization: Bearer {api_key}' \
--H 'Content-Type: application/json' \
---data-raw '{"user": "abc-123"}'
-
-Copy
-Copied!
-Response Example
-Response
-{
-  "result": "success"
-}
-
-Copy
-Copied!
-POST
-/messages/:message_id/feedbacks
-Message Feedback
-End-users can provide feedback messages, facilitating application developers to optimize expected outputs.
-
-Path
-Name
-message_id
-Type
-string
-Description
-Message ID
-
-Request Body
-Name
-rating
-Type
-string
-Description
-Upvote as like, downvote as dislike, revoke upvote as null
-
-Name
-user
-Type
-string
-Description
-User identifier, defined by the developer's rules, must be unique within the application. The Service API does not share conversations created by the WebApp.
-
-Name
-content
-Type
-string
-Description
-The specific content of message feedback.
-
-Response
-result (string) Always returns "success"
-Request
-POST
-/messages/:message_id/feedbacks
-curl -X POST 'http://localhost/v1/messages/:message_id/feedbacks \
- --header 'Authorization: Bearer {api_key}' \
---header 'Content-Type: application/json' \
---data-raw '{
-    "rating": "like",
-    "user": "abc-123",
-    "content": "message feedback information"
-}'
-
-Copy
-Copied!
-Response
-{
-  "result": "success"
-}
-
-Copy
-Copied!
-GET
-/app/feedbacks
-Get feedbacks of application
-Get application's feedbacks.
-
-Query
-Name
-page
-Type
-string
-Description
-（optional）pagination，default：1
-
-Name
-limit
-Type
-string
-Description
-（optional） records per page default：20
-
-Response
-data (List) return apps feedback list.
-Request
-GET
-/app/feedbacks
-curl -X GET 'http://localhost/v1/app/feedbacks?page=1&limit=20'
-
-Copy
-Copied!
-Response
-  {
-      "data": [
-          {
-              "id": "8c0fbed8-e2f9-49ff-9f0e-15a35bdd0e25",
-              "app_id": "f252d396-fe48-450e-94ec-e184218e7346",
-              "conversation_id": "2397604b-9deb-430e-b285-4726e51fd62d",
-              "message_id": "709c0b0f-0a96-4a4e-91a4-ec0889937b11",
-              "rating": "like",
-              "content": "message feedback information-3",
-              "from_source": "user",
-              "from_end_user_id": "74286412-9a1a-42c1-929c-01edb1d381d5",
-              "from_account_id": null,
-              "created_at": "2025-04-24T09:24:38",
-              "updated_at": "2025-04-24T09:24:38"
-          }
-      ]
-  }
-
-Copy
-Copied!
-GET
-/messages/{message_id}/suggested
-Next Suggested Questions
-Get next questions suggestions for the current message
-
-Path Params
-Name
-message_id
-Type
-string
-Description
-Message ID
-
-Query
-Name
-user
-Type
-string
-Description
-User identifier, used to define the identity of the end-user for retrieval and statistics. Should be uniquely defined by the developer within the application.
-
-Request
-GET
-/messages/{message_id}/suggested
-curl --location --request GET 'http://localhost/v1/messages/{message_id}/suggested?user=abc-123& \
---header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \
---header 'Content-Type: application/json'
-
-Copy
-Copied!
-Response
-{
-  "result": "success",
-  "data": [
-        "a",
-        "b",
-        "c"
+    "retriever_resources": [
+      {
+        "position": 1,
+        "dataset_id": "101b4c97-fc2e-463c-90b1-5261a4cdcafb",
+        "dataset_name": "iPhone",
+        "document_id": "8dd1ad74-0b5f-4175-b735-7d98bbbb4e00",
+        "document_name": "iPhone List",
+        "segment_id": "ed599c7f-2766-4294-9d1d-e5235a61270a",
+        "score": 0.98457545,
+        "content": "\"Model\",\"Release Date\",\"Display Size\",\"Resolution\",\"Processor\",\"RAM\",\"Storage\",\"Camera\",\"Battery\",\"Operating System\"\n\"iPhone 13 Pro Max\",\"September 24, 2021\",\"6.7 inch\",\"1284 x 2778\",\"Hexa-core (2x3.23 GHz Avalanche + 4x1.82 GHz Blizzard)\",\"6 GB\",\"128, 256, 512 GB, 1TB\",\"12 MP\",\"4352 mAh\",\"iOS 15\""
+      }
     ]
+  },
+  "created_at": 1705407629
 }
+```
 
-Copy
-Copied!
-GET
-/messages
-Get Conversation History Messages
-Returns historical chat records in a scrolling load format, with the first page returning the latest {limit} messages, i.e., in reverse order.
+**流式模式响应：**
 
-Query
-Name
-conversation_id
-Type
-string
-Description
-Conversation ID
+```
+data: {"event": "workflow_started", "task_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "workflow_run_id": "5ad498-f0c7-4085-b384-88cbe6290", "data": {"id": "5ad498-f0c7-4085-b384-88cbe6290", "workflow_id": "dfjasklfjdslag", "created_at": 1679586595}}
 
-Name
-user
-Type
-string
-Description
-User identifier, used to define the identity of the end-user for retrieval and statistics. Should be uniquely defined by the developer within the application.
+data: {"event": "node_started", "task_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "workflow_run_id": "5ad498-f0c7-4085-b384-88cbe6290", "data": {"id": "5ad498-f0c7-4085-b384-88cbe6290", "node_id": "dfjasklfjdslag", "node_type": "start", "title": "Start", "index": 0, "predecessor_node_id": "fdljewklfklgejlglsd", "inputs": {}, "created_at": 1679586595}}
 
-Name
-first_id
-Type
-string
-Description
-The ID of the first chat record on the current page, default is null.
+data: {"event": "node_finished", "task_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "workflow_run_id": "5ad498-f0c7-4085-b384-88cbe6290", "data": {"id": "5ad498-f0c7-4085-b384-88cbe6290", "node_id": "dfjasklfjdslag", "node_type": "start", "title": "Start", "index": 0, "predecessor_node_id": "fdljewklfklgejlglsd", "inputs": {}, "outputs": {}, "status": "succeeded", "elapsed_time": 0.324, "execution_metadata": {"total_tokens": 63127864, "total_price": 2.378, "currency": "USD"}, "created_at": 1679586595}}
 
-Name
-limit
-Type
-int
-Description
-How many chat history messages to return in one request, default is 20.
+data: {"event": "workflow_finished", "task_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "workflow_run_id": "5ad498-f0c7-4085-b384-88cbe6290", "data": {"id": "5ad498-f0c7-4085-b384-88cbe6290", "workflow_id": "dfjasklfjdslag", "outputs": {}, "status": "succeeded", "elapsed_time": 0.324, "total_tokens": 63127864, "total_steps": "1", "created_at": 1679586595, "finished_at": 1679976595}}
 
-Response
-data (array[object]) Message list
-id (string) Message ID
-conversation_id (string) Conversation ID
-inputs (object) User input parameters.
-query (string) User input / question content.
-message_files (array[object]) Message files
-id (string) ID
-type (string) File type, image for images
-url (string) Preview image URL
-belongs_to (string) belongs to，user orassistant
-answer (string) Response message content
-created_at (timestamp) Creation timestamp, e.g., 1705395332
-feedback (object) Feedback information
-rating (string) Upvote as like / Downvote as dislike
-retriever_resources (array[RetrieverResource]) Citation and Attribution List
-has_more (bool) Whether there is a next page
-limit (int) Number of returned items, if input exceeds system limit, returns system limit amount
-Request
-GET
-/messages
-curl -X GET 'http://localhost/v1/messages?user=abc-123&conversation_id='\
- --header 'Authorization: Bearer {api_key}'
+data: {"event": "message", "message_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "conversation_id": "45701982-8118-4bc5-8e9b-64562b4555f2", "answer": " I", "created_at": 1679586595}
 
-Copy
-Copied!
-Response Example
-Response
+data: {"event": "message", "message_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "conversation_id": "45701982-8118-4bc5-8e9b-64562b4555f2", "answer": "'m", "created_at": 1679586595}
+
+data: {"event": "message", "message_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "conversation_id": "45701982-8118-4bc5-8e9b-64562b4555f2", "answer": " glad", "created_at": 1679586595}
+
+data: {"event": "message", "message_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "conversation_id": "45701982-8118-4bc5-8e9b-64562b4555f2", "answer": " to", "created_at": 1679586595}
+
+data: {"event": "message", "message_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "conversation_id": "45701982-8118-4bc5-8e9b-64562b4555f2", "answer": " meet", "created_at": 1679586595}
+
+data: {"event": "message", "message_id": "5ad4cb98-f0c7-4085-b384-88c403be6290", "conversation_id": "45701982-8118-4bc5-8e9b-64562b4555f2", "answer": " you", "created_at": 1679586595}
+
+data: {"event": "message_end", "id": "5e52ce04-874b-4d27-9045-b3bc80def685", "conversation_id": "45701982-8118-4bc5-8e9b-64562b4555f2", "metadata": {"usage": {"prompt_tokens": 1033, "prompt_unit_price": "0.001", "prompt_price_unit": "0.001", "prompt_price": "0.0010330", "completion_tokens": 135, "completion_unit_price": "0.002", "completion_price_unit": "0.001", "completion_price": "0.0002700", "total_tokens": 1168, "total_price": "0.0013030", "currency": "USD", "latency": 1.381760165997548}, "retriever_resources": [{"position": 1, "dataset_id": "101b4c97-fc2e-463c-90b1-5261a4cdcafb", "dataset_name": "iPhone", "document_id": "8dd1ad74-0b5f-4175-b735-7d98bbbb4e00", "document_name": "iPhone List", "segment_id": "ed599c7f-2766-4294-9d1d-e5235a61270a", "score": 0.98457545, "content": "\"Model\",\"Release Date\",\"Display Size\",\"Resolution\",\"Processor\",\"RAM\",\"Storage\",\"Camera\",\"Battery\",\"Operating System\"\n\"iPhone 13 Pro Max\",\"September 24, 2021\",\"6.7 inch\",\"1284 x 2778\",\"Hexa-core (2x3.23 GHz Avalanche + 4x1.82 GHz Blizzard)\",\"6 GB\",\"128, 256, 512 GB, 1TB\",\"12 MP\",\"4352 mAh\",\"iOS 15\""}]}}
+
+data: {"event": "tts_message", "conversation_id": "23dd85f3-1a41-4ea0-b7a9-062734ccfaf9", "message_id": "a8bdc41c-13b2-4c18-bfd9-054b9803038c", "created_at": 1721205487, "task_id": "3bf8a0bb-e73b-4690-9e66-4e429bad8ee7", "audio": "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"}
+
+data: {"event": "tts_message_end", "conversation_id": "23dd85f3-1a41-4ea0-b7a9-062734ccfaf9", "message_id": "a8bdc41c-13b2-4c18-bfd9-054b9803038c", "created_at": 1721205487, "task_id": "3bf8a0bb-e73b-4690-9e66-4e429bad8ee7", "audio": ""}
+```
+
+---
+
+### 停止生成
+
+**POST** `/chat-messages/:task_id/stop`
+
+仅支持流式模式。
+
+#### 路径参数
+
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| `task_id` | string | 任务 ID，可从流式数据块返回中获取 |
+
+#### 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `user` | string | 是 | 用户标识符，用于定义终端用户的身份，必须与消息发送接口中传递的用户一致。Service API 不共享由 WebApp 创建的对话 |
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `result` | string | 始终返回 "success" |
+
+#### 请求示例
+
+```bash
+curl -X POST 'http://localhost/v1/chat-messages/:task_id/stop' \
+  -H 'Authorization: Bearer {api_key}' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{"user": "abc-123"}'
+```
+
+#### 响应示例
+
+```json
+{
+  "result": "success"
+}
+```
+
+---
+
+### 获取会话历史消息
+
+**GET** `/messages`
+
+以滚动加载格式返回历史聊天记录，第一页返回最新的 `{limit}` 条消息，即按倒序排列。
+
+#### 查询参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `conversation_id` | string | 是 | 会话 ID |
+| `user` | string | 是 | 用户标识符，用于定义终端用户的身份以进行检索和统计。应在应用程序内由开发者唯一定义 |
+| `first_id` | string | 否 | 当前页第一条聊天记录的 ID，默认为 null |
+| `limit` | int | 否 | 一次请求返回多少条聊天历史消息，默认为 20 |
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `data` | array[object] | 消息列表 |
+| `data[].id` | string | 消息 ID |
+| `data[].conversation_id` | string | 会话 ID |
+| `data[].inputs` | object | 用户输入参数 |
+| `data[].query` | string | 用户输入/问题内容 |
+| `data[].message_files` | array[object] | 消息文件 |
+| `data[].message_files[].id` | string | ID |
+| `data[].message_files[].type` | string | 文件类型，图片为 image |
+| `data[].message_files[].url` | string | 预览图片 URL |
+| `data[].message_files[].belongs_to` | string | 归属，user 或 assistant |
+| `data[].answer` | string | 响应消息内容 |
+| `data[].created_at` | timestamp | 创建时间戳 |
+| `data[].feedback` | object | 反馈信息 |
+| `data[].feedback.rating` | string | 点赞为 like / 点踩为 dislike |
+| `data[].retriever_resources` | array[RetrieverResource] | 引用和归属列表 |
+| `has_more` | bool | 是否有下一页 |
+| `limit` | int | 返回的项目数，如果输入超过系统限制，返回系统限制数量 |
+
+#### 请求示例
+
+```bash
+curl -X GET 'http://localhost/v1/messages?user=abc-123&conversation_id=' \
+  --header 'Authorization: Bearer {api_key}'
+```
+
+#### 响应示例
+
+```json
 {
   "limit": 20,
   "has_more": false,
   "data": [
     {
-        "id": "a076a87f-31e5-48dc-b452-0061adbbc922",
-        "conversation_id": "cd78daf6-f9e4-4463-9ff2-54257230a0ce",
-        "inputs": {
-            "name": "dify"
-        },
-        "query": "iphone 13 pro",
-        "answer": "The iPhone 13 Pro, released on September 24, 2021, features a 6.1-inch display with a resolution of 1170 x 2532. It is equipped with a Hexa-core (2x3.23 GHz Avalanche + 4x1.82 GHz Blizzard) processor, 6 GB of RAM, and offers storage options of 128 GB, 256 GB, 512 GB, and 1 TB. The camera is 12 MP, the battery capacity is 3095 mAh, and it runs on iOS 15.",
-        "message_files": [],
-        "feedback": null,
-        "retriever_resources": [
-            {
-                "position": 1,
-                "dataset_id": "101b4c97-fc2e-463c-90b1-5261a4cdcafb",
-                "dataset_name": "iPhone",
-                "document_id": "8dd1ad74-0b5f-4175-b735-7d98bbbb4e00",
-                "document_name": "iPhone List",
-                "segment_id": "ed599c7f-2766-4294-9d1d-e5235a61270a",
-                "score": 0.98457545,
-                "content": "\"Model\",\"Release Date\",\"Display Size\",\"Resolution\",\"Processor\",\"RAM\",\"Storage\",\"Camera\",\"Battery\",\"Operating System\"\n\"iPhone 13 Pro Max\",\"September 24, 2021\",\"6.7 inch\",\"1284 x 2778\",\"Hexa-core (2x3.23 GHz Avalanche + 4x1.82 GHz Blizzard)\",\"6 GB\",\"128, 256, 512 GB, 1TB\",\"12 MP\",\"4352 mAh\",\"iOS 15\""
-            }
-        ],
-        "created_at": 1705569239,
+      "id": "a076a87f-31e5-48dc-b452-0061adbbc922",
+      "conversation_id": "cd78daf6-f9e4-4463-9ff2-54257230a0ce",
+      "inputs": {
+        "name": "dify"
+      },
+      "query": "iphone 13 pro",
+      "answer": "The iPhone 13 Pro, released on September 24, 2021, features a 6.1-inch display with a resolution of 1170 x 2532. It is equipped with a Hexa-core (2x3.23 GHz Avalanche + 4x1.82 GHz Blizzard) processor, 6 GB of RAM, and offers storage options of 128 GB, 256 GB, 512 GB, and 1 TB. The camera is 12 MP, the battery capacity is 3095 mAh, and it runs on iOS 15.",
+      "message_files": [],
+      "feedback": null,
+      "retriever_resources": [
+        {
+          "position": 1,
+          "dataset_id": "101b4c97-fc2e-463c-90b1-5261a4cdcafb",
+          "dataset_name": "iPhone",
+          "document_id": "8dd1ad74-0b5f-4175-b735-7d98bbbb4e00",
+          "document_name": "iPhone List",
+          "segment_id": "ed599c7f-2766-4294-9d1d-e5235a61270a",
+          "score": 0.98457545,
+          "content": "\"Model\",\"Release Date\",\"Display Size\",\"Resolution\",\"Processor\",\"RAM\",\"Storage\",\"Camera\",\"Battery\",\"Operating System\"\n\"iPhone 13 Pro Max\",\"September 24, 2021\",\"6.7 inch\",\"1284 x 2778\",\"Hexa-core (2x3.23 GHz Avalanche + 4x1.82 GHz Blizzard)\",\"6 GB\",\"128, 256, 512 GB, 1TB\",\"12 MP\",\"4352 mAh\",\"iOS 15\""
+        }
+      ],
+      "created_at": 1705569239
     }
   ]
 }
+```
 
-Copy
-Copied!
-GET
-/conversations
-Get Conversations
-Retrieve the conversation list for the current user, defaulting to the most recent 20 entries.
+---
 
-Query
-Name
-user
-Type
-string
-Description
-User identifier, used to define the identity of the end-user for retrieval and statistics. Should be uniquely defined by the developer within the application.
+### 获取建议问题
 
-Name
-last_id
-Type
-string
-Description
-(Optional) The ID of the last record on the current page, default is null.
+**GET** `/messages/{message_id}/suggested`
 
-Name
-limit
-Type
-int
-Description
-(Optional) How many records to return in one request, default is the most recent 20 entries. Maximum 100, minimum 1.
+获取当前消息的下一个问题建议。
 
-Name
-sort_by
-Type
-string
-Description
-(Optional) Sorting Field, Default: -updated_at (sorted in descending order by update time)
+#### 路径参数
 
-Available Values: created_at, -created_at, updated_at, -updated_at
-The symbol before the field represents the order or reverse, "-" represents reverse order.
-Response
-data (array[object]) List of conversations
-id (string) Conversation ID
-name (string) Conversation name, by default, is generated by LLM.
-inputs (object) User input parameters.
-status (string) Conversation status
-introduction (string) Introduction
-created_at (timestamp) Creation timestamp, e.g., 1705395332
-updated_at (timestamp) Update timestamp, e.g., 1705395332
-has_more (bool)
-limit (int) Number of entries returned, if input exceeds system limit, system limit number is returned
-Request
-GET
-/conversations
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| `message_id` | string | 消息 ID |
+
+#### 查询参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `user` | string | 是 | 用户标识符，用于定义终端用户的身份以进行检索和统计。应在应用程序内由开发者唯一定义 |
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `result` | string | 固定为 "success" |
+| `data` | array[string] | 建议问题列表 |
+
+#### 请求示例
+
+```bash
+curl --location --request GET 'http://localhost/v1/messages/{message_id}/suggested?user=abc-123' \
+  --header 'Authorization: Bearer ENTER-YOUR-SECRET-KEY' \
+  --header 'Content-Type: application/json'
+```
+
+#### 响应示例
+
+```json
+{
+  "result": "success",
+  "data": [
+    "a",
+    "b",
+    "c"
+  ]
+}
+```
+
+---
+
+### 消息反馈
+
+**POST** `/messages/:message_id/feedbacks`
+
+终端用户可以提供反馈消息，帮助应用开发者优化预期输出。
+
+#### 路径参数
+
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| `message_id` | string | 消息 ID |
+
+#### 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `rating` | string | 是 | 点赞为 like，点踩为 dislike，撤销点赞为 null |
+| `user` | string | 是 | 用户标识符，由开发者规则定义，必须在应用程序内唯一。Service API 不共享由 WebApp 创建的对话 |
+| `content` | string | 否 | 消息反馈的具体内容 |
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `result` | string | 始终返回 "success" |
+
+#### 请求示例
+
+```bash
+curl -X POST 'http://localhost/v1/messages/:message_id/feedbacks' \
+  --header 'Authorization: Bearer {api_key}' \
+  --header 'Content-Type: application/json' \
+  --data-raw '{
+    "rating": "like",
+    "user": "abc-123",
+    "content": "message feedback information"
+  }'
+```
+
+#### 响应示例
+
+```json
+{
+  "result": "success"
+}
+```
+
+---
+
+### 获取应用反馈列表
+
+**GET** `/app/feedbacks`
+
+获取应用的反馈列表。
+
+#### 查询参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `page` | string | 否 | 页码，默认为 1 |
+| `limit` | string | 否 | 每页记录数，默认为 20 |
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `data` | List | 应用反馈列表 |
+
+#### 请求示例
+
+```bash
+curl -X GET 'http://localhost/v1/app/feedbacks?page=1&limit=20'
+```
+
+#### 响应示例
+
+```json
+{
+  "data": [
+    {
+      "id": "8c0fbed8-e2f9-49ff-9f0e-15a35bdd0e25",
+      "app_id": "f252d396-fe48-450e-94ec-e184218e7346",
+      "conversation_id": "2397604b-9deb-430e-b285-4726e51fd62d",
+      "message_id": "709c0b0f-0a96-4a4e-91a4-ec0889937b11",
+      "rating": "like",
+      "content": "message feedback information-3",
+      "from_source": "user",
+      "from_end_user_id": "74286412-9a1a-42c1-929c-01edb1d381d5",
+      "from_account_id": null,
+      "created_at": "2025-04-24T09:24:38",
+      "updated_at": "2025-04-24T09:24:38"
+    }
+  ]
+}
+```
+
+---
+
+## 会话相关 API
+
+### 获取会话列表
+
+**GET** `/conversations`
+
+检索当前用户的会话列表，默认返回最近的 20 条记录。
+
+#### 查询参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `user` | string | 是 | 用户标识符，用于定义终端用户的身份以进行检索和统计。应在应用程序内由开发者唯一定义 |
+| `last_id` | string | 否 | 当前页最后一条记录的 ID，默认为 null |
+| `limit` | int | 否 | 一次请求返回多少条记录，默认为最近的 20 条。最大 100，最小 1 |
+| `sort_by` | string | 否 | 排序字段，默认：`-updated_at`（按更新时间降序排列）<br>可用值：`created_at`, `-created_at`, `updated_at`, `-updated_at`<br>字段前的符号表示顺序或反向，"-" 表示反向顺序 |
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `data` | array[object] | 会话列表 |
+| `data[].id` | string | 会话 ID |
+| `data[].name` | string | 会话名称，默认由 LLM 生成 |
+| `data[].inputs` | object | 用户输入参数 |
+| `data[].status` | string | 会话状态 |
+| `data[].introduction` | string | 介绍 |
+| `data[].created_at` | timestamp | 创建时间戳 |
+| `data[].updated_at` | timestamp | 更新时间戳 |
+| `has_more` | bool | 是否有更多记录 |
+| `limit` | int | 返回的条目数，如果输入超过系统限制，返回系统限制数量 |
+
+#### 请求示例
+
+```bash
 curl -X GET 'http://localhost/v1/conversations?user=abc-123&last_id=&limit=20' \
- --header 'Authorization: Bearer {api_key}'
+  --header 'Authorization: Bearer {api_key}'
+```
 
-Copy
-Copied!
-Response
+#### 响应示例
+
+```json
 {
   "limit": 20,
   "has_more": false,
@@ -698,8 +651,8 @@ Response
       "id": "10799fb8-64f7-4296-bbf7-b42bfbe0ae54",
       "name": "New chat",
       "inputs": {
-          "book": "book",
-          "myName": "Lucy"
+        "book": "book",
+        "myName": "Lucy"
       },
       "status": "normal",
       "created_at": 1679667915,
@@ -707,174 +660,167 @@ Response
     },
     {
       "id": "hSIhXBhNe8X1d8Et"
-      // ...
     }
   ]
 }
+```
 
-Copy
-Copied!
-DELETE
-/conversations/:conversation_id
-Delete Conversation
-Delete a conversation.
+---
 
-Path
-conversation_id (string) Conversation ID
-Request Body
-Name
-user
-Type
-string
-Description
-The user identifier, defined by the developer, must ensure uniqueness within the application.
+### 删除会话
 
-Response
-result (string) Always returns "success"
-Request
-DELETE
-/conversations/:conversation_id
+**DELETE** `/conversations/:conversation_id`
+
+删除一个会话。
+
+#### 路径参数
+
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| `conversation_id` | string | 会话 ID |
+
+#### 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `user` | string | 是 | 用户标识符，由开发者定义，必须确保在应用程序内唯一 |
+
+#### 响应
+
+HTTP 204 No Content
+
+#### 请求示例
+
+```bash
 curl -X DELETE 'http://localhost/v1/conversations/:conversation_id' \
---header 'Authorization: Bearer {api_key}' \
---header 'Content-Type: application/json' \
---data-raw '{ 
- "user": "abc-123"
-}'
+  --header 'Authorization: Bearer {api_key}' \
+  --header 'Content-Type: application/json' \
+  --data-raw '{
+    "user": "abc-123"
+  }'
+```
 
-Copy
-Copied!
-Response
-204 No Content
+---
 
-Copy
-Copied!
-POST
-/conversations/:conversation_id/name
-Conversation Rename
-Request Body
-Rename the session, the session name is used for display on clients that support multiple sessions.
+### 重命名会话
 
-Path
-conversation_id (string) Conversation ID
-Name
-name
-Type
-string
-Description
-(Optional) The name of the conversation. This parameter can be omitted if auto_generate is set to true.
+**POST** `/conversations/:conversation_id/name`
 
-Name
-auto_generate
-Type
-bool
-Description
-(Optional) Automatically generate the title, default is false
+重命名会话，会话名称用于支持多会话的客户端显示。
 
-Name
-user
-Type
-string
-Description
-The user identifier, defined by the developer, must ensure uniqueness within the application.
+#### 路径参数
 
-Response
-id (string) Conversation ID
-name (string) Conversation name
-inputs (object) User input parameters
-status (string) Conversation status
-introduction (string) Introduction
-created_at (timestamp) Creation timestamp, e.g., 1705395332
-updated_at (timestamp) Update timestamp, e.g., 1705395332
-Request
-POST
-/conversations/:conversation_id/name
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| `conversation_id` | string | 会话 ID |
+
+#### 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `name` | string | 否 | 会话名称。如果 `auto_generate` 设置为 `true`，则可以省略此参数 |
+| `auto_generate` | bool | 否 | 自动生成标题，默认为 `false` |
+| `user` | string | 是 | 用户标识符，由开发者定义，必须确保在应用程序内唯一 |
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string | 会话 ID |
+| `name` | string | 会话名称 |
+| `inputs` | object | 用户输入参数 |
+| `status` | string | 会话状态 |
+| `introduction` | string | 介绍 |
+| `created_at` | timestamp | 创建时间戳 |
+| `updated_at` | timestamp | 更新时间戳 |
+
+#### 请求示例
+
+```bash
 curl -X POST 'http://localhost/v1/conversations/:conversation_id/name' \
---header 'Authorization: Bearer {api_key}' \
---header 'Content-Type: application/json' \
---data-raw '{ 
- "name": "", 
- "auto_generate": true, 
- "user": "abc-123"
-}'
+  --header 'Authorization: Bearer {api_key}' \
+  --header 'Content-Type: application/json' \
+  --data-raw '{
+    "name": "",
+    "auto_generate": true,
+    "user": "abc-123"
+  }'
+```
 
-Copy
-Copied!
-Response
+#### 响应示例
+
+```json
 {
-    "id": "cd78daf6-f9e4-4463-9ff2-54257230a0ce",
-    "name": "Chat vs AI",
-    "inputs": {},
-    "status": "normal",
-    "introduction": "",
-    "created_at": 1705569238,
-    "updated_at": 1705569238
+  "id": "cd78daf6-f9e4-4463-9ff2-54257230a0ce",
+  "name": "Chat vs AI",
+  "inputs": {},
+  "status": "normal",
+  "introduction": "",
+  "created_at": 1705569238,
+  "updated_at": 1705569238
 }
+```
 
-Copy
-Copied!
-GET
-/conversations/:conversation_id/variables
-Get Conversation Variables
-Retrieve variables from a specific conversation. This endpoint is useful for extracting structured data that was captured during the conversation.
+---
 
-Path Parameters
-Name
-conversation_id
-Type
-string
-Description
-The ID of the conversation to retrieve variables from.
+### 获取会话变量
 
-Query Parameters
-Name
-user
-Type
-string
-Description
-The user identifier, defined by the developer, must ensure uniqueness within the application
+**GET** `/conversations/:conversation_id/variables`
 
-Name
-last_id
-Type
-string
-Description
-(Optional) The ID of the last record on the current page, default is null.
+从特定会话中检索变量。此端点对于提取在会话期间捕获的结构化数据很有用。
 
-Name
-limit
-Type
-int
-Description
-(Optional) How many records to return in one request, default is the most recent 20 entries. Maximum 100, minimum 1.
+#### 路径参数
 
-Response
-limit (int) Number of items per page
-has_more (bool) Whether there is a next page
-data (array[object]) List of variables
-id (string) Variable ID
-name (string) Variable name
-value_type (string) Variable type (string, number, object, etc.)
-value (string) Variable value
-description (string) Variable description
-created_at (int) Creation timestamp
-updated_at (int) Last update timestamp
-Errors
-404, conversation_not_exists, Conversation not found
-Request
-GET
-/conversations/:conversation_id/variables
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| `conversation_id` | string | 要检索变量的会话 ID |
+
+#### 查询参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `user` | string | 是 | 用户标识符，由开发者定义，必须确保在应用程序内唯一 |
+| `last_id` | string | 否 | 当前页最后一条记录的 ID，默认为 null |
+| `limit` | int | 否 | 一次请求返回多少条记录，默认为最近的 20 条。最大 100，最小 1 |
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `limit` | int | 每页项目数 |
+| `has_more` | bool | 是否有下一页 |
+| `data` | array[object] | 变量列表 |
+| `data[].id` | string | 变量 ID |
+| `data[].name` | string | 变量名称 |
+| `data[].value_type` | string | 变量类型（string, number, object 等） |
+| `data[].value` | string | 变量值 |
+| `data[].description` | string | 变量描述 |
+| `data[].created_at` | int | 创建时间戳 |
+| `data[].updated_at` | int | 最后更新时间戳 |
+
+#### 错误码
+
+| HTTP 状态码 | 错误代码 | 说明 |
+|------------|---------|------|
+| 404 | `conversation_not_exists` | 会话未找到 |
+
+#### 请求示例
+
+```bash
 curl -X GET 'http://localhost/v1/conversations/{conversation_id}/variables?user=abc-123' \
---header 'Authorization: Bearer {api_key}'
+  --header 'Authorization: Bearer {api_key}'
+```
 
-Copy
-Copied!
-Request with variable name filter
+**带变量名过滤的请求：**
+
+```bash
 curl -X GET '${props.appDetail.api_base_url}/conversations/{conversation_id}/variables?user=abc-123&variable_name=customer_name' \
---header 'Authorization: Bearer {api_key}'
+  --header 'Authorization: Bearer {api_key}'
+```
 
-Copy
-Copied!
-Response
+#### 响应示例
+
+```json
 {
   "limit": 100,
   "has_more": false,
@@ -899,115 +845,186 @@ Response
     }
   ]
 }
+```
 
-Copy
-Copied!
-POST
-/audio-to-text
-Speech to Text
-This endpoint requires a multipart/form-data request.
+---
 
-Request Body
-Name
-file
-Type
-file
-Description
-Audio file. Supported formats: ['mp3', 'mp4', 'mpeg', 'mpga', 'm4a', 'wav', 'webm'] File size limit: 15MB
+## 文件相关 API
 
-Name
-user
-Type
-string
-Description
-User identifier, defined by the developer's rules, must be unique within the application.
+### 文件上传
 
-Response
-text (string) Output text
-Request
-POST
-/audio-to-text
+**POST** `/files/upload`
+
+上传文件以供发送消息时使用，支持图像和文本的多模态理解。支持应用程序支持的任何格式。上传的文件仅供当前终端用户使用。
+
+#### 请求参数
+
+此接口需要 `multipart/form-data` 请求。
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `file` | File | 是 | 要上传的文件 |
+| `user` | string | 是 | 用户标识符，由开发者规则定义，必须在应用程序内唯一。Service API 不共享由 WebApp 创建的对话 |
+
+#### 响应
+
+上传成功后，服务器将返回文件的 ID 和相关信息。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | uuid | ID |
+| `name` | string | 文件名 |
+| `size` | int | 文件大小（字节） |
+| `extension` | string | 文件扩展名 |
+| `mime_type` | string | 文件 MIME 类型 |
+| `created_by` | uuid | 终端用户 ID |
+| `created_at` | timestamp | 创建时间戳 |
+
+#### 错误码
+
+| HTTP 状态码 | 错误代码 | 说明 |
+|------------|---------|------|
+| 400 | `no_file_uploaded` | 必须提供文件 |
+| 400 | `too_many_files` | 目前只接受一个文件 |
+| 400 | `unsupported_preview` | 文件不支持预览 |
+| 400 | `unsupported_estimate` | 文件不支持估算 |
+| 413 | `file_too_large` | 文件太大 |
+| 415 | `unsupported_file_type` | 不支持的扩展名，目前只接受文档文件 |
+| 503 | `s3_connection_failed` | 无法连接到 S3 服务 |
+| 503 | `s3_permission_denied` | 没有上传文件到 S3 的权限 |
+| 503 | `s3_file_too_large` | 文件超过 S3 大小限制 |
+| 500 | - | 内部服务器错误 |
+
+#### 请求示例
+
+```bash
+curl -X POST 'http://localhost/v1/files/upload' \
+  --header 'Authorization: Bearer {api_key}' \
+  --form 'file=@localfile;type=image/[png|jpeg|jpg|webp|gif]' \
+  --form 'user=abc-123'
+```
+
+#### 响应示例
+
+```json
+{
+  "id": "72fa9618-8f89-4a37-9b33-7e1178a24a67",
+  "name": "example.png",
+  "size": 1024,
+  "extension": "png",
+  "mime_type": "image/png",
+  "created_by": "6ad1ab0a-73ff-4ac1-b9e4-cdb312f71f13",
+  "created_at": 1577836800
+}
+```
+
+---
+
+## 语音相关 API
+
+### 语音转文字
+
+**POST** `/audio-to-text`
+
+此接口需要 `multipart/form-data` 请求。
+
+#### 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `file` | file | 是 | 音频文件。支持的格式：['mp3', 'mp4', 'mpeg', 'mpga', 'm4a', 'wav', 'webm']。文件大小限制：15MB |
+| `user` | string | 是 | 用户标识符，由开发者规则定义，必须在应用程序内唯一 |
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `text` | string | 输出文本 |
+
+#### 请求示例
+
+```bash
 curl -X POST 'http://localhost/v1/audio-to-text' \
---header 'Authorization: Bearer {api_key}' \
---form 'file=@localfile;type=audio/[mp3|mp4|mpeg|mpga|m4a|wav|webm]'
+  --header 'Authorization: Bearer {api_key}' \
+  --form 'file=@localfile;type=audio/[mp3|mp4|mpeg|mpga|m4a|wav|webm]'
+```
 
-Copy
-Copied!
-Response
+#### 响应示例
+
+```json
 {
   "text": ""
 }
+```
 
-Copy
-Copied!
-POST
-/text-to-audio
-Text to Audio
-Text to speech.
+---
 
-Request Body
-Name
-message_id
-Type
-str
-Description
-For text messages generated by Dify, simply pass the generated message-id directly. The backend will use the message-id to look up the corresponding content and synthesize the voice information directly. If both message_id and text are provided simultaneously, the message_id is given priority.
+### 文字转语音
 
-Name
-text
-Type
-str
-Description
-Speech generated content。
+**POST** `/text-to-audio`
 
-Name
-user
-Type
-string
-Description
-The user identifier, defined by the developer, must ensure uniqueness within the app.
+文字转语音。
 
-Request
-POST
-/text-to-audio
+#### 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `message_id` | str | 否 | 对于 Dify 生成的文本消息，直接传递生成的消息 ID。后端将使用消息 ID 查找相应内容并直接合成语音信息。如果同时提供 `message_id` 和 `text`，则优先使用 `message_id` |
+| `text` | str | 否 | 语音生成内容 |
+| `user` | string | 是 | 用户标识符，由开发者定义，必须确保在应用程序内唯一 |
+
+#### 响应
+
+响应头：
+```
+Content-Type: audio/wav
+```
+
+响应体为音频文件流。
+
+#### 请求示例
+
+```bash
 curl -o text-to-audio.mp3 -X POST 'http://localhost/v1/text-to-audio' \
---header 'Authorization: Bearer {api_key}' \
---header 'Content-Type: application/json' \
---data-raw '{
+  --header 'Authorization: Bearer {api_key}' \
+  --header 'Content-Type: application/json' \
+  --data-raw '{
     "message_id": "5ad4cb98-f0c7-4085-b384-88c403be6290",
     "text": "Hello Dify",
     "user": "abc-123"
-}'
+  }'
+```
 
-Copy
-Copied!
-headers
-{
-  "Content-Type": "audio/wav"
-}
+---
 
-Copy
-Copied!
-GET
-/info
-Get Application Basic Information
-Used to get basic information about this application
+## 应用信息 API
 
-Response
-name (string) application name
-description (string) application description
-tags (array[string]) application tags
-mode (string) application mode
-author_name (string) application author name
-Request
-GET
-/info
+### 获取应用基本信息
+
+**GET** `/info`
+
+用于获取此应用的基本信息。
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `name` | string | 应用名称 |
+| `description` | string | 应用描述 |
+| `tags` | array[string] | 应用标签 |
+| `mode` | string | 应用模式 |
+| `author_name` | string | 应用作者名称 |
+
+#### 请求示例
+
+```bash
 curl -X GET 'http://localhost/v1/info' \
--H 'Authorization: Bearer {api_key}'
+  -H 'Authorization: Bearer {api_key}'
+```
 
-Copy
-Copied!
-Response
+#### 响应示例
+
+```json
 {
   "name": "My App",
   "description": "This is my app.",
@@ -1018,140 +1035,151 @@ Response
   "mode": "advanced-chat",
   "author_name": "Dify"
 }
+```
 
-Copy
-Copied!
-GET
-/parameters
-Get Application Parameters Information
-Used at the start of entering the page to obtain information such as features, input parameter names, types, and default values.
+---
 
-Response
-opening_statement (string) Opening statement
-suggested_questions (array[string]) List of suggested questions for the opening
-suggested_questions_after_answer (object) Suggest questions after enabling the answer.
-enabled (bool) Whether it is enabled
-speech_to_text (object) Speech to text
-enabled (bool) Whether it is enabled
-text_to_speech (object) Text to speech
-enabled (bool) Whether it is enabled
-voice (string) Voice type
-language (string) Language
-autoPlay (string) Auto play
-enabled Enabled
-disabled Disabled
-retriever_resource (object) Citation and Attribution
-enabled (bool) Whether it is enabled
-annotation_reply (object) Annotation reply
-enabled (bool) Whether it is enabled
-user_input_form (array[object]) User input form configuration
-text-input (object) Text input control
-label (string) Variable display label name
-variable (string) Variable ID
-required (bool) Whether it is required
-default (string) Default value
-paragraph (object) Paragraph text input control
-label (string) Variable display label name
-variable (string) Variable ID
-required (bool) Whether it is required
-default (string) Default value
-select (object) Dropdown control
-label (string) Variable display label name
-variable (string) Variable ID
-required (bool) Whether it is required
-default (string) Default value
-options (array[string]) Option values
-file_upload (object) File upload configuration
-image (object) Image settings Currently only supports image types: png, jpg, jpeg, webp, gif
-enabled (bool) Whether it is enabled
-number_limits (int) Image number limit, default is 3
-transfer_methods (array[string]) List of transfer methods, remote_url, local_file, must choose one
-system_parameters (object) System parameters
-file_size_limit (int) Document upload size limit (MB)
-image_file_size_limit (int) Image file upload size limit (MB)
-audio_file_size_limit (int) Audio file upload size limit (MB)
-video_file_size_limit (int) Video file upload size limit (MB)
-Request
-GET
-/parameters
- curl -X GET 'http://localhost/v1/parameters'
+### 获取应用参数信息
 
-Copy
-Copied!
-Response
+**GET** `/parameters`
+
+用于在进入页面开始时获取功能、输入参数名称、类型和默认值等信息。
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `opening_statement` | string | 开场白 |
+| `suggested_questions` | array[string] | 开场建议问题列表 |
+| `suggested_questions_after_answer` | object | 启用答案后的建议问题 |
+| `suggested_questions_after_answer.enabled` | bool | 是否启用 |
+| `speech_to_text` | object | 语音转文字 |
+| `speech_to_text.enabled` | bool | 是否启用 |
+| `text_to_speech` | object | 文字转语音 |
+| `text_to_speech.enabled` | bool | 是否启用 |
+| `text_to_speech.voice` | string | 语音类型 |
+| `text_to_speech.language` | string | 语言 |
+| `text_to_speech.autoPlay` | string | 自动播放，`enabled` 或 `disabled` |
+| `retriever_resource` | object | 引用和归属 |
+| `retriever_resource.enabled` | bool | 是否启用 |
+| `annotation_reply` | object | 标注回复 |
+| `annotation_reply.enabled` | bool | 是否启用 |
+| `user_input_form` | array[object] | 用户输入表单配置 |
+| `user_input_form[].text-input` | object | 文本输入控件 |
+| `user_input_form[].text-input.label` | string | 变量显示标签名称 |
+| `user_input_form[].text-input.variable` | string | 变量 ID |
+| `user_input_form[].text-input.required` | bool | 是否必填 |
+| `user_input_form[].text-input.default` | string | 默认值 |
+| `user_input_form[].paragraph` | object | 段落文本输入控件 |
+| `user_input_form[].paragraph.label` | string | 变量显示标签名称 |
+| `user_input_form[].paragraph.variable` | string | 变量 ID |
+| `user_input_form[].paragraph.required` | bool | 是否必填 |
+| `user_input_form[].paragraph.default` | string | 默认值 |
+| `user_input_form[].select` | object | 下拉控件 |
+| `user_input_form[].select.label` | string | 变量显示标签名称 |
+| `user_input_form[].select.variable` | string | 变量 ID |
+| `user_input_form[].select.required` | bool | 是否必填 |
+| `user_input_form[].select.default` | string | 默认值 |
+| `user_input_form[].select.options` | array[string] | 选项值 |
+| `file_upload` | object | 文件上传配置 |
+| `file_upload.image` | object | 图片设置，目前仅支持图片类型：png, jpg, jpeg, webp, gif |
+| `file_upload.image.enabled` | bool | 是否启用 |
+| `file_upload.image.number_limits` | int | 图片数量限制，默认为 3 |
+| `file_upload.image.transfer_methods` | array[string] | 传输方法列表，`remote_url`, `local_file`，必须选择一个 |
+| `system_parameters` | object | 系统参数 |
+| `system_parameters.file_size_limit` | int | 文档上传大小限制（MB） |
+| `system_parameters.image_file_size_limit` | int | 图片文件上传大小限制（MB） |
+| `system_parameters.audio_file_size_limit` | int | 音频文件上传大小限制（MB） |
+| `system_parameters.video_file_size_limit` | int | 视频文件上传大小限制（MB） |
+
+#### 请求示例
+
+```bash
+curl -X GET 'http://localhost/v1/parameters'
+```
+
+#### 响应示例
+
+```json
 {
   "opening_statement": "Hello!",
   "suggested_questions_after_answer": {
-      "enabled": true
+    "enabled": true
   },
   "speech_to_text": {
-      "enabled": true
+    "enabled": true
   },
   "text_to_speech": {
-      "enabled": true,
-      "voice": "sambert-zhinan-v1",
-      "language": "zh-Hans",
-      "autoPlay": "disabled"
+    "enabled": true,
+    "voice": "sambert-zhinan-v1",
+    "language": "zh-Hans",
+    "autoPlay": "disabled"
   },
   "retriever_resource": {
-      "enabled": true
+    "enabled": true
   },
   "annotation_reply": {
-      "enabled": true
+    "enabled": true
   },
   "user_input_form": [
-      {
-          "paragraph": {
-              "label": "Query",
-              "variable": "query",
-              "required": true,
-              "default": ""
-          }
+    {
+      "paragraph": {
+        "label": "Query",
+        "variable": "query",
+        "required": true,
+        "default": ""
       }
+    }
   ],
   "file_upload": {
-      "image": {
-          "enabled": false,
-          "number_limits": 3,
-          "detail": "high",
-          "transfer_methods": [
-              "remote_url",
-              "local_file"
-          ]
-      }
+    "image": {
+      "enabled": false,
+      "number_limits": 3,
+      "detail": "high",
+      "transfer_methods": [
+        "remote_url",
+        "local_file"
+      ]
+    }
   },
   "system_parameters": {
-      "file_size_limit": 15,
-      "image_file_size_limit": 10,
-      "audio_file_size_limit": 50,
-      "video_file_size_limit": 100
+    "file_size_limit": 15,
+    "image_file_size_limit": 10,
+    "audio_file_size_limit": 50,
+    "video_file_size_limit": 100
   }
 }
+```
 
-Copy
-Copied!
-GET
-/meta
-Get Application Meta Information
-Used to get icons of tools in this application
+---
 
-Response
-tool_icons(object[string]) tool icons
-tool_name (string)
-icon (object|string)
-(object) icon object
-background (string) background color in hex format
-content(string) emoji
-(string) url of icon
-Request
-GET
-/meta
+### 获取应用元信息
+
+**GET** `/meta`
+
+用于获取此应用中工具的图标。
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `tool_icons` | object[string] | 工具图标 |
+| `tool_icons.{tool_name}` | string\|object | 工具名称对应的图标 |
+| `tool_icons.{tool_name}` (object) | object | 图标对象 |
+| `tool_icons.{tool_name}.background` | string | 背景颜色（十六进制格式） |
+| `tool_icons.{tool_name}.content` | string | emoji |
+| `tool_icons.{tool_name}` (string) | string | 图标 URL |
+
+#### 请求示例
+
+```bash
 curl -X GET 'http://localhost/v1/meta' \
--H 'Authorization: Bearer {api_key}'
+  -H 'Authorization: Bearer {api_key}'
+```
 
-Copy
-Copied!
-Response
+#### 响应示例
+
+```json
 {
   "tool_icons": {
     "dalle2": "https://cloud.dify.ai/console/api/workspaces/current/tool-provider/builtin/dalle/icon",
@@ -1161,38 +1189,45 @@ Response
     }
   }
 }
+```
 
-Copy
-Copied!
-GET
-/site
-Get Application WebApp Settings
-Used to get the WebApp settings of the application.
+---
 
-Response
-title (string) WebApp name
-chat_color_theme (string) Chat color theme, in hex format
-chat_color_theme_inverted (bool) Whether the chat color theme is inverted
-icon_type (string) Icon type, emoji - emoji, image - picture
-icon (string) Icon. If it's emoji type, it's an emoji symbol; if it's image type, it's an image URL
-icon_background (string) Background color in hex format
-icon_url (string) Icon URL
-description (string) Description
-copyright (string) Copyright information
-privacy_policy (string) Privacy policy link
-custom_disclaimer (string) Custom disclaimer
-default_language (string) Default language
-show_workflow_steps (bool) Whether to show workflow details
-use_icon_as_answer_icon (bool) Whether to replace 🤖 in chat with the WebApp icon
-Request
-POST
-/meta
+### 获取应用 WebApp 设置
+
+**GET** `/site`
+
+用于获取应用的 WebApp 设置。
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `title` | string | WebApp 名称 |
+| `chat_color_theme` | string | 聊天颜色主题（十六进制格式） |
+| `chat_color_theme_inverted` | bool | 聊天颜色主题是否反转 |
+| `icon_type` | string | 图标类型，`emoji` - emoji，`image` - 图片 |
+| `icon` | string | 图标。如果是 emoji 类型，则为 emoji 符号；如果是 image 类型，则为图片 URL |
+| `icon_background` | string | 背景颜色（十六进制格式） |
+| `icon_url` | string | 图标 URL |
+| `description` | string | 描述 |
+| `copyright` | string | 版权信息 |
+| `privacy_policy` | string | 隐私政策链接 |
+| `custom_disclaimer` | string | 自定义免责声明 |
+| `default_language` | string | 默认语言 |
+| `show_workflow_steps` | bool | 是否显示工作流详情 |
+| `use_icon_as_answer_icon` | bool | 是否用 WebApp 图标替换聊天中的 🤖 |
+
+#### 请求示例
+
+```bash
 curl -X GET 'http://localhost/v1/site' \
--H 'Authorization: Bearer {api_key}'
+  -H 'Authorization: Bearer {api_key}'
+```
 
-Copy
-Copied!
-Response
+#### 响应示例
+
+```json
 {
   "title": "My App",
   "chat_color_theme": "#ff4a4a",
@@ -1207,38 +1242,50 @@ Response
   "custom_disclaimer": "All generated by AI",
   "default_language": "en-US",
   "show_workflow_steps": false,
-  "use_icon_as_answer_icon": false,
+  "use_icon_as_answer_icon": false
 }
+```
 
-Copy
-Copied!
-GET
-/apps/annotations
-Get Annotation List
-Query
-Name
-page
-Type
-string
-Description
-Page number
+---
 
-Name
-limit
-Type
-string
-Description
-Number of items returned, default 20, range 1-100
+## 标注相关 API
 
-Request
-GET
-/apps/annotations
+### 获取标注列表
+
+**GET** `/apps/annotations`
+
+#### 查询参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `page` | string | 否 | 页码 |
+| `limit` | string | 否 | 返回的项目数，默认 20，范围 1-100 |
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `data` | array[object] | 标注列表 |
+| `data[].id` | string | 标注 ID |
+| `data[].question` | string | 问题 |
+| `data[].answer` | string | 答案 |
+| `data[].hit_count` | int | 命中次数 |
+| `data[].created_at` | int | 创建时间戳 |
+| `has_more` | bool | 是否有更多记录 |
+| `limit` | int | 返回的项目数 |
+| `total` | int | 总数 |
+| `page` | int | 页码 |
+
+#### 请求示例
+
+```bash
 curl --location --request GET 'undefined/apps/annotations?page=1&limit=20' \
---header 'Authorization: Bearer {api_key}'
+  --header 'Authorization: Bearer {api_key}'
+```
 
-Copy
-Copied!
-Response
+#### 响应示例
+
+```json
 {
   "data": [
     {
@@ -1254,38 +1301,43 @@ Response
   "total": 1,
   "page": 1
 }
+```
 
-Copy
-Copied!
-POST
-/apps/annotations
-Create Annotation
-Query
-Name
-question
-Type
-string
-Description
-Question
+---
 
-Name
-answer
-Type
-string
-Description
-Answer
+### 创建标注
 
-Request
-POST
-/apps/annotations
+**POST** `/apps/annotations`
+
+#### 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `question` | string | 是 | 问题 |
+| `answer` | string | 是 | 答案 |
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string | 标注 ID |
+| `question` | string | 问题 |
+| `answer` | string | 答案 |
+| `hit_count` | int | 命中次数 |
+| `created_at` | int | 创建时间戳 |
+
+#### 请求示例
+
+```bash
 curl --location --request POST 'undefined/apps/annotations' \
---header 'Authorization: Bearer {api_key}' \
---header 'Content-Type: application/json' \
---data-raw '{"question": "What is your name?","answer": "I am Dify."}'
+  --header 'Authorization: Bearer {api_key}' \
+  --header 'Content-Type: application/json' \
+  --data-raw '{"question": "What is your name?","answer": "I am Dify."}'
+```
 
-Copy
-Copied!
-Response
+#### 响应示例
+
+```json
 {
   "id": "69d48372-ad81-4c75-9c46-2ce197b4d402",
   "question": "What is your name?",
@@ -1293,45 +1345,49 @@ Response
   "hit_count": 0,
   "created_at": 1735625869
 }
+```
 
-Copy
-Copied!
-PUT
-/apps/annotations/{annotation_id}
-Update Annotation
-Query
-Name
-annotation_id
-Type
-string
-Description
-Annotation ID
+---
 
-Name
-question
-Type
-string
-Description
-Question
+### 更新标注
 
-Name
-answer
-Type
-string
-Description
-Answer
+**PUT** `/apps/annotations/{annotation_id}`
 
-Request
-PUT
-/apps/annotations/{annotation_id}
+#### 路径参数
+
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| `annotation_id` | string | 标注 ID |
+
+#### 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `question` | string | 是 | 问题 |
+| `answer` | string | 是 | 答案 |
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string | 标注 ID |
+| `question` | string | 问题 |
+| `answer` | string | 答案 |
+| `hit_count` | int | 命中次数 |
+| `created_at` | int | 创建时间戳 |
+
+#### 请求示例
+
+```bash
 curl --location --request PUT 'undefined/apps/annotations/{annotation_id}' \
---header 'Authorization: Bearer {api_key}' \
---header 'Content-Type: application/json' \
---data-raw '{"question": "What is your name?","answer": "I am Dify."}'
+  --header 'Authorization: Bearer {api_key}' \
+  --header 'Content-Type: application/json' \
+  --data-raw '{"question": "What is your name?","answer": "I am Dify."}'
+```
 
-Copy
-Copied!
-Response
+#### 响应示例
+
+```json
 {
   "id": "69d48372-ad81-4c75-9c46-2ce197b4d402",
   "question": "What is your name?",
@@ -1339,117 +1395,115 @@ Response
   "hit_count": 0,
   "created_at": 1735625869
 }
+```
 
-Copy
-Copied!
-DELETE
-/apps/annotations/{annotation_id}
-Delete Annotation
-Query
-Name
-annotation_id
-Type
-string
-Description
-Annotation ID
+---
 
-Request
-PUT
-/apps/annotations/{annotation_id}
+### 删除标注
+
+**DELETE** `/apps/annotations/{annotation_id}`
+
+#### 路径参数
+
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| `annotation_id` | string | 标注 ID |
+
+#### 响应
+
+HTTP 204 No Content
+
+#### 请求示例
+
+```bash
 curl --location --request DELETE 'undefined/apps/annotations/{annotation_id}' \
---header 'Authorization: Bearer {api_key}' \
---header 'Content-Type: application/json'
+  --header 'Authorization: Bearer {api_key}' \
+  --header 'Content-Type: application/json'
+```
 
-Copy
-Copied!
-Response
-204 No Content
+---
 
-Copy
-Copied!
-POST
-/apps/annotation-reply/{action}
-Initial Annotation Reply Settings
-Query
-Name
-action
-Type
-string
-Description
-Action, can only be 'enable' or 'disable'
+### 初始化标注回复设置
 
-Name
-embedding_provider_name
-Type
-string
-Description
-Specified embedding model provider, must be set up in the system first, corresponding to the provider field(Optional)
+**POST** `/apps/annotation-reply/{action}`
 
-Name
-embedding_model_name
-Type
-string
-Description
-Specified embedding model, corresponding to the model field(Optional)
+#### 路径参数
 
-Name
-score_threshold
-Type
-number
-Description
-The similarity threshold for matching annotated replies. Only annotations with scores above this threshold will be recalled.
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| `action` | string | 操作，只能是 'enable' 或 'disable' |
 
-The provider and model name of the embedding model can be obtained through the following interface: v1/workspaces/current/models/model-types/text-embedding. For specific instructions, see: Maintain Knowledge Base via API. The Authorization used is the Dataset API Token.
+#### 请求参数
 
-Request
-POST
-/apps/annotation-reply/{action}
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `embedding_provider_name` | string | 否 | 指定的嵌入模型提供商，必须先在系统中设置，对应于 provider 字段 |
+| `embedding_model_name` | string | 否 | 指定的嵌入模型，对应于 model 字段 |
+| `score_threshold` | number | 否 | 匹配标注回复的相似度阈值。只有分数高于此阈值的标注才会被召回 |
+
+> **注意**：嵌入模型的提供商和模型名称可以通过以下接口获取：`v1/workspaces/current/models/model-types/text-embedding`。具体说明请参见：通过 API 维护知识库。使用的 Authorization 是 Dataset API Token。
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `job_id` | string | 任务 ID |
+| `job_status` | string | 任务状态 |
+
+> **注意**：此接口异步执行，因此会返回 `job_id`。您可以通过查询任务状态接口获取最终执行结果。
+
+#### 请求示例
+
+```bash
 curl --location --request POST 'undefined/apps/annotation-reply/{action}' \
---header 'Authorization: Bearer {api_key}' \
---header 'Content-Type: application/json' \
---data-raw '{"score_threshold": 0.9, "embedding_provider_name": "zhipu", "embedding_model_name": "embedding_3"}'
+  --header 'Authorization: Bearer {api_key}' \
+  --header 'Content-Type: application/json' \
+  --data-raw '{"score_threshold": 0.9, "embedding_provider_name": "zhipu", "embedding_model_name": "embedding_3"}'
+```
 
-Copy
-Copied!
-Response
+#### 响应示例
+
+```json
 {
   "job_id": "b15c8f68-1cf4-4877-bf21-ed7cf2011802",
   "job_status": "waiting"
 }
+```
 
-Copy
-Copied!
-This interface is executed asynchronously, so it will return a job_id. You can get the final execution result by querying the job status interface.
+---
 
-GET
-/apps/annotation-reply/{action}/status/{job_id}
-Query Initial Annotation Reply Settings Task Status
-Query
-Name
-action
-Type
-string
-Description
-Action, can only be 'enable' or 'disable', must be the same as the action in the initial annotation reply settings interface
+### 查询标注回复设置任务状态
 
-Name
-job_id
-Type
-string
-Description
-Job ID, obtained from the initial annotation reply settings interface
+**GET** `/apps/annotation-reply/{action}/status/{job_id}`
 
-Request
-GET
-/apps/annotations
+#### 路径参数
+
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| `action` | string | 操作，只能是 'enable' 或 'disable'，必须与初始化标注回复设置接口中的 action 相同 |
+| `job_id` | string | 任务 ID，从初始化标注回复设置接口获取 |
+
+#### 响应
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `job_id` | string | 任务 ID |
+| `job_status` | string | 任务状态 |
+| `error_msg` | string | 错误消息 |
+
+#### 请求示例
+
+```bash
 curl --location --request GET 'undefined/apps/annotation-reply/{action}/status/{job_id}' \
---header 'Authorization: Bearer {api_key}'
+  --header 'Authorization: Bearer {api_key}'
+```
 
-Copy
-Copied!
-Response
+#### 响应示例
+
+```json
 {
   "job_id": "b15c8f68-1cf4-4877-bf21-ed7cf2011802",
   "job_status": "waiting",
   "error_msg": ""
 }
+```
