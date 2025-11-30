@@ -37,7 +37,7 @@ export function AddFriendModal({ onClose, onSuccess }: AddFriendModalProps) {
       setSearchResults(results);
     } catch (error) {
       console.error('搜索用户失败:', error);
-      alert('搜索失败，请重试');
+      // alert('搜索失败，请重试'); // apiClient 已处理错误提示
     } finally {
       setSearching(false);
     }
@@ -57,7 +57,7 @@ export function AddFriendModal({ onClose, onSuccess }: AddFriendModalProps) {
       onSuccess();
     } catch (error) {
       console.error('发送好友请求失败:', error);
-      alert('发送好友请求失败，请重试');
+      // alert('发送好友请求失败，请重试'); // apiClient 已处理错误提示
     } finally {
       setLoading(false);
     }

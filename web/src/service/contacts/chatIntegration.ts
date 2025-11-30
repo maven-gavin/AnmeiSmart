@@ -2,20 +2,19 @@
  * 通讯录与聊天系统的集成服务
  */
 import { apiClient } from '@/service/apiClient';
+import { ChatDataMapper } from '@/service/chat/mappers';
 import type { Conversation } from '@/types/chat';
+import type { ConversationApiResponse } from '@/service/chat/types';
 
 /**
  * 与好友发起对话
  */
 export async function startConversationWithFriend(friendId: string): Promise<Conversation> {
-  try {
-    // 使用新的API获取或创建与好友的会话
-    const response = await apiClient.post(`/contacts/friends/${friendId}/conversation`);
-    return response.data;
-  } catch (error) {
-    console.error('发起对话失败:', error);
-    throw new Error('发起对话失败，请重试');
-  }
+  // 使用新的API获取或创建与好友的会话
+  // 后端返回 ApiResponse<ConversationInfo>，apiClient 解包后得到 ConversationInfo (对应前端 ConversationApiResponse)
+  // apiClient 会自动处理错误 Toast，无需在此处 try-catch
+  const response = await apiClient.post<ConversationApiResponse>(`/contacts/friends/${friendId}/conversation`);
+  return ChatDataMapper.mapConversation(response.data);
 }
 
 /**
@@ -23,10 +22,11 @@ export async function startConversationWithFriend(friendId: string): Promise<Con
  */
 export async function getFriendConversations(): Promise<Conversation[]> {
   try {
-    const response = await apiClient.get('/contacts/conversations/friends');
-    return response.data;
+    const response = await apiClient.get<ConversationApiResponse[]>('/contacts/conversations/friends');
+    return ChatDataMapper.mapConversations(response.data || []);
   } catch (error) {
     console.error('获取好友会话失败:', error);
+    // 返回空数组作为降级处理，apiClient 已显示错误提示
     return [];
   }
 }

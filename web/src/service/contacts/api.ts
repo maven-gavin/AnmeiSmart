@@ -72,8 +72,23 @@ export async function getFriends(filters: FriendListFilters & {
  * 搜索用户
  */
 export async function searchUsers(searchRequest: UserSearchRequest): Promise<UserSearchResult[]> {
-  const response = await apiClient.post('/contacts/friends/search', searchRequest);
-  return response.data;
+  // 后端返回 ApiResponse<List[UserSearchResult]>，其中 UserSearchResult 使用 name 而不是 username
+  // 并且后端返回的数据包含 mutual_friends_count，前端定义中没有
+  const response = await apiClient.post<any[]>('/contacts/friends/search', searchRequest);
+  const items = response.data || [];
+  
+  return items.map(item => ({
+    id: item.id,
+    username: item.name || item.username || '未知用户', // 映射 name 到 username
+    avatar: item.avatar,
+    roles: [], // 后端未返回 roles，给默认空数组
+    is_friend: item.is_friend,
+    friendship_status: item.is_friend ? 'accepted' : undefined, // 简单推断状态
+    // 保留可能的额外字段
+    email: item.email,
+    phone: item.phone,
+    mutual_friends_count: item.mutual_friends_count
+  })) as unknown as UserSearchResult[];
 }
 
 /**

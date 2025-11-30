@@ -3,7 +3,7 @@
 遵循DDD分层架构，确保Contact和Chat领域职责分离
 """
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status as http_status
 from app.identity_access.models.user import User
 from app.identity_access.deps import get_current_user
 from app.contacts.deps.contacts import get_contact_service
@@ -49,7 +49,12 @@ from app.contacts.schemas.contacts import (
     # 统计分析相关
     ContactAnalyticsResponse
 )
-from app.core.api import BusinessException, ErrorCode
+from app.core.api import (
+    BusinessException, 
+    SystemException,
+    ApiResponse, 
+    ErrorCode
+)
 from app.chat.deps.chat import get_chat_service
 from app.chat.services.chat_service import ChatService
 from app.chat.schemas.chat import ConversationInfo
@@ -68,7 +73,7 @@ router = APIRouter()
 # 好友管理相关API
 # ============================================================================
 
-@router.get("/friends", response_model=PaginatedFriendsResponse)
+@router.get("/friends", response_model=ApiResponse[PaginatedFriendsResponse])
 async def get_friends(
     # 筛选参数
     view: Optional[str] = Query(None, description="视图类型：all/starred/recent/blocked/pending"),
@@ -103,14 +108,15 @@ async def get_friends(
             page=page,
             size=size
         )
-        return PaginatedFriendsResponse(**result)
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success(PaginatedFriendsResponse(**result))
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="获取好友列表失败")
+        logger.error(f"获取好友列表失败: {e}", exc_info=True)
+        raise SystemException("获取好友列表失败")
 
 
-@router.post("/friends/search", response_model=List[UserSearchResult])
+@router.post("/friends/search", response_model=ApiResponse[List[UserSearchResult]])
 async def search_users(
     search_request: UserSearchRequest,
     current_user: User = Depends(get_current_user),
@@ -124,12 +130,13 @@ async def search_users(
             search_type=search_request.search_type,
             limit=search_request.limit
         )
-        return result
+        return ApiResponse.success(result)
     except Exception as e:
-        raise HTTPException(status_code=500, detail="搜索用户失败")
+        logger.error(f"搜索用户失败: {e}", exc_info=True)
+        raise SystemException("搜索用户失败")
 
 
-@router.post("/friends/request", response_model=FriendRequestResponse)
+@router.post("/friends/request", response_model=ApiResponse[FriendRequestResponse])
 async def send_friend_request(
     request: FriendRequestCreate,
     current_user: User = Depends(get_current_user),
@@ -143,14 +150,15 @@ async def send_friend_request(
             verification_message=request.verification_message,
             source=request.source
         )
-        return FriendRequestResponse(**result)
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success(FriendRequestResponse(**result))
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="发送好友请求失败")
+        logger.error(f"发送好友请求失败: {e}", exc_info=True)
+        raise SystemException("发送好友请求失败")
 
 
-@router.get("/friends/requests", response_model=PaginatedFriendRequestsResponse)
+@router.get("/friends/requests", response_model=ApiResponse[PaginatedFriendRequestsResponse])
 async def get_friend_requests(
     type: str = Query("received", description="请求类型：sent/received"),
     status: Optional[str] = Query(None, description="请求状态筛选"),
@@ -162,7 +170,7 @@ async def get_friend_requests(
     """获取好友请求列表"""
     try:
         # 暂时返回空结果，后续可以扩展
-        return PaginatedFriendRequestsResponse(
+        result = PaginatedFriendRequestsResponse(
             items=[],
             total=0,
             page=page,
@@ -171,13 +179,15 @@ async def get_friend_requests(
             has_next=False,
             has_prev=False
         )
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success(result)
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="获取好友请求失败")
+        logger.error(f"获取好友请求失败: {e}", exc_info=True)
+        raise SystemException("获取好友请求失败")
 
 
-@router.put("/friends/requests/{request_id}")
+@router.put("/friends/requests/{request_id}", response_model=ApiResponse[dict])
 async def handle_friend_request(
     request_id: str,
     action: FriendRequestAction,
@@ -192,14 +202,15 @@ async def handle_friend_request(
             action=action.action,
             message=action.message
         )
-        return {"message": "好友请求处理成功"}
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success({"message": "好友请求处理成功"})
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="处理好友请求失败")
+        logger.error(f"处理好友请求失败: {e}", exc_info=True)
+        raise SystemException("处理好友请求失败")
 
 
-@router.put("/friends/{friendship_id}", response_model=FriendshipResponse)
+@router.put("/friends/{friendship_id}", response_model=ApiResponse[FriendshipResponse])
 async def update_friendship(
     friendship_id: str,
     update_data: UpdateFriendshipRequest,
@@ -213,14 +224,15 @@ async def update_friendship(
             friendship_id=friendship_id,
             update_data=update_data.dict(exclude_unset=True)
         )
-        return result
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success(result)
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="更新好友关系失败")
+        logger.error(f"更新好友关系失败: {e}", exc_info=True)
+        raise SystemException("更新好友关系失败")
 
 
-@router.delete("/friends/{friendship_id}")
+@router.delete("/friends/{friendship_id}", response_model=ApiResponse[dict])
 async def delete_friendship(
     friendship_id: str,
     current_user: User = Depends(get_current_user),
@@ -232,14 +244,15 @@ async def delete_friendship(
             user_id=str(current_user.id),
             friendship_id=friendship_id
         )
-        return {"message": "好友关系删除成功"}
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success({"message": "好友关系删除成功"})
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="删除好友关系失败")
+        logger.error(f"删除好友关系失败: {e}", exc_info=True)
+        raise SystemException("删除好友关系失败")
 
 
-@router.post("/friends/batch", response_model=BatchOperationResponse)
+@router.post("/friends/batch", response_model=ApiResponse[BatchOperationResponse])
 async def batch_friend_operations(
     operations: BatchFriendOperations,
     current_user: User = Depends(get_current_user),
@@ -248,18 +261,20 @@ async def batch_friend_operations(
     """批量好友操作（添加标签、移动分组等）"""
     try:
         # 暂时返回空结果，后续可以扩展
-        return BatchOperationResponse(
+        result = BatchOperationResponse(
             success_count=0,
             failed_count=0,
             details=[]
         )
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success(result)
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="批量操作失败")
+        logger.error(f"批量操作失败: {e}", exc_info=True)
+        raise SystemException("批量操作失败")
 
 
-@router.post("/friends/{friend_id}/conversation", response_model=ConversationInfo)
+@router.post("/friends/{friend_id}/conversation", response_model=ApiResponse[ConversationInfo])
 async def create_friend_conversation(
     friend_id: str,
     current_user: User = Depends(get_current_user),
@@ -278,7 +293,11 @@ async def create_friend_conversation(
         ).first()
         
         if not friendship:
-            raise HTTPException(status_code=404, detail="好友关系不存在或未接受")
+            raise BusinessException(
+                "好友关系不存在或未接受",
+                code=ErrorCode.NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND
+            )
         
         # 查找已存在的会话（检查 extra_metadata 中是否包含 friend_id）
         existing_conversations = chat_service.db.query(Conversation).filter(
@@ -292,7 +311,7 @@ async def create_friend_conversation(
         # 检查是否有会话的 extra_metadata 中包含该好友ID
         for conv in existing_conversations:
             if conv.extra_metadata and conv.extra_metadata.get("friend_id") == friend_id:
-                return ConversationInfo.from_model(conv, last_message=None)
+                return ApiResponse.success(ConversationInfo.from_model(conv, last_message=None))
         
         # 获取好友信息用于生成会话标题
         friend_user = contact_service.db.query(UserModel).filter(
@@ -340,22 +359,20 @@ async def create_friend_conversation(
             last_message = MessageInfo.from_model(last_msg) if last_msg else None
             conversation_info = ConversationInfo.from_model(conv_model, last_message=last_message)
         
-        return conversation_info
+        return ApiResponse.success(conversation_info)
         
-    except HTTPException:
+    except BusinessException:
         raise
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"创建好友会话失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="创建好友会话失败")
+        raise SystemException("创建好友会话失败")
 
 
 # ============================================================================
 # 标签管理相关API
 # ============================================================================
 
-@router.get("/tags", response_model=List[ContactTagResponse])
+@router.get("/tags", response_model=ApiResponse[List[ContactTagResponse]])
 async def get_contact_tags(
     category: Optional[str] = Query(None, description="标签分类筛选"),
     include_system: bool = Query(True, description="是否包含系统标签"),
@@ -369,12 +386,13 @@ async def get_contact_tags(
             category=category,
             include_system=include_system
         )
-        return result
+        return ApiResponse.success(result)
     except Exception as e:
-        raise HTTPException(status_code=500, detail="获取标签列表失败")
+        logger.error(f"获取标签列表失败: {e}", exc_info=True)
+        raise SystemException("获取标签列表失败")
 
 
-@router.post("/tags", response_model=ContactTagResponse)
+@router.post("/tags", response_model=ApiResponse[ContactTagResponse])
 async def create_contact_tag(
     tag_data: ContactTagCreate,
     current_user: User = Depends(get_current_user),
@@ -386,14 +404,15 @@ async def create_contact_tag(
             user_id=str(current_user.id),
             tag_data=tag_data
         )
-        return result
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success(result)
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="创建标签失败")
+        logger.error(f"创建标签失败: {e}", exc_info=True)
+        raise SystemException("创建标签失败")
 
 
-@router.put("/tags/{tag_id}", response_model=ContactTagResponse)
+@router.put("/tags/{tag_id}", response_model=ApiResponse[ContactTagResponse])
 async def update_contact_tag(
     tag_id: str,
     update_data: ContactTagUpdate,
@@ -407,14 +426,15 @@ async def update_contact_tag(
             tag_id=tag_id,
             update_data=update_data.dict(exclude_unset=True)
         )
-        return result
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success(result)
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="更新标签失败")
+        logger.error(f"更新标签失败: {e}", exc_info=True)
+        raise SystemException("更新标签失败")
 
 
-@router.delete("/tags/{tag_id}")
+@router.delete("/tags/{tag_id}", response_model=ApiResponse[dict])
 async def delete_contact_tag(
     tag_id: str,
     current_user: User = Depends(get_current_user),
@@ -426,14 +446,15 @@ async def delete_contact_tag(
             user_id=str(current_user.id),
             tag_id=tag_id
         )
-        return {"message": "标签删除成功"}
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success({"message": "标签删除成功"})
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="删除标签失败")
+        logger.error(f"删除标签失败: {e}", exc_info=True)
+        raise SystemException("删除标签失败")
 
 
-@router.put("/friends/{friendship_id}/tags")
+@router.put("/friends/{friendship_id}/tags", response_model=ApiResponse[dict])
 async def update_friend_tags(
     friendship_id: str,
     tag_update: UpdateFriendTagsRequest,
@@ -446,14 +467,15 @@ async def update_friend_tags(
             friendship_id=friendship_id,
             tag_ids=tag_update.tag_ids
         )
-        return {"message": "好友标签更新成功", "friendship": result}
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success({"message": "好友标签更新成功", "friendship": result})
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="更新好友标签失败")
+        logger.error(f"更新好友标签失败: {e}", exc_info=True)
+        raise SystemException("更新好友标签失败")
 
 
-@router.get("/tags/{tag_id}/friends", response_model=PaginatedFriendsResponse)
+@router.get("/tags/{tag_id}/friends", response_model=ApiResponse[PaginatedFriendsResponse])
 async def get_friends_by_tag(
     tag_id: str,
     page: int = Query(1, ge=1),
@@ -470,14 +492,15 @@ async def get_friends_by_tag(
             page=page,
             size=size
         )
-        return PaginatedFriendsResponse(**result)
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success(PaginatedFriendsResponse(**result))
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="获取标签好友失败")
+        logger.error(f"获取标签好友失败: {e}", exc_info=True)
+        raise SystemException("获取标签好友失败")
 
 
-@router.get("/tags/suggestions", response_model=List[TagSuggestionResponse])
+@router.get("/tags/suggestions", response_model=ApiResponse[List[TagSuggestionResponse]])
 async def get_tag_suggestions(
     friendship_id: Optional[str] = Query(None, description="为特定好友推荐标签"),
     current_user: User = Depends(get_current_user),
@@ -486,16 +509,17 @@ async def get_tag_suggestions(
     """获取智能标签推荐"""
     try:
         # 暂时返回空列表，后续可以扩展
-        return []
+        return ApiResponse.success([])
     except Exception as e:
-        raise HTTPException(status_code=500, detail="获取标签推荐失败")
+        logger.error(f"获取标签推荐失败: {e}", exc_info=True)
+        raise SystemException("获取标签推荐失败")
 
 
 # ============================================================================
 # 分组管理相关API
 # ============================================================================
 
-@router.get("/groups", response_model=List[ContactGroupResponse])
+@router.get("/groups", response_model=ApiResponse[List[ContactGroupResponse]])
 async def get_contact_groups(
     include_members: bool = Query(False, description="是否包含成员信息"),
     current_user: User = Depends(get_current_user),
@@ -507,12 +531,13 @@ async def get_contact_groups(
             user_id=str(current_user.id),
             include_members=include_members
         )
-        return result
+        return ApiResponse.success(result)
     except Exception as e:
-        raise HTTPException(status_code=500, detail="获取分组列表失败")
+        logger.error(f"获取分组列表失败: {e}", exc_info=True)
+        raise SystemException("获取分组列表失败")
 
 
-@router.post("/groups", response_model=ContactGroupResponse)
+@router.post("/groups", response_model=ApiResponse[ContactGroupResponse])
 async def create_contact_group(
     group_data: CreateContactGroupRequest,
     current_user: User = Depends(get_current_user),
@@ -524,14 +549,15 @@ async def create_contact_group(
             user_id=str(current_user.id),
             group_data=group_data
         )
-        return result
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success(result)
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="创建分组失败")
+        logger.error(f"创建分组失败: {e}", exc_info=True)
+        raise SystemException("创建分组失败")
 
 
-@router.put("/groups/{group_id}", response_model=ContactGroupResponse)
+@router.put("/groups/{group_id}", response_model=ApiResponse[ContactGroupResponse])
 async def update_contact_group(
     group_id: str,
     update_data: UpdateContactGroupRequest,
@@ -545,14 +571,15 @@ async def update_contact_group(
             group_id=group_id,
             update_data=update_data.dict(exclude_unset=True)
         )
-        return result
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success(result)
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="更新分组失败")
+        logger.error(f"更新分组失败: {e}", exc_info=True)
+        raise SystemException("更新分组失败")
 
 
-@router.delete("/groups/{group_id}")
+@router.delete("/groups/{group_id}", response_model=ApiResponse[dict])
 async def delete_contact_group(
     group_id: str,
     current_user: User = Depends(get_current_user),
@@ -564,14 +591,15 @@ async def delete_contact_group(
             user_id=str(current_user.id),
             group_id=group_id
         )
-        return {"message": "分组删除成功"}
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success({"message": "分组删除成功"})
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="删除分组失败")
+        logger.error(f"删除分组失败: {e}", exc_info=True)
+        raise SystemException("删除分组失败")
 
 
-@router.get("/groups/{group_id}/members", response_model=PaginatedGroupMembersResponse)
+@router.get("/groups/{group_id}/members", response_model=ApiResponse[PaginatedGroupMembersResponse])
 async def get_group_members(
     group_id: str,
     page: int = Query(1, ge=1),
@@ -582,7 +610,7 @@ async def get_group_members(
     """获取分组成员"""
     try:
         # 暂时返回空结果，后续可以扩展
-        return PaginatedGroupMembersResponse(
+        result = PaginatedGroupMembersResponse(
             items=[],
             total=0,
             page=page,
@@ -591,13 +619,15 @@ async def get_group_members(
             has_next=False,
             has_prev=False
         )
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success(result)
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="获取分组成员失败")
+        logger.error(f"获取分组成员失败: {e}", exc_info=True)
+        raise SystemException("获取分组成员失败")
 
 
-@router.put("/groups/{group_id}/members")
+@router.put("/groups/{group_id}/members", response_model=ApiResponse[dict])
 async def update_group_members(
     group_id: str,
     member_update: UpdateGroupMembersRequest,
@@ -607,14 +637,15 @@ async def update_group_members(
     """更新分组成员"""
     try:
         # 暂时返回成功消息，后续可以扩展
-        return {"message": "分组成员更新成功"}
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success({"message": "分组成员更新成功"})
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="更新分组成员失败")
+        logger.error(f"更新分组成员失败: {e}", exc_info=True)
+        raise SystemException("更新分组成员失败")
 
 
-@router.post("/groups/{group_id}/chat")
+@router.post("/groups/{group_id}/chat", response_model=ApiResponse[dict])
 async def create_group_chat(
     group_id: str,
     chat_config: CreateGroupChatRequest,
@@ -625,18 +656,19 @@ async def create_group_chat(
     try:
         # 这里应该调用Chat服务来创建群聊
         # 暂时返回成功消息，实际实现时需要集成Chat服务
-        return {"message": "群聊创建成功", "conversation_id": "temp-id"}
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success({"message": "群聊创建成功", "conversation_id": "temp-id"})
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="创建群聊失败")
+        logger.error(f"创建群聊失败: {e}", exc_info=True)
+        raise SystemException("创建群聊失败")
 
 
 # ============================================================================
 # 隐私设置相关API
 # ============================================================================
 
-@router.get("/privacy", response_model=ContactPrivacyResponse)
+@router.get("/privacy", response_model=ApiResponse[ContactPrivacyResponse])
 async def get_privacy_settings(
     current_user: User = Depends(get_current_user),
     contact_service: ContactService = Depends(get_contact_service)
@@ -644,7 +676,7 @@ async def get_privacy_settings(
     """获取联系人隐私设置"""
     try:
         # 暂时返回默认设置，后续可以扩展
-        return ContactPrivacyResponse(
+        result = ContactPrivacyResponse(
             profile_visibility="friends",
             allow_friend_requests=True,
             allow_search_by_phone=True,
@@ -652,11 +684,13 @@ async def get_privacy_settings(
             show_online_status=True,
             show_last_seen=True
         )
+        return ApiResponse.success(result)
     except Exception as e:
-        raise HTTPException(status_code=500, detail="获取隐私设置失败")
+        logger.error(f"获取隐私设置失败: {e}", exc_info=True)
+        raise SystemException("获取隐私设置失败")
 
 
-@router.put("/privacy", response_model=ContactPrivacyResponse)
+@router.put("/privacy", response_model=ApiResponse[ContactPrivacyResponse])
 async def update_privacy_settings(
     settings: UpdatePrivacySettingsRequest,
     current_user: User = Depends(get_current_user),
@@ -665,7 +699,7 @@ async def update_privacy_settings(
     """更新联系人隐私设置"""
     try:
         # 暂时返回更新后的设置，后续可以扩展
-        return ContactPrivacyResponse(
+        result = ContactPrivacyResponse(
             profile_visibility=settings.profile_visibility,
             allow_friend_requests=settings.allow_friend_requests,
             allow_search_by_phone=settings.allow_search_by_phone,
@@ -673,15 +707,17 @@ async def update_privacy_settings(
             show_online_status=settings.show_online_status,
             show_last_seen=settings.show_last_seen
         )
+        return ApiResponse.success(result)
     except Exception as e:
-        raise HTTPException(status_code=500, detail="更新隐私设置失败")
+        logger.error(f"更新隐私设置失败: {e}", exc_info=True)
+        raise SystemException("更新隐私设置失败")
 
 
 # ============================================================================
 # 统计分析相关API
 # ============================================================================
 
-@router.get("/analytics", response_model=ContactAnalyticsResponse)
+@router.get("/analytics", response_model=ApiResponse[ContactAnalyticsResponse])
 async def get_contact_analytics(
     period: str = Query("month", description="统计周期：week/month/quarter/year"),
     current_user: User = Depends(get_current_user),
@@ -693,11 +729,12 @@ async def get_contact_analytics(
             user_id=str(current_user.id),
             period=period
         )
-        return ContactAnalyticsResponse(**result)
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return ApiResponse.success(ContactAnalyticsResponse(**result))
+    except BusinessException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="获取统计数据失败")
+        logger.error(f"获取统计数据失败: {e}", exc_info=True)
+        raise SystemException("获取统计数据失败")
 
 
 # ============================================================================

@@ -132,7 +132,7 @@ class ContactService:
         ).first()
         
         if existing:
-            raise BusinessException("好友关系已存在", code=ErrorCode.RESOURCE_ALREADY_EXISTS)
+            raise BusinessException("好友关系已存在", code=ErrorCode.BUSINESS_ERROR)
         
         # 创建好友关系（状态为pending）
         friendship = Friendship(
@@ -249,7 +249,7 @@ class ContactService:
         ).first()
         
         if existing:
-            raise BusinessException("标签名称已存在", code=ErrorCode.RESOURCE_ALREADY_EXISTS)
+            raise BusinessException("标签名称已存在", code=ErrorCode.BUSINESS_ERROR)
         
         # 创建标签
         tag = ContactTag(
@@ -357,7 +357,7 @@ class ContactService:
         ).first()
         
         if existing:
-            raise BusinessException("分组名称已存在", code=ErrorCode.RESOURCE_ALREADY_EXISTS)
+            raise BusinessException("分组名称已存在", code=ErrorCode.BUSINESS_ERROR)
         
         # 创建分组
         group = ContactGroup(
@@ -540,8 +540,8 @@ class ContactService:
         result = []
         for user in users:
             result.append({
-                "user_id": user.id,
-                "username": user.username,
+                "id": user.id,
+                "name": user.username,  # UserSearchResult 期望 name 字段
                 "email": user.email,
                 "avatar": user.avatar,
                 "phone": user.phone
@@ -587,7 +587,8 @@ class ContactService:
             "status": friendship_response.status,
             "verification_message": getattr(friendship_response, 'remark', verification_message),
             "source": getattr(friendship_response, 'source', source),
-            "created_at": friendship_response.created_at
+            "created_at": friendship_response.created_at,
+            "requested_at": friendship_response.requested_at or friendship_response.created_at  # 添加 requested_at
         }
     
     def handle_friend_request_use_case(
