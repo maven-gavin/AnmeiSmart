@@ -4,7 +4,7 @@ WebSocket服务工厂 - 统一管理WebSocket服务的创建和依赖注入
 import logging
 from typing import Optional
 
-from app.core.websocket.distributed_connection_manager import DistributedConnectionManager
+from app.core.websocket.websocket_coordinator import WebSocketCoordinator
 from app.core.redis_client import get_redis_client
 from .websocket_service import WebSocketService
 from app.websocket.broadcasting_factory import get_broadcasting_service
@@ -13,19 +13,19 @@ logger = logging.getLogger(__name__)
 
 # 全局服务实例缓存
 _websocket_service: Optional[WebSocketService] = None
-_connection_manager: Optional[DistributedConnectionManager] = None
+_connection_manager: Optional[WebSocketCoordinator] = None
 
 
-async def get_connection_manager() -> DistributedConnectionManager:
-    """获取或创建分布式连接管理器实例"""
+async def get_connection_manager() -> WebSocketCoordinator:
+    """获取或创建WebSocket协调器实例"""
     global _connection_manager
     
     if _connection_manager is None:
         try:
             redis_client = await get_redis_client()
-            _connection_manager = DistributedConnectionManager(redis_client)
+            _connection_manager = WebSocketCoordinator(redis_client)
             await _connection_manager.initialize()
-            logger.info("分布式连接管理器初始化成功")
+            logger.info("WebSocket协调器初始化成功")
         except Exception as e:
             logger.error(f"初始化分布式连接管理器失败: {e}")
             raise

@@ -50,62 +50,65 @@ web/src/
 
 ```
 api/app/
-├── services/
-│   ├── broadcasting_service.py            # 主要广播服务
-│   ├── broadcasting_factory.py            # 广播服务工厂和依赖注入
-│   ├── notification_service.py            # 通知推送服务
-│   └── websocket/
-│       ├── __init__.py                    # 服务包初始化
-│       ├── websocket_handler.py           # 消息处理器
-│       ├── websocket_service.py           # 统一WebSocket服务
-│       └── websocket_factory.py           # WebSocket服务工厂
+├── websocket/
+│   ├── __init__.py                       # WebSocket包初始化
+│   ├── broadcasting_service.py           # 主要广播服务
+│   ├── broadcasting_factory.py           # 广播服务工厂和依赖注入
+│   ├── notification_service.py           # 通知推送服务
+│   ├── websocket_handler.py              # 消息处理器
+│   ├── websocket_service.py              # 统一WebSocket服务
+│   ├── websocket_factory.py              # WebSocket服务工厂
+│   ├── endpoints/
+│   │   └── websocket.py                  # WebSocket端点
+│   └── schemas/
+│       └── websocket.py                  # WebSocket相关Schema
 ├── core/
-│   ├── distributed_connection_manager.py  # 分布式连接管理器
+│   ├── websocket/
+│   │   ├── websocket_coordinator.py           # WebSocket协调器
+│   │   ├── connection_manager.py             # 连接管理器
+│   │   ├── message_router.py                 # 消息路由器
+│   │   ├── presence_manager.py               # 在线状态管理器
+│   │   └── events.py                         # 事件系统
 │   ├── redis_client.py                   # Redis客户端
-│   ├── events.py                         # 事件系统
 │   └── websocket_lifecycle.py            # 生命周期管理
-├── api/
-│   ├── deps.py                           # FastAPI依赖注入
-│   └── v1/
-│       └── endpoints/
-│           └── websocket.py              # WebSocket端点
-├── db/
-│   └── models/
-│       ├── chat.py                       # 聊天相关模型
-│       └── user.py                       # 用户模型
-├── schemas/
-│   └── chat.py                           # 聊天相关Schema
-└── utils/
-    └── websocket_utils.py                # 公共工具函数
+├── common/
+│   └── deps.py                           # 公共依赖注入（包含get_db）
+├── chat/
+│   ├── models/
+│   │   └── chat.py                       # 聊天相关模型
+│   └── schemas/
+│       └── chat.py                       # 聊天相关Schema
+└── db/
+    └── models/
+        └── user.py                       # 用户模型
 ```
 
 ### 核心文件说明
 
 #### 前端核心文件
 
-| 文件                             | 作用                  | 说明                              |
-| -------------------------------- | --------------------- | --------------------------------- |
-| `useWebSocketByPage.ts`        | 页面级WebSocket管理   | 根据页面配置智能管理WebSocket连接 |
-| `WebSocketStatus.tsx`          | 连接状态UI组件        | 显示WebSocket连接状态和控制按钮   |
-| `websocket/index.ts`           | WebSocket客户端主入口 | 提供统一的WebSocket客户端接口     |
-| `websocket/core/connection.ts` | 连接管理              | 处理WebSocket连接的建立和维护     |
-| `websocket/core/reconnect.ts`  | 重连机制              | 实现智能重连和指数退避策略        |
-| `chat/api.ts`                   | 聊天API服务          | 提供与后端通信的接口             |
-| `chat/state.ts`                 | 聊天状态管理          | 管理聊天相关的全局状态           |
+| 文件                             | 作用                  | 说明                                                  |
+| -------------------------------- | --------------------- | ----------------------------------------------------- |
+| `useWebSocketByPage.ts`        | 页面级WebSocket管理   | 根据页面配置智能管理WebSocket连接，支持手动断开和重置 |
+| `WebSocketStatus.tsx`          | 连接状态UI组件        | 显示WebSocket连接状态和控制按钮                       |
+| `websocket/index.ts`           | WebSocket客户端主入口 | 提供统一的WebSocket客户端接口                         |
+| `websocket/core/connection.ts` | 连接管理              | 处理WebSocket连接的建立和维护                         |
+| `websocket/core/reconnect.ts`  | 重连机制              | 实现智能重连和指数退避策略                            |
+| `chat/api.ts`                  | 聊天API服务           | 提供与后端通信的接口                                  |
+| `chat/state.ts`                | 聊天状态管理          | 管理聊天相关的全局状态                                |
 
 #### 后端核心文件
 
-| 文件                                  | 作用            | 说明                               |
-| ------------------------------------- | --------------- | ---------------------------------- |
-| `broadcasting_service.py`           | 主要广播服务    | 处理消息广播和离线推送的核心逻辑   |
-| `broadcasting_factory.py`           | 服务工厂        | 管理广播服务的创建和依赖注入       |
-| `distributed_connection_manager.py` | 分布式连接管理  | 基于Redis的跨实例WebSocket连接管理 |
-| `notification_service.py`           | 通知推送服务    | 处理离线推送通知（支持多种提供商） |
-| `websocket/websocket_service.py`    | 统一WebSocket服务 | 整合连接管理和消息广播的统一接口   |
-| `websocket/websocket_factory.py`    | WebSocket服务工厂 | 统一管理WebSocket服务的创建和依赖注入 |
-| `websocket/websocket_handler.py`    | 消息处理器      | 处理WebSocket消息的解析和路由      |
-| `websocket_lifecycle.py`            | 生命周期管理    | 处理应用启动和关闭时的服务初始化和清理 |
-| `websocket_utils.py`                | 公共工具函数    | 提供WebSocket相关的公共工具函数    |
+| 文件                                                 | 作用              | 说明                                   |
+| ---------------------------------------------------- | ----------------- | -------------------------------------- |
+| `websocket/broadcasting_service.py`                | 主要广播服务      | 处理消息广播和离线推送的核心逻辑       |
+| `websocket/broadcasting_factory.py`                | 服务工厂          | 管理广播服务的创建和依赖注入           |
+| `core/websocket/websocket_coordinator.py`     | WebSocket协调器   | 协调连接管理、消息路由和在线状态管理     |
+| `websocket/notification_service.py`                | 通知推送服务      | 处理离线推送通知（支持多种提供商）     |
+| `websocket/websocket_service.py`                   | 统一WebSocket服务 | 整合连接管理和消息广播的统一接口       |
+| `websocket/websocket_factory.py`                   | WebSocket服务工厂 | 统一管理WebSocket服务的创建和依赖注入  |
+| `websocket/websocket_handler.py`                   | 消息处理器        | 处理WebSocket消息的解析和路由          |
+| `core/websocket_lifecycle.py`                      | 生命周期管理      | 处理应用启动和关闭时的服务初始化和清理 |
 
 ## 架构组件
 
@@ -127,7 +130,7 @@ const PAGE_WEBSOCKET_CONFIG: Record<string, PageWebSocketConfig> = {
     requireAuth: true, 
     autoConnect: true,
     connectionType: 'chat',
-    features: ['messaging', 'typing_indicator', 'file_upload', 'voice_note']
+    features: ['messaging', 'typing_indicator', 'file_upload', 'voice_note', 'screen_share']
   },
   
   // 管理页面 - 监控功能
@@ -137,6 +140,15 @@ const PAGE_WEBSOCKET_CONFIG: Record<string, PageWebSocketConfig> = {
     autoConnect: true,
     connectionType: 'admin',
     features: ['system_notifications', 'user_monitoring', 'real_time_stats']
+  },
+  
+  // 测试页面配置
+  '/test-websocket': {
+    enabled: true,
+    requireAuth: true,
+    autoConnect: true,
+    connectionType: 'test',
+    features: ['messaging', 'testing', 'debug']
   }
 }
 ```
@@ -170,14 +182,14 @@ export function getWebSocketDeviceConfig(deviceInfo: DeviceInfo) {
 #### 核心组件
 
 - **BroadcastingService**：主要广播服务，处理实时推送和离线通知
-- **DistributedConnectionManager**：分布式WebSocket连接管理器（基于Redis）
+- **WebSocketCoordinator**：WebSocket协调器（协调连接管理、消息路由和在线状态管理）
 - **NotificationService**：通知推送服务（当前使用日志记录，支持扩展）
 
 #### 服务依赖关系
 
 ```
 BroadcastingService
-├── DistributedConnectionManager (Redis Pub/Sub)
+├── WebSocketCoordinator (协调连接管理、消息路由和在线状态)
 ├── NotificationService (日志记录/Firebase FCM)
 └── Database Session (查询会话参与者)
 ```
@@ -207,20 +219,50 @@ BroadcastingService
 
 ```
 HTTP API 端点
-├── broadcasting_factory.py
-│   └── broadcasting_service.py
-│       ├── distributed_connection_manager.py
+├── websocket/broadcasting_factory.py
+│   └── websocket/broadcasting_service.py
+│       ├── core/websocket/websocket_coordinator.py
+│       │   ├── connection_manager.py
+│       │   ├── message_router.py
+│       │   ├── presence_manager.py
 │       │   └── redis_client.py
-│       ├── notification_service.py
-│       └── db/models/chat.py
-├── websocket/message_broadcaster.py
-│   └── core/events.py
-└── api/deps.py (依赖注入)
+│       ├── websocket/notification_service.py
+│       └── chat/models/chat.py
+├── websocket/websocket_factory.py
+│   └── websocket/websocket_service.py
+│       ├── core/websocket/websocket_coordinator.py
+│       ├── websocket/broadcasting_service.py
+│       └── core/websocket/events.py
+└── common/deps.py (依赖注入，包含get_db)
 ```
 
 ## 使用指南
 
-### 1. 前端页面中使用 WebSocket
+### 1. useWebSocketByPage Hook API
+
+`useWebSocketByPage` Hook 返回以下属性和方法：
+
+#### 连接状态属性
+
+- `isConnected: boolean` - WebSocket是否已连接
+- `connectionStatus: ConnectionStatus` - 连接状态枚举值（DISCONNECTED, CONNECTING, CONNECTED, ERROR）
+- `isEnabled: boolean` - 当前页面是否启用WebSocket
+- `connectionType: string` - 连接类型标识（如 'chat', 'admin'）
+- `supportedFeatures: string[]` - 当前页面支持的功能特性列表
+
+#### 数据属性
+
+- `lastMessage: any` - 最后收到的WebSocket消息（格式：`{ action: string, data: any }`）
+- `config: PageWebSocketConfig | null` - 当前页面的WebSocket配置
+
+#### 方法
+
+- `connect(customParams?: any): Promise<boolean>` - 手动连接WebSocket
+- `disconnect(): void` - 手动断开WebSocket连接（断开后不会自动重连）
+- `resetManualDisconnect(): void` - 重置手动断开标志，重新启用自动连接
+- `sendMessage(message: any): boolean` - 发送WebSocket消息
+
+### 2. 前端页面中使用 WebSocket
 
 ```tsx
 'use client';
@@ -234,10 +276,12 @@ function ChatPage() {
     connectionStatus,
     isEnabled,
     connectionType,
+    supportedFeatures,
     lastMessage,
     sendMessage,
     connect,
     disconnect,
+    resetManualDisconnect,
     config
   } = useWebSocketByPage();
 
@@ -261,8 +305,11 @@ function ChatPage() {
       <div>
         连接状态: {isConnected ? '已连接' : '未连接'}
         {isEnabled && (
-          <div>功能特性: {config?.features?.join(', ')}</div>
+          <div>功能特性: {supportedFeatures.join(', ')}</div>
         )}
+        <button onClick={resetManualDisconnect}>
+          重新启用自动连接
+        </button>
       </div>
     </div>
   );
@@ -274,8 +321,8 @@ function ChatPage() {
 #### 创建服务实例
 
 ```python
-from app.services.broadcasting_factory import create_broadcasting_service
-from app.api.deps import get_db
+from app.websocket.broadcasting_factory import create_broadcasting_service
+from app.common.deps import get_db
 
 # 创建服务实例
 db = next(get_db())
@@ -308,7 +355,7 @@ await broadcasting_service.broadcast_message(
         "id": "msg_789",
         "content": "根据您的需求，我推荐以下方案...",
         "sender_id": "consultant_789",
-        "sender_type": "consultant",
+        "sender_type": "chat",
         "sender_name": "张医生",
         "message_type": "text",
         "is_important": True,
@@ -387,8 +434,9 @@ await broadcasting_service.send_direct_message(
 
 ```python
 from fastapi import APIRouter, Depends
-from app.services.broadcasting_factory import get_broadcasting_service_dependency
-from app.api.deps import get_db
+from sqlalchemy.orm import Session
+from app.websocket.broadcasting_factory import get_broadcasting_service_dependency
+from app.common.deps import get_db
 
 router = APIRouter()
 
@@ -396,10 +444,10 @@ router = APIRouter()
 async def send_message(
     conversation_id: str,
     message: MessageCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    broadcasting_service = Depends(get_broadcasting_service_dependency)
 ):
-    # 获取广播服务实例（每次创建新实例以支持不同的数据库会话）
-    broadcasting_service = await get_broadcasting_service_dependency(db)
+    # 广播服务通过依赖注入自动获取（每次创建新实例以支持不同的数据库会话）
   
     # 保存消息到数据库
     saved_message = await save_message_to_db(conversation_id, message)
@@ -489,11 +537,13 @@ INFO  顾问回复广播完成: conversation_id=conv_123, consultant_id=consulta
 **关键发现**：Redis Pub/Sub 有一个重要特性：**发布者不会收到自己发布的消息**。
 
 这意味着：
+
 - 如果消息发布到Redis，只有**其他实例**的监听器会收到
 - **当前实例**的监听器不会收到自己发布的消息
 - 如果目标用户在当前实例有连接，消息会丢失
 
-**解决方案**：在 `DistributedConnectionManager.send_to_user()` 中实现智能路由：
+**解决方案**：在 `WebSocketCoordinator.send_to_user()` 中实现智能路由：
+
 1. **先检查本地连接**：如果目标用户在当前实例有连接，直接发送到本地WebSocket（不经过Redis）
 2. **否则通过Redis广播**：如果用户在其他实例，通过Redis广播，其他实例的监听器会接收并发送
 
@@ -503,7 +553,7 @@ async def send_to_user(self, user_id: str, payload: dict):
     # Redis Pub/Sub的特性：发布者不会收到自己发布的消息
     # 所以如果用户在当前实例有连接，直接发送；否则通过Redis广播
     is_locally_connected = self.connection_manager.is_user_connected(user_id)
-    
+  
     if is_locally_connected:
         # 直接发送到本地连接
         await self._send_to_local_user(user_id, payload)
@@ -526,7 +576,7 @@ async def send_to_user(self, user_id: str, payload: dict):
 - **后端**：
   - 复用数据库会话，使用依赖注入管理服务实例
   - **消息发送优先本地**：如果目标用户在当前实例有连接，直接发送，避免Redis Pub/Sub的局限性
-  - **统一连接管理器实例**：确保 `broadcasting_factory` 和 `websocket_factory` 使用同一个 `DistributedConnectionManager` 实例
+  - **统一协调器实例**：确保 `broadcasting_factory` 和 `websocket_factory` 使用同一个 `WebSocketCoordinator` 实例
   - **在线状态检查优化**：先检查本地连接（更可靠），再检查Redis状态
 - **推送**：合理使用设备类型过滤，减少不必要的推送
 - **错误处理**：提供清晰的连接状态反馈和错误恢复机制
@@ -537,7 +587,7 @@ async def send_to_user(self, user_id: str, payload: dict):
 - **后端**：
   - 频繁创建广播服务实例，忽视数据库会话管理
   - **避免**：总是通过Redis发送消息，忽略本地连接检查（会导致消息丢失）
-  - **避免**：创建多个 `DistributedConnectionManager` 实例（会导致监听器不一致）
+  - **避免**：创建多个 `WebSocketCoordinator` 实例（会导致监听器不一致）
   - **避免**：只依赖Redis检查在线状态（可能存在同步延迟）
 - **通用**：忽视错误处理，频繁连接断开
 
@@ -586,18 +636,19 @@ async def send_to_user(self, user_id: str, payload: dict):
 #### 故障排查流程
 
 1. **消息未实时显示**
+
    - 检查后端 `[广播]` 日志，确认消息是否开始广播
    - 检查 `[发送]` 日志，确认用户在线状态
    - 检查 `[路由]` 日志，确认是否通过Redis或本地发送
    - 检查前端 `[WebSocket]` 日志，确认是否收到消息
    - 检查 `[MessageEventHandler]` 日志，确认事件是否被处理
-
 2. **在线状态不准确**
+
    - 检查 `[在线状态]` 日志，查看本地连接和Redis状态
    - 确认连接建立时是否调用了 `add_user_to_online`
    - 检查是否有多个连接管理器实例
-
 3. **Redis消息丢失**
+
    - 确认是否因为Redis Pub/Sub特性导致（发布者收不到自己的消息）
    - 检查是否实现了本地优先发送策略
 
@@ -649,7 +700,7 @@ WS_MAX_RECONNECT_ATTEMPTS=15
 
 - `api/app/core/config.py`: 应用主配置
 - `api/app/core/redis_client.py`: Redis连接配置
-- `api/app/services/notification_service.py`: 通知服务配置
+- `api/app/websocket/notification_service.py`: 通知服务配置
 - `api/alembic.ini`: 数据库迁移配置
 
 ## 部署架构
@@ -717,21 +768,24 @@ except Exception as e:
 **问题**：用户发送消息后，接收方无法实时收到，需要刷新页面才能看到。
 
 **根本原因**：
+
 - Redis Pub/Sub 的特性：发布者不会收到自己发布的消息
 - 如果目标用户在当前实例有连接，消息通过Redis发布后，当前实例的监听器收不到
 - 导致消息丢失，用户无法实时看到
 
 **解决方案**：
-- 在 `DistributedConnectionManager.send_to_user()` 中实现智能路由
+
+- 在 `WebSocketCoordinator.send_to_user()` 中实现智能路由
 - 先检查用户是否在当前实例有连接
 - 如果有，直接发送到本地WebSocket连接（不经过Redis）
 - 如果没有，通过Redis广播（其他实例的监听器会接收）
 
 **关键代码**：
+
 ```python
 async def send_to_user(self, user_id: str, payload: dict):
     is_locally_connected = self.connection_manager.is_user_connected(user_id)
-    
+  
     if is_locally_connected:
         # 直接发送到本地连接
         await self._send_to_local_user(user_id, payload)
@@ -745,32 +799,35 @@ async def send_to_user(self, user_id: str, payload: dict):
 **问题**：在线状态检查不准确，导致消息被误判为离线推送。
 
 **解决方案**：
+
 - 先检查本地连接（更可靠）
 - 如果本地有连接但Redis显示离线，自动更新Redis状态
 - 返回本地连接或Redis在线的结果
 
 **关键代码**：
+
 ```python
 async def is_user_online(self, user_id: str) -> bool:
     # 先检查本地连接（更可靠）
     is_locally_connected = self.connection_manager.is_user_connected(user_id)
     is_redis_online = await self.presence_manager.is_user_online(user_id)
-    
+  
     # 如果本地有连接但Redis显示离线，更新Redis状态
     if is_locally_connected and not is_redis_online:
         await self.presence_manager.add_user_to_online(user_id)
         return True
-    
+  
     return is_locally_connected or is_redis_online
 ```
 
 ### 3. 连接管理器实例统一（2025-11-27）
 
-**问题**：`broadcasting_factory` 和 `websocket_factory` 各自创建了 `DistributedConnectionManager` 实例，导致监听器不一致。
+**问题**：`broadcasting_factory` 和 `websocket_factory` 各自创建了 `WebSocketCoordinator` 实例，导致监听器不一致。
 
 **解决方案**：
-- `broadcasting_factory` 现在使用 `websocket_factory` 的连接管理器实例
-- 确保整个应用只有一个 `DistributedConnectionManager` 实例
+
+- `broadcasting_factory` 现在使用 `websocket_factory` 的协调器实例
+- 确保整个应用只有一个 `WebSocketCoordinator` 实例
 - 所有服务共享同一个Redis监听器
 
 ### 4. sender_type 枚举值简化（2025-11-27）
@@ -778,13 +835,16 @@ async def is_user_online(self, user_id: str) -> bool:
 **问题**：`sender_type` 枚举包含多个角色类型（customer、consultant、doctor等），但实际业务只需要区分智能聊天消息和系统消息。
 
 **解决方案**：
-- 将枚举值简化为两种：`'chat'`（智能聊天消息）和 `'system'`（系统消息）
-- 所有智能聊天消息统一使用 `sender_type='chat'`
-- 系统消息使用 `sender_type='system'`
-- 移除了角色映射逻辑，简化了代码
+
+- **后端**：将枚举值简化为两种：`'chat'`（智能聊天消息）和 `'system'`（系统消息）
+  - 所有智能聊天消息统一使用 `sender_type='chat'`
+  - 系统消息使用 `sender_type='system'`
+  - 移除了角色映射逻辑，简化了代码
+- **前端**：前端 `SenderType` 枚举仍保留多种类型（USER, CUSTOMER, CONSULTANT等），用于前端显示和类型检查，但发送到后端时会映射为 `'chat'` 或 `'system'`
 
 **数据库迁移**：
-- 创建迁移文件，将现有数据中的非 `system` 值更新为 `chat`
+
+- 创建迁移文件 `0f8b7de14744`，将现有数据中的非 `system` 值更新为 `chat`
 - 重建枚举类型，只保留 `chat` 和 `system`
 
 ### 5. 参与者列表获取优化（2025-11-27）
@@ -792,38 +852,42 @@ async def is_user_online(self, user_id: str) -> bool:
 **问题**：`_get_conversation_participants` 只查询了 `ConversationParticipant` 表，未包含会话的 `owner`。
 
 **解决方案**：
+
 - 同时包含 `owner` 和 `participants`
 - 确保所有相关用户都能收到广播消息
 
 **关键代码**：
+
 ```python
 async def _get_conversation_participants(self, conversation_id: str) -> List[str]:
     # 查询会话信息（获取owner）
     conversation = self.db.query(Conversation).filter(
         Conversation.id == conversation_id
     ).first()
-    
+  
     participant_ids = set()
-    
+  
     # 添加owner
     if conversation and conversation.owner_id:
         participant_ids.add(str(conversation.owner_id))
-    
+  
     # 添加所有参与者
     participants = self.db.query(ConversationParticipant).filter(
         ConversationParticipant.conversation_id == conversation_id,
         ConversationParticipant.is_active == True
     ).all()
-    
+  
     for p in participants:
         if p.user_id:
             participant_ids.add(str(p.user_id))
-    
+  
     return list(participant_ids)
 ```
 
 ---
 
+---
+
 **架构版本**：WebSocket V2 + BroadcastingService V1 + 重构完成
 **状态**：重构完成，已完全部署并投入使用
-**最后更新**：2025-11-27 - 添加Redis Pub/Sub优化、在线状态检查优化、连接管理器统一等重要修复经验
+**最后更新**：2025-01-XX - 更新文件结构路径、页面配置、依赖注入函数等文档内容，确保与实际代码实现一致

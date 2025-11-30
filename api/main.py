@@ -17,6 +17,7 @@ from app.common.deps.database import create_initial_roles, create_initial_system
 # 导入新的WebSocket和Redis组件
 from app.core.redis_client import redis_manager, get_redis_client
 from app.websocket.broadcasting_factory import cleanup_broadcasting_services
+from app.websocket.websocket_factory import cleanup_websocket_services
 
 # MessageBroadcaster会在需要时自动初始化
 
@@ -81,6 +82,7 @@ async def lifespan(app: FastAPI):
     try:
         # 清理WebSocket连接管理器
         await cleanup_broadcasting_services()
+        await cleanup_websocket_services()
         logger.info("WebSocket连接管理器已清理")
         
         # 关闭Redis连接

@@ -1,6 +1,6 @@
 """
-分布式WebSocket连接管理器 - 基于Redis Pub/Sub的可扩展架构
-重构版本：使用组合模式，职责分离
+WebSocket协调器 - 协调连接管理、消息路由和在线状态管理
+使用组合模式，将职责分离到专门的管理器中
 """
 import asyncio
 import json
@@ -20,10 +20,10 @@ from .presence_manager import PresenceManager
 logger = logging.getLogger(__name__)
 
 
-class DistributedConnectionManager:
+class WebSocketCoordinator:
     """
-    分布式WebSocket连接管理器
-    使用组合模式，将职责分离到专门的管理器中
+    WebSocket协调器
+    使用组合模式，协调连接管理、消息路由和在线状态管理
     """
     
     def __init__(self, redis_client: RedisClient,
@@ -57,7 +57,7 @@ class DistributedConnectionManager:
         self._lock = asyncio.Lock()
     
     async def initialize(self):
-        """初始化管理器，启动Redis监听器"""
+        """初始化协调器，启动Redis监听器"""
         try:
             # 启动消息广播监听器
             self.pubsub_task = asyncio.create_task(self._broadcast_listener())
@@ -68,9 +68,9 @@ class DistributedConnectionManager:
             # 启动定期清理任务
             self.cleanup_task = asyncio.create_task(self._periodic_cleanup())
             
-            logger.info(f"分布式连接管理器已初始化 [实例ID: {self.instance_id}]")
+            logger.info(f"WebSocket协调器已初始化 [实例ID: {self.instance_id}]")
         except Exception as e:
-            logger.error(f"初始化分布式连接管理器失败: {e}")
+            logger.error(f"初始化WebSocket协调器失败: {e}")
             raise
     
     async def cleanup(self):
@@ -94,9 +94,9 @@ class DistributedConnectionManager:
             for user_id in list(self.connection_manager.connections_by_user.keys()):
                 await self.presence_manager.remove_user_from_online(user_id)
             
-            logger.info(f"分布式连接管理器已清理 [实例ID: {self.instance_id}]")
+            logger.info(f"WebSocket协调器已清理 [实例ID: {self.instance_id}]")
         except Exception as e:
-            logger.error(f"清理分布式连接管理器失败: {e}")
+            logger.error(f"清理WebSocket协调器失败: {e}")
     
     async def _broadcast_listener(self):
         """监听广播频道的后台任务"""
@@ -442,4 +442,5 @@ class DistributedConnectionManager:
                 "instance_id": self.instance_id,
                 "error": str(e),
                 "timestamp": datetime.now().isoformat()
-            } 
+            }
+

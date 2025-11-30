@@ -5,7 +5,7 @@ import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
-from app.core.websocket.distributed_connection_manager import DistributedConnectionManager
+from app.core.websocket.websocket_coordinator import WebSocketCoordinator
 from app.core.websocket.events import event_bus, EventTypes, Event
 from app.websocket.broadcasting_service import BroadcastingService
 from .websocket_handler import websocket_handler
@@ -21,7 +21,7 @@ class WebSocketService:
     - 支持事件驱动的消息处理
     """
     
-    def __init__(self, connection_manager: DistributedConnectionManager, broadcasting_service: BroadcastingService):
+    def __init__(self, connection_manager: WebSocketCoordinator, broadcasting_service: BroadcastingService):
         self.connection_manager = connection_manager
         self.broadcasting_service = broadcasting_service
         self.websocket_handler = websocket_handler

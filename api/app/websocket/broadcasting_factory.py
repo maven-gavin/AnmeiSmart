@@ -7,7 +7,7 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.common.deps import get_db
-from app.core.websocket.distributed_connection_manager import DistributedConnectionManager
+from app.core.websocket.websocket_coordinator import WebSocketCoordinator
 from app.core.redis_client import get_redis_client
 from .broadcasting_service import BroadcastingService
 from .notification_service import NotificationService, get_notification_service
@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 _broadcasting_service: Optional[BroadcastingService] = None
 
 # 注意：连接管理器应该从 websocket_factory 获取，确保使用同一个实例
-async def get_connection_manager() -> DistributedConnectionManager:
-    """获取分布式连接管理器实例（从websocket_factory获取，确保单例）"""
+async def get_connection_manager() -> WebSocketCoordinator:
+    """获取WebSocket协调器实例（从websocket_factory获取，确保单例）"""
     from app.websocket.websocket_factory import get_connection_manager as get_ws_connection_manager
     return await get_ws_connection_manager()
 

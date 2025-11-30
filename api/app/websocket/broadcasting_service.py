@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Optional, Union
 from datetime import datetime
 
 from sqlalchemy.orm import Session
-from app.core.websocket.distributed_connection_manager import DistributedConnectionManager
+from app.core.websocket.websocket_coordinator import WebSocketCoordinator
 from .notification_service import NotificationService, get_notification_service
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ class BroadcastingService:
     4. 处理各种类型的消息广播
     """
     
-    def __init__(self, connection_manager: DistributedConnectionManager, db: Optional[Session] = None, notification_service: Optional[NotificationService] = None):
+    def __init__(self, connection_manager: WebSocketCoordinator, db: Optional[Session] = None, notification_service: Optional[NotificationService] = None):
         self.connection_manager = connection_manager
         self.db = db  # 用于查询会话参与者
         self.notification_service = notification_service or get_notification_service()
