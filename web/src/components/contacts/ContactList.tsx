@@ -1,6 +1,6 @@
 'use client';
 
-import { MessageCircle, Star, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
+import { MessageCircle, Star, MoreHorizontal, Edit, Trash2, Pin, BellOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -155,18 +155,7 @@ function FriendCard({ friendship, viewMode, onAction }: FriendCardProps) {
                 {friendship.nickname || friend.username}
               </h3>
               
-              {/* 状态指示器 */}
-              <div className="flex items-center space-x-1">
-                {friendship.is_starred && (
-                  <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                )}
-                {friendship.is_pinned && (
-                  <div className="w-4 h-4 text-blue-500">📌</div>
-                )}
-                {friendship.is_muted && (
-                  <div className="w-4 h-4 text-gray-400">🔇</div>
-                )}
-              </div>
+              {/* 状态指示器 - 已移除，现在使用外部按钮 */}
             </div>
             
             <p className="text-xs text-gray-500 truncate">
@@ -229,6 +218,36 @@ function FriendCard({ friendship, viewMode, onAction }: FriendCardProps) {
               <Star className={cn(
                 "w-4 h-4",
                 friendship.is_starred && "fill-current"
+              )} />
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onAction('toggle_pin', friend.id)}
+              className={cn(
+                "h-8 w-8 p-0",
+                friendship.is_pinned && "text-yellow-500"
+              )}
+            >
+              <Pin className={cn(
+                "w-4 h-4",
+                friendship.is_pinned && "fill-current"
+              )} />
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onAction('toggle_mute', friend.id)}
+              className={cn(
+                "h-8 w-8 p-0",
+                friendship.is_muted && "text-yellow-500"
+              )}
+            >
+              <BellOff className={cn(
+                "w-4 h-4",
+                friendship.is_muted && "fill-current"
               )} />
             </Button>
             

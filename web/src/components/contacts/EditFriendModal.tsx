@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
 import type { Friendship, ContactTag } from '@/types/contacts';
 
 interface EditFriendModalProps {
@@ -19,9 +18,6 @@ interface EditFriendModalProps {
 export function EditFriendModal({ friendship, onClose, onSuccess, tags }: EditFriendModalProps) {
   const [nickname, setNickname] = useState(friendship.nickname || '');
   const [remark, setRemark] = useState(friendship.remark || '');
-  const [isStarred, setIsStarred] = useState(friendship.is_starred);
-  const [isMuted, setIsMuted] = useState(friendship.is_muted);
-  const [isPinned, setIsPinned] = useState(friendship.is_pinned);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,10 +29,7 @@ export function EditFriendModal({ friendship, onClose, onSuccess, tags }: EditFr
       
       await updateFriendship(friendship.id, {
         nickname: nickname || undefined,
-        remark: remark || undefined,
-        is_starred: isStarred,
-        is_muted: isMuted,
-        is_pinned: isPinned
+        remark: remark || undefined
       });
       
       onSuccess();
@@ -80,35 +73,6 @@ export function EditFriendModal({ friendship, onClose, onSuccess, tags }: EditFr
               onChange={(e) => setRemark(e.target.value)}
               rows={3}
             />
-          </div>
-          
-          <div className="space-y-3">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="starred"
-                checked={isStarred}
-                onCheckedChange={(checked) => setIsStarred(checked === true)}
-              />
-              <Label htmlFor="starred">星标好友</Label>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="pinned"
-                checked={isPinned}
-                onCheckedChange={(checked) => setIsPinned(checked === true)}
-              />
-              <Label htmlFor="pinned">置顶显示</Label>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="muted"
-                checked={isMuted}
-                onCheckedChange={(checked) => setIsMuted(checked === true)}
-              />
-              <Label htmlFor="muted">消息免打扰</Label>
-            </div>
           </div>
           
           <div className="flex justify-end space-x-2">

@@ -260,7 +260,7 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
           }
           break;
         }
-        case 'toggle_star':
+        case 'toggle_star': {
           const targetFriendship = friends.find(f => f.friend?.id === friendId);
           if (targetFriendship) {
             await updateFriendship(targetFriendship.id, {
@@ -270,6 +270,29 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
             loadFriends();
           }
           break;
+        }
+        case 'toggle_pin': {
+          const targetFriendship = friends.find(f => f.friend?.id === friendId);
+          if (targetFriendship) {
+            await updateFriendship(targetFriendship.id, {
+              is_pinned: !targetFriendship.is_pinned
+            });
+            toast.success(targetFriendship.is_pinned ? '已取消置顶' : '已置顶显示');
+            loadFriends();
+          }
+          break;
+        }
+        case 'toggle_mute': {
+          const targetFriendship = friends.find(f => f.friend?.id === friendId);
+          if (targetFriendship) {
+            await updateFriendship(targetFriendship.id, {
+              is_muted: !targetFriendship.is_muted
+            });
+            toast.success(targetFriendship.is_muted ? '已取消免打扰' : '已设为免打扰');
+            loadFriends();
+          }
+          break;
+        }
         default:
           console.warn('未知操作:', action);
       }
