@@ -49,7 +49,7 @@ async def create_websocket_service() -> WebSocketService:
         
         # 创建WebSocket服务
         websocket_service = WebSocketService(
-            connection_manager=connection_manager,
+            websocket_coordinator=connection_manager,
             broadcasting_service=broadcasting_service
         )
         
