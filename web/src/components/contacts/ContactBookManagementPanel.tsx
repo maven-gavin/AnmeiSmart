@@ -28,6 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { EnhancedPagination } from '@/components/ui/pagination';
 
 interface ContactBookManagementPanelProps {
   // 可以添加额外的props
@@ -50,14 +51,11 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
   const [tags, setTags] = useState<ContactTag[]>([]);
   const [groups, setGroups] = useState<ContactGroup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    size: 20,
-    total: 0,
-    pages: 0,
-    hasNext: false,
-    hasPrev: false
-  });
+  
+  // 分页状态 - 使用与用户管理一致的方式
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [total, setTotal] = useState(0);
   
   // 弹窗状态
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
@@ -107,12 +105,12 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
     loadInitialData();
   }, [user?.id]);
   
-  // 当筛选条件变化时重新加载数据
+  // 当筛选条件或分页变化时重新加载数据
   useEffect(() => {
     if (user?.id) {
       loadFriends();
     }
-  }, [selectedView, searchQuery, selectedTags, selectedGroups, sortBy, sortOrder, pagination.page]);
+  }, [selectedView, searchQuery, selectedTags, selectedGroups, sortBy, sortOrder, currentPage, itemsPerPage]);
   
   // 确保删除过程中对话框保持打开
   useEffect(() => {
@@ -147,8 +145,6 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
     if (!user?.id) return;
     
     try {
-      setLoading(true);
-      
       // 并行加载基础数据
       const [tagsData, groupsData] = await Promise.all([
         getContactTags(),
@@ -158,13 +154,12 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
       setTags(tagsData);
       setGroups(groupsData);
       
-      // 加载好友列表
+      // 加载好友列表（loadFriends 自己管理 loading 状态）
       await loadFriends();
       
     } catch (error) {
       console.error('加载初始数据失败:', error);
       toast.error('加载数据失败');
-    } finally {
       setLoading(false);
     }
   };
@@ -173,6 +168,7 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
     if (!user?.id) return;
     
     try {
+      setLoading(true);
       const validViews: Array<'all' | 'starred' | 'recent' | 'pending' | 'blocked'> = ['all', 'starred', 'recent', 'pending', 'blocked'];
       const filters: FriendListFilters = {
         view: (selectedView === 'all' || !validViews.includes(selectedView as any)) 
@@ -187,45 +183,40 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
       
       const result = await getFriends({
         ...filters,
-        page: pagination.page,
-        size: pagination.size
+        page: currentPage,
+        size: itemsPerPage
       });
       
       setFriends(result.items);
-      setPagination({
-        page: result.page,
-        size: result.size,
-        total: result.total,
-        pages: result.pages,
-        hasNext: result.has_next,
-        hasPrev: result.has_prev
-      });
+      setTotal(result.total);
       
     } catch (error) {
       console.error('加载好友列表失败:', error);
       toast.error('加载好友列表失败');
+    } finally {
+      setLoading(false);
     }
   };
   
   // 事件处理函数
   const handleViewChange = (view: string) => {
     setSelectedView(view);
-    setPagination(prev => ({ ...prev, page: 1 })); // 重置到第一页
+    setCurrentPage(1); // 重置到第一页
   };
   
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
-    setPagination(prev => ({ ...prev, page: 1 })); // 重置到第一页
+    setCurrentPage(1); // 重置到第一页
   };
   
   const handleTagsChange = (tagIds: string[]) => {
     setSelectedTags(tagIds);
-    setPagination(prev => ({ ...prev, page: 1 })); // 重置到第一页
+    setCurrentPage(1); // 重置到第一页
   };
   
   const handleGroupsChange = (groupIds: string[]) => {
     setSelectedGroups(groupIds);
-    setPagination(prev => ({ ...prev, page: 1 })); // 重置到第一页
+    setCurrentPage(1); // 重置到第一页
   };
   
   const handleSortChange = (field: 'name' | 'recent' | 'added' | 'interaction') => {
@@ -235,11 +226,7 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
       setSortBy(field);
       setSortOrder('asc');
     }
-    setPagination(prev => ({ ...prev, page: 1 })); // 重置到第一页
-  };
-  
-  const handlePageChange = (page: number) => {
-    setPagination(prev => ({ ...prev, page }));
+    setCurrentPage(1); // 重置到第一页
   };
   
   const handleFriendAction = async (action: string, friendId: string) => {
@@ -311,14 +298,18 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
     try {
       await deleteFriendship(deletingFriendship.id);
       toast.success('好友删除成功');
-      // 删除成功后，手动关闭对话框
-      // onOpenChange 会自动清理 deletingFriendship 和 body 样式
       setIsDeleteDialogOpen(false);
-      loadFriends();
+      setDeletingFriendship(null);
+      
+      // 如果当前页删除后没有数据了，且不是第一页，则跳转到上一页
+      if (friends.length === 1 && currentPage > 1) {
+        setCurrentPage(currentPage - 1);
+      } else {
+        loadFriends();
+      }
     } catch (error) {
       console.error('删除好友失败:', error);
       toast.error('删除失败，请重试');
-      // 删除失败时不关闭对话框，让用户重试
     } finally {
       setDeleteLoading(false);
     }
@@ -340,7 +331,7 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
         onViewChange={handleViewChange}
         tags={tags}
         groups={groups}
-        friendsCount={pagination.total}
+        friendsCount={total}
         loading={loading}
       />
       
@@ -391,8 +382,14 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
             friends={friends}
             viewMode={viewMode}
             loading={loading}
-            pagination={pagination}
-            onPageChange={handlePageChange}
+            total={total}
+            currentPage={currentPage}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={(newLimit) => {
+              setItemsPerPage(newLimit);
+              setCurrentPage(1);
+            }}
             onFriendAction={handleFriendAction}
           />
         )}

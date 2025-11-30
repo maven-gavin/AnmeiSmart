@@ -5,8 +5,8 @@
 
 import logging
 from typing import List, Optional, Dict, Any
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import and_, or_
+from sqlalchemy.orm import Session, joinedload, aliased
+from sqlalchemy import and_, or_, func, desc, asc
 
 from app.contacts.models.contacts import (
     Friendship, ContactTag, ContactGroup, ContactGroupMember, 
@@ -48,17 +48,13 @@ class ContactService:
         page: int = 1,
         size: int = 20
     ) -> Dict[str, Any]:
-        """获取好友列表（支持筛选、排序、分页）"""
-        # 查询好友关系
+        """获取好友列表（支持筛选、排序、物理分页）"""
+        # 构建基础查询
         query = self.db.query(Friendship).filter(
             Friendship.user_id == user_id
-        ).options(
-            joinedload(Friendship.friend),
-            joinedload(Friendship.tags).joinedload(FriendshipTag.tag),
-            joinedload(Friendship.group_memberships).joinedload(ContactGroupMember.group)
         )
         
-        # 应用筛选
+        # 应用基础筛选
         if status:
             query = query.filter(Friendship.status == status)
         elif view == "starred":
@@ -67,51 +63,108 @@ class ContactService:
             query = query.filter(Friendship.is_blocked == True)
         elif view == "pending":
             query = query.filter(Friendship.status == "pending")
+        elif view == "recent":
+            # 最近联系：有 last_interaction_at 且不为空
+            query = query.filter(Friendship.last_interaction_at.isnot(None))
         
-        friendships = query.all()
-        
-        # 应用标签筛选
+        # 应用标签筛选（数据库层面）
         if tags:
-            friendships = [f for f in friendships if any(tag.tag_id in tags for tag in f.tags)]
+            query = query.join(FriendshipTag).filter(
+                FriendshipTag.tag_id.in_(tags)
+            )
         
-        # 应用分组筛选
+        # 应用分组筛选（数据库层面）
         if groups:
-            friendships = [f for f in friendships if any(m.group_id in groups for m in f.group_memberships)]
+            query = query.join(ContactGroupMember).filter(
+                ContactGroupMember.group_id.in_(groups)
+            )
         
-        # 应用搜索
+        # 标记是否需要 JOIN User 表（用于搜索或排序）
+        need_user_join = False
+        
+        # 应用搜索（数据库层面）
         if search:
-            friendships = [
-                f for f in friendships 
-                if f.friend and (
-                    search.lower() in f.friend.username.lower() or
-                    (f.nickname and search.lower() in f.nickname.lower())
+            need_user_join = True
+            search_pattern = f"%{search}%"
+            query = query.join(User, Friendship.friend_id == User.id).filter(
+                or_(
+                    User.username.ilike(search_pattern),
+                    Friendship.nickname.ilike(search_pattern),
+                    Friendship.remark.ilike(search_pattern)
                 )
-            ]
+            )
         
-        # 应用排序
+        # 处理需要去重的情况（使用子查询避免 DISTINCT + ORDER BY 冲突）
+        needs_distinct = tags or groups or search or (sort_by == "name")
+        
+        if needs_distinct:
+            # 使用子查询：先选择去重后的 Friendship.id
+            distinct_ids_query = query.with_entities(Friendship.id).distinct()
+            # 统计总数
+            total = distinct_ids_query.count()
+            # 将子查询转换为子查询对象，用于后续 JOIN
+            distinct_ids_subq = distinct_ids_query.subquery()
+            distinct_ids_alias = aliased(distinct_ids_subq)
+            # 重新构建查询：从 Friendship 表 JOIN 子查询，保留 user_id 筛选
+            query = self.db.query(Friendship).filter(
+                Friendship.user_id == user_id
+            ).join(
+                distinct_ids_alias, Friendship.id == distinct_ids_alias.c.id
+            )
+        else:
+            # 不需要去重，直接统计
+            total = query.count()
+        
+        # 应用排序（数据库层面）
+        # 注意：如果使用了子查询，需要重新 JOIN User 表（如果需要）
         if sort_by == "name":
-            friendships.sort(key=lambda f: f.nickname or (f.friend.username if f.friend else ""), 
-                           reverse=(sort_order == "desc"))
+            # 需要 JOIN User 表来排序用户名
+            if not need_user_join:
+                query = query.join(User, Friendship.friend_id == User.id)
+            order_expr = func.coalesce(Friendship.nickname, User.username)
+            if sort_order == "desc":
+                query = query.order_by(desc(order_expr))
+            else:
+                query = query.order_by(asc(order_expr))
         elif sort_by == "recent":
-            friendships.sort(key=lambda f: f.last_interaction_at or f.created_at or datetime.min, 
-                           reverse=(sort_order == "desc"))
+            if sort_order == "desc":
+                query = query.order_by(desc(func.coalesce(Friendship.last_interaction_at, Friendship.created_at)))
+            else:
+                query = query.order_by(asc(func.coalesce(Friendship.last_interaction_at, Friendship.created_at)))
+        elif sort_by == "added":
+            if sort_order == "desc":
+                query = query.order_by(desc(Friendship.created_at))
+            else:
+                query = query.order_by(asc(Friendship.created_at))
+        elif sort_by == "interaction":
+            if sort_order == "desc":
+                query = query.order_by(desc(Friendship.interaction_count))
+            else:
+                query = query.order_by(asc(Friendship.interaction_count))
+        else:
+            # 默认按创建时间倒序
+            query = query.order_by(desc(Friendship.created_at))
         
-        # 应用分页
-        total = len(friendships)
-        start_idx = (page - 1) * size
-        end_idx = start_idx + size
-        paged_friendships = friendships[start_idx:end_idx]
+        # 应用物理分页
+        offset = (page - 1) * size
+        friendships = query.options(
+            joinedload(Friendship.friend),
+            joinedload(Friendship.tags).joinedload(FriendshipTag.tag),
+            joinedload(Friendship.group_memberships).joinedload(ContactGroupMember.group)
+        ).offset(offset).limit(size).all()
         
         # 转换为响应模型
-        friendship_responses = [FriendshipResponse.from_model(f) for f in paged_friendships]
+        friendship_responses = [FriendshipResponse.from_model(f) for f in friendships]
+        
+        total_pages = (total + size - 1) // size if total > 0 else 0
         
         return {
             "items": friendship_responses,
             "total": total,
             "page": page,
             "size": size,
-            "pages": (total + size - 1) // size,
-            "has_next": page < (total + size - 1) // size,
+            "pages": total_pages,
+            "has_next": page < total_pages,
             "has_prev": page > 1
         }
     

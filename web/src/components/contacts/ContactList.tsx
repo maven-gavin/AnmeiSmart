@@ -10,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { EnhancedPagination } from '@/components/ui/pagination';
 import { cn } from '@/service/utils';
 import type { Friendship } from '@/types/contacts';
 
@@ -17,15 +18,11 @@ interface ContactListProps {
   friends: Friendship[];
   viewMode: 'list' | 'card';
   loading: boolean;
-  pagination: {
-    page: number;
-    size: number;
-    total: number;
-    pages: number;
-    hasNext: boolean;
-    hasPrev: boolean;
-  };
+  total: number;
+  currentPage: number;
+  itemsPerPage: number;
   onPageChange: (page: number) => void;
+  onItemsPerPageChange: (itemsPerPage: number) => void;
   onFriendAction: (action: string, friendId: string) => void;
 }
 
@@ -33,8 +30,11 @@ export function ContactList({
   friends,
   viewMode,
   loading,
-  pagination,
+  total,
+  currentPage,
+  itemsPerPage,
   onPageChange,
+  onItemsPerPageChange,
   onFriendAction
 }: ContactListProps) {
   if (loading) {
@@ -85,39 +85,22 @@ export function ContactList({
         </div>
       </div>
       
-      {/* 分页控制 */}
-      {pagination.pages > 1 && (
-        <div className="border-t border-gray-200 px-4 py-3 bg-white">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-700">
-              显示 {(pagination.page - 1) * pagination.size + 1} - {Math.min(pagination.page * pagination.size, pagination.total)} 
-              ，共 {pagination.total} 个好友
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onPageChange(pagination.page - 1)}
-                disabled={!pagination.hasPrev}
-              >
-                上一页
-              </Button>
-              
-              <span className="text-sm text-gray-600">
-                {pagination.page} / {pagination.pages}
-              </span>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onPageChange(pagination.page + 1)}
-                disabled={!pagination.hasNext}
-              >
-                下一页
-              </Button>
-            </div>
-          </div>
+      {/* 分页组件 */}
+      {total > 0 && (
+        <div className="border-t border-gray-200 bg-white px-4 py-4">
+          <EnhancedPagination
+            currentPage={currentPage}
+            totalPages={Math.ceil(total / itemsPerPage)}
+            totalItems={total}
+            itemsPerPage={itemsPerPage}
+            itemsPerPageOptions={[10, 20, 50, 100]}
+            onPageChange={onPageChange}
+            onItemsPerPageChange={(newLimit) => {
+              onItemsPerPageChange(newLimit);
+              onPageChange(1); // 重置到第一页
+            }}
+            showPageInput={true}
+          />
         </div>
       )}
     </div>
