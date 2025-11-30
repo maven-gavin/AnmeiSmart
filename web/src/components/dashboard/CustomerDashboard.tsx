@@ -3,9 +3,26 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { customerService } from '@/service/customerService';
-import { Message } from '@/types/chat';
+import { Message, TextMessageContent, MediaMessageContent, SystemEventContent, StructuredMessageContent } from '@/types/chat';
 import AppLayout from '../layout/AppLayout';
 import { useAuthContext } from '@/contexts/AuthContext';
+
+// 从消息内容中提取显示文本
+function getMessageDisplayText(message: Message): string {
+  switch (message.type) {
+    case 'text':
+      return (message.content as TextMessageContent).text || '';
+    case 'media':
+      return (message.content as MediaMessageContent).text || '媒体消息';
+    case 'system':
+      const systemContent = message.content as SystemEventContent;
+      return `系统事件: ${systemContent.system_event_type}`;
+    case 'structured':
+      return (message.content as StructuredMessageContent).title || '结构化消息';
+    default:
+      return '未知消息类型';
+  }
+}
 
 // 首页卡片组件
 function DashboardCard({ 
@@ -54,7 +71,7 @@ function RecentNotifications({ messages }: { messages: Message[] }) {
         {messages.length > 0 ? (
           messages.map((message) => (
             <div key={message.id} className="py-3">
-              <p className="text-sm text-gray-800">{message.content}</p>
+              <p className="text-sm text-gray-800">{getMessageDisplayText(message)}</p>
               <p className="text-xs text-gray-500">
                 {new Date(message.timestamp).toLocaleString('zh-CN', {
                   month: 'short',
