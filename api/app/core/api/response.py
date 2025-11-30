@@ -3,7 +3,7 @@
 """
 
 from datetime import datetime
-from typing import Generic, Optional, TypeVar
+from typing import Generic, List, Optional, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -39,3 +39,9 @@ class ApiResponse(BaseModel, Generic[T]):
         """生成失败的响应"""
         return cls(code=code, message=message, data=data)
 
+class PaginatedRecords(BaseModel, Generic[T]):
+    """分页响应基础模型"""
+    items: List[T] = Field(..., description="数据项列表")
+    total: int = Field(..., description="总数量")
+    skip: int = Field(..., description="跳过数量")
+    limit: int = Field(..., description="限制数量")

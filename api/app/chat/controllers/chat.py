@@ -1,5 +1,5 @@
 """
-聊天API端点 - 重构后的版本，遵循DDD分层架构
+聊天API端点
 """
 import logging
 from typing import List, Dict, Any, Optional
@@ -16,7 +16,7 @@ from app.chat.schemas.chat import (
     CreateTextMessageRequest, CreateMediaMessageRequest, 
     CreateSystemEventRequest, CreateStructuredMessageRequest
 )
-from app.core.api import BusinessException
+from app.core.api import BusinessException, ApiResponse, PaginatedRecords  
 
 # 导入服务层
 from app.chat.services.chat_service import ChatService
@@ -55,26 +55,28 @@ async def create_conversation(
         raise HTTPException(status_code=500, detail="创建会话失败")
 
 
-@router.get("/conversations", response_model=List[ConversationInfo])
+@router.get("/conversations", response_model=ApiResponse[PaginatedRecords[ConversationInfo]])
 async def get_conversations(
+    search: Optional[str] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service)
 ):
-    """获取会话列表"""
+    """根据查询条件获取用户参与的会话列表"""
     logger.info(f"端点：开始获取会话列表 - user_id={current_user.id}, skip={skip}, limit={limit}")
     
     try:
         logger.info(f"端点：调用服务获取会话列表")
-        conversations = chat_service.get_conversations(
+        paginated_records = chat_service.get_conversations(
             user_id=str(current_user.id),
             user_role=None,  # 不再需要角色映射，sender_type统一为chat
             skip=skip,
-            limit=limit
+            limit=limit,
+            search=search
         )
-        logger.info(f"端点：成功获取 {len(conversations)} 个会话")
-        return conversations
+        logger.info(f"端点：成功获取 {len(paginated_records.items)} 个会话")
+        return ApiResponse.success(data=paginated_records)
         
     except Exception as e:
         logger.error(f"获取会话列表失败: {e}", exc_info=True)

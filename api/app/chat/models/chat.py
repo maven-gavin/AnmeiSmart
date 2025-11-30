@@ -14,8 +14,6 @@ class Conversation(BaseModel):
         Index('idx_conversation_chat_mode', 'chat_mode'),
         Index('idx_conversation_status', 'is_active'),
         Index('idx_conversation_tag', 'tag'),
-        Index('idx_conversation_pinned', 'is_pinned', 'pinned_at'),
-        Index('idx_conversation_first_participant', 'first_participant_id'),
         {"comment": "会话表，存储用户会话信息"}
     )
 
@@ -31,28 +29,15 @@ class Conversation(BaseModel):
     # 会话标签（区分会话类型）
     tag = Column(String(50), nullable=False, default="chat", comment="会话标签：chat(普通聊天)")
     
-    # 新增：置顶功能
-    is_pinned = Column(Boolean, default=False, comment="是否置顶")
-    pinned_at = Column(DateTime(timezone=True), nullable=True, comment="置顶时间")
-    
-    # 新增：第一个参与者ID（优化好友单聊查询）
-    first_participant_id = Column(String(36), ForeignKey("users.id"), nullable=True, comment="第一个参与者用户ID")
-    
     # 会话状态
     is_active = Column(Boolean, default=True, comment="会话是否激活")
     is_archived = Column(Boolean, default=False, comment="是否已归档")
-    
-    # 统计信息
-    message_count = Column(Integer, default=0, comment="消息总数")
-    unread_count = Column(Integer, default=0, comment="未读消息数")
-    last_message_at = Column(DateTime(timezone=True), nullable=True, comment="最后消息时间")
     
     # 附加元数据
     extra_metadata = Column(JSON, nullable=True, comment="附加元数据")
     
     # 关联关系
     owner = relationship("app.identity_access.models.user.User", foreign_keys=[owner_id], back_populates="owned_conversations")
-    first_participant = relationship("app.identity_access.models.user.User", foreign_keys=[first_participant_id])
     messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan", foreign_keys="Message.conversation_id")
     participants = relationship("ConversationParticipant", back_populates="conversation", cascade="all, delete-orphan", foreign_keys="ConversationParticipant.conversation_id")
 
@@ -116,6 +101,7 @@ class ConversationParticipant(BaseModel):
         Index('idx_conversation_participant_conv', 'conversation_id'),
         Index('idx_conversation_participant_user', 'user_id'),
         Index('idx_conversation_participant_dh', 'digital_human_id'),
+        Index('idx_conversation_participant_pinned', 'is_pinned', 'pinned_at'),
         {"comment": "会话参与者表，支持用户和数字人参与"}
     )
 
@@ -142,6 +128,15 @@ class ConversationParticipant(BaseModel):
     # 个人设置
     is_muted = Column(Boolean, default=False, comment="个人免打扰")
     last_read_at = Column(DateTime(timezone=True), nullable=True, comment="最后阅读时间")
+    
+    # 个人化功能：置顶
+    is_pinned = Column(Boolean, default=False, comment="是否置顶（个人设置）")
+    pinned_at = Column(DateTime(timezone=True), nullable=True, comment="置顶时间（个人设置）")
+    
+    # 个人化统计信息（每个参与者的视角）
+    message_count = Column(Integer, default=0, comment="该参与者的消息总数（从该参与者视角）")
+    unread_count = Column(Integer, default=0, comment="该参与者的未读消息数")
+    last_message_at = Column(DateTime(timezone=True), nullable=True, comment="最后消息时间（从该参与者视角）")
     
     # 关联关系
     conversation = relationship("Conversation", back_populates="participants")

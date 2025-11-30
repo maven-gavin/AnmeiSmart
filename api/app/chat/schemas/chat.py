@@ -376,23 +376,26 @@ class ConversationInfo(ConversationBase):
     is_active: bool = True
     is_archived: bool = False
     
-    # 新增字段
+    # 个人化字段（从 ConversationParticipant 获取）
     is_pinned: bool = False
     pinned_at: Optional[datetime] = None
-    first_participant_id: Optional[str] = None
-    
-    # 统计信息
     message_count: int = 0
     unread_count: int = 0
     last_message_at: Optional[datetime] = None
     
     # 关联信息
     owner: Optional[dict] = Field(None, description="会话所有者信息")
-    first_participant: Optional[dict] = Field(None, description="第一个参与者信息")
 
     @staticmethod
-    def from_model(conversation, last_message=None, unread_count=0):
-        """从数据库模型转换为Schema模型"""
+    def from_model(conversation, last_message=None, participant=None, unread_count=None):
+        """从数据库模型转换为Schema模型
+        
+        Args:
+            conversation: Conversation 模型实例
+            last_message: 最后一条消息（可选）
+            participant: ConversationParticipant 模型实例（可选，用于获取个人化字段）
+            unread_count: 未读消息数（可选，兼容旧代码，优先使用 participant.unread_count）
+        """
         if not conversation:
             return None
         
@@ -407,16 +410,23 @@ class ConversationInfo(ConversationBase):
                 "avatar": getattr(owner_obj, 'avatar', None)
             }
         
-        # 获取第一个参与者信息
-        first_participant_obj = getattr(conversation, 'first_participant', None)
-        first_participant_info = None
-        if first_participant_obj:
-            first_participant_info = {
-                "id": getattr(first_participant_obj, 'id', ''),
-                "username": getattr(first_participant_obj, 'username', '未知用户'),
-                "email": getattr(first_participant_obj, 'email', ''),
-                "avatar": getattr(first_participant_obj, 'avatar', None)
-            }
+        # 从 participant 获取个人化字段
+        is_pinned = False
+        pinned_at = None
+        message_count = 0
+        participant_unread_count = 0
+        last_message_at = None
+        
+        if participant:
+            is_pinned = getattr(participant, 'is_pinned', False)
+            pinned_at = getattr(participant, 'pinned_at', None)
+            message_count = getattr(participant, 'message_count', 0)
+            participant_unread_count = getattr(participant, 'unread_count', 0)
+            last_message_at = getattr(participant, 'last_message_at', None)
+        
+        # 兼容旧代码：如果没有 participant 但有 unread_count 参数
+        if unread_count is not None and participant is None:
+            participant_unread_count = unread_count
         
         # 转换最后一条消息
         last_message_info = None
@@ -433,13 +443,11 @@ class ConversationInfo(ConversationBase):
             updated_at=getattr(conversation, 'updated_at', datetime.now()),
             is_active=getattr(conversation, 'is_active', True),
             is_archived=getattr(conversation, 'is_archived', False),
-            is_pinned=getattr(conversation, 'is_pinned', False),
-            pinned_at=getattr(conversation, 'pinned_at', None),
-            first_participant_id=getattr(conversation, 'first_participant_id', None),
-            message_count=getattr(conversation, 'message_count', 0),
-            unread_count=getattr(conversation, 'unread_count', 0),
-            last_message_at=getattr(conversation, 'last_message_at', None),
+            is_pinned=is_pinned,
+            pinned_at=pinned_at,
+            message_count=message_count,
+            unread_count=participant_unread_count,
+            last_message_at=last_message_at,
             owner=owner_info,
-            first_participant=first_participant_info,
             last_message=last_message_info
         )

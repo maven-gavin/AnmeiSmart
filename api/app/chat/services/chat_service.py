@@ -19,7 +19,7 @@ from app.chat.schemas.chat import (
 # 移除转换器导入，直接使用 schema 的 from_model 方法
 from app.identity_access.models.user import User
 from app.common.deps.uuid_utils import conversation_id, message_id
-from app.core.api import BusinessException, ErrorCode
+from app.core.api import BusinessException, ErrorCode, PaginatedRecords
 from app.websocket.broadcasting_service import BroadcastingService
 
 logger = logging.getLogger(__name__)
@@ -31,6 +31,68 @@ class ChatService:
     def __init__(self, db: Session, broadcasting_service: Optional[BroadcastingService] = None):
         self.db = db
         self.broadcasting_service = broadcasting_service
+    
+    # ============ 辅助方法 ============
+    
+    def _get_or_create_participant(
+        self,
+        conversation_id: str,
+        user_id: str,
+        default_role: str = "member"
+    ) -> ConversationParticipant:
+        """获取或创建参与者的个人化记录"""
+        participant = self.db.query(ConversationParticipant).filter(
+            ConversationParticipant.conversation_id == conversation_id,
+            ConversationParticipant.user_id == user_id,
+            ConversationParticipant.is_active == True
+        ).first()
+        
+        if not participant:
+            # 创建新的参与者记录
+            participant = ConversationParticipant(
+                id=conversation_id(),
+                conversation_id=conversation_id,
+                user_id=user_id,
+                role=default_role,
+                is_active=True,
+                message_count=0,
+                unread_count=0
+            )
+            self.db.add(participant)
+            self.db.flush()
+        
+        return participant
+    
+    def _update_participant_stats_on_new_message(
+        self,
+        conversation_id: str,
+        sender_id: str,
+        is_system_message: bool = False
+    ):
+        """当有新消息时，更新所有参与者的统计信息
+        
+        Args:
+            conversation_id: 会话ID
+            sender_id: 发送者ID
+            is_system_message: 是否为系统消息（系统消息不增加未读计数）
+        """
+        # 获取会话的所有活跃参与者
+        participants = self.db.query(ConversationParticipant).filter(
+            ConversationParticipant.conversation_id == conversation_id,
+            ConversationParticipant.is_active == True
+        ).all()
+        
+        now = datetime.now()
+        
+        for participant in participants:
+            # 更新发送者消息总数
+            if str(participant.user_id) == str(sender_id):
+                participant.message_count = (participant.message_count or 0) + 1
+                participant.last_message_at = now
+            
+            # 如果是发送者或是系统消息，不增加未读数；否则增加未读数
+            if not is_system_message and str(participant.user_id) != str(sender_id):
+                participant.unread_count = (participant.unread_count or 0) + 1
     
     # ============ 会话管理 ============
     
@@ -53,9 +115,7 @@ class ChatService:
             owner_id=owner_id,
             chat_mode=chat_mode,
             tag=tag,
-            is_active=True,
-            message_count=0,
-            unread_count=0
+            is_active=True
         )
         
         self.db.add(conversation)
@@ -67,31 +127,15 @@ class ChatService:
             conversation_id=conversation.id,
             user_id=owner_id,
             role="owner",
-            is_active=True
+            is_active=True,
+            message_count=0,
+            unread_count=0
         )
         self.db.add(participant)
         
-        # 创建欢迎消息
-        welcome_message = Message(
-            id=message_id(),
-            conversation_id=conversation.id,
-            content={
-                "type": "system",
-                "system_event_type": "welcome",
-                "message": "欢迎来到安美智享！我是您的AI助手，有什么可以帮助您的吗？"
-            },
-            type="system",
-            sender_type="system",
-            is_read=True
-        )
-        self.db.add(welcome_message)
-        
-        conversation.message_count = 1
-        conversation.last_message_at = datetime.now()
-        conversation.first_participant_id = owner_id
-        
         self.db.commit()
         self.db.refresh(conversation)
+        self.db.refresh(participant)
         
         # 加载关联数据
         # 注意：joinedload 不支持 limit，需要在查询后手动处理最后一条消息
@@ -99,27 +143,8 @@ class ChatService:
             joinedload(Conversation.owner),
             joinedload(Conversation.participants).joinedload(ConversationParticipant.user)
         ).filter(Conversation.id == conversation.id).first()
-        
-        # 手动加载最后一条消息
-        if conversation:
-            last_message = self.db.query(Message).filter(
-                Message.conversation_id == conversation.id
-            ).order_by(desc(Message.timestamp)).limit(1).first()
-            if last_message:
-                conversation.messages = [last_message]
-            else:
-                conversation.messages = []
-        
-        # 转换为响应Schema
-        from app.chat.schemas.chat import ConversationInfo, MessageInfo
-        
-        last_message = None
-        if conversation.messages:
-            last_msg = conversation.messages[0]
-            if last_msg:
-                last_message = MessageInfo.from_model(last_msg)
-        
-        return ConversationInfo.from_model(conversation, last_message=last_message)
+                
+        return ConversationInfo.from_model(conversation, last_message=None, participant=participant)
     
     
     def get_conversations(
@@ -127,115 +152,100 @@ class ChatService:
         user_id: str,
         user_role: Optional[str] = None,
         skip: int = 0,
-        limit: int = 100
-    ) -> List[ConversationInfo]:
-        """获取用户会话列表（支持角色过滤）"""
-        # 查询用户作为参与者的会话ID列表
-        participant_conv_ids_query = self.db.query(ConversationParticipant.conversation_id).filter(
+        limit: int = 100,
+        search: Optional[str] = None
+    ) -> PaginatedRecords[ConversationInfo]:
+        """根据查询条件获取用户参与的会话列表
+        
+        从会话参与者表中分页查询指定用户参与的会话，支持标题模糊搜索，按修改时间倒序排列
+        owner 也是参与者（角色为 owner），所以直接从 participant 表查询即可
+        """
+        # 从参与者表开始，JOIN 会话表
+        # 这样可以查询用户作为参与者的所有会话（包括 owner 角色的会话）
+        # 使用别名以便在排序中使用 participant 字段
+        query = self.db.query(Conversation, ConversationParticipant).join(
+            ConversationParticipant,
+            Conversation.id == ConversationParticipant.conversation_id
+        ).filter(
             ConversationParticipant.user_id == user_id,
             ConversationParticipant.is_active == True
         )
-        participant_conv_ids = [row[0] for row in participant_conv_ids_query.all()]
         
-        # 查询用户作为owner或参与者的会话
-        query = self.db.query(Conversation).options(
-            joinedload(Conversation.owner)
+        # 如果提供了搜索关键词，对标题进行模糊匹配
+        if search and search.strip():
+            search_pattern = f"%{search.strip()}%"
+            query = query.filter(Conversation.title.like(search_pattern))
+        
+        # 获取总数（在分页之前）
+        total = query.count()
+        
+        # 按个人化视角排序：置顶优先，然后按最后消息时间（参与者视角），最后按会话更新时间
+        query = query.order_by(
+            desc(ConversationParticipant.is_pinned),  # 置顶的排前面
+            desc(ConversationParticipant.pinned_at),  # 置顶时间倒序
+            desc(ConversationParticipant.last_message_at),  # 个人最后消息时间倒序
+            desc(Conversation.updated_at)  # 会话更新时间倒序
         )
         
-        if participant_conv_ids:
-            query = query.filter(
-                or_(
-                    Conversation.owner_id == user_id,
-                    Conversation.id.in_(participant_conv_ids)
-                )
-            )
-        else:
-            query = query.filter(Conversation.owner_id == user_id)
+        # 分页
+        results = query.offset(skip).limit(limit).all()
         
-        # 根据角色过滤（如果需要）
-        # 目前简化处理，后续可以根据角色扩展权限逻辑
+        # 提取会话对象和参与者对象（因为查询返回的是 (Conversation, ConversationParticipant) 元组）
+        conversations = []
+        participants_dict = {}
+        for conv, participant in results:
+            conversations.append(conv)
+            participants_dict[conv.id] = participant
         
-        conversations = query.order_by(
-            desc(Conversation.last_message_at),
-            desc(Conversation.created_at)
-        ).offset(skip).limit(limit).all()
+        # 加载关联数据（owner 和 participants）
+        conversation_ids = [conv.id for conv in conversations]
+        if conversation_ids:
+            # 批量加载关联数据
+            conversations_with_relations = self.db.query(Conversation).options(
+                joinedload(Conversation.owner),
+                joinedload(Conversation.participants).joinedload(ConversationParticipant.user)
+            ).filter(Conversation.id.in_(conversation_ids)).all()
+            
+            # 保持原有顺序
+            conversation_dict = {conv.id: conv for conv in conversations_with_relations}
+            conversations = [conversation_dict.get(conv.id, conv) for conv in conversations]
         
-        # 转换为响应Schema，并手动加载最后一条消息
-        from app.chat.schemas.chat import ConversationInfo, MessageInfo
-        result = []
+        # 批量获取每个会话的最后一条消息
+        last_messages = {}
+        if conversation_ids:
+            # 为每个会话单独查询最后一条消息（更可靠，避免时间戳重复问题）
+            for conv_id in conversation_ids:
+                last_msg = self.db.query(Message).filter(
+                    Message.conversation_id == conv_id
+                ).order_by(
+                    desc(Message.timestamp),
+                    desc(Message.id)  # 如果时间戳相同，按ID倒序
+                ).options(
+                    joinedload(Message.sender)
+                ).limit(1).first()
+                
+                if last_msg:
+                    last_messages[conv_id] = last_msg
+        
+        # 转换为响应Schema
+        conversation_infos = []
         for conv in conversations:
-            # 手动查询最后一条消息
-            last_msg = self.db.query(Message).filter(
-                Message.conversation_id == conv.id
-            ).order_by(desc(Message.timestamp)).limit(1).first()
-            
-            last_message = None
-            if last_msg:
-                last_message = MessageInfo.from_model(last_msg)
-            
-            result.append(ConversationInfo.from_model(conv, last_message=last_message))
-        return result
-    
-    def get_user_conversations(
-        self,
-        user_id: str,
-        chat_mode: Optional[str] = None,
-        tag: Optional[str] = None,
-        is_active: Optional[bool] = None,
-        limit: int = 50,
-        offset: int = 0
-    ) -> List[ConversationInfo]:
-        """获取用户会话列表（旧方法，保持兼容）"""
-        # 查询用户作为参与者的会话ID列表
-        participant_conv_ids_query = self.db.query(ConversationParticipant.conversation_id).filter(
-            ConversationParticipant.user_id == user_id,
-            ConversationParticipant.is_active == True
-        )
-        participant_conv_ids = [row[0] for row in participant_conv_ids_query.all()]
-        
-        # 查询用户作为owner或参与者的会话
-        query = self.db.query(Conversation).options(
-            joinedload(Conversation.owner)
-        )
-        
-        if participant_conv_ids:
-            query = query.filter(
-                or_(
-                    Conversation.owner_id == user_id,
-                    Conversation.id.in_(participant_conv_ids)
-                )
+            participant = participants_dict.get(conv.id)
+            last_message = last_messages.get(conv.id)
+            last_message_info = MessageInfo.from_model(last_message) if last_message else None
+            conv_info = ConversationInfo.from_model(
+                conv,
+                last_message=last_message_info,
+                participant=participant
             )
-        else:
-            query = query.filter(Conversation.owner_id == user_id)
+            conversation_infos.append(conv_info)
         
-        # 应用筛选
-        if chat_mode:
-            query = query.filter(Conversation.chat_mode == chat_mode)
-        if tag:
-            query = query.filter(Conversation.tag == tag)
-        if is_active is not None:
-            query = query.filter(Conversation.is_active == is_active)
-        
-        conversations = query.order_by(
-            desc(Conversation.last_message_at),
-            desc(Conversation.created_at)
-        ).offset(offset).limit(limit).all()
-        
-        # 转换为响应Schema，并手动加载最后一条消息
-        from app.chat.schemas.chat import ConversationInfo, MessageInfo
-        result = []
-        for conv in conversations:
-            # 手动查询最后一条消息
-            last_msg = self.db.query(Message).filter(
-                Message.conversation_id == conv.id
-            ).order_by(desc(Message.timestamp)).limit(1).first()
-            
-            last_message = None
-            if last_msg:
-                last_message = MessageInfo.from_model(last_msg)
-            
-            result.append(ConversationInfo.from_model(conv, last_message=last_message))
-        return result
+        return PaginatedRecords(
+            items=conversation_infos,
+            total=total,
+            skip=skip,
+            limit=limit
+        )
     
     def get_conversation(
         self,
@@ -250,6 +260,7 @@ class ChatService:
         ).filter(Conversation.id == conversation_id)
         
         # 权限检查：检查用户是否是owner或参与者
+        participant = None
         if user_id:
             # 先查询会话是否存在
             conversation = query.first()
@@ -258,7 +269,8 @@ class ChatService:
             
             # 检查用户是否是owner
             if str(conversation.owner_id) == user_id:
-                pass  # 是owner，允许访问
+                # 是owner，获取或创建参与者记录
+                participant = self._get_or_create_participant(conversation_id, user_id, default_role="owner")
             else:
                 # 检查用户是否是参与者
                 participant = self.db.query(ConversationParticipant).filter(
@@ -286,7 +298,7 @@ class ChatService:
         if last_msg:
             last_message = MessageInfo.from_model(last_msg)
         
-        return ConversationInfo.from_model(conversation, last_message=last_message)
+        return ConversationInfo.from_model(conversation, last_message=last_message, participant=participant)
     
     def get_conversation_by_id_use_case(
         self,
@@ -305,26 +317,48 @@ class ChatService:
     ) -> Optional[ConversationInfo]:
         """更新会话信息"""
         conversation = self.db.query(Conversation).filter(
-            Conversation.id == conversation_id,
-            Conversation.owner_id == user_id
+            Conversation.id == conversation_id
         ).first()
         
         if not conversation:
             return None
         
-        # 更新字段
-        allowed_fields = ['title', 'is_active', 'is_archived', 'is_pinned', 'tag']
-        for field, value in updates.items():
-            if field in allowed_fields and hasattr(conversation, field):
-                setattr(conversation, field, value)
+        # 检查权限：用户必须是owner或参与者
+        is_owner = str(conversation.owner_id) == user_id
+        participant = self.db.query(ConversationParticipant).filter(
+            ConversationParticipant.conversation_id == conversation_id,
+            ConversationParticipant.user_id == user_id,
+            ConversationParticipant.is_active == True
+        ).first()
         
-        if 'is_pinned' in updates and updates['is_pinned']:
-            conversation.pinned_at = datetime.now()
-        elif 'is_pinned' in updates and not updates['is_pinned']:
-            conversation.pinned_at = None
+        if not is_owner and not participant:
+            return None  # 无权限
+        
+        # 分离会话级别和个人级别的更新字段
+        conversation_fields = ['title', 'is_active', 'is_archived', 'tag']
+        participant_fields = ['is_pinned']
+        
+        # 更新会话级别字段（只有owner可以修改）
+        if is_owner:
+            for field, value in updates.items():
+                if field in conversation_fields and hasattr(conversation, field):
+                    setattr(conversation, field, value)
+        
+        # 获取或创建参与者记录（用于个人化字段）
+        if not participant:
+            participant = self._get_or_create_participant(conversation_id, user_id)
+        
+        # 更新个人化字段（所有参与者都可以修改自己的）
+        if 'is_pinned' in updates:
+            participant.is_pinned = updates['is_pinned']
+            if updates['is_pinned']:
+                participant.pinned_at = datetime.now()
+            else:
+                participant.pinned_at = None
         
         self.db.commit()
         self.db.refresh(conversation)
+        self.db.refresh(participant)
         
         # 加载关联数据并转换
         conversation = self.db.query(Conversation).options(
@@ -343,7 +377,7 @@ class ChatService:
             if last_msg:
                 last_message = MessageInfo.from_model(last_msg)
         
-        return ConversationInfo.from_model(conversation, last_message=last_message)
+        return ConversationInfo.from_model(conversation, last_message=last_message, participant=participant)
     
     # ============ 消息管理 ============
     
@@ -381,12 +415,8 @@ class ChatService:
         
         self.db.add(message)
         
-        # 更新会话统计
-        conversation.message_count = (conversation.message_count or 0) + 1
-        conversation.last_message_at = datetime.now()
-        # 如果发送者不是会话所有者，增加未读计数
-        if sender_id != str(conversation.owner_id):
-            conversation.unread_count = (conversation.unread_count or 0) + 1
+        # 更新所有参与者的统计信息
+        self._update_participant_stats_on_new_message(conversation_id, sender_id)
         
         self.db.commit()
         self.db.refresh(message)
@@ -436,12 +466,8 @@ class ChatService:
         
         self.db.add(message)
         
-        # 更新会话统计
-        conversation.message_count = (conversation.message_count or 0) + 1
-        conversation.last_message_at = datetime.now()
-        # 如果发送者不是会话所有者，增加未读计数
-        if sender_id != str(conversation.owner_id):
-            conversation.unread_count = (conversation.unread_count or 0) + 1
+        # 更新所有参与者的统计信息
+        self._update_participant_stats_on_new_message(conversation_id, sender_id)
         
         self.db.commit()
         self.db.refresh(message)
@@ -507,19 +533,22 @@ class ChatService:
         for message in messages:
             message.is_read = True
         
-        # 更新会话未读计数
-        conversation = self.db.query(Conversation).filter(
-            Conversation.id == conversation_id
+        # 更新参与者的未读计数
+        participant = self.db.query(ConversationParticipant).filter(
+            ConversationParticipant.conversation_id == conversation_id,
+            ConversationParticipant.user_id == user_id,
+            ConversationParticipant.is_active == True
         ).first()
         
-        if conversation:
-            conversation.unread_count = max(0, (conversation.unread_count or 0) - count)
+        if participant:
+            participant.unread_count = max(0, (participant.unread_count or 0) - count)
+            participant.last_read_at = datetime.now()
         
         self.db.commit()
         
         return count
     
-    def mark_message_as_read_use_case(self, message_id: str) -> bool:
+    def mark_message_as_read_use_case(self, message_id: str, user_id: Optional[str] = None) -> bool:
         """标记消息为已读（用例方法）"""
         message = self.db.query(Message).filter(Message.id == message_id).first()
         if not message:
@@ -527,13 +556,17 @@ class ChatService:
         
         message.is_read = True
         
-        # 更新会话未读计数
-        conversation = self.db.query(Conversation).filter(
-            Conversation.id == message.conversation_id
-        ).first()
-        
-        if conversation:
-            conversation.unread_count = max(0, (conversation.unread_count or 0) - 1)
+        # 如果提供了user_id，更新该参与者的未读计数
+        if user_id:
+            participant = self.db.query(ConversationParticipant).filter(
+                ConversationParticipant.conversation_id == message.conversation_id,
+                ConversationParticipant.user_id == user_id,
+                ConversationParticipant.is_active == True
+            ).first()
+            
+            if participant:
+                participant.unread_count = max(0, (participant.unread_count or 0) - 1)
+                participant.last_read_at = datetime.now()
         
         self.db.commit()
         return True
@@ -705,9 +738,8 @@ class ChatService:
         
         self.db.add(message)
         
-        # 更新会话统计
-        conversation.message_count = (conversation.message_count or 0) + 1
-        conversation.last_message_at = datetime.now()
+        # 更新所有参与者的统计信息（系统消息不增加未读计数）
+        self._update_participant_stats_on_new_message(conversation_id, "system", is_system_message=True)
         
         self.db.commit()
         self.db.refresh(message)
@@ -751,12 +783,8 @@ class ChatService:
         
         self.db.add(message)
         
-        # 更新会话统计
-        conversation.message_count = (conversation.message_count or 0) + 1
-        conversation.last_message_at = datetime.now()
-        # 如果发送者不是会话所有者，增加未读计数
-        if str(sender.id) != str(conversation.owner_id):
-            conversation.unread_count = (conversation.unread_count or 0) + 1
+        # 更新所有参与者的统计信息
+        self._update_participant_stats_on_new_message(conversation_id, str(sender.id))
         
         self.db.commit()
         self.db.refresh(message)
@@ -860,16 +888,8 @@ class ChatService:
         
         self.db.add(message)
         
-        # 更新会话统计
-        conversation = self.db.query(Conversation).filter(
-            Conversation.id == conversation_id
-        ).first()
-        if conversation:
-            conversation.message_count = (conversation.message_count or 0) + 1
-            conversation.last_message_at = datetime.now()
-            # 如果发送者不是会话所有者，增加未读计数
-            if sender_id != str(conversation.owner_id):
-                conversation.unread_count = (conversation.unread_count or 0) + 1
+        # 更新所有参与者的统计信息
+        self._update_participant_stats_on_new_message(conversation_id, sender_id)
         
         self.db.commit()
         self.db.refresh(message)

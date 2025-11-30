@@ -23,17 +23,16 @@ export class ChatDataMapper {
       tag: apiResponse.tag,
       owner_id: apiResponse.owner_id,
       owner: apiResponse.owner ? this.mapUser(apiResponse.owner) : undefined,
-      first_participant_id: apiResponse.first_participant_id,
-      first_participant: apiResponse.first_participant ? this.mapUser(apiResponse.first_participant) : undefined,
+      // first_participant_id 和 first_participant 字段已移除
       lastMessage: apiResponse.last_message ? this.mapMessage(apiResponse.last_message) : undefined,
-      unreadCount: apiResponse.unread_count,
-      messageCount: apiResponse.message_count,
+      unreadCount: apiResponse.unread_count || 0,
+      messageCount: apiResponse.message_count || 0,
       lastMessageAt: apiResponse.last_message_at,
       updatedAt: apiResponse.updated_at,
       createdAt: apiResponse.created_at,
       isActive: apiResponse.is_active,
       isArchived: apiResponse.is_archived,
-      is_pinned: apiResponse.is_pinned,
+      is_pinned: apiResponse.is_pinned || false,
       pinned_at: apiResponse.pinned_at
     };
   }

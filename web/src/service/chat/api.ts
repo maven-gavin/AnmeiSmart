@@ -36,8 +36,11 @@ export class ChatApiService {
    */
   public static async getConversations(): Promise<Conversation[]> {
     try {
-      const response = await apiClient.get<ConversationApiResponse[]>(`${this.BASE_PATH}/conversations`);
-      return response.data ? ChatDataMapper.mapConversations(response.data) : [];
+      // 后端现在返回分页对象 { items, total, skip, limit }
+      const response = await apiClient.get<{ items: ConversationApiResponse[]; total: number; skip: number; limit: number }>(`${this.BASE_PATH}/conversations`);
+      // 从分页对象中提取 items 数组
+      const items = response.data?.items || response.data || [];
+      return ChatDataMapper.mapConversations(Array.isArray(items) ? items : []);
     } catch (error) {
       // 统一抛出可读错误，避免上层出现 {} 的错误对象
       if (error instanceof ApiClientError) {

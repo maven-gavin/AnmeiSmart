@@ -68,13 +68,7 @@ export interface ConversationApiResponse {
     email?: string;
     avatar?: string;
   };
-  first_participant_id?: string;
-  first_participant?: {
-    id: string;
-    username?: string;
-    email?: string;
-    avatar?: string;
-  };
+  // first_participant_id 和 first_participant 字段已移除（重构后不再需要）
   last_message?: MessageApiResponse;
   unread_count: number;
   message_count: number;
