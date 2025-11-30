@@ -4,7 +4,7 @@
 import logging
 from typing import List, Dict, Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.common.deps import get_db
@@ -16,7 +16,13 @@ from app.chat.schemas.chat import (
     CreateTextMessageRequest, CreateMediaMessageRequest, 
     CreateSystemEventRequest, CreateStructuredMessageRequest
 )
-from app.core.api import BusinessException, ApiResponse, PaginatedRecords  
+from app.core.api import (
+    BusinessException, 
+    SystemException,
+    ApiResponse, 
+    PaginatedRecords,
+    ErrorCode
+)
 
 # 导入服务层
 from app.chat.services.chat_service import ChatService
@@ -32,7 +38,7 @@ router = APIRouter()
 
 # ============ HTTP API 端点 ============
 
-@router.post("/conversations", response_model=ConversationInfo, status_code=status.HTTP_201_CREATED)
+@router.post("/conversations", response_model=ApiResponse[ConversationInfo], status_code=status.HTTP_201_CREATED)
 async def create_conversation(
     conversation_in: ConversationCreate,
     current_user: User = Depends(get_current_user),
@@ -46,13 +52,13 @@ async def create_conversation(
             chat_mode=conversation_in.chat_mode or "single",
             tag=conversation_in.tag or "chat"
         )
-        return conversation
+        return ApiResponse.success(conversation)
         
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except BusinessException:
+        raise
     except Exception as e:
-        logger.error(f"创建会话失败: {e}")
-        raise HTTPException(status_code=500, detail="创建会话失败")
+        logger.error(f"创建会话失败: {e}", exc_info=True)
+        raise SystemException("创建会话失败")
 
 
 @router.get("/conversations", response_model=ApiResponse[PaginatedRecords[ConversationInfo]])
@@ -67,7 +73,6 @@ async def get_conversations(
     logger.info(f"端点：开始获取会话列表 - user_id={current_user.id}, skip={skip}, limit={limit}")
     
     try:
-        logger.info(f"端点：调用服务获取会话列表")
         paginated_records = chat_service.get_conversations(
             user_id=str(current_user.id),
             user_role=None,  # 不再需要角色映射，sender_type统一为chat
@@ -75,15 +80,14 @@ async def get_conversations(
             limit=limit,
             search=search
         )
-        logger.info(f"端点：成功获取 {len(paginated_records.items)} 个会话")
         return ApiResponse.success(data=paginated_records)
         
     except Exception as e:
         logger.error(f"获取会话列表失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="获取会话列表失败")
+        raise SystemException("获取会话列表失败")
 
 
-@router.get("/conversations/{conversation_id}", response_model=ConversationInfo)
+@router.get("/conversations/{conversation_id}", response_model=ApiResponse[ConversationInfo])
 async def get_conversation(
     conversation_id: str,
     current_user: User = Depends(get_current_user),
@@ -97,20 +101,22 @@ async def get_conversation(
         )
         
         if not conversation:
-            raise HTTPException(status_code=404, detail="会话不存在")
+            raise BusinessException(
+                "会话不存在",
+                code=ErrorCode.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND
+            )
         
-        return conversation
+        return ApiResponse.success(conversation)
         
-    except HTTPException:
+    except BusinessException:
         raise
-    except BusinessException as e:
-        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
-        logger.error(f"获取会话失败: {e}")
-        raise HTTPException(status_code=500, detail="获取会话失败")
+        logger.error(f"获取会话失败: {e}", exc_info=True)
+        raise SystemException("获取会话失败")
 
 
-@router.get("/conversations/{conversation_id}/messages", response_model=List[MessageInfo])
+@router.get("/conversations/{conversation_id}/messages", response_model=ApiResponse[List[MessageInfo]])
 async def get_conversation_messages(
     conversation_id: str,
     limit: int = 50,
@@ -126,25 +132,27 @@ async def get_conversation_messages(
             user_id=str(current_user.id)
         )
         if not conversation:
-            raise HTTPException(status_code=404, detail="会话不存在")
+            raise BusinessException(
+                "会话不存在",
+                code=ErrorCode.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND
+            )
         
         messages = chat_service.get_conversation_messages(
             conversation_id=conversation_id,
             limit=limit,
             offset=offset
         )
-        return messages
+        return ApiResponse.success(messages)
         
-    except HTTPException:
+    except BusinessException:
         raise
-    except BusinessException as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"获取消息列表失败: conversation_id={conversation_id}, error={str(e)}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="获取消息列表失败")
+        raise SystemException("获取消息列表失败")
 
 
-@router.post("/conversations/{conversation_id}/messages", response_model=MessageInfo)
+@router.post("/conversations/{conversation_id}/messages", response_model=ApiResponse[MessageInfo])
 async def create_message(
     conversation_id: str,
     request: MessageCreateRequest,
@@ -153,7 +161,7 @@ async def create_message(
 ):
     """创建通用消息"""
     try:
-        logger.info(f"创建消息请求: conversation_id={conversation_id}, type={request.type}, content={request.content}")
+        logger.info(f"创建消息请求: conversation_id={conversation_id}, type={request.type}")
         message = chat_service.create_message_use_case(
             conversation_id=conversation_id,
             request=request,
@@ -167,17 +175,16 @@ async def create_message(
             sender_id=str(current_user.id)
         )
         
-        return message
+        return ApiResponse.success(message)
         
     except ValueError as e:
-        logger.error(f"创建消息参数错误: {e}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise BusinessException(str(e), code=ErrorCode.VALIDATION_ERROR)
     except Exception as e:
         logger.error(f"创建消息失败: conversation_id={conversation_id}, error={str(e)}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"创建消息失败: {str(e)}")
+        raise SystemException(f"创建消息失败: {str(e)}")
 
 
-@router.post("/conversations/{conversation_id}/messages/text", response_model=MessageInfo)
+@router.post("/conversations/{conversation_id}/messages/text", response_model=ApiResponse[MessageInfo])
 async def create_text_message(
     conversation_id: str,
     request: CreateTextMessageRequest,
@@ -199,15 +206,16 @@ async def create_text_message(
             sender_id=str(current_user.id)
         )
         
-        return message
+        return ApiResponse.success(message)
         
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise BusinessException(str(e), code=ErrorCode.VALIDATION_ERROR)
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="创建文本消息失败")
+        logger.error(f"创建文本消息失败: {e}", exc_info=True)
+        raise SystemException("创建文本消息失败")
 
 
-@router.post("/conversations/{conversation_id}/messages/media", response_model=MessageInfo)
+@router.post("/conversations/{conversation_id}/messages/media", response_model=ApiResponse[MessageInfo])
 async def create_media_message(
     conversation_id: str,
     request: CreateMediaMessageRequest,
@@ -229,15 +237,16 @@ async def create_media_message(
             sender_id=str(current_user.id)
         )
         
-        return message
+        return ApiResponse.success(message)
         
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise BusinessException(str(e), code=ErrorCode.VALIDATION_ERROR)
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="创建媒体消息失败")
+        logger.error(f"创建媒体消息失败: {e}", exc_info=True)
+        raise SystemException("创建媒体消息失败")
 
 
-@router.post("/conversations/{conversation_id}/messages/system", response_model=MessageInfo)
+@router.post("/conversations/{conversation_id}/messages/system", response_model=ApiResponse[MessageInfo])
 async def create_system_event_message(
     conversation_id: str,
     request: CreateSystemEventRequest,
@@ -259,17 +268,22 @@ async def create_system_event_message(
             sender_id=str(current_user.id)
         )
         
-        return message
+        return ApiResponse.success(message)
         
     except PermissionError:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="只有管理员可以创建系统事件消息")
+        raise BusinessException(
+            "只有管理员可以创建系统事件消息", 
+            code=ErrorCode.PERMISSION_DENIED,
+            status_code=status.HTTP_403_FORBIDDEN
+        )
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise BusinessException(str(e), code=ErrorCode.VALIDATION_ERROR)
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="创建系统事件消息失败")
+        logger.error(f"创建系统事件消息失败: {e}", exc_info=True)
+        raise SystemException("创建系统事件消息失败")
 
 
-@router.post("/conversations/{conversation_id}/messages/structured", response_model=MessageInfo)
+@router.post("/conversations/{conversation_id}/messages/structured", response_model=ApiResponse[MessageInfo])
 async def create_structured_message(
     conversation_id: str,
     request: CreateStructuredMessageRequest,
@@ -291,30 +305,40 @@ async def create_structured_message(
             sender_id=str(current_user.id)
         )
         
-        return message
+        return ApiResponse.success(message)
         
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise BusinessException(str(e), code=ErrorCode.VALIDATION_ERROR)
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="创建结构化消息失败")
+        logger.error(f"创建结构化消息失败: {e}", exc_info=True)
+        raise SystemException("创建结构化消息失败")
 
 
-
-@router.patch("/messages/{message_id}/read")
+@router.patch("/messages/{message_id}/read", response_model=ApiResponse[Dict[str, str]])
 async def mark_message_as_read(
     message_id: str,
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """标记消息为已读"""
-    success = chat_service.mark_message_as_read_use_case(message_id)
-    if not success:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="消息不存在")
-    
-    return {"message": "消息已标记为已读"}
+    try:
+        success = chat_service.mark_message_as_read_use_case(message_id)
+        if not success:
+            raise BusinessException(
+                "消息不存在", 
+                code=ErrorCode.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+        
+        return ApiResponse.success({"message": "消息已标记为已读"})
+    except BusinessException:
+        raise
+    except Exception as e:
+        logger.error(f"标记消息已读失败: {e}", exc_info=True)
+        raise SystemException("标记消息已读失败")
 
 
-@router.patch("/conversations/{conversation_id}/messages/{message_id}/important")
+@router.patch("/conversations/{conversation_id}/messages/{message_id}/important", response_model=ApiResponse[Dict[str, str]])
 async def mark_message_as_important(
     conversation_id: str,
     message_id: str,
@@ -332,20 +356,28 @@ async def mark_message_as_important(
         )
         
         if success:
-            return {"message": f"消息已{'标记为重点' if is_important else '取消重点标记'}"}
+            return ApiResponse.success({"message": f"消息已{'标记为重点' if is_important else '取消重点标记'}"})
         else:
-            raise HTTPException(status_code=404, detail="消息不存在")
+            raise BusinessException(
+                "消息不存在", 
+                code=ErrorCode.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND
+            )
         
     except PermissionError:
-        raise HTTPException(status_code=403, detail="无权操作此会话")
+        raise BusinessException(
+            "无权操作此会话", 
+            code=ErrorCode.PERMISSION_DENIED,
+            status_code=status.HTTP_403_FORBIDDEN
+        )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise BusinessException(str(e), code=ErrorCode.VALIDATION_ERROR)
     except Exception as e:
-        logger.error(f"标记消息重点状态失败: {e}")
-        raise HTTPException(status_code=500, detail="标记消息重点状态失败")
+        logger.error(f"标记消息重点状态失败: {e}", exc_info=True)
+        raise SystemException("标记消息重点状态失败")
 
 
-@router.get("/conversations/{conversation_id}/summary")
+@router.get("/conversations/{conversation_id}/summary", response_model=ApiResponse[ConversationInfo])
 async def get_conversation_summary(
     conversation_id: str,
     current_user: User = Depends(get_current_user),
@@ -361,16 +393,22 @@ async def get_conversation_summary(
         )
         
         if not summary:
-            raise HTTPException(status_code=404, detail="会话不存在")
+            raise BusinessException(
+                "会话不存在", 
+                code=ErrorCode.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND
+            )
         
-        return summary
+        return ApiResponse.success(summary)
         
+    except BusinessException:
+        raise
     except Exception as e:
-        logger.error(f"获取会话摘要失败: {e}")
-        raise HTTPException(status_code=500, detail="获取会话摘要失败")
+        logger.error(f"获取会话摘要失败: {e}", exc_info=True)
+        raise SystemException("获取会话摘要失败")
 
 
-@router.patch("/conversations/{conversation_id}", response_model=ConversationInfo)
+@router.patch("/conversations/{conversation_id}", response_model=ApiResponse[ConversationInfo])
 async def update_conversation(
     conversation_id: str,
     update_data: Dict[str, Any],
@@ -386,15 +424,23 @@ async def update_conversation(
         )
         
         if not updated_conversation:
-            raise HTTPException(status_code=404, detail="会话不存在")
+            raise BusinessException(
+                "会话不存在", 
+                code=ErrorCode.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND
+            )
         
-        return updated_conversation
+        return ApiResponse.success(updated_conversation)
         
     except PermissionError:
-        raise HTTPException(status_code=403, detail="无权修改此会话")
+        raise BusinessException(
+            "无权修改此会话", 
+            code=ErrorCode.PERMISSION_DENIED,
+            status_code=status.HTTP_403_FORBIDDEN
+        )
     except Exception as e:
-        logger.error(f"更新会话失败: {e}")
-        raise HTTPException(status_code=500, detail="更新会话失败")
+        logger.error(f"更新会话失败: {e}", exc_info=True)
+        raise SystemException("更新会话失败")
 
 
 # TODO: 这些功能需要后续实现
