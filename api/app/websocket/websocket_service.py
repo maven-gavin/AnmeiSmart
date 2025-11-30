@@ -21,8 +21,8 @@ class WebSocketService:
     - 支持事件驱动的消息处理
     """
     
-    def __init__(self, connection_manager: WebSocketCoordinator, broadcasting_service: BroadcastingService):
-        self.connection_manager = connection_manager
+    def __init__(self, websocket_coordinator: WebSocketCoordinator, broadcasting_service: BroadcastingService):
+        self.websocket_coordinator = websocket_coordinator
         self.broadcasting_service = broadcasting_service
         self.websocket_handler = websocket_handler
         
