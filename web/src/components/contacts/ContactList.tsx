@@ -1,8 +1,15 @@
 'use client';
 
-import { MessageCircle, Star, MoreHorizontal } from 'lucide-react';
+import { MessageCircle, Star, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/service/utils';
 import type { Friendship } from '@/types/contacts';
 
@@ -242,14 +249,34 @@ function FriendCard({ friendship, viewMode, onAction }: FriendCardProps) {
               )} />
             </Button>
             
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onAction('more', friend.id)}
-              className="h-8 w-8 p-0"
-            >
-              <MoreHorizontal className="w-4 h-4" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40 bg-white">
+                <DropdownMenuItem 
+                  onClick={() => onAction('edit', friend.id)}
+                  className="cursor-pointer"
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  <span>编辑</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={() => onAction('remove', friend.id)}
+                  className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  <span>删除</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>

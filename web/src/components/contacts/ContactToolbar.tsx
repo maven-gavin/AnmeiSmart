@@ -15,9 +15,9 @@ interface ContactToolbarProps {
   onGroupsChange: (groups: string[]) => void;
   viewMode: 'list' | 'card';
   onViewModeChange: (mode: 'list' | 'card') => void;
-  sortBy: string;
+  sortBy: 'name' | 'recent' | 'added' | 'interaction';
   sortOrder: 'asc' | 'desc';
-  onSortChange: (field: string) => void;
+  onSortChange: (field: 'name' | 'recent' | 'added' | 'interaction') => void;
   onAddFriend: () => void;
   tags: ContactTag[];
   groups: ContactGroup[];

@@ -188,31 +188,6 @@ export function ContactSidebar({
             标签管理
           </button>
           
-          <button
-            onClick={() => onViewChange('privacy')}
-            className={cn(
-              "w-full flex items-center px-3 py-2 text-sm rounded-md transition-colors",
-              selectedView === 'privacy'
-                ? "bg-blue-50 text-blue-700"
-                : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-            )}
-          >
-            <span className="mr-2">⚙️</span>
-            隐私设置
-          </button>
-          
-          <button
-            onClick={() => onViewChange('analytics')}
-            className={cn(
-              "w-full flex items-center px-3 py-2 text-sm rounded-md transition-colors",
-              selectedView === 'analytics'
-                ? "bg-blue-50 text-blue-700"
-                : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-            )}
-          >
-            <span className="mr-2">📊</span>
-            使用统计
-          </button>
         </div>
       </div>
     </div>

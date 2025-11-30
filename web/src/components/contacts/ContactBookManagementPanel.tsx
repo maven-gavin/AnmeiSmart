@@ -18,6 +18,16 @@ import type {
 import { getFriends, getContactTags, getContactGroups, deleteFriendship, updateFriendship } from '@/service/contacts/api';
 import { useWebSocketByPage } from '@/hooks/useWebSocketByPage';
 import { toast } from 'react-hot-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface ContactBookManagementPanelProps {
   // 可以添加额外的props
@@ -27,12 +37,12 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
   const { user } = useAuthContext();
   
   // 状态管理
-  const [selectedView, setSelectedView] = useState<'all' | 'starred' | 'recent' | string>('all');
+  const [selectedView, setSelectedView] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
-  const [sortBy, setSortBy] = useState('name');
+  const [sortBy, setSortBy] = useState<'name' | 'recent' | 'added' | 'interaction'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   
   // 数据状态
@@ -52,6 +62,9 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
   // 弹窗状态
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
   const [editingFriendship, setEditingFriendship] = useState<Friendship | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletingFriendship, setDeletingFriendship] = useState<Friendship | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   
   // WebSocket实时功能 - 使用现有框架
   const websocketState = useWebSocketByPage();
@@ -101,6 +114,35 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
     }
   }, [selectedView, searchQuery, selectedTags, selectedGroups, sortBy, sortOrder, pagination.page]);
   
+  // 确保删除过程中对话框保持打开
+  useEffect(() => {
+    if (deleteLoading && !isDeleteDialogOpen) {
+      setIsDeleteDialogOpen(true);
+    }
+  }, [deleteLoading, isDeleteDialogOpen]);
+  
+  // 修复：确保对话框关闭时清理 body 的 pointer-events 样式
+  // Radix UI 有时在状态不同步时不会正确清理样式
+  useEffect(() => {
+    if (!isDeleteDialogOpen) {
+      // 使用 requestAnimationFrame 确保在下一帧清理，此时 Radix UI 应该已经完成清理
+      const frameId = requestAnimationFrame(() => {
+        // 再次检查，确保在下一帧清理
+        requestAnimationFrame(() => {
+          if (document.body.style.pointerEvents === 'none') {
+            document.body.style.removeProperty('pointer-events');
+          }
+          // 同时清理可能的 overflow 样式
+          if (document.body.style.overflow === 'hidden') {
+            document.body.style.removeProperty('overflow');
+          }
+        });
+      });
+      
+      return () => cancelAnimationFrame(frameId);
+    }
+  }, [isDeleteDialogOpen]);
+  
   const loadInitialData = async () => {
     if (!user?.id) return;
     
@@ -131,8 +173,11 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
     if (!user?.id) return;
     
     try {
+      const validViews: Array<'all' | 'starred' | 'recent' | 'pending' | 'blocked'> = ['all', 'starred', 'recent', 'pending', 'blocked'];
       const filters: FriendListFilters = {
-        view: selectedView === 'all' ? undefined : selectedView,
+        view: (selectedView === 'all' || !validViews.includes(selectedView as any)) 
+          ? undefined 
+          : (selectedView as 'starred' | 'recent' | 'pending' | 'blocked'),
         tags: selectedTags.length > 0 ? selectedTags : undefined,
         groups: selectedGroups.length > 0 ? selectedGroups : undefined,
         search: searchQuery || undefined,
@@ -183,7 +228,7 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
     setPagination(prev => ({ ...prev, page: 1 })); // 重置到第一页
   };
   
-  const handleSortChange = (field: string) => {
+  const handleSortChange = (field: 'name' | 'recent' | 'added' | 'interaction') => {
     if (field === sortBy) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
@@ -213,22 +258,21 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
             toast.error('发起对话失败，请重试');
           }
           break;
-        case 'edit':
+        case 'edit': {
           const friendship = friends.find(f => f.friend?.id === friendId);
           if (friendship) {
             setEditingFriendship(friendship);
           }
           break;
-        case 'remove':
-          if (confirm('确定要删除这个好友吗？')) {
-            const friendship = friends.find(f => f.friend?.id === friendId);
-            if (friendship) {
-              await deleteFriendship(friendship.id);
-              toast.success('好友删除成功');
-              loadFriends();
-            }
+        }
+        case 'remove': {
+          const friendship = friends.find(f => f.friend?.id === friendId);
+          if (friendship) {
+            setDeletingFriendship(friendship);
+            setIsDeleteDialogOpen(true);
           }
           break;
+        }
         case 'toggle_star':
           const targetFriendship = friends.find(f => f.friend?.id === friendId);
           if (targetFriendship) {
@@ -258,6 +302,26 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
     setEditingFriendship(null);
     loadFriends();
     toast.success('好友信息更新成功');
+  };
+  
+  const handleConfirmDelete = async () => {
+    if (!deletingFriendship) return;
+    
+    setDeleteLoading(true);
+    try {
+      await deleteFriendship(deletingFriendship.id);
+      toast.success('好友删除成功');
+      // 删除成功后，手动关闭对话框
+      // onOpenChange 会自动清理 deletingFriendship 和 body 样式
+      setIsDeleteDialogOpen(false);
+      loadFriends();
+    } catch (error) {
+      console.error('删除好友失败:', error);
+      toast.error('删除失败，请重试');
+      // 删除失败时不关闭对话框，让用户重试
+    } finally {
+      setDeleteLoading(false);
+    }
   };
   
   if (!user) {
@@ -350,6 +414,53 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
           tags={tags}
         />
       )}
+      
+      {/* 删除确认对话框 */}
+      <AlertDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setIsDeleteDialogOpen(true);
+          } else {
+            // 如果正在删除，不允许关闭
+            if (deleteLoading) return;
+            setIsDeleteDialogOpen(false);
+            setDeletingFriendship(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除好友</AlertDialogTitle>
+            <AlertDialogDescription>
+              删除后无法恢复，确定要删除好友
+              <span className="font-semibold text-gray-900">
+                {deletingFriendship?.nickname || deletingFriendship?.friend?.username}
+              </span>
+              吗？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={() => {
+                if (deleteLoading) return;
+                setIsDeleteDialogOpen(false);
+                setDeletingFriendship(null);
+              }}
+              disabled={deleteLoading}
+            >
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteLoading}
+            >
+              {deleteLoading ? '删除中...' : '确认删除'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

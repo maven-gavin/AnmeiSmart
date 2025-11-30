@@ -87,7 +87,7 @@ export function EditFriendModal({ friendship, onClose, onSuccess, tags }: EditFr
               <Checkbox
                 id="starred"
                 checked={isStarred}
-                onCheckedChange={setIsStarred}
+                onCheckedChange={(checked) => setIsStarred(checked === true)}
               />
               <Label htmlFor="starred">星标好友</Label>
             </div>
@@ -96,7 +96,7 @@ export function EditFriendModal({ friendship, onClose, onSuccess, tags }: EditFr
               <Checkbox
                 id="pinned"
                 checked={isPinned}
-                onCheckedChange={setIsPinned}
+                onCheckedChange={(checked) => setIsPinned(checked === true)}
               />
               <Label htmlFor="pinned">置顶显示</Label>
             </div>
@@ -105,7 +105,7 @@ export function EditFriendModal({ friendship, onClose, onSuccess, tags }: EditFr
               <Checkbox
                 id="muted"
                 checked={isMuted}
-                onCheckedChange={setIsMuted}
+                onCheckedChange={(checked) => setIsMuted(checked === true)}
               />
               <Label htmlFor="muted">消息免打扰</Label>
             </div>
