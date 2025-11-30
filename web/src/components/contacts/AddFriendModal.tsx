@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Search, UserPlus } from 'lucide-react';
+import { X, Search, UserPlus, Link, Check } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,6 +21,20 @@ export function AddFriendModal({ onClose, onSuccess }: AddFriendModalProps) {
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
+
+  const handleCopyInviteLink = async () => {
+    const inviteLink = `${window.location.origin}/register`;
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setInviteCopied(true);
+      toast.success('邀请链接已复制');
+      setTimeout(() => setInviteCopied(false), 2000);
+    } catch (error) {
+      console.error('复制链接失败:', error);
+      toast.error('复制失败，请手动复制');
+    }
+  };
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -166,7 +181,16 @@ export function AddFriendModal({ onClose, onSuccess }: AddFriendModalProps) {
             />
           </div>
           
-          <div className="flex justify-end space-x-2">
+          <div className="flex justify-end space-x-2 items-center">
+            <Button
+              type="button"
+              variant="ghost"
+              className={`hover:bg-blue-50 ${inviteCopied ? 'text-green-600' : 'text-blue-600'}`}
+              onClick={handleCopyInviteLink}
+            >
+              {inviteCopied ? <Check className="w-4 h-4 mr-2" /> : <Link className="w-4 h-4 mr-2" />}
+              邀请链接
+            </Button>
             <Button type="button" variant="outline" onClick={onClose}>
               取消
             </Button>

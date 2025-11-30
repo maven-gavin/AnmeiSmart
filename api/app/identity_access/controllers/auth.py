@@ -4,11 +4,12 @@ from fastapi import APIRouter, Depends, status, Body, Query
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.identity_access.schemas.token import Token, RefreshTokenRequest
-from app.identity_access.schemas.user import UserResponse, RoleResponse
+from app.identity_access.schemas.user import UserResponse, RoleResponse, UserCreate
 from app.identity_access.models.user import User
 from app.identity_access.enums import UserStatus
 from app.identity_access.services.auth_service import AuthService
-from app.identity_access.deps.user_deps import get_auth_service
+from app.identity_access.services.user_service import UserService
+from app.identity_access.deps.user_deps import get_auth_service, get_user_service
 from app.identity_access.deps.auth_deps import get_current_user
 from app.core.api import ApiResponse, BusinessException, ErrorCode, SystemException
 
@@ -169,4 +170,50 @@ async def switch_role(
         raise
     except Exception as e:
         raise _handle_unexpected_error("角色切换失败", e)
+
+@router.post("/register", response_model=ApiResponse[UserResponse], status_code=status.HTTP_201_CREATED)
+async def register(
+    user_in: UserCreate,
+    user_service: UserService = Depends(get_user_service)
+) -> ApiResponse[UserResponse]:
+    """
+    用户注册 - 创建新用户
+    """
+    logger.info(f"收到注册请求: username={user_in.username}, email={user_in.email}")
+    try:
+        # 确保公开注册的用户至少有客户角色
+        if not user_in.roles or len(user_in.roles) == 0:
+            user_in.roles = ["customer"]
+        
+        # 创建用户
+        user = await user_service.create_user(user_in)
+        logger.info(f"用户注册成功: user_id={user.id}, username={user.username}")
+        
+        # 转换为 UserResponse 格式
+        roles = [role.name for role in user.roles] if user.roles else []
+        active_role = roles[0] if roles else None
+        
+        user_data = {
+            "id": user.id,
+            "tenant_id": user.tenant_id,
+            "email": user.email,
+            "username": user.username,
+            "phone": user.phone,
+            "avatar": user.avatar,
+            "is_active": user.status == UserStatus.ACTIVE,
+            "created_at": user.created_at,
+            "updated_at": user.updated_at,
+            "last_login_at": getattr(user, 'last_login_at', None),
+            "roles": roles,
+            "active_role": active_role,
+            "extended_info": None
+        }
+        
+        user_response = UserResponse(**user_data)
+        return ApiResponse.success(user_response, message="注册成功")
+    except BusinessException:
+        raise
+    except Exception as e:
+        logger.error(f"注册失败: username={user_in.username}, email={user_in.email}, error={str(e)}", exc_info=True)
+        raise _handle_unexpected_error("注册失败", e)
 

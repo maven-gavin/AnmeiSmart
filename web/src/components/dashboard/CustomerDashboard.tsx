@@ -110,15 +110,15 @@ export default function CustomerDashboard() {
           你好，{user?.name}
         </h1>
         <p className="text-gray-600">
-          欢迎回到安美智享，查看您的个人医美治疗信息
+          欢迎回到安美智享
         </p>
       </div>
       
       <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         <DashboardCard 
-          title="在线咨询" 
+          title="我的消息" 
           count={notifications.length} 
-          link="/customer/chat"
+          link="/chat"
           color="purple"
           icon={
             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
