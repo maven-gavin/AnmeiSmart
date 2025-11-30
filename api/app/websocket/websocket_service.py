@@ -22,7 +22,7 @@ class WebSocketService:
     """
     
     def __init__(self, websocket_coordinator: WebSocketCoordinator, broadcasting_service: BroadcastingService):
-        self.websocket_coordinator = websocket_coordinator
+        self.connection_manager = websocket_coordinator
         self.broadcasting_service = broadcasting_service
         self.websocket_handler = websocket_handler
         
@@ -145,18 +145,29 @@ class WebSocketService:
     
     async def send_to_user(self, user_id: str, message: Dict[str, Any]) -> bool:
         """向用户发送消息"""
-        result = await self.connection_manager.send_to_user(user_id, message)
-        return bool(result)
+        # 注意：此处返回bool，而connection_manager返回None
+        try:
+            await self.connection_manager.send_to_user(user_id, message)
+            return True
+        except Exception as e:
+            logger.error(f"发送消息失败: {e}")
+            return False
     
     async def send_to_device(self, connection_id: str, message: Dict[str, Any]) -> bool:
         """向特定设备发送消息"""
-        result = await self.connection_manager.send_to_device(connection_id, message)
-        return bool(result)
+        try:
+            await self.connection_manager.send_to_device(connection_id, message)
+            return True
+        except Exception:
+            return False
     
     async def send_to_device_type(self, user_id: str, device_type: str, message: Dict[str, Any]) -> bool:
         """向用户的特定设备类型发送消息"""
-        result = await self.connection_manager.send_to_device_type(user_id, device_type, message)
-        return bool(result)
+        try:
+            await self.connection_manager.send_to_device_type(user_id, device_type, message)
+            return True
+        except Exception:
+            return False
     
     async def handle_websocket_message(self, data: Dict[str, Any], user_id: str, conversation_id: str) -> Dict[str, Any]:
         """处理WebSocket消息"""
@@ -174,6 +185,11 @@ class WebSocketService:
     def get_user_devices(self, user_id: str) -> List[Dict[str, Any]]:
         """获取用户设备信息"""
         return self.connection_manager.get_user_devices(user_id)
+    
+    # =========================================================================
+    # 广播方法 (转发给 BroadcastingService)
+    # 注意：建议业务层直接使用 BroadcastingService，以减少透传冗余
+    # =========================================================================
     
     async def broadcast_message(self, conversation_id: str, message_data: Dict[str, Any], exclude_user_id: Optional[str] = None):
         """广播消息到会话"""

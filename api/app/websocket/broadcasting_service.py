@@ -8,6 +8,10 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from app.core.websocket.websocket_coordinator import WebSocketCoordinator
 from .notification_service import NotificationService, get_notification_service
+from .schemas.websocket import (
+    NotificationData, BroadcastPayload, TypingStatusData, 
+    ReadStatusData, SystemNotificationData
+)
 
 logger = logging.getLogger(__name__)
 
@@ -84,33 +88,40 @@ class BroadcastingService:
                     continue
                 
                 logger.info(f"[广播] 准备发送消息给用户: user_id={participant_id}, conversation_id={conversation_id}")
+                
+                # 构造推送通知数据对象
+                notification_data = NotificationData(
+                    title="新消息",
+                    body=self._extract_notification_content(message_data),
+                    conversation_id=conversation_id
+                )
+                
                 await self._send_to_user_with_fallback(
                     user_id=participant_id,
                     payload=websocket_payload,
-                    notification_data={
-                        "title": "新消息",
-                        "body": self._extract_notification_content(message_data),
-                        "conversation_id": conversation_id
-                    }
+                    notification_data=notification_data
                 )
                 sent_count += 1
             
             logger.info(f"[广播] 消息广播完成: conversation_id={conversation_id}, total_participants={len(participants)}, sent={sent_count}, skipped={skipped_count}")
             
         except Exception as e:
-            logger.error(f"广播消息失败: {e}")
+            logger.error(f"广播消息失败: {e}", exc_info=True)
     
     async def broadcast_typing_status(self, conversation_id: str, user_id: str, is_typing: bool):
         """广播正在输入状态"""
         try:
             participants = await self._get_conversation_participants(conversation_id)
             
+            # 使用Pydantic模型定义数据结构（这里暂时转为dict发送，后续MessageRouter支持Pydantic时可直接传对象）
+            typing_data = TypingStatusData(
+                user_id=user_id,
+                is_typing=is_typing
+            )
+            
             typing_payload = {
-                "action": "typing_status",  # 改为action
-                "data": {
-                    "user_id": user_id,
-                    "is_typing": is_typing
-                },
+                "action": "typing_status",
+                "data": typing_data.model_dump(),
                 "conversation_id": conversation_id,
                 "timestamp": datetime.now().isoformat()
             }
@@ -132,12 +143,14 @@ class BroadcastingService:
         try:
             participants = await self._get_conversation_participants(conversation_id)
             
+            read_data = ReadStatusData(
+                user_id=user_id,
+                message_ids=message_ids
+            )
+            
             read_payload = {
                 "action": "read_status",
-                "data": {
-                    "user_id": user_id,
-                    "message_ids": message_ids
-                },
+                "data": read_data.model_dump(),
                 "conversation_id": conversation_id,
                 "timestamp": datetime.now().isoformat()
             }
@@ -169,14 +182,16 @@ class BroadcastingService:
             }
             
             for user_id in target_user_ids:
+                notify_data = NotificationData(
+                    title=notification_data.get("title", "系统通知"),
+                    body=notification_data.get("message", ""),
+                    conversation_id=conversation_id
+                )
+                
                 await self._send_to_user_with_fallback(
                     user_id=user_id,
                     payload=system_payload,
-                    notification_data={
-                        "title": notification_data.get("title", "系统通知"),
-                        "body": notification_data.get("message", ""),
-                        "conversation_id": conversation_id
-                    }
+                    notification_data=notify_data
                 )
             
             logger.info(f"系统通知已广播: conversation_id={conversation_id}, targets={len(target_user_ids)}")
@@ -193,13 +208,15 @@ class BroadcastingService:
                 "timestamp": datetime.now().isoformat()
             }
             
+            notify_data = NotificationData(
+                title=message_data.get("title", "新消息"),
+                body=message_data.get("content", "")
+            )
+            
             await self._send_to_user_with_fallback(
                 user_id=user_id,
                 payload=direct_payload,
-                notification_data={
-                    "title": message_data.get("title", "新消息"),
-                    "body": message_data.get("content", ""),
-                }
+                notification_data=notify_data
             )
             
             logger.info(f"直接消息已发送: user_id={user_id}")
@@ -207,14 +224,14 @@ class BroadcastingService:
         except Exception as e:
             logger.error(f"发送直接消息失败: {e}")
     
-    async def _send_to_user_with_fallback(self, user_id: str, payload: Dict[str, Any], notification_data: Optional[Dict[str, Any]] = None, target_device_type: Optional[str] = None):
+    async def _send_to_user_with_fallback(self, user_id: str, payload: Dict[str, Any], notification_data: Optional[Union[Dict[str, Any], NotificationData]] = None, target_device_type: Optional[str] = None):
         """
         向用户发送消息，支持在线/离线fallback和多设备支持
         
         Args:
             user_id: 目标用户ID
             payload: WebSocket消息负载
-            notification_data: 离线推送数据
+            notification_data: 离线推送数据 (支持 Dict 或 NotificationData)
             target_device_type: 目标设备类型（可选，用于精确推送）
         """
         try:
@@ -235,9 +252,15 @@ class BroadcastingService:
             else:
                 # 离线：发送推送通知
                 if notification_data:
+                    # 如果是 Pydantic 模型，转换为字典
+                    if hasattr(notification_data, 'model_dump'):
+                        notify_dict = notification_data.model_dump(exclude_none=True)
+                    else:
+                        notify_dict = notification_data
+                        
                     await self.notification_service.send_push_notification(
                         user_id=user_id,
-                        notification_data=notification_data
+                        notification_data=notify_dict
                     )
                     logger.info(f"[发送] 离线推送已发送: user_id={user_id}")
                 else:
@@ -329,17 +352,20 @@ class BroadcastingService:
                 if exclude_user_id and participant_id == exclude_user_id:
                     continue
                 
+                # 构造NotificationData对象
+                notify_data = NotificationData(
+                    title=message_data.get("title", "重要消息"),
+                    body=self._extract_notification_content(message_data),
+                    conversation_id=conversation_id,
+                    priority="high"
+                )
+                
                 # 只发送给移动设备或离线推送
                 await self._send_to_user_with_fallback(
                     user_id=participant_id,
                     payload=notification_payload,
                     target_device_type="mobile",
-                    notification_data={
-                        "title": message_data.get("title", "重要消息"),
-                        "body": self._extract_notification_content(message_data),
-                        "conversation_id": conversation_id,
-                        "priority": "high"
-                    }
+                    notification_data=notify_data
                 )
             
             logger.info(f"移动端专用通知已发送: conversation_id={conversation_id}")
@@ -375,16 +401,19 @@ class BroadcastingService:
                     logger.debug(f"顾问回复已发送到在线用户: user_id={participant_id}")
                 else:
                     # 离线用户：优先推送到移动设备
+                    
+                    notify_data = NotificationData(
+                        title="顾问回复",
+                        body=self._extract_notification_content(reply_data),
+                        conversation_id=conversation_id,
+                        action="open_conversation"
+                    )
+                    
                     await self._send_to_user_with_fallback(
                         user_id=participant_id,
                         payload=reply_payload,
                         target_device_type="mobile",
-                        notification_data={
-                            "title": "顾问回复",
-                            "body": self._extract_notification_content(reply_data),
-                            "conversation_id": conversation_id,
-                            "action": "open_conversation"
-                        }
+                        notification_data=notify_data
                     )
                     logger.debug(f"顾问回复推送已发送: user_id={participant_id}")
             
@@ -401,4 +430,4 @@ class BroadcastingService:
             return self.connection_manager.get_user_devices(user_id)
         except Exception as e:
             logger.error(f"获取用户设备信息失败: user_id={user_id}, error={e}")
-            return [] 
+            return []
