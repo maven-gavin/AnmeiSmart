@@ -38,6 +38,38 @@ function useFriendRequestCount() {
   return count;
 }
 
+// Hook for getting view counts (starred, recent)
+function useViewCounts() {
+  const [starredCount, setStarredCount] = useState(0);
+  const [recentCount, setRecentCount] = useState(0);
+  
+  useEffect(() => {
+    const loadViewCounts = async () => {
+      try {
+        const { getFriends } = await import('@/service/contacts/api');
+        
+        // 获取星标好友数量
+        const starredResult = await getFriends({ view: 'starred', page: 1, size: 1 });
+        setStarredCount(starredResult.total);
+        
+        // 获取最近联系数量
+        const recentResult = await getFriends({ view: 'recent', page: 1, size: 1 });
+        setRecentCount(recentResult.total);
+      } catch (error) {
+        console.error('获取视图数量失败:', error);
+      }
+    };
+    
+    loadViewCounts();
+    
+    // 每30秒刷新一次
+    const interval = setInterval(loadViewCounts, 30000);
+    return () => clearInterval(interval);
+  }, []);
+  
+  return { starredCount, recentCount };
+}
+
 export function ContactSidebar({
   selectedView,
   onViewChange,
@@ -47,11 +79,12 @@ export function ContactSidebar({
   loading
 }: ContactSidebarProps) {
   const pendingRequestCount = useFriendRequestCount();
+  const { starredCount, recentCount } = useViewCounts();
   
   const quickViews = [
     { id: 'all', label: '全部好友', count: friendsCount },
-    { id: 'starred', label: '星标好友', count: 0 },
-    { id: 'recent', label: '最近联系', count: 0 },
+    { id: 'starred', label: '星标好友', count: starredCount },
+    { id: 'recent', label: '最近联系', count: recentCount },
     { id: 'pending', label: '待处理请求', count: pendingRequestCount }
   ];
 

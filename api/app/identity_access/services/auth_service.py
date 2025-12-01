@@ -35,16 +35,19 @@ class AuthService:
         logger.debug(f"开始登录流程: username_or_email={username_or_email}, tenant_id={tenant_id}")
         
         try:
-            # 1. 查找用户
+            # 1. 查找用户 - 支持用户名、邮箱、手机号
             logger.debug(f"步骤1: 查找用户 - 尝试通过用户名查找")
             user = self.user_service.get_by_username(username_or_email, tenant_id)
             if not user:
                 logger.debug(f"步骤1: 通过用户名未找到用户，尝试通过邮箱查找")
                 user = self.user_service.get_by_email(username_or_email, tenant_id)
-            else:
-                logger.debug(f"步骤1: 通过用户名找到用户: user_id={user.id}, username={user.username}")
-                
             if not user:
+                logger.debug(f"步骤1: 通过邮箱未找到用户，尝试通过手机号查找")
+                user = self.user_service.get_by_phone(username_or_email, tenant_id)
+            
+            if user:
+                logger.debug(f"步骤1: 找到用户: user_id={user.id}, username={user.username}")
+            else:
                 logger.warning(f"步骤1失败: 未找到用户 - username_or_email={username_or_email}, tenant_id={tenant_id}")
                 raise BusinessException("用户名或密码错误", code=ErrorCode.INVALID_CREDENTIALS)
 

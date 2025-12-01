@@ -169,17 +169,14 @@ async def get_friend_requests(
 ):
     """获取好友请求列表"""
     try:
-        # 暂时返回空结果，后续可以扩展
-        result = PaginatedFriendRequestsResponse(
-            items=[],
-            total=0,
+        result = contact_service.get_friend_requests(
+            user_id=str(current_user.id),
+            request_type=type,
+            status=status,
             page=page,
-            size=size,
-            pages=0,
-            has_next=False,
-            has_prev=False
+            size=size
         )
-        return ApiResponse.success(result)
+        return ApiResponse.success(PaginatedFriendRequestsResponse(**result))
     except BusinessException:
         raise
     except Exception as e:

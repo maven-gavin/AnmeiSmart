@@ -48,23 +48,50 @@ class ContactService:
         page: int = 1,
         size: int = 20
     ) -> Dict[str, Any]:
-        """获取好友列表（支持筛选、排序、物理分页）"""
-        # 构建基础查询
-        query = self.db.query(Friendship).filter(
-            Friendship.user_id == user_id
+        """获取好友列表（支持筛选、排序、物理分页）
+        
+        注意：好友关系是双向的，需要查询：
+        - user_id == current_user.id AND status == 'accepted' (我邀请的，已接受)
+        - friend_id == current_user.id AND status == 'accepted' (我被邀请的，已接受)
+        """
+        # 构建基础查询：查询双向的好友关系，只查询已接受的
+        base_filter = or_(
+            and_(Friendship.user_id == user_id, Friendship.status == "accepted"),
+            and_(Friendship.friend_id == user_id, Friendship.status == "accepted")
         )
+        query = self.db.query(Friendship).filter(base_filter)
         
         # 应用基础筛选
         if status:
-            query = query.filter(Friendship.status == status)
+            # 如果指定了 status，需要重新构建查询
+            if status == "accepted":
+                # 已接受的好友，使用上面的 base_filter
+                pass
+            else:
+                # 其他状态，需要重新构建
+                query = self.db.query(Friendship).filter(
+                    or_(
+                        and_(Friendship.user_id == user_id, Friendship.status == status),
+                        and_(Friendship.friend_id == user_id, Friendship.status == status)
+                    )
+                )
         elif view == "starred":
+            # 星标好友：必须是已接受的好友且被星标
             query = query.filter(Friendship.is_starred == True)
         elif view == "blocked":
+            # 屏蔽的好友
             query = query.filter(Friendship.is_blocked == True)
         elif view == "pending":
-            query = query.filter(Friendship.status == "pending")
+            # pending 视图应该显示已接受的好友（用于待处理请求页面，但实际应该用专门的API）
+            # 这里保持原逻辑，但实际待处理请求应该通过 get_friend_requests API
+            query = self.db.query(Friendship).filter(
+                or_(
+                    and_(Friendship.user_id == user_id, Friendship.status == "pending"),
+                    and_(Friendship.friend_id == user_id, Friendship.status == "pending")
+                )
+            )
         elif view == "recent":
-            # 最近联系：有 last_interaction_at 且不为空
+            # 最近联系：必须是已接受的好友且有 last_interaction_at
             query = query.filter(Friendship.last_interaction_at.isnot(None))
         
         # 应用标签筛选（数据库层面）
@@ -81,20 +108,40 @@ class ContactService:
         
         # 标记是否需要 JOIN User 表（用于搜索或排序）
         need_user_join = False
+        friend_user_alias = None
+        user_user_alias = None
         
         # 应用搜索（数据库层面）
+        # 需要支持双向搜索：当 user_id == current_user 时搜索 friend，当 friend_id == current_user 时搜索 user
         if search:
             need_user_join = True
             search_pattern = f"%{search}%"
-            query = query.join(User, Friendship.friend_id == User.id).filter(
+            # 创建两个别名用于 JOIN：一个用于 friend（当 user_id == current_user），一个用于 user（当 friend_id == current_user）
+            friend_user_alias = aliased(User, name="friend_user")
+            user_user_alias = aliased(User, name="user_user")
+            # 使用 CASE 表达式确保每个 Friendship 只 JOIN 一个 User
+            # 当 user_id == user_id 时，JOIN friend_user；当 friend_id == user_id 时，JOIN user_user
+            query = query.outerjoin(
+                friend_user_alias, and_(
+                    Friendship.friend_id == friend_user_alias.id,
+                    Friendship.user_id == user_id
+                )
+            ).outerjoin(
+                user_user_alias, and_(
+                    Friendship.user_id == user_user_alias.id,
+                    Friendship.friend_id == user_id
+                )
+            ).filter(
                 or_(
-                    User.username.ilike(search_pattern),
+                    friend_user_alias.username.ilike(search_pattern),
+                    user_user_alias.username.ilike(search_pattern),
                     Friendship.nickname.ilike(search_pattern),
                     Friendship.remark.ilike(search_pattern)
                 )
             )
         
         # 处理需要去重的情况（使用子查询避免 DISTINCT + ORDER BY 冲突）
+        # 当有标签、分组、搜索或按名称排序时，JOIN 操作可能导致重复，需要去重
         needs_distinct = tags or groups or search or (sort_by == "name")
         
         if needs_distinct:
@@ -105,23 +152,61 @@ class ContactService:
             # 将子查询转换为子查询对象，用于后续 JOIN
             distinct_ids_subq = distinct_ids_query.subquery()
             distinct_ids_alias = aliased(distinct_ids_subq)
-            # 重新构建查询：从 Friendship 表 JOIN 子查询，保留 user_id 筛选
+            # 重新构建查询：从 Friendship 表 JOIN 子查询，保留双向筛选
+            # 使用 INNER JOIN 确保只返回去重后的记录
             query = self.db.query(Friendship).filter(
-                Friendship.user_id == user_id
+                or_(
+                    and_(Friendship.user_id == user_id, Friendship.status == "accepted"),
+                    and_(Friendship.friend_id == user_id, Friendship.status == "accepted")
+                )
             ).join(
                 distinct_ids_alias, Friendship.id == distinct_ids_alias.c.id
             )
+            # 如果使用了子查询，需要重新 JOIN User 表（如果之前 JOIN 过或需要排序）
+            if need_user_join or sort_by == "name":
+                friend_user_alias = aliased(User, name="friend_user")
+                user_user_alias = aliased(User, name="user_user")
+                query = query.outerjoin(
+                    friend_user_alias, and_(
+                        Friendship.friend_id == friend_user_alias.id,
+                        Friendship.user_id == user_id
+                    )
+                ).outerjoin(
+                    user_user_alias, and_(
+                        Friendship.user_id == user_user_alias.id,
+                        Friendship.friend_id == user_id
+                    )
+                )
         else:
             # 不需要去重，直接统计
-            total = query.count()
+            # 但为了安全起见，仍然使用 distinct() 确保没有重复
+            total = query.distinct().count()
+            query = query.distinct()
         
         # 应用排序（数据库层面）
         # 注意：如果使用了子查询，需要重新 JOIN User 表（如果需要）
         if sort_by == "name":
-            # 需要 JOIN User 表来排序用户名
-            if not need_user_join:
-                query = query.join(User, Friendship.friend_id == User.id)
-            order_expr = func.coalesce(Friendship.nickname, User.username)
+            # 需要 JOIN User 表来排序用户名，支持双向查询
+            if not need_user_join and friend_user_alias is None:
+                # 创建两个别名用于 JOIN
+                friend_user_alias = aliased(User, name="friend_user")
+                user_user_alias = aliased(User, name="user_user")
+                query = query.outerjoin(
+                    friend_user_alias, and_(
+                        Friendship.friend_id == friend_user_alias.id,
+                        Friendship.user_id == user_id
+                    )
+                ).outerjoin(
+                    user_user_alias, and_(
+                        Friendship.user_id == user_user_alias.id,
+                        Friendship.friend_id == user_id
+                    )
+                )
+            # 使用 COALESCE 处理双向情况：优先使用 friend_user，如果没有则使用 user_user
+            order_expr = func.coalesce(
+                Friendship.nickname,
+                func.coalesce(friend_user_alias.username, user_user_alias.username)
+            )
             if sort_order == "desc":
                 query = query.order_by(desc(order_expr))
             else:
@@ -147,14 +232,61 @@ class ContactService:
         
         # 应用物理分页
         offset = (page - 1) * size
-        friendships = query.options(
+        # 确保在加载关联数据前已经去重
+        # 使用 distinct() 确保没有重复的 Friendship 记录
+        friendships = query.distinct().options(
             joinedload(Friendship.friend),
+            joinedload(Friendship.user),
             joinedload(Friendship.tags).joinedload(FriendshipTag.tag),
             joinedload(Friendship.group_memberships).joinedload(ContactGroupMember.group)
         ).offset(offset).limit(size).all()
         
         # 转换为响应模型
-        friendship_responses = [FriendshipResponse.from_model(f) for f in friendships]
+        # 需要处理双向关系：确保 friend 字段始终表示当前用户的好友
+        # 使用字典去重，基于 Friendship.id，确保每个好友只出现一次
+        seen_friendship_ids = set()
+        friendship_responses = []
+        for f in friendships:
+            # 如果已经处理过这个 Friendship，跳过
+            if f.id in seen_friendship_ids:
+                continue
+            seen_friendship_ids.add(f.id)
+            # 如果 friend_id == user_id，说明当前用户是被邀请者，那么 user 才是好友
+            if f.friend_id == user_id:
+                # 当前用户是被邀请者，需要交换 user 和 friend
+                # 注意：数据库中只有一条记录，nickname 和 remark 是邀请者（f.user_id）设置的
+                # 对于被邀请者（current_user），这些字段应该为空，因为被邀请者还没有设置
+                # 创建一个规范化后的 friendship 对象用于转换
+                normalized_friendship = type('NormalizedFriendship', (), {
+                    'id': f.id,
+                    'user_id': user_id,  # 当前用户始终是 user_id
+                    'friend_id': f.user_id,  # 原来的 user_id 变成 friend_id
+                    'status': f.status,
+                    'source': f.source,
+                    # 被邀请者视角：nickname 和 remark 应该为空（因为这些是邀请者设置的）
+                    'nickname': None,  # 被邀请者还没有设置昵称
+                    'remark': None,  # 被邀请者还没有设置备注
+                    # 使用当前记录的设置（这些是相对于 user_id 的，但我们需要从被邀请者视角）
+                    # 注意：is_starred、is_muted 等是相对于 user_id 的，所以对于被邀请者应该使用默认值
+                    'is_starred': False,  # 被邀请者还没有设置星标
+                    'is_muted': False,  # 被邀请者还没有设置免打扰
+                    'is_pinned': False,  # 被邀请者还没有设置置顶
+                    'is_blocked': f.is_blocked,  # 屏蔽状态可以共享
+                    'requested_at': f.requested_at,
+                    'accepted_at': f.accepted_at,
+                    'last_interaction_at': f.last_interaction_at,
+                    'interaction_count': f.interaction_count or 0,
+                    'created_at': f.created_at,
+                    'updated_at': f.updated_at,
+                    'friend': f.user,  # 原来的 user 变成 friend
+                    'tags': f.tags or [],  # 标签是相对于 friendship 的，可以共享
+                    'group_memberships': f.group_memberships
+                })()
+            else:
+                # 当前用户是邀请者，friend 就是好友，直接使用原对象
+                normalized_friendship = f
+            
+            friendship_responses.append(FriendshipResponse.from_model(normalized_friendship))
         
         total_pages = (total + size - 1) // size if total > 0 else 0
         
@@ -211,62 +343,61 @@ class ContactService:
         
         return FriendshipResponse.from_model(friendship)
     
-    def accept_friend_request(self, friendship_id: str) -> FriendshipResponse:
-        """接受好友请求"""
-        friendship = self.db.query(Friendship).filter(
-            Friendship.id == friendship_id
-        ).first()
-        
-        if not friendship:
-            raise BusinessException("好友关系不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
-        
-        if friendship.status != "pending":
-            raise BusinessException("好友请求状态不正确", code=ErrorCode.INVALID_OPERATION)
-        
-        friendship.status = "accepted"
-        friendship.accepted_at = datetime.now()
-        
-        self.db.commit()
-        self.db.refresh(friendship)
-        
-        # 加载关联数据
-        friendship = self.db.query(Friendship).filter(
-            Friendship.id == friendship.id
-        ).options(
-            joinedload(Friendship.friend),
-            joinedload(Friendship.tags).joinedload(FriendshipTag.tag)
-        ).first()
-        
-        return FriendshipResponse.from_model(friendship)
-    
     def update_friendship(
         self,
         friendship_id: str,
+        user_id: str,
         nickname: Optional[str] = None,
         remark: Optional[str] = None,
         is_starred: Optional[bool] = None,
         is_muted: Optional[bool] = None,
         is_pinned: Optional[bool] = None
     ) -> FriendshipResponse:
-        """更新好友关系"""
+        """更新好友关系（支持双向更新）"""
+        # 查询好友关系，支持双向：user_id 或 friend_id 是当前用户
         friendship = self.db.query(Friendship).filter(
-            Friendship.id == friendship_id
+            and_(
+                Friendship.id == friendship_id,
+                or_(
+                    Friendship.user_id == user_id,
+                    Friendship.friend_id == user_id
+                )
+            )
         ).first()
         
         if not friendship:
-            raise BusinessException("好友关系不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
+            raise BusinessException("好友关系不存在或无权限", code=ErrorCode.RESOURCE_NOT_FOUND)
+        
+        # 确定当前用户是邀请者还是被邀请者
+        is_inviter = friendship.user_id == user_id
         
         # 更新字段
-        if nickname is not None:
-            friendship.nickname = nickname
-        if remark is not None:
-            friendship.remark = remark
-        if is_starred is not None:
-            friendship.is_starred = is_starred
-        if is_muted is not None:
-            friendship.is_muted = is_muted
-        if is_pinned is not None:
-            friendship.is_pinned = is_pinned
+        # 注意：nickname 和 remark 是相对于 user_id 的，只有邀请者可以设置
+        # 如果当前用户是被邀请者，这些字段不应该更新
+        if is_inviter:
+            # 当前用户是邀请者，可以更新所有字段
+            if nickname is not None:
+                friendship.nickname = nickname
+            if remark is not None:
+                friendship.remark = remark
+            if is_starred is not None:
+                friendship.is_starred = is_starred
+            if is_muted is not None:
+                friendship.is_muted = is_muted
+            if is_pinned is not None:
+                friendship.is_pinned = is_pinned
+        else:
+            # 当前用户是被邀请者，只能更新自己的设置
+            # 注意：被邀请者无法设置 nickname 和 remark（这些是邀请者设置的）
+            if nickname is not None or remark is not None:
+                logger.warning(f"被邀请者尝试更新 nickname 或 remark，已忽略: friendship_id={friendship_id}, user_id={user_id}")
+            if is_starred is not None:
+                # 被邀请者无法设置星标（因为这是相对于 user_id 的）
+                logger.warning(f"被邀请者尝试更新 is_starred，已忽略: friendship_id={friendship_id}, user_id={user_id}")
+            if is_muted is not None:
+                friendship.is_muted = is_muted
+            if is_pinned is not None:
+                friendship.is_pinned = is_pinned
         
         self.db.commit()
         self.db.refresh(friendship)
@@ -276,6 +407,7 @@ class ContactService:
             Friendship.id == friendship.id
         ).options(
             joinedload(Friendship.friend),
+            joinedload(Friendship.user),
             joinedload(Friendship.tags).joinedload(FriendshipTag.tag)
         ).first()
         
@@ -495,11 +627,15 @@ class ContactService:
         return True
     
     def delete_friendship(self, friendship_id: str, user_id: str) -> bool:
-        """删除好友关系"""
+        """删除好友关系（支持双向删除）"""
+        # 查询好友关系，支持双向：user_id 或 friend_id 是当前用户
         friendship = self.db.query(Friendship).filter(
             and_(
                 Friendship.id == friendship_id,
-                Friendship.user_id == user_id
+                or_(
+                    Friendship.user_id == user_id,
+                    Friendship.friend_id == user_id
+                )
             )
         ).first()
         
@@ -668,6 +804,7 @@ class ContactService:
         """更新好友关系用例"""
         return self.update_friendship(
             friendship_id=friendship_id,
+            user_id=user_id,
             nickname=update_data.get("nickname"),
             remark=update_data.get("remark"),
             is_starred=update_data.get("is_starred"),
@@ -760,16 +897,121 @@ class ContactService:
         """删除联系人分组用例"""
         self.delete_contact_group(group_id=group_id, user_id=user_id)
     
+    def get_friend_requests(
+        self,
+        user_id: str,
+        request_type: str = "received",
+        status: Optional[str] = None,
+        page: int = 1,
+        size: int = 20
+    ) -> Dict[str, Any]:
+        """获取好友请求列表"""
+        from app.contacts.schemas.contacts import FriendRequestResponse
+        
+        # 构建查询
+        if request_type == "received":
+            # 收到的请求：friend_id 是当前用户
+            query = self.db.query(Friendship).filter(
+                Friendship.friend_id == user_id
+            )
+        elif request_type == "sent":
+            # 发送的请求：user_id 是当前用户
+            query = self.db.query(Friendship).filter(
+                Friendship.user_id == user_id
+            )
+        else:
+            raise BusinessException("无效的请求类型", code=ErrorCode.INVALID_PARAMETER)
+        
+        # 应用状态筛选
+        if status:
+            query = query.filter(Friendship.status == status)
+        else:
+            # 默认只查询 pending 状态的请求
+            query = query.filter(Friendship.status == "pending")
+        
+        # 统计总数
+        total = query.count()
+        
+        # 应用分页
+        offset = (page - 1) * size
+        # 注意：Friendship.user 关系可能不存在，需要检查模型定义
+        # 如果不存在，我们需要手动查询用户信息
+        friendships = query.options(
+            joinedload(Friendship.friend)
+        ).order_by(desc(Friendship.created_at)).offset(offset).limit(size).all()
+        
+        # 转换为响应模型
+        request_responses = []
+        for f in friendships:
+            # 构建用户信息
+            user_info = None
+            friend_info = None
+            
+            # 手动查询发送请求的用户（user_id 对应的用户）
+            if f.user_id:
+                user = self.db.query(User).filter(User.id == f.user_id).first()
+                if user:
+                    user_info = {
+                        "id": user.id,
+                        "username": user.username,
+                        "avatar": user.avatar,
+                        "email": user.email
+                    }
+            
+            # 接收请求的用户（friend_id 对应的用户）
+            if f.friend:
+                friend_info = {
+                    "id": f.friend.id,
+                    "username": f.friend.username,
+                    "avatar": f.friend.avatar,
+                    "email": f.friend.email
+                }
+            
+            request_responses.append({
+                "id": f.id,
+                "user_id": f.user_id,
+                "friend_id": f.friend_id,
+                "status": f.status,
+                "verification_message": f.remark,
+                "source": f.source,
+                "requested_at": f.requested_at or f.created_at,
+                "user": user_info,
+                "friend": friend_info
+            })
+        
+        total_pages = (total + size - 1) // size if total > 0 else 0
+        
+        return {
+            "items": request_responses,
+            "total": total,
+            "page": page,
+            "size": size,
+            "pages": total_pages,
+            "has_next": page < total_pages,
+            "has_prev": page > 1
+        }
+    
     def get_contact_analytics_use_case(
         self,
         user_id: str,
         period: str = "month"
     ) -> Dict[str, Any]:
-        """获取联系人使用统计用例"""
-        # 暂时返回简单统计，后续可以扩展
+        """获取联系人使用统计用例（支持双向关系统计）"""
+        # 查询双向的好友关系
         friendships = self.db.query(Friendship).filter(
-            Friendship.user_id == user_id
+            or_(
+                and_(Friendship.user_id == user_id, Friendship.status == "accepted"),
+                and_(Friendship.friend_id == user_id, Friendship.status == "accepted")
+            )
         ).all()
+        
+        # 查询待处理请求（收到的和发送的）
+        pending_received = self.db.query(Friendship).filter(
+            and_(Friendship.friend_id == user_id, Friendship.status == "pending")
+        ).count()
+        pending_sent = self.db.query(Friendship).filter(
+            and_(Friendship.user_id == user_id, Friendship.status == "pending")
+        ).count()
         
         tags = self.db.query(ContactTag).filter(
             ContactTag.user_id == user_id
@@ -780,8 +1022,8 @@ class ContactService:
         ).count()
         
         return {
-            "total_friends": len([f for f in friendships if f.status == "accepted"]),
-            "pending_requests": len([f for f in friendships if f.status == "pending"]),
+            "total_friends": len(friendships),
+            "pending_requests": pending_received + pending_sent,
             "total_tags": tags,
             "total_groups": groups,
             "period": period
