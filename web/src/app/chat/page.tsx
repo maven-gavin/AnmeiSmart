@@ -118,16 +118,41 @@ function SmartCommunicationContent() {
         if (data.conversation_id === selectedConversationId) {
           console.log('[page.tsx] 消息属于当前会话，准备添加到消息列表');
           
-          // ... (省略中间代码)
+          // 确保content是对象格式
+          let messageContent = data.content;
+          if (typeof messageContent === 'string') {
+            // 如果content是字符串，转换为对象格式
+            messageContent = { text: messageContent };
+          } else if (!messageContent || typeof messageContent !== 'object') {
+            // 如果content不存在或不是对象，使用默认值
+            messageContent = { text: '' };
+          }
+          
+          // 将后端消息格式转换为前端格式
+          const newMessage: Message = {
+            id: data.id,
+            conversationId: data.conversation_id,
+            content: messageContent,
+            type: data.type || 'text',
+            sender: {
+              id: data.sender_id,
+              type: (data.sender_type as 'chat' | 'system') || 'chat',
+              name: data.sender_name || '未知用户',
+              avatar: data.sender_avatar || '/avatars/user.png'
+            },
+            timestamp: data.timestamp || new Date().toISOString(),
+            status: 'sent',
+            is_important: data.is_important || false
+          };
+          
+          console.log('[page.tsx] 转换后的消息:', newMessage);
           
           // 添加到消息列表
           saveMessage(newMessage);
           console.log('[page.tsx] 消息已添加到列表');
           
           // 当前会话收到消息，如果不处于"用户正在输入"的状态，理论上应该清除未读
-          // 但为了保险起见，这里不增加未读数，甚至可以尝试清除（如果用户正看着）
-          // 如果窗口没有聚焦，或者用户不在看，逻辑会复杂一点。
-          // 简单起见：当前会话消息不加未读数。
+          // 但为了保险起见，这里不增加未读数
         } else {
           console.log('[page.tsx] 消息不属于当前会话:', {
             messageConversationId: data.conversation_id,
