@@ -204,8 +204,9 @@ class FileService:
         if not db:
             return False
         try:
-            from app.chat.models.chat import Conversation
+            from app.chat.models.chat import Conversation, ConversationParticipant
             
+            # 1. 检查是否是会话所有者
             conversation = db.query(Conversation).filter(
                 and_(
                     Conversation.id == conversation_id,
@@ -213,7 +214,26 @@ class FileService:
                 )
             ).first()
             
-            return conversation is not None
+            if conversation:
+                return True
+                
+            # 2. 检查是否是会话参与者
+            participant = db.query(ConversationParticipant).filter(
+                and_(
+                    ConversationParticipant.conversation_id == conversation_id,
+                    ConversationParticipant.user_id == user_id,
+                    ConversationParticipant.is_active == True
+                )
+            ).first()
+            
+            if participant:
+                return True
+                
+            # 3. 检查是否是管理员 (可选，根据业务需求)
+            if self._is_admin(user_id, db):
+                return True
+                
+            return False
         except Exception as e:
             logger.error(f"检查会话访问权限失败: {str(e)}")
             return False

@@ -448,16 +448,28 @@ class ChatService:
         if not conversation:
             raise BusinessException("会话不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
         
+        # 构建符合前端 MediaMessageContent 接口的结构
+        # export interface MediaMessageContent {
+        #   text?: string;
+        #   media_info: MediaInfo;
+        # }
+        content = {
+            "type": "media",
+            "text": text,
+            "media_info": {
+                "url": media_url,
+                "name": "unknown",  # 简单创建模式下可能没有文件名
+                "mime_type": f"{media_type}/*",  # 简单推断
+                "size_bytes": 0,
+                "metadata": {}
+            }
+        }
+        
         # 创建消息
         message = Message(
             id=message_id(),
             conversation_id=conversation_id,
-            content={
-                "type": "media",
-                "media_type": media_type,
-                "media_url": media_url,
-                "text": text
-            },
+            content=content,
             type="media",
             sender_id=sender_id,
             sender_type=sender_type,
@@ -856,23 +868,24 @@ class ChatService:
             elif mime_type.startswith('audio'):
                 media_type = 'audio'
         
-        # 构建消息内容
-        content = {
-            "type": "media",
-            "media_type": media_type,
-            "media_url": media_url
+        # 构建符合前端 MediaMessageContent 接口的结构
+        # export interface MediaMessageContent {
+        #   text?: string;
+        #   media_info: MediaInfo;
+        # }
+        media_info = {
+            "url": media_url,
+            "name": media_name or "unknown",
+            "mime_type": mime_type or "application/octet-stream",
+            "size_bytes": size_bytes or 0,
+            "metadata": metadata or {}
         }
         
-        if media_name:
-            content["media_name"] = media_name
-        if mime_type:
-            content["mime_type"] = mime_type
-        if size_bytes is not None:
-            content["size_bytes"] = size_bytes
-        if text:
-            content["text"] = text
-        if metadata:
-            content.update(metadata)
+        content = {
+            "type": "media",
+            "text": text,
+            "media_info": media_info
+        }
         
         # 创建消息
         message = Message(
