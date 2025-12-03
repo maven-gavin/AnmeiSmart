@@ -26,6 +26,7 @@ interface ChatWindowProps {
   onSettingsToggle?: () => void;
   toggleMessageImportant?: (messageId: string, currentStatus: boolean) => Promise<void>;
   onMessageAdded?: (message: Message) => void;
+  onInputFocus?: () => void; // 新增
 }
 
 export default function ChatWindow({ 
@@ -41,7 +42,8 @@ export default function ChatWindow({
   onImportantToggle,
   onSettingsToggle,
   toggleMessageImportant,
-  onMessageAdded
+  onMessageAdded,
+  onInputFocus
 }: ChatWindowProps) {
   const { user } = useAuthContext();
 
@@ -282,6 +284,7 @@ export default function ChatWindow({
         onSendMessage={handleSendMessage}
         onUpdateMessages={() => {}}
         messages={messages}
+        onInputFocus={onInputFocus}
       />
     </div>
   )

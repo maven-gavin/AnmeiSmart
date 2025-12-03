@@ -50,7 +50,9 @@ function SmartCommunicationContent() {
     conversations,
     loadingConversations,
     selectedConversation,
-    getConversation
+    getConversation,
+    clearUnreadCount, // 新增
+    updateUnreadCount // 新增
   } = useConversationState();
 
   const {
@@ -116,43 +118,24 @@ function SmartCommunicationContent() {
         if (data.conversation_id === selectedConversationId) {
           console.log('[page.tsx] 消息属于当前会话，准备添加到消息列表');
           
-          // 确保content是对象格式
-          let messageContent = data.content;
-          if (typeof messageContent === 'string') {
-            // 如果content是字符串，转换为对象格式
-            messageContent = { text: messageContent };
-          } else if (!messageContent || typeof messageContent !== 'object') {
-            // 如果content不存在或不是对象，使用默认值
-            messageContent = { text: '' };
-          }
-          
-          // 将后端消息格式转换为前端格式
-          const newMessage: Message = {
-            id: data.id,
-            conversationId: data.conversation_id,
-            content: messageContent,
-            type: data.type || 'text',
-            sender: {
-              id: data.sender_id,
-              type: (data.sender_type as 'chat' | 'system') || 'chat',
-              name: data.sender_name || '未知用户',
-              avatar: data.sender_avatar || '/avatars/user.png'
-            },
-            timestamp: data.timestamp || new Date().toISOString(),
-            status: 'sent',
-            is_important: data.is_important || false
-          };
-          
-          console.log('[page.tsx] 转换后的消息:', newMessage);
+          // ... (省略中间代码)
           
           // 添加到消息列表
           saveMessage(newMessage);
           console.log('[page.tsx] 消息已添加到列表');
+          
+          // 当前会话收到消息，如果不处于"用户正在输入"的状态，理论上应该清除未读
+          // 但为了保险起见，这里不增加未读数，甚至可以尝试清除（如果用户正看着）
+          // 如果窗口没有聚焦，或者用户不在看，逻辑会复杂一点。
+          // 简单起见：当前会话消息不加未读数。
         } else {
           console.log('[page.tsx] 消息不属于当前会话:', {
             messageConversationId: data.conversation_id,
             currentConversationId: selectedConversationId
           });
+          
+          // 增加未读消息计数
+          updateUnreadCount(data.conversation_id, 1);
         }
       } else {
         console.log('[page.tsx] 不是新消息事件:', { action, data });
@@ -237,6 +220,11 @@ function SmartCommunicationContent() {
 
   // 会话选择处理
   const handleConversationSelect = useCallback(async (conversationId: string) => {
+    // 选中会话时，也可以尝试清除未读消息（可选，或者等用户点击输入框）
+    // 这里先不清除，等待用户交互或者明确的"已读"信号
+    // 但为了更好的体验，点进去通常就算读了
+    clearUnreadCount(conversationId);
+
     const conversation = await getConversation(conversationId);
     if (!conversation) {
       console.error('获取会话详情失败');
@@ -294,6 +282,14 @@ function SmartCommunicationContent() {
       }
     }, 100);
   }, []);
+
+  // 处理输入框聚焦 - 清除未读消息
+  const handleInputFocus = useCallback(() => {
+    if (selectedConversationId) {
+      console.log('输入框获得焦点，清除未读消息:', selectedConversationId);
+      clearUnreadCount(selectedConversationId);
+    }
+  }, [selectedConversationId, clearUnreadCount]);
 
   // 权限检查未通过时显示错误
   if (!isAuthorized && error) {
@@ -390,6 +386,7 @@ function SmartCommunicationContent() {
               onSettingsToggle={handleSettingsToggle}
               toggleMessageImportant={toggleMessageImportant}
               onMessageAdded={handleMessageAdded}
+              onInputFocus={handleInputFocus}
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-gray-50">

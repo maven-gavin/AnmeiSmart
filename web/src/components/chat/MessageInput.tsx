@@ -26,13 +26,15 @@ interface MessageInputProps {
   onSendMessage: (message: Message) => Promise<void>;
   onUpdateMessages?: () => void;
   messages?: Message[]; // 传递给FAQ使用
+  onInputFocus?: () => void; // 新增：输入框获得焦点时的回调
 }
 
 export default function MessageInput({
   conversationId,
   onSendMessage,
   onUpdateMessages,
-  messages = []
+  messages = [],
+  onInputFocus
 }: MessageInputProps) {
   const { user } = useAuthContext();
   const searchParams = useSearchParams();
@@ -578,6 +580,7 @@ export default function MessageInput({
                 value={message}
                 onChange={e => setMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
+                onFocus={onInputFocus} // 添加聚焦事件处理
                 placeholder="输入消息... (Shift + Enter 换行)"
                 className="min-h-[40px] max-h-[120px] pr-12 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20"
                 autoResize
