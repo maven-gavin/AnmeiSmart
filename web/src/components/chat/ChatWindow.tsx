@@ -285,6 +285,7 @@ export default function ChatWindow({
         onUpdateMessages={() => {}}
         messages={messages}
         onInputFocus={onInputFocus}
+        onMessageAdded={onMessageAdded}
       />
     </div>
   )

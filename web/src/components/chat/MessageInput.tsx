@@ -17,6 +17,7 @@ import FileSelector from './FileSelector';
 import { MessageUtils } from '@/utils/messageUtils';
 import { apiClient } from '@/service/apiClient';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { saveMessage } from '@/service/chatService';
 import PlanGenerationButton from './PlanGenerationButton';
 import { useSearchParams } from 'next/navigation';
 import { Send, Smile, Image, Paperclip, Mic } from 'lucide-react';
@@ -27,6 +28,7 @@ interface MessageInputProps {
   onUpdateMessages?: () => void;
   messages?: Message[]; // 传递给FAQ使用
   onInputFocus?: () => void; // 新增：输入框获得焦点时的回调
+  onMessageAdded?: (message: Message) => void; // 新增：消息添加回调，用于更新消息状态
 }
 
 export default function MessageInput({
@@ -34,7 +36,8 @@ export default function MessageInput({
   onSendMessage,
   onUpdateMessages,
   messages = [],
-  onInputFocus
+  onInputFocus,
+  onMessageAdded
 }: MessageInputProps) {
   const { user } = useAuthContext();
   const searchParams = useSearchParams();
@@ -203,41 +206,19 @@ export default function MessageInput({
         return new File([blob], filename, { type: mimeType });
       };
 
-      // 创建文件对象
-      const timestamp = Date.now();
-      const filename = `image_${timestamp}.png`;
-      const file = await urlToFile(imageUrl, filename);
-      
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('conversation_id', conversationId);
-      if (text) {
-        formData.append('text', text);
-      }
-
-      // 使用 apiClient.upload 进行上传，自动处理认证
-      const { data: result } = await apiClient.upload<any>('/files/upload', formData);
-
-      if (!result.success) {
-        throw new Error(result.message || '图片上传失败');
-      }
-      
-      const fileInfo = result.file_info;
-      if (!fileInfo) {
-        throw new Error('服务器返回的文件信息为空');
-      }
-
-      // 创建媒体消息
-      const mediaMessage: Message = {
-        id: `local_${Date.now()}`, // 上传接口不返回消息ID，使用本地ID
+      // 先创建pending消息，用户能立即看到
+      const localId = `local_${Date.now()}`;
+      const pendingMessage: Message = {
+        id: localId,
+        localId,
         conversationId: conversationId,
         content: {
           text: text,
           media_info: {
-            url: fileInfo.file_url,
-            name: fileInfo.file_name,
-            mime_type: fileInfo.mime_type,
-            size_bytes: fileInfo.file_size,
+            url: imageUrl, // 临时使用blob URL，上传后会更新
+            name: '上传中...',
+            mime_type: 'image/png',
+            size_bytes: 0,
           }
         },
         type: 'media',
@@ -251,7 +232,74 @@ export default function MessageInput({
         status: 'pending'
       };
 
-      await onSendMessage(mediaMessage);
+      // 立即添加到本地状态，用户能立即看到
+      // 注意：这里添加pending消息，但handleSendMessage会尝试保存
+      // 我们需要标记这个消息是媒体消息，稍后会手动保存
+      if (onMessageAdded) {
+        onMessageAdded(pendingMessage);
+      } else {
+        await onSendMessage(pendingMessage);
+      }
+
+      // 创建文件对象
+      const timestamp = Date.now();
+      const filename = `image_${timestamp}.png`;
+      const file = await urlToFile(imageUrl, filename);
+      
+      // 上传文件（不创建消息）
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('conversation_id', conversationId);
+      // 注意：不再传递text参数，因为文件上传API不再创建消息
+
+      const { data: result } = await apiClient.upload<any>('/files/upload', formData);
+
+      if (!result.success) {
+        // 上传失败，更新消息状态为failed
+        const failedMessage: Message = {
+          ...pendingMessage,
+          status: 'failed',
+          error: result.message || '图片上传失败'
+        };
+        if (onMessageAdded) {
+          onMessageAdded(failedMessage);
+        }
+        throw new Error(result.message || '图片上传失败');
+      }
+      
+      const fileInfo = result.file_info;
+      if (!fileInfo) {
+        throw new Error('服务器返回的文件信息为空');
+      }
+
+      // 更新消息内容，使用上传后的文件路径
+      const mediaMessage: Message = {
+        ...pendingMessage,
+        content: {
+          text: text,
+          media_info: {
+            url: fileInfo.file_url,
+            name: fileInfo.file_name,
+            mime_type: fileInfo.mime_type,
+            size_bytes: fileInfo.file_size,
+          }
+        },
+        status: 'pending' // 保持pending状态，等待发送
+      };
+
+      // 调用媒体消息API发送消息
+      const savedMessage = await saveMessage(mediaMessage);
+      
+      // 更新消息状态为sent，替换pending消息
+      const finalMessage: Message = {
+        ...savedMessage,
+        status: 'sent'
+      };
+      
+      // 更新本地消息（替换pending消息）
+      if (onMessageAdded) {
+        onMessageAdded(finalMessage);
+      }
       
       // 清理 blob URL 以释放内存
       URL.revokeObjectURL(imageUrl);
@@ -264,42 +312,19 @@ export default function MessageInput({
   // 发送文件消息
   const sendFileMessage = async (fileInfo: FileInfo, text?: string) => {
     try {
-      // 获取原始文件对象
-      const originalFile = getTempFile(fileInfo.file_url);
-      if (!originalFile) {
-        throw new Error('文件已丢失，请重新选择');
-      }
-
-      const formData = new FormData();
-      formData.append('file', originalFile);
-      formData.append('conversation_id', conversationId);
-      if (text) {
-        formData.append('text', text);
-      }
-
-      // 使用 apiClient.upload 进行上传
-      const { data: result } = await apiClient.upload<any>('/files/upload', formData);
-
-      if (!result.success) {
-        throw new Error(result.message || '文件上传失败');
-      }
-
-      const fileInfo = result.file_info;
-      if (!fileInfo) {
-        throw new Error('服务器返回的文件信息为空');
-      }
-      
-      // 创建媒体消息
-      const mediaMessage: Message = {
-        id: `local_${Date.now()}`,
+      // 先创建pending消息，用户能立即看到
+      const localId = `local_${Date.now()}`;
+      const pendingMessage: Message = {
+        id: localId,
+        localId,
         conversationId: conversationId,
         content: {
           text: text,
           media_info: {
-            url: fileInfo.file_url,
-            name: fileInfo.file_name,
-            mime_type: fileInfo.mime_type,
-            size_bytes: fileInfo.file_size,
+            url: fileInfo.file_url, // 临时使用预览URL
+            name: fileInfo.file_name || '上传中...',
+            mime_type: fileInfo.mime_type || 'application/octet-stream',
+            size_bytes: fileInfo.file_size || 0,
           }
         },
         type: 'media',
@@ -313,7 +338,73 @@ export default function MessageInput({
         status: 'pending'
       };
 
-      await onSendMessage(mediaMessage);
+      // 立即添加到本地状态，用户能立即看到
+      if (onMessageAdded) {
+        onMessageAdded(pendingMessage);
+      } else {
+        await onSendMessage(pendingMessage);
+      }
+
+      // 获取原始文件对象
+      const originalFile = getTempFile(fileInfo.file_url);
+      if (!originalFile) {
+        throw new Error('文件已丢失，请重新选择');
+      }
+
+      // 上传文件（不创建消息）
+      const formData = new FormData();
+      formData.append('file', originalFile);
+      formData.append('conversation_id', conversationId);
+      // 注意：不再传递text参数，因为文件上传API不再创建消息
+
+      const { data: result } = await apiClient.upload<any>('/files/upload', formData);
+
+      if (!result.success) {
+        // 上传失败，更新消息状态为failed
+        const failedMessage: Message = {
+          ...pendingMessage,
+          status: 'failed',
+          error: result.message || '文件上传失败'
+        };
+        if (onMessageAdded) {
+          onMessageAdded(failedMessage);
+        }
+        throw new Error(result.message || '文件上传失败');
+      }
+
+      const uploadedFileInfo = result.file_info;
+      if (!uploadedFileInfo) {
+        throw new Error('服务器返回的文件信息为空');
+      }
+      
+      // 更新消息内容，使用上传后的文件路径
+      const mediaMessage: Message = {
+        ...pendingMessage,
+        content: {
+          text: text,
+          media_info: {
+            url: uploadedFileInfo.file_url,
+            name: uploadedFileInfo.file_name,
+            mime_type: uploadedFileInfo.mime_type,
+            size_bytes: uploadedFileInfo.file_size,
+          }
+        },
+        status: 'pending' // 保持pending状态，等待发送
+      };
+
+      // 调用媒体消息API发送消息
+      const savedMessage = await saveMessage(mediaMessage);
+      
+      // 更新消息状态为sent，替换pending消息
+      const finalMessage: Message = {
+        ...savedMessage,
+        status: 'sent'
+      };
+      
+      // 更新本地消息（替换pending消息）
+      if (onMessageAdded) {
+        onMessageAdded(finalMessage);
+      }
     } catch (error) {
       console.error('发送文件消息失败:', error);
       throw error;
@@ -323,6 +414,39 @@ export default function MessageInput({
   // 发送语音消息
   const sendAudioMessage = async (audioUrl: string, text?: string) => {
     try {
+      // 先创建pending消息，用户能立即看到
+      const localId = `local_${Date.now()}`;
+      const pendingMessage: Message = {
+        id: localId,
+        localId,
+        conversationId: conversationId,
+        content: {
+          text: text,
+          media_info: {
+            url: audioUrl, // 临时使用blob URL
+            name: '上传中...',
+            mime_type: 'audio/webm',
+            size_bytes: 0,
+          }
+        },
+        type: 'media',
+        sender: {
+          id: user?.id || '',
+          type: 'user',
+          name: user?.name || '',
+          avatar: user?.avatar || '',
+        },
+        timestamp: new Date().toISOString(),
+        status: 'pending'
+      };
+
+      // 立即添加到本地状态，用户能立即看到
+      if (onMessageAdded) {
+        onMessageAdded(pendingMessage);
+      } else {
+        await onSendMessage(pendingMessage);
+      }
+
       // 从 Object URL 获取 Blob 数据
       const urlToFile = async (objectUrl: string, filename: string): Promise<File> => {
         const response = await fetch(objectUrl);
@@ -339,17 +463,24 @@ export default function MessageInput({
       const filename = `voice_${timestamp}.webm`;
       const file = await urlToFile(audioUrl, filename);
       
+      // 上传文件（不创建消息）
       const formData = new FormData();
       formData.append('file', file);
       formData.append('conversation_id', conversationId);
-      if (text) {
-        formData.append('text', text);
-      }
+      // 注意：不再传递text参数，因为文件上传API不再创建消息
 
-      // 使用 apiClient.upload 进行上传
       const { data: result } = await apiClient.upload<any>('/files/upload', formData);
 
       if (!result.success) {
+        // 上传失败，更新消息状态为failed
+        const failedMessage: Message = {
+          ...pendingMessage,
+          status: 'failed',
+          error: result.message || '语音上传失败'
+        };
+        if (onMessageAdded) {
+          onMessageAdded(failedMessage);
+        }
         throw new Error(result.message || '语音上传失败');
       }
 
@@ -358,10 +489,9 @@ export default function MessageInput({
         throw new Error('服务器返回的文件信息为空');
       }
       
-      // 创建媒体消息
+      // 更新消息内容，使用上传后的文件路径
       const mediaMessage: Message = {
-        id: `local_${Date.now()}`,
-        conversationId: conversationId,
+        ...pendingMessage,
         content: {
           text: text,
           media_info: {
@@ -371,18 +501,22 @@ export default function MessageInput({
             size_bytes: fileInfo.file_size,
           }
         },
-        type: 'media',
-        sender: {
-          id: user?.id || '',
-          type: 'user',
-          name: user?.name || '',
-          avatar: user?.avatar || '',
-        },
-        timestamp: new Date().toISOString(),
-        status: 'pending'
+        status: 'pending' // 保持pending状态，等待发送
       };
 
-      await onSendMessage(mediaMessage);
+      // 调用媒体消息API发送消息
+      const savedMessage = await saveMessage(mediaMessage);
+      
+      // 更新消息状态为sent，替换pending消息
+      const finalMessage: Message = {
+        ...savedMessage,
+        status: 'sent'
+      };
+      
+      // 更新本地消息（替换pending消息）
+      if (onMessageAdded) {
+        onMessageAdded(finalMessage);
+      }
       
       // 清理 Object URL 以释放内存
       URL.revokeObjectURL(audioUrl);

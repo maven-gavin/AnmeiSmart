@@ -139,12 +139,12 @@ class FileService:
         """
         db = db or self.db
         try:
-            # 从object_name解析出会话ID和用户ID
-            # 格式：{conversation_id}/{user_id}/{filename}
+            # 从object_name解析出用户ID和会话ID
+            # 格式：{user_id}/{conversation_id}/{filename}
             path_parts = object_name.split('/')
             if len(path_parts) >= 3:
-                conversation_id = path_parts[0]
-                file_owner_id = path_parts[1]
+                file_owner_id = path_parts[0]
+                conversation_id = path_parts[1]
                 
                 # 文件所有者可以访问
                 if file_owner_id == user_id:
@@ -178,9 +178,10 @@ class FileService:
                 return True
             
             # 从object_name解析出文件所有者
+            # 格式：{user_id}/{conversation_id}/{filename}
             path_parts = object_name.split('/')
-            if len(path_parts) >= 2:
-                file_owner_id = path_parts[1]
+            if len(path_parts) >= 1:
+                file_owner_id = path_parts[0]
                 return file_owner_id == user_id
             
             return False
@@ -537,8 +538,8 @@ class FileService:
             file_extension = os.path.splitext(file_info["filename"])[1]
             unique_filename = f"{uuid.uuid4().hex}{file_extension}"
             
-            # 构建存储路径: {conversation_id}/{user_id}/{unique_filename}
-            object_name = f"{conversation_id}/{user_id}/{unique_filename}"
+            # 构建存储路径: {user_id}/{conversation_id}/{unique_filename}
+            object_name = f"{user_id}/{conversation_id}/{unique_filename}"
             
             # 读取文件内容
             file_content = await file.read()
@@ -898,7 +899,7 @@ class FileService:
                 # 生成最终文件路径
                 file_extension = os.path.splitext(upload_session.file_name)[1]
                 unique_filename = f"{uuid.uuid4().hex}{file_extension}"
-                final_object_name = f"{conversation_id}/{user_id}/{unique_filename}"
+                final_object_name = f"{user_id}/{conversation_id}/{unique_filename}"
                 
                 # 上传完整文件到MinIO
                 with open(temp_path, 'rb') as temp_file:

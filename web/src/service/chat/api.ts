@@ -124,6 +124,11 @@ export class ChatApiService {
    * 保存消息
    */
   public static async saveMessage(message: Message): Promise<Message> {
+    // 如果是媒体消息，使用专门的媒体消息端点
+    if (message.type === 'media' && message.content && typeof message.content === 'object' && 'media_info' in message.content) {
+      return this.createMediaMessage(message);
+    }
+    
     // 构造符合后端API期望的请求数据格式
     const requestData = {
       content: message.content,
@@ -142,6 +147,44 @@ export class ChatApiService {
     }
     
     console.log('保存消息 - 服务器响应:', JSON.stringify(response.data));
+    
+    return ChatDataMapper.mapMessage(response.data);
+  }
+
+  /**
+   * 创建媒体消息
+   */
+  public static async createMediaMessage(message: Message): Promise<Message> {
+    const content = message.content as any;
+    const mediaInfo = content.media_info;
+    
+    if (!mediaInfo || !mediaInfo.url) {
+      throw new Error('媒体消息缺少媒体信息');
+    }
+    
+    const requestData = {
+      media_url: mediaInfo.url,
+      media_name: mediaInfo.name || 'unknown',
+      mime_type: mediaInfo.mime_type || 'application/octet-stream',
+      size_bytes: mediaInfo.size_bytes || 0,
+      text: content.text || null,
+      metadata: mediaInfo.metadata || {},
+      is_important: false,
+      upload_method: 'file_picker'
+    };
+    
+    console.log('创建媒体消息 - 发送请求:', JSON.stringify(requestData));
+    
+    const response = await apiClient.post<MessageApiResponse>(
+      `${this.BASE_PATH}/conversations/${message.conversationId}/messages/media`,
+      requestData
+    );
+    
+    if (!response.data) {
+      throw new Error('创建媒体消息失败：响应数据为空');
+    }
+    
+    console.log('创建媒体消息 - 服务器响应:', JSON.stringify(response.data));
     
     return ChatDataMapper.mapMessage(response.data);
   }

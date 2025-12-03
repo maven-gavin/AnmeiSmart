@@ -63,25 +63,12 @@ async def upload_file(
         if not can_access:
             raise HTTPException(status_code=403, detail="无权限访问此会话")
         
-        # 上传文件到Minio
+        # 上传文件到Minio（只上传文件，不创建消息）
+        # 消息创建由前端调用专门的媒体消息API完成
         file_info_dict = await file_service.upload_file(
             file=file,
             conversation_id=conversation_id,
             user_id=current_user.id
-        )
-        
-        # 创建媒体消息，支持附带文字
-        message_info = chat_service.create_media_message_with_details(
-            conversation_id=conversation_id,
-            sender_id=current_user.id,
-            media_url=file_info_dict["file_url"],
-            media_name=file_info_dict["file_name"],
-            mime_type=file_info_dict["mime_type"],
-            size_bytes=file_info_dict["file_size"],
-            text=text.strip() if text and text.strip() else None,  # 支持附带文字
-            metadata={"file_type": file_info_dict["file_type"]},
-            is_important=False,
-            upload_method="file_picker"
         )
         
         return FileUploadResponse(
