@@ -49,6 +49,10 @@ export default function ChatWindow({
 
   // 聊天容器引用
   const chatContainerRef = useRef<HTMLDivElement>(null)
+  // 跟踪上一次的消息数量，用于判断是否有新消息
+  const prevMessageCountRef = useRef<number>(0)
+  // 跟踪是否应该自动滚动（用户手动滚动后设为false）
+  const shouldAutoScrollRef = useRef<boolean>(true)
 
   // 使用标题编辑hook
   const {
@@ -70,10 +74,47 @@ export default function ChatWindow({
     }
   }, [])
 
-  // 新消息自动滚动
+  // 检查用户是否在底部附近（距离底部100px以内）
+  const isNearBottom = useCallback(() => {
+    if (!chatContainerRef.current) return true
+    const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current
+    return scrollHeight - scrollTop - clientHeight < 100
+  }, [])
+
+  // 新消息自动滚动 - 优化：只在有新消息且用户在底部附近时滚动
   useEffect(() => {
-    scrollToBottom()
-  }, [messages, scrollToBottom])
+    const currentMessageCount = messages.length
+    const prevMessageCount = prevMessageCountRef.current
+    
+    // 如果有新消息（消息数量增加）
+    if (currentMessageCount > prevMessageCount) {
+      // 如果用户在底部附近，自动滚动
+      if (shouldAutoScrollRef.current && isNearBottom()) {
+        // 使用 requestAnimationFrame 确保 DOM 更新后再滚动
+        requestAnimationFrame(() => {
+          scrollToBottom()
+        })
+      }
+    }
+    
+    // 更新消息数量引用
+    prevMessageCountRef.current = currentMessageCount
+  }, [messages.length, scrollToBottom, isNearBottom])
+
+  // 监听滚动事件，当用户手动滚动时，如果不在底部附近，禁用自动滚动
+  useEffect(() => {
+    const container = chatContainerRef.current
+    if (!container) return
+
+    const handleScroll = () => {
+      shouldAutoScrollRef.current = isNearBottom()
+    }
+
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+    }
+  }, [isNearBottom])
 
   // 处理发送消息
   const handleSendMessage = useCallback(async (message: Message) => {
