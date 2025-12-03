@@ -46,6 +46,8 @@ export async function saveMessage(message: Message): Promise<Message> {
     // 更新本地缓存
     if (savedMessage.conversationId) {
       chatState.addMessage(savedMessage.conversationId, savedMessage);
+      // 同时更新会话的最后一条消息
+      chatState.updateConversationLastMessage(savedMessage.conversationId, savedMessage);
     }
 
     return savedMessage;
@@ -183,14 +185,31 @@ export async function getConversations(): Promise<Conversation[]> {
  */
 export async function markConversationAsRead(conversationId: string): Promise<void> {
   try {
-    await ChatApiService.markConversationAsRead(conversationId);
-    // 更新本地缓存
+    // 1. 乐观更新本地缓存
     chatState.updateConversationUnreadCount(conversationId, 0);
+    
+    // 2. 调用 API
+    await ChatApiService.markConversationAsRead(conversationId);
   } catch (error) {
     console.error('标记会话已读失败:', error);
+    // 如果 API 失败，可能需要回滚，但为了用户体验通常不回滚已读状态
     throw error;
   }
 }
+
+export async function updateUnreadCountInCache(conversationId: string, increment: number): Promise<void> {
+  const conversations = chatState.getConversations();
+  const index = conversations.findIndex(c => c.id === conversationId);
+  if (index !== -1) {
+    const currentCount = conversations[index].unreadCount || 0;
+    chatState.updateConversationUnreadCount(conversationId, currentCount + increment);
+  }
+}
+
+export async function updateLastMessageInCache(conversationId: string, message: any): Promise<void> {
+  chatState.updateConversationLastMessage(conversationId, message);
+}
+
 
 /**
  * 标记消息为重点

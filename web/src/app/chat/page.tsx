@@ -51,8 +51,10 @@ function SmartCommunicationContent() {
     loadingConversations,
     selectedConversation,
     getConversation,
-    clearUnreadCount, // 新增
-    updateUnreadCount // 新增
+    clearUnreadCount,
+    updateUnreadCount,
+    updateLastMessage,
+    refreshConversations // 解构 refreshConversations
   } = useConversationState();
 
   const {
@@ -72,27 +74,35 @@ function SmartCommunicationContent() {
       connectionStatus: websocketState.connectionStatus
     });
     
-    // 优化：在 WebSocket 重连或页面重新聚焦时，同步最新消息
-    if (selectedConversationId) {
-       // 使用 silent=true 避免 loading 闪烁
-       // 注意：需要在 useMessageState 中支持 silent 参数
-       // @ts-ignore - 如果 typescript 报错，因为我们刚刚修改了 useMessageState
-       loadMessages(false, true);
+    // 优化：在 WebSocket 重连或页面重新聚焦时，同步最新消息和会话列表
+    if (websocketState.isConnected) {
+       // 同步会话列表（静默更新）
+       refreshConversations(true);
+
+       if (selectedConversationId) {
+         // 同步当前会话消息
+         // @ts-ignore
+         loadMessages(false, true);
+       }
     }
-  }, [websocketState.syncSignal]);
+  }, [websocketState.syncSignal, websocketState.isConnected, selectedConversationId, loadMessages, refreshConversations]);
 
   // 补充：监听窗口聚焦事件，确保切回 Tab 时刷新
   useEffect(() => {
     const onFocus = () => {
+      console.log('窗口重新获得焦点，同步数据');
+      // 刷新会话列表（获取最新未读数和最后一条消息）
+      refreshConversations(true);
+      
       if (selectedConversationId) {
-        console.log('窗口重新获得焦点，同步消息');
+        // 刷新当前会话消息
         // @ts-ignore
         loadMessages(false, true);
       }
     };
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
-  }, [selectedConversationId, loadMessages]);
+  }, [selectedConversationId, loadMessages, refreshConversations]);
     
   // 处理WebSocket消息 - 接收新消息
   useEffect(() => {
@@ -113,46 +123,58 @@ function SmartCommunicationContent() {
           content: data?.content,
           contentType: typeof data?.content
         });
+
+        // 确保content是对象格式
+        let messageContent = data.content;
+        if (typeof messageContent === 'string') {
+          // 如果content是字符串，转换为对象格式
+          messageContent = { text: messageContent };
+        } else if (!messageContent || typeof messageContent !== 'object') {
+          // 如果content不存在或不是对象，使用默认值
+          messageContent = { text: '' };
+        }
+        
+        // 将后端消息格式转换为前端格式
+        const newMessage: Message = {
+          id: data.id,
+          conversationId: data.conversation_id,
+          content: messageContent,
+          type: data.type || 'text',
+          sender: {
+            id: data.sender_id,
+            type: (data.sender_type as 'chat' | 'system') || 'chat',
+            name: data.sender_name || '未知用户',
+            avatar: data.sender_avatar || '/avatars/user.png'
+          },
+          timestamp: data.timestamp || new Date().toISOString(),
+          status: 'sent',
+          is_important: data.is_important || false
+        };
+        
+        console.log('[page.tsx] 转换后的消息:', newMessage);
         
         // 检查消息是否属于当前会话
         if (data.conversation_id === selectedConversationId) {
           console.log('[page.tsx] 消息属于当前会话，准备添加到消息列表');
           
-          // 确保content是对象格式
-          let messageContent = data.content;
-          if (typeof messageContent === 'string') {
-            // 如果content是字符串，转换为对象格式
-            messageContent = { text: messageContent };
-          } else if (!messageContent || typeof messageContent !== 'object') {
-            // 如果content不存在或不是对象，使用默认值
-            messageContent = { text: '' };
-          }
-          
-          // 将后端消息格式转换为前端格式
-          const newMessage: Message = {
-            id: data.id,
-            conversationId: data.conversation_id,
-            content: messageContent,
-            type: data.type || 'text',
-            sender: {
-              id: data.sender_id,
-              type: (data.sender_type as 'chat' | 'system') || 'chat',
-              name: data.sender_name || '未知用户',
-              avatar: data.sender_avatar || '/avatars/user.png'
-            },
-            timestamp: data.timestamp || new Date().toISOString(),
-            status: 'sent',
-            is_important: data.is_important || false
-          };
-          
-          console.log('[page.tsx] 转换后的消息:', newMessage);
-          
           // 添加到消息列表
           saveMessage(newMessage);
-          console.log('[page.tsx] 消息已添加到列表');
           
-          // 当前会话收到消息，如果不处于"用户正在输入"的状态，理论上应该清除未读
-          // 但为了保险起见，这里不增加未读数
+          // 关键：同时更新会话列表中的最后一条消息
+          // 这确保左侧列表的预览文字和时间能实时更新
+          // 我们需要导入 chatState 来操作，或者通过 useConversationState 暴露的方法
+          // 由于 useConversationState 是 Hook，这里我们在 useEffect 中不好直接调用它的方法（除非作为依赖传入，但会导致死循环）
+          // 最好的方式是 saveMessage 内部已经处理了 updateConversationLastMessage（刚刚修改了 chatService.ts）
+          // 但这里是手动构造的 newMessage，saveMessage 只是保存到 store，我们需要确保它也更新了 conversation store
+          
+          // 实际上，saveMessage 函数现在已经包含了 updateConversationLastMessage 逻辑
+          // 只要 newMessage 包含 conversationId，chatState.addMessage 会触发 updateConversationLastMessage
+          
+          console.log('[page.tsx] 消息已添加到列表并更新会话预览');
+          
+          // 同时也需要更新那个会话的最后一条消息预览！
+          // 即使不是当前会话，也要更新列表中的预览
+          updateLastMessage(data.conversation_id, newMessage);
         } else {
           console.log('[page.tsx] 消息不属于当前会话:', {
             messageConversationId: data.conversation_id,
@@ -160,13 +182,17 @@ function SmartCommunicationContent() {
           });
           
           // 增加未读消息计数
+          // updateUnreadCount 内部现在会自动同步到全局缓存
           updateUnreadCount(data.conversation_id, 1);
+          
+          // 更新列表预览
+          updateLastMessage(data.conversation_id, newMessage);
         }
       } else {
         console.log('[page.tsx] 不是新消息事件:', { action, data });
       }
     }
-  }, [websocketState.lastMessage, selectedConversationId, saveMessage]);
+  }, [websocketState.lastMessage, selectedConversationId, saveMessage, updateUnreadCount, updateLastMessage]);
   
   // UI状态管理
   const [isSwitchingConversation, setIsSwitchingConversation] = useState(false);
