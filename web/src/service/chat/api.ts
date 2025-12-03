@@ -101,6 +101,13 @@ export class ChatApiService {
   }
   
   /**
+   * 标记会话为已读
+   */
+  public static async markConversationAsRead(conversationId: string): Promise<void> {
+    await apiClient.patch(`${this.BASE_PATH}/conversations/${conversationId}/read`, {});
+  }
+
+  /**
    * 标记消息为重点
    */
   public static async markMessageAsImportant(

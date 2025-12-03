@@ -314,6 +314,24 @@ async def create_structured_message(
         raise SystemException("创建结构化消息失败")
 
 
+@router.patch("/conversations/{conversation_id}/read", response_model=ApiResponse[Dict[str, int]])
+async def mark_conversation_as_read(
+    conversation_id: str,
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service)
+):
+    """标记会话中所有未读消息为已读"""
+    try:
+        count = chat_service.mark_messages_as_read(
+            conversation_id=conversation_id,
+            user_id=str(current_user.id)
+        )
+        return ApiResponse.success({"count": count})
+    except Exception as e:
+        logger.error(f"标记会话已读失败: {e}", exc_info=True)
+        raise SystemException("标记会话已读失败")
+
+
 @router.patch("/messages/{message_id}/read", response_model=ApiResponse[Dict[str, str]])
 async def mark_message_as_read(
     message_id: str,

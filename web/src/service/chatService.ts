@@ -179,6 +179,20 @@ export async function getConversations(): Promise<Conversation[]> {
 }
 
 /**
+ * 标记会话为已读
+ */
+export async function markConversationAsRead(conversationId: string): Promise<void> {
+  try {
+    await ChatApiService.markConversationAsRead(conversationId);
+    // 更新本地缓存
+    chatState.updateConversationUnreadCount(conversationId, 0);
+  } catch (error) {
+    console.error('标记会话已读失败:', error);
+    throw error;
+  }
+}
+
+/**
  * 标记消息为重点
  */
 export async function markMessageAsImportant(conversationId: string, messageId: string, isImportant: boolean): Promise<Message | null> {

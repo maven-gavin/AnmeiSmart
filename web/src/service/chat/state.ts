@@ -93,6 +93,16 @@ export class ChatStateManager {
       };
     }
   }
+
+  public updateConversationUnreadCount(conversationId: string, unreadCount: number): void {
+    const conversationIndex = this.state.conversations.findIndex(conv => conv.id === conversationId);
+    if (conversationIndex >= 0) {
+      this.state.conversations[conversationIndex] = {
+        ...this.state.conversations[conversationIndex],
+        unreadCount: unreadCount
+      };
+    }
+  }
   
   // ===== 顾问接管状态 =====
   

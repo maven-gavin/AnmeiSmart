@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Conversation } from '@/types/chat';
-import { getConversations, getConversationDetails } from '@/service/chatService';
+import { getConversations, getConversationDetails, markConversationAsRead } from '@/service/chatService';
 
 export const useConversationState = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -37,7 +37,8 @@ export const useConversationState = () => {
   };
 
   // 清除未读消息数
-  const clearUnreadCount = (conversationId: string) => {
+  const clearUnreadCount = async (conversationId: string) => {
+    // 1. 乐观更新：立即更新 UI
     setConversations(prev => prev.map(conv => {
       if (conv.id === conversationId && conv.unreadCount > 0) {
         return { ...conv, unreadCount: 0 };
@@ -48,6 +49,15 @@ export const useConversationState = () => {
     // 如果当前选中的会话就是目标会话，也更新选中状态
     if (selectedConversation?.id === conversationId && selectedConversation.unreadCount > 0) {
       setSelectedConversation(prev => prev ? { ...prev, unreadCount: 0 } : null);
+    }
+
+    // 2. 调用后端 API
+    try {
+      await markConversationAsRead(conversationId);
+    } catch (error) {
+      console.error('标记会话已读失败:', error);
+      // 如果失败，理论上应该回滚 UI，但未读数这种状态回滚可能打扰用户体验，
+      // 且下次刷新会恢复，所以这里仅记录日志
     }
   };
 
