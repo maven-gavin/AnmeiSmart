@@ -144,7 +144,43 @@ export function useWebSocketByPage() {
   const connectionRef = useRef<string | null>(null);
   const isConnectingRef = useRef(false);
   const manualDisconnectRef = useRef(false); // 新增：手动断开标志
+  // 新增：用于通知组件连接已恢复或需要同步的信号
+  const [syncSignal, setSyncSignal] = useState<number>(0);
   
+  // 新增：处理页面可见性和网络状态变化
+  useEffect(() => {
+    if (!config?.enabled) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log(`页面重新可见：${pathname}，检查连接状态`);
+        const client = getWebSocketClientSafely();
+        
+        // 如果未连接，尝试重连
+        if (!client.isConnected()) {
+           setIsConnected(false); // 触发 checkConnection 重新运行
+        }
+        
+        // 无论是否重连，只要切回来，就发送一个同步信号
+        setSyncSignal(prev => prev + 1);
+      }
+    };
+
+    const handleOnline = () => {
+      console.log('网络恢复，尝试重连 WebSocket');
+      setIsConnected(false);
+      setSyncSignal(prev => prev + 1);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [config, pathname]);
+
   // 获取当前页面的WebSocket配置
   useEffect(() => {
     const newConfig = getWebSocketConfig(pathname);
@@ -447,6 +483,9 @@ export function useWebSocketByPage() {
     sendMessage,
     resetManualDisconnect, // 新增：重置手动断开标志
     
+    // 信号
+    syncSignal,
+
     // 配置信息
     config
   };

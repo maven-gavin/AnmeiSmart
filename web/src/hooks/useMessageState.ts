@@ -8,20 +8,20 @@ export const useMessageState = (conversationId: string | null) => {
   const [loadingMessages, setLoadingMessages] = useState(false);
 
   // 手动加载消息列表
-  const loadMessages = useCallback(async (forceRefresh: boolean = false) => {
+  const loadMessages = useCallback(async (forceRefresh: boolean = false, silent: boolean = false) => {
     if (!conversationId) {
       setMessages([]);
       return;
     }
 
     try {
-      setLoadingMessages(true);
+      if (!silent) setLoadingMessages(true);
       const data = await getConversationMessages(conversationId, forceRefresh);
       setMessages(data);
     } catch (error) {
       console.error('加载消息失败:', error);
     } finally {
-      setLoadingMessages(false);
+      if (!silent) setLoadingMessages(false);
     }
   }, [conversationId]);
 

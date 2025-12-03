@@ -70,6 +70,30 @@ function SmartCommunicationContent() {
       connectionStatus: websocketState.connectionStatus
     });
     
+    // 优化：在 WebSocket 重连或页面重新聚焦时，同步最新消息
+    if (selectedConversationId) {
+       // 使用 silent=true 避免 loading 闪烁
+       // 注意：需要在 useMessageState 中支持 silent 参数
+       // @ts-ignore - 如果 typescript 报错，因为我们刚刚修改了 useMessageState
+       loadMessages(false, true);
+    }
+  }, [websocketState.syncSignal]);
+
+  // 补充：监听窗口聚焦事件，确保切回 Tab 时刷新
+  useEffect(() => {
+    const onFocus = () => {
+      if (selectedConversationId) {
+        console.log('窗口重新获得焦点，同步消息');
+        // @ts-ignore
+        loadMessages(false, true);
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [selectedConversationId, loadMessages]);
+    
+  // 处理WebSocket消息 - 接收新消息
+  useEffect(() => {
     if (websocketState.lastMessage && selectedConversationId) {
       const { action, data } = websocketState.lastMessage;
       
