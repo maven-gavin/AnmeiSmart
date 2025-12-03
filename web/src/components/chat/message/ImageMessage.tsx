@@ -24,7 +24,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', cleanupBlobUrls);
 }
 
-export default function ImageMessage({ message, searchTerm, compact, onRetry }: MessageContentProps) {
+const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentProps) => {
   const [imageExpanded, setImageExpanded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [authenticatedImageUrl, setAuthenticatedImageUrl] = useState<string | null>(null);
@@ -38,31 +38,27 @@ export default function ImageMessage({ message, searchTerm, compact, onRetry }: 
   // 重试延迟（毫秒）
   const RETRY_DELAYS = [1000, 2000, 3000];
 
-  // 提取图片对象名称 - 使用useMemo优化，适配新的消息模型
+  // 提取图片URL，确保依赖稳定性
+  const mediaContent = message.content as MediaMessageContent;
+  const mediaUrl = mediaContent?.media_info?.url;
+
+  // 提取图片对象名称 - 使用useMemo优化
   const objectName = useMemo(() => {
     try {
-      // 检查是否为媒体消息
-      if (message.type === 'media') {
-        const mediaContent = message.content as MediaMessageContent;
-        
-        // 如果有media_info，使用其中的URL
-        if (mediaContent.media_info?.url) {
-          const url = mediaContent.media_info.url;
-          // 如果是内部文件路径，提取对象名称
-          if (url.includes('/chat-files/')) {
-            return url.split('/chat-files/')[1];
-          }
-          // 外部URL直接返回
-          return url;
+      if (mediaUrl) {
+        // 如果是内部文件路径，提取对象名称
+        if (mediaUrl.includes('/chat-files/')) {
+          return mediaUrl.split('/chat-files/')[1];
         }
+        // 外部URL直接返回
+        return mediaUrl;
       }
-      
-      throw new Error('无效的图片数据');
+      return null;
     } catch (error) {
       console.error('解析图片URL失败:', error);
       return null;
     }
-  }, [message.type, message.content]);
+  }, [mediaUrl]);
 
   // 创建认证图片URL - 使用useCallback优化
   const createAuthenticatedImageUrl = useCallback(async (objectName: string, attempt: number = 1): Promise<string> => {
@@ -559,4 +555,6 @@ export default function ImageMessage({ message, searchTerm, compact, onRetry }: 
       {renderImageModal()}
     </>
   );
-} 
+};
+
+export default React.memo(ImageMessage); 

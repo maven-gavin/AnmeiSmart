@@ -13,7 +13,8 @@ from typing import Optional, List, Literal, Dict, Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from enum import Enum
 
-
+import logging
+logger = logging.getLogger(__name__)
 class MessageSender(BaseModel):
     """消息发送者信息"""
     id: str
@@ -232,8 +233,6 @@ class MessageInfo(MessageBase):
         message_type = getattr(message, 'type', 'text')
         
         # 调试日志：记录模型转换过程
-        import logging
-        logger = logging.getLogger(__name__)
         logger.info(f"MessageInfo.from_model - 转换前: message_id={getattr(message, 'id', 'unknown')}, type={message_type}, raw_content={content}")
         
         # 确保content是字典格式

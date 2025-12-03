@@ -215,28 +215,29 @@ export default function MessageInput({
         formData.append('text', text);
       }
 
-      const response = await fetch('/api/v1/files/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      // 使用 apiClient.upload 进行上传，自动处理认证
+      const { data: result } = await apiClient.upload<any>('/files/upload', formData);
 
-      if (!response.ok) {
-        throw new Error('图片上传失败');
+      if (!result.success) {
+        throw new Error(result.message || '图片上传失败');
+      }
+      
+      const fileInfo = result.file_info;
+      if (!fileInfo) {
+        throw new Error('服务器返回的文件信息为空');
       }
 
-      const result = await response.json();
-      
       // 创建媒体消息
       const mediaMessage: Message = {
-        id: result.id || `local_${Date.now()}`,
+        id: `local_${Date.now()}`, // 上传接口不返回消息ID，使用本地ID
         conversationId: conversationId,
         content: {
           text: text,
           media_info: {
-            url: result.file_url,
-            name: result.file_name,
-            mime_type: result.mime_type,
-            size_bytes: result.file_size,
+            url: fileInfo.file_url,
+            name: fileInfo.file_name,
+            mime_type: fileInfo.mime_type,
+            size_bytes: fileInfo.file_size,
           }
         },
         type: 'media',
@@ -276,28 +277,29 @@ export default function MessageInput({
         formData.append('text', text);
       }
 
-      const response = await fetch('/api/v1/files/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      // 使用 apiClient.upload 进行上传
+      const { data: result } = await apiClient.upload<any>('/files/upload', formData);
 
-      if (!response.ok) {
-        throw new Error('文件上传失败');
+      if (!result.success) {
+        throw new Error(result.message || '文件上传失败');
       }
 
-      const result = await response.json();
+      const fileInfo = result.file_info;
+      if (!fileInfo) {
+        throw new Error('服务器返回的文件信息为空');
+      }
       
       // 创建媒体消息
       const mediaMessage: Message = {
-        id: result.id || `local_${Date.now()}`,
+        id: `local_${Date.now()}`,
         conversationId: conversationId,
         content: {
           text: text,
           media_info: {
-            url: result.file_url,
-            name: result.file_name,
-            mime_type: result.mime_type,
-            size_bytes: result.file_size,
+            url: fileInfo.file_url,
+            name: fileInfo.file_name,
+            mime_type: fileInfo.mime_type,
+            size_bytes: fileInfo.file_size,
           }
         },
         type: 'media',
@@ -344,28 +346,29 @@ export default function MessageInput({
         formData.append('text', text);
       }
 
-      const response = await fetch('/api/v1/files/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      // 使用 apiClient.upload 进行上传
+      const { data: result } = await apiClient.upload<any>('/files/upload', formData);
 
-      if (!response.ok) {
-        throw new Error('语音上传失败');
+      if (!result.success) {
+        throw new Error(result.message || '语音上传失败');
       }
 
-      const result = await response.json();
+      const fileInfo = result.file_info;
+      if (!fileInfo) {
+        throw new Error('服务器返回的文件信息为空');
+      }
       
       // 创建媒体消息
       const mediaMessage: Message = {
-        id: result.id || `local_${Date.now()}`,
+        id: `local_${Date.now()}`,
         conversationId: conversationId,
         content: {
           text: text,
           media_info: {
-            url: result.file_url,
-            name: result.file_name,
-            mime_type: result.mime_type,
-            size_bytes: result.file_size,
+            url: fileInfo.file_url,
+            name: fileInfo.file_name,
+            mime_type: fileInfo.mime_type,
+            size_bytes: fileInfo.file_size,
           }
         },
         type: 'media',

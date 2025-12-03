@@ -176,8 +176,13 @@ async function base<T>(url: string, options: FetchOptionType = {}, otherOptions:
     return res as T
   const contentType = res.headers.get('content-type')
   if (
-    contentType
-    && [ContentType.download, ContentType.audio, ContentType.downloadZip].includes(contentType)
+    contentType && (
+      [ContentType.download, ContentType.audio, ContentType.downloadZip].includes(contentType) ||
+      contentType.startsWith('image/') ||
+      contentType.startsWith('video/') ||
+      contentType.startsWith('audio/') ||
+      contentType === 'application/pdf'
+    )
   )
     return await res.blob() as T
 

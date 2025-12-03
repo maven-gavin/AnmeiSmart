@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import { authService } from '@/service/authService';
 import { getWebSocketClient, ConnectionStatus, WebSocketConfig } from '@/service/websocket';
@@ -139,7 +139,9 @@ export function useWebSocketByPage() {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
   const [lastMessage, setLastMessage] = useState<any>(null);
-  const [config, setConfig] = useState<PageWebSocketConfig | null>(null);
+  
+  // 使用 useMemo 替代 useState+useEffect 来获取配置，避免多余的渲染周期
+  const config = useMemo(() => getWebSocketConfig(pathname), [pathname]);
   
   const connectionRef = useRef<string | null>(null);
   const isConnectingRef = useRef(false);
@@ -149,7 +151,7 @@ export function useWebSocketByPage() {
   
   // 新增：处理页面可见性和网络状态变化
   useEffect(() => {
-    if (!config?.enabled) return;
+    if (!config.enabled) return;
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -179,24 +181,11 @@ export function useWebSocketByPage() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('online', handleOnline);
     };
-  }, [config, pathname]);
-
-  // 获取当前页面的WebSocket配置
-  useEffect(() => {
-    const newConfig = getWebSocketConfig(pathname);
-    setConfig(newConfig);
-    
-    console.log(`页面路由变化：${pathname}，WebSocket配置：`, {
-      enabled: newConfig.enabled,
-      requireAuth: newConfig.requireAuth,
-      connectionType: newConfig.connectionType,
-      features: newConfig.features
-    });
-  }, [pathname]);
+  }, [config.enabled, pathname]);
 
   // 消息处理
   useEffect(() => {
-    if (!config?.enabled) return;
+    if (!config.enabled) return;
 
     const wsClient = getWebSocketClientSafely();
     
@@ -211,19 +200,11 @@ export function useWebSocketByPage() {
       // MessageEventHandler.handleNewMessage 会调用 invokeCallbacks('new_message', eventData)
       // 这里的 eventData 是 data 字段的内容（扁平化的消息数据）
       const newMessageCallback = (eventData: any): void => {
-        console.log('[useWebSocketByPage] 收到新消息回调:', {
-          eventData,
-          eventDataType: typeof eventData,
-          eventDataKeys: eventData ? Object.keys(eventData) : [],
-          conversationId: eventData?.conversation_id,
-          messageId: eventData?.id
-        });
         // 构造与page.tsx期望格式一致的消息对象
         setLastMessage({
           action: 'new_message',
           data: eventData  // eventData 已经是扁平化的消息数据
         });
-        console.log('[useWebSocketByPage] 已设置lastMessage');
       };
       
       // 注册通用事件回调（处理所有事件类型）
@@ -231,7 +212,6 @@ export function useWebSocketByPage() {
       const eventCallback = (eventData: any): void => {
         // eventData 是 data 字段的内容，需要从原始消息中获取 action
         // 但由于我们无法访问原始消息，这里假设 eventData 包含完整信息
-        // 实际上，我们需要在 MessageEventHandler 中传递完整的消息对象
         setLastMessage({
           action: 'new_message', // 默认使用 new_message，因为这是最常见的情况
           data: eventData
@@ -269,16 +249,16 @@ export function useWebSocketByPage() {
         wsClient.unregisterHandler('page-message-handler');
       };
     }
-  }, [config, pathname]);
+  }, [config.enabled, pathname]);
 
   // 连接管理
   useEffect(() => {
-    if (!config?.enabled) return;
-
-    const user = authService.getCurrentUser();
+    if (!config.enabled) return;
     
     const checkConnection = async () => {
+      const user = authService.getCurrentUser();
       const token = await authService.getValidToken();
+      
       const shouldDisconnect = !config.autoConnect || 
         (config.requireAuth && !user) ||
         (config.requireAuth && user && !token);
@@ -291,6 +271,8 @@ export function useWebSocketByPage() {
         console.log(`断开页面WebSocket连接：${pathname}，原因：配置变更或认证失效`);
         getWebSocketClientSafely().disconnect();
         connectionRef.current = null;
+        setIsConnected(false); // 关键修复：确保状态更新
+        setConnectionStatus(ConnectionStatus.DISCONNECTED);
         return;
       }
 
@@ -308,8 +290,8 @@ export function useWebSocketByPage() {
         const connectAsync = async () => {
           try {
             isConnectingRef.current = true;
-            setIsConnected(true); // Assuming setIsConnecting is removed or replaced
-
+            // setIsConnected(true); // 移除这行，避免过早设置状态导致循环
+            
             // 重新获取用户信息，确保在异步函数中可用
             const currentUser = authService.getCurrentUser();
             if (!currentUser) {
@@ -318,8 +300,7 @@ export function useWebSocketByPage() {
 
             // 获取设备信息
             const deviceInfo = await getDeviceInfo();
-            const deviceConfig = getWebSocketDeviceConfig(deviceInfo);
-
+            
             // 构建连接参数
             const connectionParams = {
               userId: currentUser.id,
@@ -346,9 +327,9 @@ export function useWebSocketByPage() {
           } catch (error) {
             console.error(`页面WebSocket连接失败：${pathname}`, error);
             setConnectionStatus(ConnectionStatus.ERROR);
+            setIsConnected(false); // 确保状态正确
           } finally {
             isConnectingRef.current = false;
-            // setIsConnecting(false); // Assuming setIsConnecting is removed or replaced
           }
         };
 
@@ -372,7 +353,7 @@ export function useWebSocketByPage() {
 
   // 手动连接函数
   const connect = async (customParams?: any): Promise<boolean> => {
-    if (!config?.enabled) {
+    if (!config.enabled) {
       console.warn('WebSocket未启用，无法连接');
       return false;
     }
@@ -414,6 +395,7 @@ export function useWebSocketByPage() {
     } catch (error) {
       console.error(`手动连接WebSocket失败：${pathname}`, error);
       setConnectionStatus(ConnectionStatus.ERROR);
+      setIsConnected(false);
       return false;
     }
   };
@@ -470,9 +452,9 @@ export function useWebSocketByPage() {
     // 连接状态
     isConnected,
     connectionStatus,
-    isEnabled: config?.enabled || false,
-    connectionType: config?.connectionType || 'none',
-    supportedFeatures: config?.features || [],
+    isEnabled: config.enabled,
+    connectionType: config.connectionType,
+    supportedFeatures: config.features,
     
     // 数据
     lastMessage,
@@ -489,4 +471,4 @@ export function useWebSocketByPage() {
     // 配置信息
     config
   };
-} 
+}
