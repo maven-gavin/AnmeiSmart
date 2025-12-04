@@ -61,7 +61,15 @@ async def agent_chat(
                 conversation_id=request.conversation_id,
                 inputs=request.inputs
             ),
-            media_type="text/event-stream"
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type",
+                "X-Accel-Buffering": "no",  # 禁用Nginx缓冲
+                "Transfer-Encoding": "chunked",  # 确保分块传输
+            }
         )
     except ValueError as e:
         logger.error(f"Agent 对话参数错误: {e}")
