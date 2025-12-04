@@ -61,6 +61,7 @@ export const formatMessageDate = (timestamp: string): string => {
 export const groupMessagesByDate = (messages: Message[]) => {
   const groups: { date: string; messages: Message[] }[] = [];
   
+  // 后端已排序，直接按顺序分组
   messages.forEach((msg: Message) => {
     const dateStr = formatMessageDate(msg.timestamp);
     

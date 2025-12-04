@@ -6,7 +6,7 @@ Agent 对话服务
 import logging
 import json
 from typing import Optional, Dict, Any, List, AsyncIterator
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from app.ai.adapters.dify_agent_client import DifyAgentClientFactory, DifyAgentClient
@@ -283,45 +283,57 @@ class AgentChatService:
         for msg_data in messages_data:
             # Dify 返回的时间戳是 Unix 时间戳（整数）
             created_at_ts = msg_data.get('created_at', 0)
-            timestamp = datetime.fromtimestamp(created_at_ts).isoformat() if created_at_ts else datetime.now().isoformat()
+            base_timestamp = datetime.fromtimestamp(created_at_ts) if created_at_ts else datetime.now()
             
             # Dify 消息格式：query 是用户消息，answer 是 AI 回复
             # 需要将一条 Dify 消息拆分为两条业务消息（用户消息 + AI 回复）
             query = msg_data.get('query', '')
             answer = msg_data.get('answer', '')
             
-            # 如果有用户消息，添加用户消息
+            # 如果有用户消息，添加用户消息（时间戳稍早，确保排在 AI 回复之前）
             if query:
+                user_timestamp = (base_timestamp - timedelta(seconds=1)).isoformat()
                 result.append(
                     AgentMessageResponse(
                         id=f"{msg_data.get('id', '')}_user",
                         conversation_id=conversation_id,
                         content=query,
                         is_answer=False,
-                        timestamp=timestamp,
+                        timestamp=user_timestamp,
                         agent_thoughts=None,
                         files=msg_data.get('message_files'),
                         is_error=False
                     )
                 )
             
-            # 如果有 AI 回复，添加 AI 回复
+            # 如果有 AI 回复，添加 AI 回复（使用原始时间戳）
             if answer:
+                answer_timestamp = base_timestamp.isoformat()
                 result.append(
                     AgentMessageResponse(
                         id=msg_data.get('id', ''),
                         conversation_id=conversation_id,
                         content=answer,
                         is_answer=True,
-                        timestamp=timestamp,
+                        timestamp=answer_timestamp,
                         agent_thoughts=None,  # TODO: 从 Dify 响应中解析 agent_thoughts
                         files=None,
                         is_error=False
                     )
                 )
         
-        # 按时间戳排序（Dify 返回的是倒序，需要反转）
-        result.reverse()
+        # 按时间戳排序（正序：最早的在前）
+        # 如果时间戳相同，用户消息（is_answer=False）排在 AI 回复（is_answer=True）之前
+        def get_sort_key(msg: AgentMessageResponse):
+            try:
+                # 解析 ISO 格式的时间戳
+                ts = datetime.fromisoformat(msg.timestamp.replace('Z', '+00:00'))
+                return (ts.timestamp(), 1 if msg.is_answer else 0)  # 用户消息优先
+            except (ValueError, AttributeError):
+                # 如果解析失败，使用默认值
+                return (0.0, 1 if msg.is_answer else 0)
+        
+        result.sort(key=get_sort_key)
         
         return result
     

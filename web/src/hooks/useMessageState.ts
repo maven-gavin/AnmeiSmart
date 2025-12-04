@@ -46,7 +46,7 @@ export const useMessageState = (conversationId: string | null) => {
           }
         }
         
-        // 消息数量或内容有变化，更新状态
+        // 消息数量或内容有变化，更新状态（后端已排序，直接使用）
         prevMessagesLengthRef.current = data.length;
         return data;
       });
@@ -78,7 +78,7 @@ export const useMessageState = (conversationId: string | null) => {
         updatedMessages[existingIndex] = { ...updatedMessages[existingIndex], ...message };
         return updatedMessages;
       } else {
-        // 消息不存在，添加新消息
+        // 消息不存在，添加新消息（后端已排序，直接添加到末尾）
         return [...prev, message];
       }
     });
