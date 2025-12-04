@@ -2,7 +2,7 @@
 
 import { Streamdown } from 'streamdown';
 import 'katex/dist/katex.min.css';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface StreamMarkdownProps {
   content: string;
@@ -68,8 +68,28 @@ function processSpecialTags(content: string): { processedContent: string; thinkS
  */
 export function StreamMarkdown({ content, className = '' }: StreamMarkdownProps) {
   const [expandedThinks, setExpandedThinks] = useState<Set<number>>(new Set());
+  const prevThinkSectionsLengthRef = useRef<number>(0);
   
   const { processedContent, thinkSections } = processSpecialTags(content);
+  
+  // 默认展开所有思考过程（仅在新增时展开，避免流式输出时的频繁更新）
+  useEffect(() => {
+    const currentLength = thinkSections.length;
+    const prevLength = prevThinkSectionsLengthRef.current;
+    
+    // 只在思考过程数量增加时才更新展开状态
+    if (currentLength > prevLength) {
+      setExpandedThinks(prev => {
+        const newSet = new Set(prev);
+        // 只展开新出现的思考过程索引
+        for (let index = prevLength; index < currentLength; index++) {
+          newSet.add(index);
+        }
+        return newSet;
+      });
+      prevThinkSectionsLengthRef.current = currentLength;
+    }
+  }, [thinkSections.length]);
   
   const toggleThink = (index: number) => {
     setExpandedThinks(prev => {

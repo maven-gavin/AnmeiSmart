@@ -16,6 +16,7 @@ from app.ai.schemas.agent_chat import (
 )
 from app.chat.services.chat_service import ChatService
 from app.websocket.broadcasting_service import BroadcastingService
+from app.ai.utils.stream_buffer import StreamBuffer
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +53,11 @@ class AgentChatService:
         优化后流程：
         1. 创建 Dify 客户端
         2. 调用 Dify Agent 获取流式响应
-        3. 实时转发响应给前端
-        4. 不再保存数据到业务库，完全依赖 Dify API 作为数据源
+        3. 使用 StreamBuffer 处理被分割的标签
+        4. 实时转发响应给前端
         """
         dify_client: Optional[DifyAgentClient] = None
+        stream_buffer = StreamBuffer()
         
         try:
             logger.info("=" * 80)
@@ -76,25 +78,16 @@ class AgentChatService:
             
             # 2. 调用 Dify Agent 流式对话
             user_identifier = f"user_{user_id}"
-            
-            # conversation_id 直接使用 Dify 的 conversation_id（如果提供）
-            # 如果为空，Dify 会自动创建新会话
             dify_conv_id = conversation_id
             
             logger.info("📝 步骤 2: 调用 Dify API 流式对话...")
-            logger.info(f"   完整 URL: {dify_client.base_url}/chat-messages")
-            logger.info(f"   user_identifier: {user_identifier}")
-            logger.info(f"   dify_conversation_id: {dify_conv_id or '(新会话，Dify将自动创建)'}")
             
-            # 处理文件字段：将文件ID转换为 Dify 文件格式（保留在 inputs 中）
+            # 处理文件字段
             processed_inputs = {}
             if inputs:
                 for key, value in inputs.items():
-                    # 如果字段名包含 'file' 并且有值，转换为 Dify 文件格式
                     if 'file' in key.lower() and value:
-                        # 转换为 Dify 文件对象格式
                         if isinstance(value, list):
-                            # 文件列表
                             processed_inputs[key] = [
                                 {
                                     "type": "document",
@@ -104,69 +97,113 @@ class AgentChatService:
                                 for file_id in value
                             ]
                         else:
-                            # 单个文件
                             processed_inputs[key] = {
                                 "type": "document",
                                 "transfer_method": "local_file",
                                 "upload_file_id": value
                             }
                     else:
-                        # 非文件字段，直接复制
                         processed_inputs[key] = value
             
-            logger.info(f"   处理后的 inputs: {processed_inputs}")
-            
-            # 3. 流式转发响应
+            # 3. 流式转发响应（使用 StreamBuffer）
             chunk_count = 0
-            event_types = {}  # 统计事件类型
+            event_types = {}
+            
+            # 保存最后的元数据以便 flush 时使用
+            last_conversation_id = dify_conv_id
+            last_message_id = ""
+            last_task_id = ""
+            
             async for chunk in dify_client.create_chat_message(
                 query=message,
                 user=user_identifier,
-                conversation_id=dify_conv_id,  # 使用 Dify conversation_id
+                conversation_id=dify_conv_id,
                 inputs=processed_inputs,
                 response_mode="streaming"
             ):
                 chunk_count += 1
                 chunk_str = chunk.decode('utf-8') if isinstance(chunk, bytes) else chunk
                 
-                # 解析事件类型用于统计
-                if chunk_str.startswith('data: '):
+                # 处理可能包含多个 SSE 事件的情况
+                events = chunk_str.strip().split('\n\n')
+                
+                for event_str in events:
+                    if not event_str.startswith('data: '):
+                        continue
+                        
                     try:
-                        data = json.loads(chunk_str[6:])
+                        data_str = event_str[6:]
+                        data = json.loads(data_str)
                         event_type = data.get('event', 'unknown')
+                        
+                        # 更新元数据
+                        if data.get('conversation_id'):
+                            last_conversation_id = data.get('conversation_id')
+                        if data.get('message_id'):
+                            last_message_id = data.get('message_id')
+                        if data.get('task_id'):
+                            last_task_id = data.get('task_id')
+                        
                         event_types[event_type] = event_types.get(event_type, 0) + 1
                         
-                        # 前几个 chunk 打印详细日志
-                        if chunk_count <= 5:
-                            logger.info(f"📦 收到第 {chunk_count} 个 chunk [事件: {event_type}]: {chunk_str[:300]}...")
-                        
-                        # 对于message事件，打印完整内容用于调试
-                        if event_type == 'message':
+                        # 核心处理逻辑
+                        if event_type in ['message', 'agent_message']:
                             answer = data.get('answer', '')
-                            message_id = data.get('message_id') or data.get('id', '')
-                            logger.info(f"📨 Message事件详情:")
-                            logger.info(f"   message_id: {message_id}")
-                            logger.info(f"   answer长度: {len(answer)} 字符")
-                            logger.info(f"   answer内容: {answer[:200]}..." if len(answer) > 200 else f"   answer内容: {answer}")
+                            # 使用 StreamBuffer 处理内容
+                            safe_text = stream_buffer.process(answer)
+                            
+                            # 更新 answer 为安全文本
+                            data['answer'] = safe_text
+                            
+                            # 重新构建 SSE 事件
+                            new_event_str = f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+                            yield new_event_str.encode('utf-8')
+                            
+                        elif event_type in ['message_end', 'workflow_finished']:
+                            # 结束前清空缓冲区
+                            remaining = stream_buffer.flush()
+                            if remaining:
+                                # 发送剩余内容的事件
+                                flush_data = {
+                                    "event": "message" if event_type == 'message_end' else 'agent_message',
+                                    "answer": remaining,
+                                    "conversation_id": last_conversation_id,
+                                    "message_id": last_message_id,
+                                    "task_id": last_task_id,
+                                    "id": data.get("id") # 某些事件可能使用 id
+                                }
+                                yield f"data: {json.dumps(flush_data, ensure_ascii=False)}\n\n".encode('utf-8')
+                            
+                            # 发送原始结束事件
+                            yield (event_str + "\n\n").encode('utf-8')
+                            
+                        else:
+                            # 其他事件直接转发
+                            yield (event_str + "\n\n").encode('utf-8')
+                            
                     except json.JSONDecodeError:
-                        pass
-                elif chunk_count <= 5:
-                    logger.info(f"📦 收到第 {chunk_count} 个 chunk (非JSON): {chunk_str[:200]}...")
+                        # 解析失败，直接转发原内容
+                        yield (event_str + "\n\n").encode('utf-8')
                 
                 if chunk_count % 10 == 0:
-                    logger.debug(f"📦 已收到 {chunk_count} 个 chunks...")
-                
-                # 直接转发给前端
-                yield chunk
-            
-            # 打印事件类型统计
+                    logger.debug(f"📦 已处理 {chunk_count} 个 chunks...")
+
+            # 循环结束后，再次检查缓冲区（防止非正常结束）
+            remaining = stream_buffer.flush()
+            if remaining:
+                flush_data = {
+                    "event": "message",
+                    "answer": remaining,
+                    "conversation_id": last_conversation_id,
+                    "message_id": last_message_id,
+                    "task_id": last_task_id
+                }
+                yield f"data: {json.dumps(flush_data, ensure_ascii=False)}\n\n".encode('utf-8')
+
             if event_types:
                 logger.info(f"📊 事件类型统计: {event_types}")
             
             logger.info(f"✅ Agent 对话完成")
-            logger.info(f"   dify_conversation_id: {dify_conv_id or '(由Dify自动创建)'}")
-            logger.info(f"   总 chunks: {chunk_count}")
-            logger.info("=" * 80)
             
         except Exception as e:
             logger.error("=" * 80)
@@ -746,4 +783,3 @@ class AgentChatService:
         
         logger.info(f"获取应用元数据成功")
         return result
-
