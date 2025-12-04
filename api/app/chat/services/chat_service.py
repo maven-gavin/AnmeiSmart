@@ -692,24 +692,18 @@ class ChatService:
         sender: User
     ) -> MessageInfo:
         """创建媒体消息用例"""
-        # 从请求中提取媒体类型（可以根据 media_url 或 mime_type 推断）
-        media_type = getattr(request, 'media_type', 'image')
-        if hasattr(request, 'mime_type') and request.mime_type:
-            # 根据 mime_type 推断媒体类型
-            if request.mime_type.startswith('image'):
-                media_type = 'image'
-            elif request.mime_type.startswith('video'):
-                media_type = 'video'
-            elif request.mime_type.startswith('audio'):
-                media_type = 'audio'
-        
-        return self.create_media_message(
+        # 使用create_media_message_with_details方法，确保文件名和大小正确传递
+        return self.create_media_message_with_details(
             conversation_id=conversation_id,
             sender_id=str(sender.id),
-            media_type=media_type,
             media_url=request.media_url,
-            text=getattr(request, 'text', None),
-            sender_type="chat"  # 智能聊天消息统一使用chat
+            media_name=request.media_name,  # 使用请求中的文件名
+            mime_type=request.mime_type,  # 使用请求中的mime_type
+            size_bytes=request.size_bytes,  # 使用请求中的文件大小
+            text=request.text,
+            metadata=request.metadata,
+            is_important=request.is_important or False,
+            upload_method=getattr(request, 'upload_method', None)
         )
     
     def create_system_event_message_use_case(
