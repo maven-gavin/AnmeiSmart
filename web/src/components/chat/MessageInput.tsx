@@ -675,13 +675,6 @@ export default function MessageInput({
             
             {/* 会话接管按钮 */}
             <ConversationTakeover conversationId={conversationId} className="p-1.5 rounded-md transition-colors" />
-
-            <button 
-                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                title="表情"
-            >
-              <Smile className="h-5 w-5" />
-            </button>
             
             <button 
               className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
