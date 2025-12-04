@@ -30,15 +30,37 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
       console.log('解析语音URL:', { mediaInfo });
       
       if (mediaInfo?.url) {
-        // 如果是内部文件路径，提取对象名称
-        if (mediaInfo.url.includes('/chat-files/')) {
-          const objectName = mediaInfo.url.split('/chat-files/')[1];
-          console.log('提取对象名称:', { originalUrl: mediaInfo.url, objectName });
+        const url = mediaInfo.url;
+        
+        // 如果已经是object_name格式（不包含协议和域名），直接返回
+        // 格式：{user_id}/{conversation_id}/{filename}
+        if (!url.includes('://') && !url.startsWith('/')) {
+          return url;
+        }
+        
+        // 如果是完整的MinIO URL，提取对象名称
+        // 格式：http://localhost:9000/chat-files/{user_id}/{conversation_id}/{filename}
+        if (url.includes('/chat-files/')) {
+          const parts = url.split('/chat-files/');
+          if (parts.length >= 2) {
+            const extracted = parts[1];
+            // 移除可能的查询参数和锚点
+            const objectName = extracted.split('?')[0].split('#')[0];
+            console.log('提取对象名称:', { originalUrl: url, objectName });
+            return objectName;
+          }
+        }
+        
+        // 如果是相对路径格式：/chat-files/{user_id}/{conversation_id}/{filename}
+        if (url.startsWith('/chat-files/')) {
+          const objectName = url.substring('/chat-files/'.length).split('?')[0].split('#')[0];
+          console.log('提取对象名称（相对路径）:', { originalUrl: url, objectName });
           return objectName;
         }
+        
         // 外部URL，返回完整URL
-        console.log('使用外部URL:', mediaInfo.url);
-        return mediaInfo.url;
+        console.log('使用外部URL:', url);
+        return url;
       }
     }
     
@@ -51,8 +73,15 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
     try {
       console.log('开始获取认证音频URL:', objectName);
       
-      // 如果是外部URL，直接返回
-      if (objectName.startsWith('http')) {
+      // 临时文件ID不应该出现在已保存的消息中，直接抛出错误
+      if (objectName.startsWith('temp_')) {
+        throw new Error('临时文件ID无效，文件可能尚未上传');
+      }
+      
+      // 如果是外部URL、data URL或blob URL，直接返回
+      if (objectName.startsWith('http') || 
+          objectName.startsWith('data:') || 
+          objectName.startsWith('blob:')) {
         return objectName;
       }
       

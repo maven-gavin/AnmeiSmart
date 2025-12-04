@@ -46,10 +46,28 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
   const objectName = useMemo(() => {
     try {
       if (mediaUrl) {
-        // 如果是内部文件路径，提取对象名称
-        if (mediaUrl.includes('/chat-files/')) {
-          return mediaUrl.split('/chat-files/')[1];
+        // 如果已经是object_name格式（不包含协议和域名），直接返回
+        // 格式：{user_id}/{conversation_id}/{filename}
+        if (!mediaUrl.includes('://') && !mediaUrl.startsWith('/')) {
+          return mediaUrl;
         }
+        
+        // 如果是完整的MinIO URL，提取对象名称
+        // 格式：http://localhost:9000/chat-files/{user_id}/{conversation_id}/{filename}
+        if (mediaUrl.includes('/chat-files/')) {
+          const parts = mediaUrl.split('/chat-files/');
+          if (parts.length >= 2) {
+            const extracted = parts[1];
+            // 移除可能的查询参数和锚点
+            return extracted.split('?')[0].split('#')[0];
+          }
+        }
+        
+        // 如果是相对路径格式：/chat-files/{user_id}/{conversation_id}/{filename}
+        if (mediaUrl.startsWith('/chat-files/')) {
+          return mediaUrl.substring('/chat-files/'.length).split('?')[0].split('#')[0];
+        }
+        
         // 外部URL直接返回
         return mediaUrl;
       }
@@ -65,6 +83,11 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
     // 检查缓存
     if (imageCache.has(objectName)) {
       return imageCache.get(objectName)!;
+    }
+
+    // 临时文件ID不应该出现在已保存的消息中，直接抛出错误
+    if (objectName.startsWith('temp_')) {
+      throw new Error('临时文件ID无效，文件可能尚未上传');
     }
 
     // 外部URL、data URL（base64）、blob URL直接返回

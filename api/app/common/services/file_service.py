@@ -139,6 +139,15 @@ class FileService:
         """
         db = db or self.db
         try:
+            # 临时文件ID不应该通过后端访问
+            if object_name.startswith('temp_'):
+                logger.warning(f"尝试访问临时文件ID: {object_name}")
+                return False
+            
+            # URL解码，处理可能的URL编码
+            import urllib.parse
+            object_name = urllib.parse.unquote(object_name)
+            
             # 从object_name解析出用户ID和会话ID
             # 格式：{user_id}/{conversation_id}/{filename}
             path_parts = object_name.split('/')
@@ -146,17 +155,24 @@ class FileService:
                 file_owner_id = path_parts[0]
                 conversation_id = path_parts[1]
                 
+                logger.debug(f"检查文件访问权限: object_name={object_name}, file_owner_id={file_owner_id}, conversation_id={conversation_id}, user_id={user_id}")
+                
                 # 文件所有者可以访问
                 if file_owner_id == user_id:
+                    logger.debug(f"用户是文件所有者，允许访问")
                     return True
                 
                 # 检查用户是否有权限访问对应的会话
                 if db:
-                    return self.can_access_conversation(conversation_id, user_id, db)
+                    can_access = self.can_access_conversation(conversation_id, user_id, db)
+                    logger.debug(f"会话访问权限检查结果: {can_access}")
+                    return can_access
+            else:
+                logger.warning(f"文件路径格式不正确: {object_name}, 路径部分数量: {len(path_parts)}")
             
             return False
         except Exception as e:
-            logger.error(f"检查文件访问权限失败: {str(e)}")
+            logger.error(f"检查文件访问权限失败: {str(e)}, object_name={object_name}, user_id={user_id}", exc_info=True)
             return False
     
     def can_delete_file(self, object_name: str, user_id: str, db: Optional[Session] = None) -> bool:

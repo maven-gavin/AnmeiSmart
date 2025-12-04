@@ -312,7 +312,20 @@ export default function MessageInput({
 
   // 发送文件消息
   const sendFileMessage = async (fileInfo: FileInfo, text?: string) => {
+    let previewUrl: string | null = null; // 用于存储临时创建的blob URL
+    
     try {
+      // 获取原始文件对象
+      const originalFile = getTempFile(fileInfo.file_url);
+      if (!originalFile) {
+        throw new Error('文件已丢失，请重新选择');
+      }
+
+      // 对于图片文件，创建blob URL用于预览
+      if (fileInfo.file_type === 'image' && fileInfo.file_url.startsWith('temp_')) {
+        previewUrl = URL.createObjectURL(originalFile);
+      }
+
       // 先创建pending消息，用户能立即看到
       const localId = `local_${Date.now()}`;
       const pendingMessage: Message = {
@@ -322,7 +335,7 @@ export default function MessageInput({
         content: {
           text: text,
           media_info: {
-            url: fileInfo.file_url, // 临时使用预览URL
+            url: previewUrl || fileInfo.file_url, // 使用blob URL（图片）或临时ID（其他文件）
             name: fileInfo.file_name || '上传中...',
             mime_type: fileInfo.mime_type || 'application/octet-stream',
             size_bytes: fileInfo.file_size || 0,
@@ -344,12 +357,6 @@ export default function MessageInput({
         onMessageAdded(pendingMessage);
       } else {
         await onSendMessage(pendingMessage);
-      }
-
-      // 获取原始文件对象
-      const originalFile = getTempFile(fileInfo.file_url);
-      if (!originalFile) {
-        throw new Error('文件已丢失，请重新选择');
       }
 
       // 上传文件（不创建消息）
@@ -407,8 +414,17 @@ export default function MessageInput({
       if (onMessageAdded) {
         onMessageAdded(finalMessage);
       }
+
+      // 清理之前创建的blob URL（如果是图片文件）
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
     } catch (error) {
       console.error('发送文件消息失败:', error);
+      // 出错时也要清理blob URL
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
       throw error;
     }
   };
