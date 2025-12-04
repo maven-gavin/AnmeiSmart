@@ -1,36 +1,124 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { tokenManager } from '@/service/tokenManager';
 import { MessageContentProps } from './ChatMessage';
 import { MediaMessageContent } from '@/types/chat';
+import { FileService } from '@/service/fileService';
 
 export default function VideoMessage({ message, searchTerm, compact, onRetry }: MessageContentProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [videoError, setVideoError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [authenticatedVideoUrl, setAuthenticatedVideoUrl] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // 获取视频URL
-  const getVideoUrl = (): string => {
+  // 获取对象名称
+  const getObjectName = (): string | null => {
     if (message.type === 'media') {
       const mediaContent = message.content as MediaMessageContent;
       const mediaInfo = mediaContent.media_info;
       
       if (mediaInfo?.url) {
-        // 如果是内部文件路径，转换为预览端点
-        if (mediaInfo.url.includes('/chat-files/')) {
-          const objectName = mediaInfo.url.split('/chat-files/')[1];
-          return `/api/v1/files/preview/${objectName}`;
+        const url = mediaInfo.url;
+        
+        // 如果已经是object_name格式（不包含协议和域名），直接返回
+        if (!url.includes('://') && !url.startsWith('/')) {
+          return url;
         }
-        // 外部URL直接返回
-        return mediaInfo.url;
+        
+        // 如果是完整的MinIO URL，提取对象名称
+        if (url.includes('/chat-files/')) {
+          const parts = url.split('/chat-files/');
+          if (parts.length >= 2) {
+            const extracted = parts[1];
+            const objectName = extracted.split('?')[0].split('#')[0];
+            return objectName;
+          }
+        }
+        
+        // 如果是相对路径格式
+        if (url.startsWith('/chat-files/')) {
+          const objectName = url.substring('/chat-files/'.length).split('?')[0].split('#')[0];
+          return objectName;
+        }
+        
+        // 外部URL，返回完整URL
+        return url;
       }
     }
     
-    throw new Error('无效的视频数据');
+    return null;
   };
+
+  // 创建认证的视频URL
+  const createAuthenticatedVideoUrl = useCallback(async (objectName: string): Promise<string> => {
+    try {
+      // 如果是外部URL、data URL或blob URL，直接返回
+      if (objectName.startsWith('http') || 
+          objectName.startsWith('data:') || 
+          objectName.startsWith('blob:')) {
+        return objectName;
+      }
+      
+      // 使用FileService获取认证的视频流
+      const fileService = new FileService();
+      const response = await fileService.getFilePreviewStream(objectName);
+      
+      if (!response || !(response instanceof Blob)) {
+        throw new Error(`API返回的不是Blob对象: ${typeof response}`);
+      }
+      
+      if (response.size === 0) {
+        throw new Error('接收到空的视频数据');
+      }
+      
+      const blobUrl = URL.createObjectURL(response);
+      return blobUrl;
+    } catch (error) {
+      console.error('创建认证视频URL失败:', error);
+      throw error;
+    }
+  }, []);
+
+  // 加载视频
+  const loadVideo = useCallback(async () => {
+    const objectName = getObjectName();
+    if (!objectName) {
+      setVideoError(true);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setVideoError(false);
+      
+      const authUrl = await createAuthenticatedVideoUrl(objectName);
+      setAuthenticatedVideoUrl(authUrl);
+    } catch (error) {
+      console.error('加载视频失败:', error);
+      setVideoError(true);
+      setAuthenticatedVideoUrl(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [createAuthenticatedVideoUrl]);
+
+  // 组件挂载时加载视频
+  useEffect(() => {
+    loadVideo();
+  }, [loadVideo]);
+
+  // 组件卸载时清理资源
+  useEffect(() => {
+    return () => {
+      if (authenticatedVideoUrl && authenticatedVideoUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(authenticatedVideoUrl);
+      }
+    };
+  }, [authenticatedVideoUrl]);
 
   // 获取文件名
   const getFileName = (): string => {
@@ -53,14 +141,32 @@ export default function VideoMessage({ message, searchTerm, compact, onRetry }: 
   // 下载视频
   const handleDownload = async () => {
     try {
-      const videoUrl = getVideoUrl();
+      const objectName = getObjectName();
+      if (!objectName) {
+        toast.error('无效的视频数据');
+        return;
+      }
+
+      // 如果是外部URL，直接下载
+      if (objectName.startsWith('http')) {
+        const a = document.createElement('a');
+        a.href = objectName;
+        a.download = getFileName();
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        toast.success('视频下载成功');
+        return;
+      }
+
       const token = await tokenManager.getValidToken();
       if (!token) {
         toast.error('用户未登录，请重新登录');
         return;
       }
       
-      const response = await fetch(videoUrl, {
+      const previewUrl = `/api/v1/files/preview/${objectName}`;
+      const response = await fetch(previewUrl, {
         method: 'GET',
         credentials: 'include',
         headers: {
@@ -102,44 +208,95 @@ export default function VideoMessage({ message, searchTerm, compact, onRetry }: 
     }
   };
 
-  try {
-    const videoUrl = getVideoUrl();
+  // 设置视频事件监听器
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
 
-    if (videoError) {
-      return (
-        <div className="w-full max-w-md h-48 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
-          <div className="text-center text-gray-500">
-            <svg className="h-12 w-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-            <p className="text-sm mb-2">视频加载失败</p>
-            <button 
-              onClick={() => setVideoError(false)}
-              className="text-xs text-blue-600 hover:text-blue-800"
-            >
-              重新加载
-            </button>
-          </div>
-        </div>
-      );
-    }
+    const handleError = () => {
+      console.error('视频加载失败');
+      setVideoError(true);
+      setIsLoading(false);
+    };
 
+    const handleLoadStart = () => {
+      setIsLoading(true);
+    };
+
+    const handleCanPlay = () => {
+      setIsLoading(false);
+    };
+
+    const handleLoadedData = () => {
+      setIsLoading(false);
+    };
+
+    video.addEventListener('error', handleError);
+    video.addEventListener('loadstart', handleLoadStart);
+    video.addEventListener('canplay', handleCanPlay);
+    video.addEventListener('loadeddata', handleLoadedData);
+
+    return () => {
+      video.removeEventListener('error', handleError);
+      video.removeEventListener('loadstart', handleLoadStart);
+      video.removeEventListener('canplay', handleCanPlay);
+      video.removeEventListener('loadeddata', handleLoadedData);
+    };
+  }, [authenticatedVideoUrl]);
+
+  if (videoError) {
     return (
-      <div className="relative group max-w-md">
-        <video
-          ref={videoRef}
-          src={videoUrl}
-          controls
-          preload="metadata"
-          className="w-full h-auto max-h-64 rounded-lg border border-gray-200 bg-black"
-          onError={() => setVideoError(true)}
-          onLoadStart={() => setIsLoading(true)}
-          onCanPlay={() => setIsLoading(false)}
-          onLoadedData={() => setIsLoading(false)}
-          poster="" // 可以添加封面图片
-        >
-          您的浏览器不支持视频播放
-        </video>
+      <div className="w-full max-w-md h-48 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+        <div className="text-center text-gray-500">
+          <svg className="h-12 w-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          <p className="text-sm mb-2">视频加载失败</p>
+          <button 
+            onClick={() => {
+              // 清理之前的URL
+              if (authenticatedVideoUrl && authenticatedVideoUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(authenticatedVideoUrl);
+              }
+              setAuthenticatedVideoUrl(null);
+              // 重新加载
+              loadVideo();
+            }}
+            className="text-xs text-blue-600 hover:text-blue-800"
+          >
+            重新加载
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authenticatedVideoUrl) {
+    return (
+      <div className="w-full max-w-md h-48 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+        <div className="text-center text-gray-500">
+          <svg className="animate-spin h-8 w-8 mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p className="text-sm">视频加载中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative group max-w-md">
+      <video
+        ref={videoRef}
+        src={authenticatedVideoUrl}
+        controls
+        preload="metadata"
+        className="w-full h-auto max-h-64 rounded-lg border border-gray-200 bg-black"
+        poster="" // 可以添加封面图片
+      >
+        您的浏览器不支持视频播放
+      </video>
 
         {/* 加载状态 */}
         {isLoading && (
@@ -218,16 +375,4 @@ export default function VideoMessage({ message, searchTerm, compact, onRetry }: 
         </div>
       </div>
     );
-  } catch (error) {
-    return (
-      <div className="flex items-center space-x-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-        <svg className="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-        </svg>
-        <span className="text-sm text-red-700">
-          视频消息加载失败：{error instanceof Error ? error.message : '无效的视频数据'}
-        </span>
-      </div>
-    );
-  }
 } 

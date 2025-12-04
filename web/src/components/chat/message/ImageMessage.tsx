@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import toast from 'react-hot-toast';
 import type { MessageContentProps } from './ChatMessage';
 import { FileService } from '@/service/fileService';
@@ -212,9 +212,45 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
     setShowImageError(false);
   }, []);
 
-  // 组件挂载时加载图片
+  // 使用 Intersection Observer 实现懒加载，避免批量加载时的并发问题
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+  const hasStartedLoadingRef = useRef(false);
+  
   useEffect(() => {
-    loadImage();
+    const container = imageContainerRef.current;
+    if (!container || hasStartedLoadingRef.current) return;
+
+    // 创建 Intersection Observer
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          // 当图片进入视口时，延迟加载（错开请求时间）
+          if (entry.isIntersecting && !hasStartedLoadingRef.current) {
+            hasStartedLoadingRef.current = true;
+            
+            // 添加随机延迟（0-500ms），避免所有图片同时请求
+            const delay = Math.random() * 500;
+            setTimeout(() => {
+              loadImage();
+            }, delay);
+            
+            // 加载后取消观察
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      {
+        // 提前100px开始加载
+        rootMargin: '100px',
+        threshold: 0.01
+      }
+    );
+
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+    };
   }, [loadImage]);
 
   // 组件卸载时清理资源
@@ -559,24 +595,19 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
     );
   };
 
-  // 主渲染逻辑
-  if (isLoading) {
-    return renderLoadingState();
-  }
-
-  if (showImageError || (imageError && !authenticatedImageUrl)) {
-    return renderErrorState();
-  }
-
-  if (!authenticatedImageUrl) {
-    return renderLoadingState();
-  }
-
+  // 主渲染逻辑 - 统一在最外层容器使用ref
   return (
-    <>
-      {renderImage()}
-      {renderImageModal()}
-    </>
+    <div ref={imageContainerRef}>
+      {isLoading && renderLoadingState()}
+      {(showImageError || (imageError && !authenticatedImageUrl)) && renderErrorState()}
+      {!isLoading && !showImageError && !imageError && !authenticatedImageUrl && renderLoadingState()}
+      {!isLoading && !showImageError && !imageError && authenticatedImageUrl && (
+        <>
+          {renderImage()}
+          {renderImageModal()}
+        </>
+      )}
+    </div>
   );
 };
 

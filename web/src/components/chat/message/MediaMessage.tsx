@@ -42,10 +42,12 @@ export default function MediaMessage({ message, searchTerm, compact, onRetry }: 
            ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(getFileExtension(url || name || ''));
   };
 
-  // 判断是否为视频文件
+  // 判断是否为视频文件（排除音频）
   const isVideoFile = (): boolean => {
+    // 优先检查mime_type，如果明确是audio/开头，不是视频
+    if (mime_type.startsWith('audio/')) return false;
     return mime_type.startsWith('video/') || 
-           ['mp4', 'webm', 'avi', 'mov', 'mkv'].includes(getFileExtension(url || name || ''));
+           ['mp4', 'avi', 'mov', 'mkv'].includes(getFileExtension(url || name || ''));
   };
 
   // 判断是否为音频文件
@@ -60,12 +62,13 @@ export default function MediaMessage({ message, searchTerm, compact, onRetry }: 
       return <ImageMessage message={message} searchTerm={searchTerm} compact={compact} onRetry={onRetry} />;
     }
     
-    if (isVideoFile()) {
-      return <VideoMessage message={message} searchTerm={searchTerm} compact={compact} onRetry={onRetry} />;
-    }
-    
+    // 先检查音频，避免audio/webm被误识别为视频
     if (isAudioFile()) {
       return <VoiceMessage message={message} searchTerm={searchTerm} compact={compact} onRetry={onRetry} />;
+    }
+    
+    if (isVideoFile()) {
+      return <VideoMessage message={message} searchTerm={searchTerm} compact={compact} onRetry={onRetry} />;
     }
 
     // PDF和其他文件类型使用通用文件组件
