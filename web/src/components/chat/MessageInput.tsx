@@ -293,6 +293,7 @@ export default function MessageInput({
       // 更新消息状态为sent，替换pending消息
       const finalMessage: Message = {
         ...savedMessage,
+        localId: pendingMessage.localId,
         status: 'sent'
       };
       
@@ -398,6 +399,7 @@ export default function MessageInput({
       // 更新消息状态为sent，替换pending消息
       const finalMessage: Message = {
         ...savedMessage,
+        localId: pendingMessage.localId,
         status: 'sent'
       };
       
@@ -510,6 +512,7 @@ export default function MessageInput({
       // 更新消息状态为sent，替换pending消息
       const finalMessage: Message = {
         ...savedMessage,
+        localId: pendingMessage.localId,
         status: 'sent'
       };
       
