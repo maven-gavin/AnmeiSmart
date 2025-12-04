@@ -154,7 +154,6 @@ export default function MessageInput({
         })
       }
       
-      const userRole = currentUser.currentRole || 'customer';
       const localId = `local_${uuidv4()}`;
       const now = new Date().toISOString();
       
@@ -172,7 +171,7 @@ export default function MessageInput({
         type: 'text',
         sender: {
           id: currentUser.id,
-          type: userRole,
+          type: 'chat', // 所有用户发送的聊天消息都使用 'chat'
           name: currentUser.name,
           avatar: currentUser.avatar || '/avatars/user.png',
         },
@@ -224,7 +223,7 @@ export default function MessageInput({
         type: 'media',
         sender: {
           id: user?.id || '',
-          type: 'user',
+          type: 'chat', // 所有用户发送的聊天消息都使用 'chat'
           name: user?.name || '',
           avatar: user?.avatar || '',
         },
@@ -344,7 +343,7 @@ export default function MessageInput({
         type: 'media',
         sender: {
           id: user?.id || '',
-          type: 'user',
+          type: 'chat', // 所有用户发送的聊天消息都使用 'chat'
           name: user?.name || '',
           avatar: user?.avatar || '',
         },
@@ -450,7 +449,7 @@ export default function MessageInput({
         type: 'media',
         sender: {
           id: user?.id || '',
-          type: 'user',
+          type: 'chat', // 所有用户发送的聊天消息都使用 'chat'
           name: user?.name || '',
           avatar: user?.avatar || '',
         },
