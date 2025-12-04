@@ -303,19 +303,27 @@ export async function getCustomerConsultationHistory(customerId: string): Promis
 // ===== 顾问接管功能 =====
 
 /**
- * 顾问接管会话
+ * 用户接管会话
  */
 export async function takeoverConversation(conversationId: string): Promise<boolean> {
   try {
-    // 更新本地状态
-    chatState.setConsultantTakeover(conversationId, true);
-    
     // 发送接管状态到后端
-    await ChatApiService.setTakeoverStatus(conversationId, false); // false表示顾问接管
+    const result = await ChatApiService.setTakeoverStatus(conversationId, false); // false表示用户接管
+    
+    // 检查响应数据
+    if (!result || typeof result.takeover_status !== 'string') {
+      console.error('设置接管状态失败: 响应数据格式不正确', result);
+      return false;
+    }
+    
+    // 更新本地状态
+    const isTakeover = result.takeover_status === 'full_takeover';
+    chatState.setConsultantTakeover(conversationId, isTakeover);
     
     return true;
   } catch (error) {
     console.error('设置接管状态失败:', error);
+    // 不更新本地状态，保持原状态
     return false;
   }
 }
@@ -325,61 +333,67 @@ export async function takeoverConversation(conversationId: string): Promise<bool
  */
 export async function switchBackToAI(conversationId: string): Promise<boolean> {
   try {
-    // 更新本地状态
-    chatState.setConsultantTakeover(conversationId, false);
-    
     // 发送接管状态到后端
-    await ChatApiService.setTakeoverStatus(conversationId, true); // true表示AI接管
+    const result = await ChatApiService.setTakeoverStatus(conversationId, true); // true表示AI接管
+    
+    // 检查响应数据
+    if (!result || typeof result.takeover_status !== 'string') {
+      console.error('设置接管状态失败: 响应数据格式不正确', result);
+      return false;
+    }
+    
+    // 更新本地状态
+    const isTakeover = result.takeover_status === 'full_takeover';
+    chatState.setConsultantTakeover(conversationId, isTakeover);
     
     return true;
   } catch (error) {
     console.error('设置接管状态失败:', error);
+    // 不更新本地状态，保持原状态
     return false;
   }
 }
 
 /**
- * 是否处于顾问模式 - 从服务器获取最新状态
+ * 获取当前用户的接管状态 - 从服务器获取最新状态
  */
 export async function isConsultantMode(conversationId: string): Promise<boolean> {
   try {
-    // 获取会话详情
-    const conversation = await ChatApiService.getConversationDetails(conversationId);
+    // 尝试从后端获取当前用户的接管状态
+    const status = await ChatApiService.getParticipantTakeoverStatus(conversationId);
     
-    if (conversation && 'is_ai_controlled' in conversation && typeof conversation.is_ai_controlled === 'boolean') {
-      // 更新本地状态
-      const isConsultantMode = !conversation.is_ai_controlled;
-      chatState.setConsultantTakeover(conversationId, isConsultantMode);
-      return isConsultantMode;
+    if (status !== null) {
+      const isTakeover = status === 'full_takeover';
+      chatState.setConsultantTakeover(conversationId, isTakeover);
+      return isTakeover;
     }
     
     // 如果无法获取状态，返回当前本地状态
     return chatState.isConsultantTakeover(conversationId);
   } catch (error) {
-    console.error("获取顾问模式状态失败:", error);
+    console.error("获取接管状态失败:", error);
     return chatState.isConsultantTakeover(conversationId);
   }
 }
 
 /**
- * 同步顾问接管状态
+ * 同步接管状态
  */
 export async function syncConsultantTakeoverStatus(conversationId: string): Promise<boolean> {
   try {
-    // 获取会话详情
-    const conversation = await ChatApiService.getConversationDetails(conversationId);
+    // 尝试从后端获取当前用户的接管状态
+    const status = await ChatApiService.getParticipantTakeoverStatus(conversationId);
     
-    if (conversation && 'is_ai_controlled' in conversation && typeof conversation.is_ai_controlled === 'boolean') {
-      // 更新本地状态
-      const isConsultantMode = !conversation.is_ai_controlled;
-      chatState.setConsultantTakeover(conversationId, isConsultantMode);
-      return isConsultantMode;
+    if (status !== null) {
+      const isTakeover = status === 'full_takeover';
+      chatState.setConsultantTakeover(conversationId, isTakeover);
+      return isTakeover;
     }
     
     // 如果无法获取状态，返回当前本地状态
     return chatState.isConsultantTakeover(conversationId);
   } catch (error) {
-    console.error("同步顾问接管状态失败:", error);
+    console.error("同步接管状态失败:", error);
     return chatState.isConsultantTakeover(conversationId);
   }
 }

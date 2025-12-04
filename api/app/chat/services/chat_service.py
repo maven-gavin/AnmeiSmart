@@ -50,7 +50,7 @@ class ChatService:
         if not participant:
             # 创建新的参与者记录
             participant = ConversationParticipant(
-                id=conversation_id(),
+                id=message_id(),  # 参与者ID使用message_id生成器
                 conversation_id=conversation_id,
                 user_id=user_id,
                 role=default_role,
@@ -909,4 +909,74 @@ class ChatService:
         # 转换为响应Schema
         from app.chat.schemas.chat import MessageInfo
         return MessageInfo.from_model(message)
+    
+    # ============ 接管状态管理 ============
+    
+    def set_participant_takeover_status(
+        self,
+        conversation_id: str,
+        user_id: str,
+        takeover_status: str
+    ) -> ConversationParticipant:
+        """设置参与者的接管状态
+        
+        Args:
+            conversation_id: 会话ID
+            user_id: 用户ID
+            takeover_status: 接管状态 ("full_takeover", "semi_takeover", "no_takeover")
+        
+        Returns:
+            ConversationParticipant: 更新后的参与者记录
+        """
+        # 验证会话存在
+        conversation = self.db.query(Conversation).filter(
+            Conversation.id == conversation_id
+        ).first()
+        
+        if not conversation:
+            raise BusinessException("会话不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
+        
+        # 验证接管状态值
+        valid_statuses = ["full_takeover", "semi_takeover", "no_takeover"]
+        if takeover_status not in valid_statuses:
+            raise BusinessException(
+                f"无效的接管状态: {takeover_status}，有效值: {valid_statuses}",
+                code=ErrorCode.INVALID_INPUT
+            )
+        
+        # 获取或创建参与者记录
+        participant = self._get_or_create_participant(conversation_id, user_id)
+        
+        # 更新接管状态
+        participant.takeover_status = takeover_status
+        
+        self.db.commit()
+        self.db.refresh(participant)
+        
+        return participant
+    
+    def get_participant_takeover_status(
+        self,
+        conversation_id: str,
+        user_id: str
+    ) -> Optional[str]:
+        """获取参与者的接管状态
+        
+        Args:
+            conversation_id: 会话ID
+            user_id: 用户ID
+        
+        Returns:
+            Optional[str]: 接管状态，如果参与者不存在则返回None
+        """
+        participant = self.db.query(ConversationParticipant).filter(
+            ConversationParticipant.conversation_id == conversation_id,
+            ConversationParticipant.user_id == user_id,
+            ConversationParticipant.is_active == True
+        ).first()
+        
+        if not participant:
+            return None
+        
+        return participant.takeover_status or "no_takeover"
 

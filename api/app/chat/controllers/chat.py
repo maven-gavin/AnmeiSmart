@@ -461,26 +461,96 @@ async def update_conversation(
         raise SystemException("更新会话失败")
 
 
-# TODO: 这些功能需要后续实现
-# @router.post("/conversations/{conversation_id}/takeover")
-# async def consultant_takeover_conversation(
-#     conversation_id: str,
-#     current_user: User = Depends(get_current_user),
-#     chat_app_service: ChatApplicationService = Depends(get_chat_application_service)
-# ):
-#     """顾问接管会话 - 表现层只负责请求路由和响应格式化"""
-#     # TODO: 实现顾问接管会话功能
-#     pass
+@router.post("/conversations/{conversation_id}/takeover", response_model=ApiResponse[Dict[str, Any]])
+async def takeover_conversation(
+    conversation_id: str,
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service)
+):
+    """用户接管会话 - 设置当前用户的接管状态为全接管"""
+    try:
+        # 检查用户是否有权限访问该会话
+        can_access = await chat_service.can_access_conversation(
+            conversation_id=conversation_id,
+            user_id=str(current_user.id)
+        )
+        
+        if not can_access:
+            raise BusinessException(
+                "无权访问此会话",
+                code=ErrorCode.PERMISSION_DENIED,
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        # 设置接管状态为全接管
+        participant = chat_service.set_participant_takeover_status(
+            conversation_id=conversation_id,
+            user_id=str(current_user.id),
+            takeover_status="full_takeover"
+        )
+        
+        # 确保 takeover_status 不为 None
+        takeover_status = participant.takeover_status or "full_takeover"
+        
+        logger.info(f"设置接管状态成功: conversation_id={conversation_id}, user_id={current_user.id}, takeover_status={takeover_status}")
+        
+        return ApiResponse.success({
+            "conversation_id": conversation_id,
+            "user_id": str(current_user.id),
+            "takeover_status": takeover_status
+        })
+        
+    except BusinessException:
+        raise
+    except Exception as e:
+        logger.error(f"设置接管状态失败: {e}", exc_info=True)
+        raise SystemException("设置接管状态失败")
 
-# @router.post("/conversations/{conversation_id}/release")
-# async def consultant_release_conversation(
-#     conversation_id: str,
-#     current_user: User = Depends(get_current_user),
-#     chat_app_service: ChatApplicationService = Depends(get_chat_application_service)
-# ):
-#     """顾问释放会话 - 表现层只负责请求路由和响应格式化"""
-#     # TODO: 实现顾问释放会话功能
-#     pass
+
+@router.post("/conversations/{conversation_id}/release", response_model=ApiResponse[Dict[str, Any]])
+async def release_conversation(
+    conversation_id: str,
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service)
+):
+    """用户释放会话 - 设置当前用户的接管状态为不接管（切换回AI）"""
+    try:
+        # 检查用户是否有权限访问该会话
+        can_access = await chat_service.can_access_conversation(
+            conversation_id=conversation_id,
+            user_id=str(current_user.id)
+        )
+        
+        if not can_access:
+            raise BusinessException(
+                "无权访问此会话",
+                code=ErrorCode.PERMISSION_DENIED,
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        # 设置接管状态为不接管
+        participant = chat_service.set_participant_takeover_status(
+            conversation_id=conversation_id,
+            user_id=str(current_user.id),
+            takeover_status="no_takeover"
+        )
+        
+        # 确保 takeover_status 不为 None
+        takeover_status = participant.takeover_status or "no_takeover"
+        
+        logger.info(f"释放接管状态成功: conversation_id={conversation_id}, user_id={current_user.id}, takeover_status={takeover_status}")
+        
+        return ApiResponse.success({
+            "conversation_id": conversation_id,
+            "user_id": str(current_user.id),
+            "takeover_status": takeover_status
+        })
+        
+    except BusinessException:
+        raise
+    except Exception as e:
+        logger.error(f"释放会话失败: {e}", exc_info=True)
+        raise SystemException("释放会话失败")
 
 
 # ============ 事件处理器注册 ============

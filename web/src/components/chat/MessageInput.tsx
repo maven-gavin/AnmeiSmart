@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { RecordingControls } from '@/components/chat/RecordingControls';
 import { MediaPreview } from '@/components/chat/MediaPreview';
 import FAQSection from '@/components/chat/FAQSection';
-import ConsultantTakeover from '@/components/chat/ConsultantTakeover';
+import ConversationTakeover from '@/components/chat/ConversationTakeover';
 import { useRecording } from '@/hooks/useRecording';
 import { useMediaUpload } from '@/hooks/useMediaUpload';
 import { type Message, type FileInfo, type MediaMessageContent, type TextMessageContent } from '@/types/chat';
@@ -673,8 +673,8 @@ export default function MessageInput({
             {/* FAQ按钮 */}
             {faqSection.button}
             
-            {/* 顾问接管按钮 */}
-            <ConsultantTakeover conversationId={conversationId} className="p-1.5 rounded-md transition-colors" />
+            {/* 会话接管按钮 */}
+            <ConversationTakeover conversationId={conversationId} className="p-1.5 rounded-md transition-colors" />
 
             <button 
                 className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"

@@ -216,14 +216,67 @@ export class ChatApiService {
   // ===== 接管状态API =====
   
   /**
-   * 设置顾问接管状态
+   * 设置参与者接管状态
    */
-  public static async setTakeoverStatus(conversationId: string, isAiControlled: boolean): Promise<void> {
+  public static async setTakeoverStatus(conversationId: string, isAiControlled: boolean): Promise<{ conversation_id: string; user_id: string; takeover_status: string }> {
     const endpoint = isAiControlled 
       ? `${this.BASE_PATH}/conversations/${conversationId}/release`
       : `${this.BASE_PATH}/conversations/${conversationId}/takeover`;
     
-    await apiClient.post(endpoint);
+    try {
+      const response = await apiClient.post<{ conversation_id: string; user_id: string; takeover_status: string }>(endpoint);
+      
+      console.log('setTakeoverStatus 完整响应:', JSON.stringify(response, null, 2));
+      
+      if (!response) {
+        console.error('setTakeoverStatus 响应为空');
+        throw new Error('API响应为空');
+      }
+      
+      // 检查响应数据结构
+      if (!response.data) {
+        console.error('setTakeoverStatus 响应数据为空，完整响应:', response);
+        throw new Error(`API响应数据为空。响应: ${JSON.stringify(response)}`);
+      }
+      
+      // 验证响应数据结构
+      if (response.data === null || response.data === undefined) {
+        console.error('setTakeoverStatus 响应数据为 null 或 undefined');
+        throw new Error(`API响应数据为 null 或 undefined。完整响应: ${JSON.stringify(response)}`);
+      }
+      
+      if (typeof response.data !== 'object') {
+        console.error('setTakeoverStatus 响应数据不是对象:', typeof response.data, response.data);
+        throw new Error(`API响应数据格式不正确，期望对象，实际: ${typeof response.data}。数据: ${JSON.stringify(response.data)}`);
+      }
+      
+      if (!('takeover_status' in response.data)) {
+        console.error('setTakeoverStatus 响应数据缺少 takeover_status 字段:', Object.keys(response.data || {}), response.data);
+        throw new Error(`API响应数据格式不正确，缺少 takeover_status 字段。数据: ${JSON.stringify(response.data)}`);
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('setTakeoverStatus 调用失败:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * 获取当前用户的接管状态
+   */
+  public static async getParticipantTakeoverStatus(conversationId: string): Promise<string | null> {
+    try {
+      // 通过获取会话详情来获取当前用户的接管状态
+      const conversation = await this.getConversationDetails(conversationId);
+      // 注意：这里需要后端在ConversationInfo中包含当前用户的takeover_status
+      // 暂时通过检查会话详情来判断
+      // TODO: 后端应该在ConversationInfo中包含当前用户的takeover_status
+      return null; // 暂时返回null，后续需要后端支持
+    } catch (error) {
+      console.error('获取参与者接管状态失败:', error);
+      return null;
+    }
   }
   
   // ===== AI服务API =====
