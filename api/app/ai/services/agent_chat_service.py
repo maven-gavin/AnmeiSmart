@@ -149,30 +149,58 @@ class AgentChatService:
                         # 核心处理逻辑
                         if event_type in ['message', 'agent_message']:
                             answer = data.get('answer', '')
-                            # 使用 StreamBuffer 处理内容
-                            safe_text = stream_buffer.process(answer)
+                            # 使用 StreamBuffer 处理内容，区分正常内容和思考内容
+                            normal_content, think_content = stream_buffer.process(answer)
                             
-                            # 更新 answer 为安全文本
-                            data['answer'] = safe_text
+                            # 如果有正常内容，发送正常消息事件
+                            if normal_content:
+                                data['answer'] = normal_content
+                                new_event_str = f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+                                yield new_event_str.encode('utf-8')
                             
-                            # 重新构建 SSE 事件
-                            new_event_str = f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
-                            yield new_event_str.encode('utf-8')
+                            # 如果有思考内容，发送 agent_thought 事件
+                            if think_content:
+                                thought_data = {
+                                    "event": "agent_thought",
+                                    "id": data.get('message_id') or data.get('id', ''),
+                                    "message_id": data.get('message_id', ''),
+                                    "task_id": last_task_id,
+                                    "conversation_id": last_conversation_id,
+                                    "thought": think_content,
+                                    "created_at": int(datetime.now().timestamp())
+                                }
+                                thought_event_str = f"data: {json.dumps(thought_data, ensure_ascii=False)}\n\n"
+                                yield thought_event_str.encode('utf-8')
                             
                         elif event_type in ['message_end', 'workflow_finished']:
                             # 结束前清空缓冲区
-                            remaining = stream_buffer.flush()
-                            if remaining:
-                                # 发送剩余内容的事件
+                            normal_remaining, think_remaining = stream_buffer.flush()
+                            
+                            # 发送剩余正常内容
+                            if normal_remaining:
                                 flush_data = {
                                     "event": "message" if event_type == 'message_end' else 'agent_message',
-                                    "answer": remaining,
+                                    "answer": normal_remaining,
                                     "conversation_id": last_conversation_id,
                                     "message_id": last_message_id,
                                     "task_id": last_task_id,
                                     "id": data.get("id") # 某些事件可能使用 id
                                 }
                                 yield f"data: {json.dumps(flush_data, ensure_ascii=False)}\n\n".encode('utf-8')
+                            
+                            # 发送剩余思考内容
+                            if think_remaining:
+                                thought_data = {
+                                    "event": "agent_thought",
+                                    "id": last_message_id or data.get("id", ''),
+                                    "message_id": last_message_id,
+                                    "task_id": last_task_id,
+                                    "conversation_id": last_conversation_id,
+                                    "thought": think_remaining,
+                                    "created_at": int(datetime.now().timestamp())
+                                }
+                                thought_event_str = f"data: {json.dumps(thought_data, ensure_ascii=False)}\n\n"
+                                yield thought_event_str.encode('utf-8')
                             
                             # 发送原始结束事件
                             yield (event_str + "\n\n").encode('utf-8')
@@ -189,16 +217,32 @@ class AgentChatService:
                     logger.debug(f"📦 已处理 {chunk_count} 个 chunks...")
 
             # 循环结束后，再次检查缓冲区（防止非正常结束）
-            remaining = stream_buffer.flush()
-            if remaining:
+            normal_remaining, think_remaining = stream_buffer.flush()
+            
+            # 发送剩余正常内容
+            if normal_remaining:
                 flush_data = {
                     "event": "message",
-                    "answer": remaining,
+                    "answer": normal_remaining,
                     "conversation_id": last_conversation_id,
                     "message_id": last_message_id,
                     "task_id": last_task_id
                 }
                 yield f"data: {json.dumps(flush_data, ensure_ascii=False)}\n\n".encode('utf-8')
+            
+            # 发送剩余思考内容
+            if think_remaining:
+                thought_data = {
+                    "event": "agent_thought",
+                    "id": last_message_id or '',
+                    "message_id": last_message_id,
+                    "task_id": last_task_id,
+                    "conversation_id": last_conversation_id,
+                    "thought": think_remaining,
+                    "created_at": int(datetime.now().timestamp())
+                }
+                thought_event_str = f"data: {json.dumps(thought_data, ensure_ascii=False)}\n\n"
+                yield thought_event_str.encode('utf-8')
 
             if event_types:
                 logger.info(f"📊 事件类型统计: {event_types}")

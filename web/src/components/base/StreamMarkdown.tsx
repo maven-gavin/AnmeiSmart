@@ -5,7 +5,9 @@ import 'katex/dist/katex.min.css';
 import { useState, useEffect, useRef } from 'react';
 
 interface StreamMarkdownProps {
-  content: string;
+  content?: string;  // 正常内容（可选，向后兼容）
+  normalContent?: string;  // 正常内容（新方式）
+  thinkSections?: string[];  // 思考内容数组（新方式）
   className?: string;
 }
 
@@ -66,11 +68,29 @@ function processSpecialTags(content: string): { processedContent: string; thinkS
  * 支持实时流式显示 Markdown 内容
  * 基于 streamdown 库实现
  */
-export function StreamMarkdown({ content, className = '' }: StreamMarkdownProps) {
+export function StreamMarkdown({ 
+  content, 
+  normalContent, 
+  thinkSections: externalThinkSections,
+  className = '' 
+}: StreamMarkdownProps) {
   const [expandedThinks, setExpandedThinks] = useState<Set<number>>(new Set());
   const prevThinkSectionsLengthRef = useRef<number>(0);
   
-  const { processedContent, thinkSections } = processSpecialTags(content);
+  // 如果提供了分离的内容，直接使用；否则从 content 中解析（向后兼容）
+  let processedContent: string;
+  let thinkSections: string[];
+  
+  if (normalContent !== undefined || externalThinkSections !== undefined) {
+    // 新方式：使用分离的内容
+    processedContent = normalContent || '';
+    thinkSections = externalThinkSections || [];
+  } else {
+    // 向后兼容：从 content 中解析标签
+    const parsed = processSpecialTags(content || '');
+    processedContent = parsed.processedContent;
+    thinkSections = parsed.thinkSections;
+  }
   
   // 默认展开所有思考过程（仅在新增时展开，避免流式输出时的频繁更新）
   useEffect(() => {

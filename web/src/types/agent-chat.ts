@@ -49,7 +49,8 @@ export interface AgentMessage {
   timestamp: string;
   
   // Agent 特有字段
-  agentThoughts?: AgentThought[]; // 思考过程
+  agentThoughts?: AgentThought[]; // 思考过程（用于 AgentThinking 组件）
+  thinkSections?: string[];      // 思考内容数组（用于 StreamMarkdown 组件）
   files?: MessageFile[];          // 附带文件
   isError?: boolean;              // 是否错误消息
   isStreaming?: boolean;          // 是否正在流式输出

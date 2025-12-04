@@ -112,6 +112,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
       isAnswer: true,
       timestamp: new Date().toISOString(),
       agentThoughts: [],
+      thinkSections: [],  // 用于 StreamMarkdown 组件的思考内容数组
     };
 
     // 打字机效果：用于处理大块文本的分块显示
@@ -229,26 +230,59 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
               );
             }
           },
-          onThought: (thought) => {
-            if (!aiMessage.agentThoughts) {
-              aiMessage.agentThoughts = [];
-            }
+          onThought: (thoughtItem) => {
+            const thoughtContent = thoughtItem.thought || '';
+            if (!thoughtContent) return;
             
-            // 查找或添加思考过程
-            const existingIdx = aiMessage.agentThoughts.findIndex(t => t.id === thought.id);
-            if (existingIdx >= 0) {
-              aiMessage.agentThoughts[existingIdx] = thought;
-            } else {
-              aiMessage.agentThoughts.push(thought);
-            }
-
-            // 更新消息列表
+            // 更新消息列表，使用 produce 确保不可变更新
             setMessages(
               produce(getMessages(), (draft) => {
-                const idx = draft.findIndex(m => m.id === placeholderAnswerId);
-                if (idx !== -1) {
-                  draft[idx] = { ...aiMessage, isStreaming: true };
+                const idx = draft.findIndex(m => m.id === placeholderAnswerId || m.id === aiMessage.id);
+                if (idx === -1) return;
+                
+                const message = draft[idx];
+                
+                // 初始化思考内容数组
+                if (!message.thinkSections) {
+                  message.thinkSections = [];
                 }
+                
+                // 对于同一个消息，所有思考内容都追加到最后一个思考项（流式输出）
+                // 如果 thinkSections 为空，则创建新的思考项
+                if (message.thinkSections.length === 0) {
+                  message.thinkSections.push(thoughtContent);
+                } else {
+                  // 创建新数组，追加到最后一个思考项（流式输出）
+                  const lastIndex = message.thinkSections.length - 1;
+                  message.thinkSections[lastIndex] = message.thinkSections[lastIndex] + thoughtContent;
+                }
+                
+                // 同时更新 agentThoughts（用于 AgentThinking 组件，保持兼容性）
+                if (!message.agentThoughts) {
+                  message.agentThoughts = [];
+                }
+                const thoughtId = thoughtItem.id || thoughtItem.message_id || 'default-thought';
+                const existingIdx = message.agentThoughts.findIndex(t => t.id === thoughtId);
+                if (existingIdx >= 0) {
+                  // 创建新对象，更新思考内容
+                  message.agentThoughts[existingIdx] = {
+                    ...message.agentThoughts[existingIdx],
+                    thought: message.agentThoughts[existingIdx].thought + thoughtContent
+                  };
+                } else {
+                  message.agentThoughts.push({
+                    id: thoughtId,
+                    thought: thoughtContent,
+                    tool: thoughtItem.tool,
+                    toolInput: thoughtItem.tool_input,
+                    toolOutput: thoughtItem.tool_output,
+                    observation: thoughtItem.observation,
+                    position: message.agentThoughts.length
+                  });
+                }
+                
+                // 更新流式状态
+                message.isStreaming = true;
               })
             );
           },
