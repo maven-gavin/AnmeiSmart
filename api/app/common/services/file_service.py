@@ -560,6 +560,53 @@ class FileService:
             # 读取文件内容
             file_content = await file.read()
             
+            # 尝试解析音频元数据
+            metadata = {}
+            if file_info["category"] == "audio":
+                try:
+                    import mutagen  # type: ignore[import-untyped]
+                    import io
+                    
+                    # 使用BytesIO包装文件内容，避免影响文件指针
+                    audio_file = io.BytesIO(file_content)
+                    # 使用文件名帮助mutagen识别格式（如果可能）
+                    # mutagen.File 会自动检测格式，这是最可靠的方式
+                    try:
+                        # 尝试使用文件名帮助识别（如果可用）
+                        if file.filename:
+                            audio = mutagen.File(audio_file, filename=file.filename)
+                        else:
+                            audio = mutagen.File(audio_file)
+                    except Exception as e:
+                        logger.debug(f"mutagen自动检测失败，尝试根据MIME类型处理: {str(e)}")
+                        # 如果自动检测失败，尝试根据mime_type使用特定格式
+                        audio = None
+                        try:
+                            if file_info["content_type"] in ["audio/mp3", "audio/mpeg"]:
+                                from mutagen.mp3 import MP3  # type: ignore[import-untyped]
+                                audio = MP3(audio_file)
+                            elif file_info["content_type"] in ["audio/wav", "audio/x-wav"]:
+                                # mutagen对WAV的支持可能在不同位置，优先使用File自动检测
+                                # 如果必须使用特定格式，可以尝试 mutagen.wave，但类型检查器可能无法识别
+                                audio = mutagen.File(audio_file)
+                            elif file_info["content_type"] == "audio/ogg":
+                                from mutagen.oggvorbis import OggVorbis  # type: ignore[import-untyped]
+                                audio = OggVorbis(audio_file)
+                        except Exception:
+                            # 如果所有尝试都失败，audio保持为None
+                            pass
+                            
+                    if audio and audio.info:
+                        metadata['duration_seconds'] = audio.info.length
+                        if hasattr(audio.info, 'bitrate'):
+                            metadata['bitrate'] = audio.info.bitrate
+                        if hasattr(audio.info, 'sample_rate'):
+                            metadata['sample_rate'] = audio.info.sample_rate
+                        
+                        logger.info(f"解析音频元数据成功: {metadata}")
+                except Exception as e:
+                    logger.warning(f"解析音频元数据失败: {str(e)}")
+            
             # 上传到Minio
             file_url = self.minio_client.upload_file_data(
                 object_name=object_name,
@@ -576,7 +623,8 @@ class FileService:
                 "file_size": file_info["size"],
                 "file_type": file_info["category"],
                 "mime_type": file_info["content_type"],
-                "object_name": object_name
+                "object_name": object_name,
+                "metadata": metadata
             }
             
         except HTTPException:

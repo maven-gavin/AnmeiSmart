@@ -516,6 +516,7 @@ export default function MessageInput({
             name: fileInfo.file_name,
             mime_type: fileInfo.mime_type,
             size_bytes: fileInfo.file_size,
+            metadata: fileInfo.metadata // 传递元数据
           }
         },
         status: 'pending' // 保持pending状态，等待发送

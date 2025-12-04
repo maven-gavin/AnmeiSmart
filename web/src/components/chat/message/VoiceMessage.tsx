@@ -7,7 +7,15 @@ import { FileService } from '@/service/fileService';
 
 export default function VoiceMessage({ message, searchTerm, compact, onRetry }: MessageContentProps) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [duration, setDuration] = useState(0);
+  // 初始化时尝试从metadata获取时长作为fallback
+  const getInitialDuration = (): number => {
+    if (message.type === 'media') {
+      const mediaContent = message.content as MediaMessageContent;
+      return mediaContent.media_info?.metadata?.duration_seconds || 0;
+    }
+    return 0;
+  };
+  const [duration, setDuration] = useState(getInitialDuration());
   const [currentTime, setCurrentTime] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
@@ -201,21 +209,26 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
     const audio = audioRef.current;
     if (!audio || !authenticatedAudioUrl) return;
 
+    // 从metadata获取时长作为fallback
+    const metadataDuration = getAudioDuration();
+
     const handleLoadedMetadata = () => {
       const audioDuration = audio.duration;
       console.log('音频元数据加载完成:', {
         duration: audioDuration,
         isFinite: isFinite(audioDuration),
+        metadataDuration,
         src: audio.src
       });
       
-      // 确保时长是有效数字
-      if (isFinite(audioDuration) && audioDuration > 0) {
+      // 优先使用audio.duration，如果无效则使用metadata中的时长
+      if (isFinite(audioDuration) && audioDuration > 0 && !isNaN(audioDuration)) {
         setDuration(audioDuration);
+      } else if (metadataDuration > 0) {
+        console.log('使用metadata中的时长:', metadataDuration);
+        setDuration(metadataDuration);
       } else {
-        console.warn('音频时长无效:', audioDuration);
-        // 对于无法获取准确时长的音频，尝试通过其他方式估算
-        // 可以根据文件大小粗略估算时长，或设置为默认值
+        console.warn('无法获取音频时长，audio.duration:', audioDuration, 'metadata:', metadataDuration);
         setDuration(0);
       }
       setIsLoading(false);
@@ -223,22 +236,43 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
 
     // 处理音频可以播放时的事件，有时候这个时候能获取到正确的时长
     const handleCanPlayThrough = () => {
-      if (!isFinite(duration) || duration <= 0) {
-        const audioDuration = audio.duration;
-        if (isFinite(audioDuration) && audioDuration > 0) {
-          console.log('通过canplaythrough事件获取到时长:', audioDuration);
-          setDuration(audioDuration);
-        }
+      const audioDuration = audio.duration;
+      if (isFinite(audioDuration) && audioDuration > 0 && !isNaN(audioDuration)) {
+        console.log('通过canplaythrough事件获取到时长:', audioDuration);
+        setDuration(audioDuration);
+      } else if (metadataDuration > 0) {
+        // 使用函数式更新检查当前值
+        setDuration(prevDuration => {
+          if (!isFinite(prevDuration) || prevDuration <= 0) {
+            console.log('canplaythrough时使用metadata时长:', metadataDuration);
+            return metadataDuration;
+          }
+          return prevDuration;
+        });
       }
       setIsLoading(false);
     };
 
-    // 处理音频开始播放时的事件
+    // 处理音频时长变化事件（Chrome中这个事件很重要）
     const handleDurationChange = () => {
       const audioDuration = audio.duration;
-      if (isFinite(audioDuration) && audioDuration > 0 && (!isFinite(duration) || duration <= 0)) {
+      console.log('durationchange事件触发:', {
+        audioDuration,
+        isFinite: isFinite(audioDuration)
+      });
+      
+      if (isFinite(audioDuration) && audioDuration > 0 && !isNaN(audioDuration)) {
         console.log('通过durationchange事件获取到时长:', audioDuration);
         setDuration(audioDuration);
+      } else if (metadataDuration > 0) {
+        // 使用函数式更新检查当前值
+        setDuration(prevDuration => {
+          if (!isFinite(prevDuration) || prevDuration <= 0) {
+            console.log('durationchange时使用metadata时长:', metadataDuration);
+            return metadataDuration;
+          }
+          return prevDuration;
+        });
       }
     };
 
@@ -272,7 +306,29 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
 
     const handleCanPlay = () => {
       setIsLoading(false);
+      // Chrome中有时在canplay事件中才能获取到正确的duration
+      const audioDuration = audio.duration;
+      if (isFinite(audioDuration) && audioDuration > 0 && !isNaN(audioDuration)) {
+        setDuration(prevDuration => {
+          if (!isFinite(prevDuration) || prevDuration <= 0) {
+            console.log('通过canplay事件获取到时长:', audioDuration);
+            return audioDuration;
+          }
+          return prevDuration;
+        });
+      } else if (metadataDuration > 0) {
+        setDuration(prevDuration => {
+          if (!isFinite(prevDuration) || prevDuration <= 0) {
+            console.log('canplay时使用metadata时长:', metadataDuration);
+            return metadataDuration;
+          }
+          return prevDuration;
+        });
+      }
     };
+
+    // 强制加载元数据（对Chrome很重要）
+    audio.load();
 
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('timeupdate', handleTimeUpdate);
@@ -283,6 +339,16 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
     audio.addEventListener('canplay', handleCanPlay);
     audio.addEventListener('canplaythrough', handleCanPlayThrough);
     audio.addEventListener('durationchange', handleDurationChange);
+
+    // 如果已经有metadata时长，先设置它（避免等待audio加载）
+    if (metadataDuration > 0) {
+      setDuration(prevDuration => {
+        if (!isFinite(prevDuration) || prevDuration <= 0) {
+          return metadataDuration;
+        }
+        return prevDuration;
+      });
+    }
 
     return () => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
@@ -295,12 +361,12 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
       audio.removeEventListener('canplaythrough', handleCanPlayThrough);
       audio.removeEventListener('durationchange', handleDurationChange);
     };
-  }, [authenticatedAudioUrl, duration]);
+  }, [authenticatedAudioUrl]);
 
   // 进度条点击处理
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const audio = audioRef.current;
-    if (!audio || !isFinite(duration) || duration <= 0) return;
+    if (!audio || !isFinite(duration) || duration <= 0 || isNaN(duration)) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
@@ -308,7 +374,7 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
     const newTime = percentage * duration;
     
     // 确保新时间是有效的
-    if (isFinite(newTime) && newTime >= 0 && newTime <= duration) {
+    if (isFinite(newTime) && !isNaN(newTime) && newTime >= 0 && newTime <= duration) {
       audio.currentTime = newTime;
       setCurrentTime(newTime);
     }
@@ -381,13 +447,17 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
           >
             <div 
               className="h-2 bg-orange-500 rounded-full transition-all duration-100"
-              style={{ width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%' }}
+              style={{ 
+                width: duration > 0 && isFinite(duration) 
+                  ? `${Math.min(100, Math.max(0, (currentTime / duration) * 100))}%` 
+                  : '0%' 
+              }}
             />
           </div>
           
           <div className="flex justify-between text-xs text-gray-500">
             <span>{formatTime(currentTime)}</span>
-            <span>{duration > 0 ? formatTime(duration) : '--:--'}</span>
+            <span>{duration > 0 && isFinite(duration) ? formatTime(duration) : '--:--'}</span>
           </div>
         </div>
 
