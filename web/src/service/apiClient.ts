@@ -106,6 +106,7 @@ export type IOtherOptions = StreamHandlers & {
   onError?: IOnError
   getAbortController?: (abortController: AbortController) => void
   skipAuth?: boolean
+  skipContentType?: boolean // 跳过content-type检查，强制返回blob
 }
 
 /**

@@ -36,6 +36,21 @@ const afterResponseErrorCode = (otherOptions: IOtherOptions): AfterResponseHook 
   return async (_request: Request, _options: RequestInit, response: Response) => {
     const clonedResponse = response.clone()
     if (!/^([23])\d{2}$/.test(String(clonedResponse.status))) {
+      // 检查是否是blob响应（图片、视频、音频等）
+      const contentType = clonedResponse.headers.get('content-type') || ''
+      const isBlobResponse = 
+        contentType.startsWith('image/') ||
+        contentType.startsWith('video/') ||
+        contentType.startsWith('audio/') ||
+        contentType === 'application/pdf' ||
+        contentType === 'application/octet-stream' ||
+        otherOptions.skipContentType
+      
+      if (isBlobResponse) {
+        // 对于blob响应，直接拒绝，不尝试解析JSON
+        return Promise.reject(response)
+      }
+      
       const bodyJson = clonedResponse.json() as Promise<ResponseError>
       switch (clonedResponse.status) {
         case 403:
@@ -44,6 +59,10 @@ const afterResponseErrorCode = (otherOptions: IOtherOptions): AfterResponseHook 
               toast.error(data.message)
             if (data.code === 'already_setup')
               globalThis.location.href = `${globalThis.location.origin}/signin`
+          }).catch(() => {
+            // 如果解析JSON失败，显示通用错误
+            if (!otherOptions.silent)
+              toast.error('请求失败')
           })
           break
         case 401:
@@ -53,6 +72,10 @@ const afterResponseErrorCode = (otherOptions: IOtherOptions): AfterResponseHook 
           bodyJson.then((data: ResponseError) => {
             if (!otherOptions.silent)
               toast.error(data.message)
+          }).catch(() => {
+            // 如果解析JSON失败，显示通用错误
+            if (!otherOptions.silent)
+              toast.error('请求失败')
           })
           return Promise.reject(response)
       }
@@ -109,6 +132,7 @@ async function base<T>(url: string, options: FetchOptionType = {}, otherOptions:
     deleteContentType,
     getAbortController,
     skipAuth = false,
+    skipContentType = false,
   } = otherOptions
 
   let base: string
@@ -174,6 +198,12 @@ async function base<T>(url: string, options: FetchOptionType = {}, otherOptions:
 
   if (needAllResponseContent)
     return res as T
+  
+  // 如果设置了skipContentType，强制返回blob
+  if (skipContentType) {
+    return await res.blob() as T
+  }
+  
   const contentType = res.headers.get('content-type')
   if (
     contentType && (

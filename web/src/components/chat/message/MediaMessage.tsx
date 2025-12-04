@@ -21,23 +21,54 @@ export default function MediaMessage({ message, searchTerm, compact, onRetry }: 
     return <div className="text-gray-500">媒体信息缺失</div>;
   }
 
-  const { mime_type } = content.media_info;
+  const { mime_type, url, name } = content.media_info;
+
+  // 从URL或文件名中提取文件扩展名
+  const getFileExtension = (urlOrName: string): string => {
+    const match = urlOrName.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+    return match ? match[1].toLowerCase() : '';
+  };
+
+  // 判断是否为PDF文件
+  const isPdfFile = (): boolean => {
+    const extension = getFileExtension(url || name || '');
+    return extension === 'pdf' || mime_type === 'application/pdf';
+  };
+
+  // 判断是否为图片文件（排除PDF）
+  const isImageFile = (): boolean => {
+    if (isPdfFile()) return false;
+    return mime_type.startsWith('image/') || 
+           ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(getFileExtension(url || name || ''));
+  };
+
+  // 判断是否为视频文件
+  const isVideoFile = (): boolean => {
+    return mime_type.startsWith('video/') || 
+           ['mp4', 'webm', 'avi', 'mov', 'mkv'].includes(getFileExtension(url || name || ''));
+  };
+
+  // 判断是否为音频文件
+  const isAudioFile = (): boolean => {
+    return mime_type.startsWith('audio/') || 
+           ['mp3', 'wav', 'ogg', 'aac', 'webm'].includes(getFileExtension(url || name || ''));
+  };
 
   // 渲染媒体内容组件
   const renderMediaComponent = () => {
-    if (mime_type.startsWith('image/')) {
+    if (isImageFile()) {
       return <ImageMessage message={message} searchTerm={searchTerm} compact={compact} onRetry={onRetry} />;
     }
     
-    if (mime_type.startsWith('video/')) {
+    if (isVideoFile()) {
       return <VideoMessage message={message} searchTerm={searchTerm} compact={compact} onRetry={onRetry} />;
     }
     
-    if (mime_type.startsWith('audio/')) {
+    if (isAudioFile()) {
       return <VoiceMessage message={message} searchTerm={searchTerm} compact={compact} onRetry={onRetry} />;
     }
 
-    // 其他文件类型使用通用文件组件
+    // PDF和其他文件类型使用通用文件组件
     return <FileMessage message={message} searchTerm={searchTerm} compact={compact} onRetry={onRetry} />;
   };
 

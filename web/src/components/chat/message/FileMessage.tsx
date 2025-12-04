@@ -24,6 +24,27 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo, on
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
+  // 从URL中提取文件名
+  const extractFileNameFromUrl = (url: string): string => {
+    try {
+      // 从URL路径中提取文件名
+      const urlPath = url.split('?')[0]; // 移除查询参数
+      const pathParts = urlPath.split('/');
+      const fileName = pathParts[pathParts.length - 1];
+      
+      // 如果文件名包含扩展名，返回文件名
+      if (fileName && fileName.includes('.')) {
+        // 解码URL编码的文件名
+        return decodeURIComponent(fileName);
+      }
+      
+      return fileName || 'unknown';
+    } catch (error) {
+      console.error('提取文件名失败:', error);
+      return 'unknown';
+    }
+  };
+
   // 从新消息结构中获取文件信息
   const getFileInfo = (): FileInfo => {
     if (fileInfo) return fileInfo;
@@ -34,11 +55,23 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo, on
       const mediaInfo = mediaContent.media_info;
       
       if (mediaInfo) {
+        // 如果文件名为"unknown"或为空，从URL中提取
+        let fileName = mediaInfo.name;
+        if (!fileName || fileName === 'unknown') {
+          fileName = extractFileNameFromUrl(mediaInfo.url);
+        }
+        
+        // 如果文件大小为0，尝试从URL或metadata中获取
+        let fileSize = mediaInfo.size_bytes;
+        if (fileSize === 0 && mediaInfo.metadata && mediaInfo.metadata.size_bytes) {
+          fileSize = mediaInfo.metadata.size_bytes;
+        }
+        
         return {
           file_url: mediaInfo.url,
-          file_name: mediaInfo.name,
-          file_size: mediaInfo.size_bytes,
-          file_type: getFileTypeFromMimeType(mediaInfo.mime_type),
+          file_name: fileName,
+          file_size: fileSize,
+          file_type: getFileTypeFromMimeType(mediaInfo.mime_type, mediaInfo.url, fileName),
           mime_type: mediaInfo.mime_type,
           object_name: extractObjectName(mediaInfo.url)
         };
@@ -48,13 +81,30 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo, on
     throw new Error('缺少文件信息');
   };
 
-  // 从MIME类型推断文件类型
-  const getFileTypeFromMimeType = (mimeType: string): string => {
+  // 从MIME类型和URL推断文件类型
+  const getFileTypeFromMimeType = (mimeType: string, url?: string, fileName?: string): string => {
+    // 优先从URL或文件名中提取扩展名
+    const getExtension = (urlOrName: string): string => {
+      const match = urlOrName.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+      return match ? match[1].toLowerCase() : '';
+    };
+    
+    const extension = getExtension(url || fileName || '');
+    
+    // 根据扩展名判断（优先级高于mime_type）
+    if (['pdf'].includes(extension)) return 'document';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(extension)) return 'image';
+    if (['mp4', 'webm', 'avi', 'mov', 'mkv'].includes(extension)) return 'video';
+    if (['mp3', 'wav', 'ogg', 'aac', 'webm'].includes(extension)) return 'audio';
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(extension)) return 'archive';
+    
+    // 如果扩展名无法判断，使用mime_type
     if (mimeType.startsWith('image/')) return 'image';
     if (mimeType.startsWith('video/')) return 'video';
     if (mimeType.startsWith('audio/')) return 'audio';
     if (mimeType.includes('pdf') || mimeType.includes('document') || mimeType.includes('text')) return 'document';
     if (mimeType.includes('zip') || mimeType.includes('compressed')) return 'archive';
+    
     return 'document';
   };
 
@@ -199,60 +249,21 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo, on
     }
   }, [getDownloadUrl, isDownloading]);
 
-  // 处理预览
+  // 处理预览（仅图片）
   const handlePreview = useCallback(async (fileInfo: FileInfo) => {
+    // 只有图片文件才支持预览
     if (fileInfo.file_type === 'image') {
       setIsPreviewOpen(true);
-    } else if (canPreview(fileInfo)) {
-      try {
-        // 获取认证token
-        const token = await tokenManager.getValidToken();
-        if (!token) {
-          toast.error('用户未登录，请重新登录');
-          return;
-        }
-        
-        // 对于其他可预览的文件，在新窗口打开预览端点
-        const previewUrl = getPreviewUrl(fileInfo);
-        
-        // 创建一个临时的带认证的预览链接
-        const response = await fetch(previewUrl, {
-          method: 'HEAD', // 先检查文件是否可访问
-          credentials: 'include',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error('无法预览此文件');
-        }
-        
-        // 如果检查通过，开始下载文件
-        toast('正在准备预览，开始下载文件...', { icon: '📎' });
-        handleDownload(fileInfo);
-      } catch (error) {
-        console.error('预览失败:', error);
-        toast.error(error instanceof Error ? error.message : '预览失败');
-        handleDownload(fileInfo);
-      }
     } else {
-      // 不支持预览的文件，触发下载
+      // 其他文件类型直接下载
       handleDownload(fileInfo);
     }
-  }, [getPreviewUrl, handleDownload]);
+  }, [handleDownload]);
 
-  // 判断是否可以预览
+  // 判断是否可以预览（仅图片）
   const canPreview = useCallback((fileInfo: FileInfo) => {
-    const previewableTypes = ['image', 'document'];
-    const previewableMimeTypes = [
-      'application/pdf', 
-      'text/plain',
-      'image/jpeg', 'image/png', 'image/gif', 'image/webp'
-    ];
-    
-    return previewableTypes.includes(fileInfo.file_type) || 
-           previewableMimeTypes.includes(fileInfo.mime_type);
+    // 只有图片文件才显示预览按钮
+    return fileInfo.file_type === 'image';
   }, []);
 
   try {
