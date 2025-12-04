@@ -300,15 +300,22 @@ export async function getCustomerConsultationHistory(customerId: string): Promis
   }
 }
 
-// ===== 顾问接管功能 =====
+// ===== 接管状态管理 =====
 
 /**
- * 用户接管会话
+ * 设置接管状态（支持三种状态）
  */
-export async function takeoverConversation(conversationId: string): Promise<boolean> {
+export async function setTakeoverStatus(
+  conversationId: string,
+  status: 'full_takeover' | 'semi_takeover' | 'no_takeover'
+): Promise<boolean> {
   try {
+    console.log('setTakeoverStatus 调用:', { conversationId, status });
+    
     // 发送接管状态到后端
-    const result = await ChatApiService.setTakeoverStatus(conversationId, false); // false表示用户接管
+    const result = await ChatApiService.setTakeoverStatus(conversationId, status);
+    
+    console.log('setTakeoverStatus 响应:', result);
     
     // 检查响应数据
     if (!result || typeof result.takeover_status !== 'string') {
@@ -323,78 +330,40 @@ export async function takeoverConversation(conversationId: string): Promise<bool
     return true;
   } catch (error) {
     console.error('设置接管状态失败:', error);
-    // 不更新本地状态，保持原状态
-    return false;
-  }
-}
-
-/**
- * 切回AI模式
- */
-export async function switchBackToAI(conversationId: string): Promise<boolean> {
-  try {
-    // 发送接管状态到后端
-    const result = await ChatApiService.setTakeoverStatus(conversationId, true); // true表示AI接管
-    
-    // 检查响应数据
-    if (!result || typeof result.takeover_status !== 'string') {
-      console.error('设置接管状态失败: 响应数据格式不正确', result);
-      return false;
+    // 输出更详细的错误信息
+    if (error instanceof Error) {
+      console.error('错误详情:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+    } else {
+      console.error('错误对象:', JSON.stringify(error, null, 2));
     }
-    
-    // 更新本地状态
-    const isTakeover = result.takeover_status === 'full_takeover';
-    chatState.setConsultantTakeover(conversationId, isTakeover);
-    
-    return true;
-  } catch (error) {
-    console.error('设置接管状态失败:', error);
-    // 不更新本地状态，保持原状态
     return false;
   }
 }
 
 /**
- * 获取当前用户的接管状态 - 从服务器获取最新状态
+ * 获取当前用户的接管状态
  */
-export async function isConsultantMode(conversationId: string): Promise<boolean> {
+export async function getTakeoverStatus(conversationId: string): Promise<'full_takeover' | 'semi_takeover' | 'no_takeover'> {
   try {
     // 尝试从后端获取当前用户的接管状态
     const status = await ChatApiService.getParticipantTakeoverStatus(conversationId);
     
-    if (status !== null) {
+    if (status !== null && ['full_takeover', 'semi_takeover', 'no_takeover'].includes(status)) {
+      // 更新本地状态
       const isTakeover = status === 'full_takeover';
       chatState.setConsultantTakeover(conversationId, isTakeover);
-      return isTakeover;
+      return status as 'full_takeover' | 'semi_takeover' | 'no_takeover';
     }
     
-    // 如果无法获取状态，返回当前本地状态
-    return chatState.isConsultantTakeover(conversationId);
+    // 如果无法获取状态，返回默认值
+    return 'no_takeover';
   } catch (error) {
     console.error("获取接管状态失败:", error);
-    return chatState.isConsultantTakeover(conversationId);
-  }
-}
-
-/**
- * 同步接管状态
- */
-export async function syncConsultantTakeoverStatus(conversationId: string): Promise<boolean> {
-  try {
-    // 尝试从后端获取当前用户的接管状态
-    const status = await ChatApiService.getParticipantTakeoverStatus(conversationId);
-    
-    if (status !== null) {
-      const isTakeover = status === 'full_takeover';
-      chatState.setConsultantTakeover(conversationId, isTakeover);
-      return isTakeover;
-    }
-    
-    // 如果无法获取状态，返回当前本地状态
-    return chatState.isConsultantTakeover(conversationId);
-  } catch (error) {
-    console.error("同步接管状态失败:", error);
-    return chatState.isConsultantTakeover(conversationId);
+    return 'no_takeover';
   }
 }
 

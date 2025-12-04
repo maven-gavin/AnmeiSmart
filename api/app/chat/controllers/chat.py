@@ -461,13 +461,13 @@ async def update_conversation(
         raise SystemException("更新会话失败")
 
 
-@router.post("/conversations/{conversation_id}/takeover", response_model=ApiResponse[Dict[str, Any]])
-async def takeover_conversation(
+@router.get("/conversations/{conversation_id}/takeover-status", response_model=ApiResponse[Dict[str, Any]])
+async def get_takeover_status(
     conversation_id: str,
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service)
 ):
-    """用户接管会话 - 设置当前用户的接管状态为全接管"""
+    """获取当前用户的接管状态"""
     try:
         # 检查用户是否有权限访问该会话
         can_access = await chat_service.can_access_conversation(
@@ -482,22 +482,75 @@ async def takeover_conversation(
                 status_code=status.HTTP_403_FORBIDDEN
             )
         
-        # 设置接管状态为全接管
-        participant = chat_service.set_participant_takeover_status(
+        # 获取接管状态
+        takeover_status = chat_service.get_participant_takeover_status(
             conversation_id=conversation_id,
-            user_id=str(current_user.id),
-            takeover_status="full_takeover"
+            user_id=str(current_user.id)
         )
         
-        # 确保 takeover_status 不为 None
-        takeover_status = participant.takeover_status or "full_takeover"
-        
-        logger.info(f"设置接管状态成功: conversation_id={conversation_id}, user_id={current_user.id}, takeover_status={takeover_status}")
+        # 如果参与者不存在，返回默认值
+        final_status = takeover_status or "no_takeover"
         
         return ApiResponse.success({
             "conversation_id": conversation_id,
             "user_id": str(current_user.id),
-            "takeover_status": takeover_status
+            "takeover_status": final_status
+        })
+        
+    except BusinessException:
+        raise
+    except Exception as e:
+        logger.error(f"获取接管状态失败: {e}", exc_info=True)
+        raise SystemException("获取接管状态失败")
+
+
+@router.patch("/conversations/{conversation_id}/takeover-status", response_model=ApiResponse[Dict[str, Any]])
+async def set_takeover_status(
+    conversation_id: str,
+    takeover_status: str = Query(..., description="接管状态: full_takeover, semi_takeover, no_takeover"),
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service)
+):
+    """设置参与者的接管状态 - 支持三种状态"""
+    try:
+        # 验证接管状态值
+        valid_statuses = ["full_takeover", "semi_takeover", "no_takeover"]
+        if takeover_status not in valid_statuses:
+            raise BusinessException(
+                f"无效的接管状态: {takeover_status}，有效值: {valid_statuses}",
+                code=ErrorCode.INVALID_INPUT,
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 检查用户是否有权限访问该会话
+        can_access = await chat_service.can_access_conversation(
+            conversation_id=conversation_id,
+            user_id=str(current_user.id)
+        )
+        
+        if not can_access:
+            raise BusinessException(
+                "无权访问此会话",
+                code=ErrorCode.PERMISSION_DENIED,
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+        
+        # 设置接管状态
+        participant = chat_service.set_participant_takeover_status(
+            conversation_id=conversation_id,
+            user_id=str(current_user.id),
+            takeover_status=takeover_status
+        )
+        
+        # 确保 takeover_status 不为 None
+        final_status = participant.takeover_status or takeover_status
+        
+        logger.info(f"设置接管状态成功: conversation_id={conversation_id}, user_id={current_user.id}, takeover_status={final_status}")
+        
+        return ApiResponse.success({
+            "conversation_id": conversation_id,
+            "user_id": str(current_user.id),
+            "takeover_status": final_status
         })
         
     except BusinessException:
@@ -505,52 +558,6 @@ async def takeover_conversation(
     except Exception as e:
         logger.error(f"设置接管状态失败: {e}", exc_info=True)
         raise SystemException("设置接管状态失败")
-
-
-@router.post("/conversations/{conversation_id}/release", response_model=ApiResponse[Dict[str, Any]])
-async def release_conversation(
-    conversation_id: str,
-    current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service)
-):
-    """用户释放会话 - 设置当前用户的接管状态为不接管（切换回AI）"""
-    try:
-        # 检查用户是否有权限访问该会话
-        can_access = await chat_service.can_access_conversation(
-            conversation_id=conversation_id,
-            user_id=str(current_user.id)
-        )
-        
-        if not can_access:
-            raise BusinessException(
-                "无权访问此会话",
-                code=ErrorCode.PERMISSION_DENIED,
-                status_code=status.HTTP_403_FORBIDDEN
-            )
-        
-        # 设置接管状态为不接管
-        participant = chat_service.set_participant_takeover_status(
-            conversation_id=conversation_id,
-            user_id=str(current_user.id),
-            takeover_status="no_takeover"
-        )
-        
-        # 确保 takeover_status 不为 None
-        takeover_status = participant.takeover_status or "no_takeover"
-        
-        logger.info(f"释放接管状态成功: conversation_id={conversation_id}, user_id={current_user.id}, takeover_status={takeover_status}")
-        
-        return ApiResponse.success({
-            "conversation_id": conversation_id,
-            "user_id": str(current_user.id),
-            "takeover_status": takeover_status
-        })
-        
-    except BusinessException:
-        raise
-    except Exception as e:
-        logger.error(f"释放会话失败: {e}", exc_info=True)
-        raise SystemException("释放会话失败")
 
 
 # ============ 事件处理器注册 ============

@@ -1,41 +1,68 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { 
-  takeoverConversation,
-  switchBackToAI,
-  syncConsultantTakeoverStatus,
-  isConsultantMode
+  setTakeoverStatus,
+  getTakeoverStatus,
 } from '@/service/chatService';
+import { User, Zap, UserCheck } from 'lucide-react';
+
+type TakeoverStatus = 'full_takeover' | 'semi_takeover' | 'no_takeover';
 
 interface ConversationTakeoverProps {
   conversationId?: string | null;
   className?: string;
 }
 
+const STATUS_CONFIG: Record<TakeoverStatus, { label: string; icon: React.ReactNode; description: string }> = {
+  full_takeover: {
+    label: '全接管',
+    icon: <User className="h-4 w-4" />,
+    description: '完全接管会话，AI不参与',
+  },
+  semi_takeover: {
+    label: '半接管',
+    icon: <UserCheck className="h-4 w-4" />,
+    description: '部分接管，AI辅助',
+  },
+  no_takeover: {
+    label: 'AI模式',
+    icon: <Zap className="h-4 w-4" />,
+    description: 'AI自动处理',
+  },
+};
+
 export default function ConversationTakeover({ 
   conversationId, 
   className = "flex-shrink-0" 
 }: ConversationTakeoverProps) {
-  const [isTakeover, setIsTakeover] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState<TakeoverStatus>('no_takeover');
   const [isLoading, setIsLoading] = useState(false);
 
   // 切换会话时，从数据库获取接管状态
   useEffect(() => {
     const fetchTakeoverStatus = async () => {
       if (!conversationId) {
-        setIsTakeover(false);
+        setCurrentStatus('no_takeover');
         return;
       }
 
       try {
         console.log('ConversationTakeover: 获取会话接管状态', conversationId);
-        const status = await isConsultantMode(conversationId);
+        const status = await getTakeoverStatus(conversationId);
         console.log('ConversationTakeover: 当前接管状态', status);
-        setIsTakeover(status);
+        setCurrentStatus(status);
       } catch (error) {
         console.error('获取接管状态失败:', error);
-        setIsTakeover(false);
+        setCurrentStatus('no_takeover');
       }
     };
 
@@ -43,38 +70,25 @@ export default function ConversationTakeover({
   }, [conversationId]);
 
   // 切换接管状态
-  const toggleTakeoverMode = useCallback(async () => {
-    if (!conversationId || isLoading) return;
+  const handleStatusChange = useCallback(async (newStatus: TakeoverStatus) => {
+    if (!conversationId || isLoading || newStatus === currentStatus) return;
 
     try {
       setIsLoading(true);
       console.log('ConversationTakeover: 切换接管状态', { 
         conversationId, 
-        currentStatus: isTakeover 
+        oldStatus: currentStatus,
+        newStatus 
       });
 
-      let success = false;
-      
-      if (isTakeover) {
-        // 切换回AI助手
-        console.log('ConversationTakeover: 切换回AI助手');
-        success = await switchBackToAI(conversationId);
-      } else {
-        // 用户接管
-        console.log('ConversationTakeover: 用户接管');
-        success = await takeoverConversation(conversationId);
-      }
+      const success = await setTakeoverStatus(conversationId, newStatus);
 
       if (success) {
-        // 同步数据库状态
-        await syncConsultantTakeoverStatus(conversationId);
-        
         // 更新本地状态
-        const newStatus = !isTakeover;
-        setIsTakeover(newStatus);
+        setCurrentStatus(newStatus);
         
         console.log('ConversationTakeover: 状态切换成功', { 
-          oldStatus: isTakeover, 
+          oldStatus: currentStatus, 
           newStatus 
         });
       } else {
@@ -85,41 +99,69 @@ export default function ConversationTakeover({
     } finally {
       setIsLoading(false);
     }
-  }, [conversationId, isTakeover, isLoading]);
+  }, [conversationId, currentStatus, isLoading]);
+
+  const currentConfig = STATUS_CONFIG[currentStatus];
 
   return (
-    <button 
-      className={`${className} ${
-        isTakeover 
-          ? 'text-green-500' 
-          : 'text-gray-500 hover:text-gray-700'
-      } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-      onClick={toggleTakeoverMode}
-      disabled={isLoading || !conversationId}
-      title={
-        isLoading 
-          ? '正在切换...' 
-          : isTakeover 
-            ? "切换回AI助手" 
-            : "接管会话"
-      }
-    >
-      <svg
-        className="h-6 w-6"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d={isTakeover 
-            ? "M13 10V3L4 14h7v7l9-11h-7z" // 闪电图标，表示切换回AI
-            : "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" // 用户图标，表示用户接管
-          }
-        />
-      </svg>
-    </button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button 
+          className={`${className} rounded-md p-1.5 transition-colors ${
+            currentStatus === 'full_takeover'
+              ? 'text-orange-500 hover:bg-orange-50' 
+              : currentStatus === 'semi_takeover'
+              ? 'text-orange-400 hover:bg-orange-50'
+              : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+          } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          disabled={isLoading || !conversationId}
+          title={currentConfig.description}
+        >
+          {currentConfig.icon}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-gray-800 shadow-lg border border-gray-200">
+        <DropdownMenuLabel className="px-3 py-2 text-sm font-semibold text-gray-700">
+          接管状态
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {Object.entries(STATUS_CONFIG).map(([status, config]) => {
+          const isSelected = status === currentStatus;
+          return (
+            <DropdownMenuItem
+              key={status}
+              onClick={() => handleStatusChange(status as TakeoverStatus)}
+              disabled={isLoading || isSelected}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors ${
+                isSelected 
+                  ? 'bg-orange-50 text-orange-700 cursor-default' 
+                  : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+              } ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              <span className={`flex-shrink-0 ${
+                isSelected ? 'text-orange-500' : 'text-gray-500'
+              }`}>
+                {config.icon}
+              </span>
+              <div className="flex flex-col flex-1 min-w-0">
+                <span className={`text-sm ${
+                  isSelected ? 'font-semibold text-orange-700' : 'font-medium text-gray-900'
+                }`}>
+                  {config.label}
+                </span>
+                <span className={`text-xs mt-0.5 ${
+                  isSelected ? 'text-orange-600' : 'text-gray-500'
+                }`}>
+                  {config.description}
+                </span>
+              </div>
+              {isSelected && (
+                <span className="flex-shrink-0 w-2 h-2 rounded-full bg-orange-500"></span>
+              )}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
