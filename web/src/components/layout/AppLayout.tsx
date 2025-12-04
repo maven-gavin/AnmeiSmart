@@ -15,7 +15,7 @@ export default function AppLayout({ children, requiredRole }: AppLayoutProps) {
     <RoleLayout requiredRole={requiredRole}>
       <div className="flex h-full w-full overflow-hidden">
         <DynamicSidebar />
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-hidden">
           {children}
         </div>
       </div>

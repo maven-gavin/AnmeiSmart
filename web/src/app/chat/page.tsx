@@ -372,7 +372,7 @@ function SmartCommunicationContent() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-gray-50">
+    <div className="flex h-full flex-col bg-gray-50 overflow-hidden">
       {/* 聊天头部 */}
       <div className="border-b border-gray-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between">

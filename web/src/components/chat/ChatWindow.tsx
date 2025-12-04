@@ -278,9 +278,9 @@ export default function ChatWindow({
   };
 
     return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col overflow-hidden">
       {/* 消息列表顶部按钮 */}
-      <div className="border-b border-gray-200 bg-white p-2 shadow-sm flex justify-between">
+      <div className="flex-shrink-0 border-b border-gray-200 bg-white p-2 shadow-sm flex justify-between">
         {renderTitleSection()}
         {/* 更多操作菜单 */}
         <ChatActionsMenu
@@ -298,7 +298,7 @@ export default function ChatWindow({
       <div 
         ref={chatContainerRef}
         data-chat-container
-        className="flex-1 overflow-y-auto p-4 space-y-4"
+        className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0"
       >
         {/* 加载状态 */}
         {loadingMessages && (
@@ -320,14 +320,16 @@ export default function ChatWindow({
       </div>
       
       {/* 消息输入组件 */}
-      <MessageInput
-        conversationId={conversation.id}
-        onSendMessage={handleSendMessage}
-        onUpdateMessages={() => {}}
-        messages={messages}
-        onInputFocus={onInputFocus}
-        onMessageAdded={onMessageAdded}
-      />
+      <div className="flex-shrink-0">
+        <MessageInput
+          conversationId={conversation.id}
+          onSendMessage={handleSendMessage}
+          onUpdateMessages={() => {}}
+          messages={messages}
+          onInputFocus={onInputFocus}
+          onMessageAdded={onMessageAdded}
+        />
+      </div>
     </div>
   )
 } 
