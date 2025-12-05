@@ -16,7 +16,7 @@ import type {
   FriendListFilters 
 } from '@/types/contacts';
 import { getFriends, getContactTags, getContactGroups, deleteFriendship, updateFriendship } from '@/service/contacts/api';
-import { useWebSocketByPage } from '@/hooks/useWebSocketByPage';
+import { useWebSocket } from '@/contexts/WebSocketContext';
 import { toast } from 'react-hot-toast';
 import {
   AlertDialog,
@@ -64,39 +64,40 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
   const [deletingFriendship, setDeletingFriendship] = useState<Friendship | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   
-  // WebSocket实时功能 - 使用现有框架
-  const websocketState = useWebSocketByPage();
+  // WebSocket 实时功能 - 使用全局 WebSocket 上下文
+  const websocketState = useWebSocket();
   
-  // 处理WebSocket消息
+  // 处理 WebSocket 事件（统一使用 action/data 结构）
   useEffect(() => {
-    if (websocketState.lastMessage) {
-      const { type, payload } = websocketState.lastMessage;
-      
-      switch (type) {
-        case 'friend_request_received':
-          toast.success(`收到来自 ${payload.user?.username} 的好友请求`);
-          if (selectedView === 'pending') {
-            loadFriends();
-          }
-          break;
-          
-        case 'friend_request_accepted':
-          toast.success(`${payload.friend?.username} 接受了您的好友请求`);
+    if (!websocketState.lastMessage) return;
+
+    const { action, data } = websocketState.lastMessage;
+    if (!action) return;
+
+    switch (action) {
+      case 'friend_request_received':
+        toast.success('收到新的好友请求');
+        if (selectedView === 'pending') {
           loadFriends();
-          break;
-          
-        case 'friend_online_status_changed':
-          // 更新好友在线状态
-          setFriends(prev => prev.map(f => 
-            f.friend?.id === payload.friend_id 
-              ? { ...f, friend: { ...f.friend!, isOnline: payload.is_online } }
-              : f
-          ));
-          break;
-          
-        default:
-          console.log('未知的通讯录WebSocket消息:', type);
-      }
+        }
+        break;
+        
+      case 'friend_request_accepted':
+        toast.success('您的好友请求已被接受');
+        loadFriends();
+        break;
+        
+      case 'friend_online_status_changed':
+        // 更新好友在线状态，data 中包含 friend_id / is_online 等信息
+        setFriends(prev => prev.map(f => 
+          f.friend?.id === data.friend_id 
+            ? { ...f, friend: { ...f.friend!, isOnline: data.is_online } }
+            : f
+        ));
+        break;
+        
+      default:
+        console.log('未知的通讯录 WebSocket 事件:', action, data);
     }
   }, [websocketState.lastMessage, selectedView]);
   

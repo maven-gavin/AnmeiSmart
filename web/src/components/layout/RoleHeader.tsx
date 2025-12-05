@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { authService, roleOptions } from '@/service/authService';
-import UserInfoBar from '@/components/chat/UserInfoBar'
+import UserInfoBar from '@/components/chat/UserInfoBar';
 import { UserRole, AuthUser, Role } from '@/types/auth';
+import { WebSocketStatus } from '@/components/WebSocketStatus';
+import { useWebSocket } from '@/contexts/WebSocketContext';
 
 export default function RoleHeader() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -11,6 +13,7 @@ export default function RoleHeader() {
   const [roleDetails, setRoleDetails] = useState<Role[]>([]);
   const [isClient, setIsClient] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const websocketState = useWebSocket();
   
   // 在组件挂载时确保当前用户信息是最新的
   useEffect(() => {
@@ -106,6 +109,20 @@ export default function RoleHeader() {
           {isClient && currentRoleInfo && (
             <div className="ml-6 rounded-full bg-orange-100 px-3 py-1 text-sm font-medium text-orange-700">
               {currentRoleInfo.name}
+            </div>
+          )}
+          
+          {/* 全局 WebSocket 状态指示器 */}
+          {websocketState.isEnabled && (
+            <div className="ml-4">
+              <WebSocketStatus 
+                isConnected={websocketState.isConnected}
+                connectionStatus={websocketState.connectionStatus}
+                isEnabled={websocketState.isEnabled}
+                connectionType={websocketState.connectionType}
+                connect={websocketState.connect}
+                disconnect={websocketState.disconnect}
+              />
             </div>
           )}
           

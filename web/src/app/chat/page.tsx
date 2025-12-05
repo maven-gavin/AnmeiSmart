@@ -14,11 +14,10 @@ import { ImportantMessagesPanel } from '@/components/chat/ImportantMessagesPanel
 import { ConversationSettingsPanel } from '@/components/chat/ConversationSettingsPanel';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { WebSocketStatus } from '@/components/WebSocketStatus';
 // 自定义hooks
 import { useConversationState } from '@/hooks/useConversationState';
 import { useMessageState } from '@/hooks/useMessageState';
-import { useWebSocketByPage } from '@/hooks/useWebSocketByPage'
+import { useWebSocket } from '@/contexts/WebSocketContext';
 import { Message } from '@/types/chat';
 
 function SmartCommunicationContent() {
@@ -26,8 +25,8 @@ function SmartCommunicationContent() {
   const searchParams = useSearchParams();
   const { user } = useAuthContext();
   
-  // 使用页面级WebSocket架构 - 必须在所有条件返回之前调用
-  const websocketState = useWebSocketByPage();
+  // 使用全局 WebSocket 上下文（应用级单长连接）
+  const websocketState = useWebSocket();
   
   // 使用公共的权限检查Hook，但不限制特定角色
   const { isAuthorized, error, loading } = useRoleGuard({
@@ -65,8 +64,6 @@ function SmartCommunicationContent() {
     toggleMessageImportant
   } = useMessageState(selectedConversationId);
   
-  // 跟踪上一次的syncSignal值，避免重复同步
-  const prevSyncSignalRef = useRef<number>(0);
   // 使用 ref 存储函数引用，避免依赖项变化导致重复执行
   const saveMessageRef = useRef(saveMessage);
   const updateUnreadCountRef = useRef(updateUnreadCount);
@@ -82,49 +79,6 @@ function SmartCommunicationContent() {
     loadMessagesRef.current = loadMessages;
     refreshConversationsRef.current = refreshConversations;
   }, [saveMessage, updateUnreadCount, updateLastMessage, loadMessages, refreshConversations]);
-  
-  // 处理WebSocket消息 - 只在syncSignal变化时同步
-  useEffect(() => {
-    console.log('WebSocket状态变化:', {
-      lastMessage: websocketState.lastMessage,
-      selectedConversationId,
-      isConnected: websocketState.isConnected,
-      connectionStatus: websocketState.connectionStatus,
-      syncSignal: websocketState.syncSignal
-    });
-    
-    // 优化：只在syncSignal变化时同步（页面重新聚焦或连接恢复时）
-    // 避免在isConnected变化时重复同步
-    if (websocketState.syncSignal !== prevSyncSignalRef.current && websocketState.isConnected) {
-      prevSyncSignalRef.current = websocketState.syncSignal;
-      
-      // 同步会话列表（静默更新）
-      refreshConversationsRef.current(true);
-
-      if (selectedConversationId) {
-        // 同步当前会话消息
-        // @ts-ignore
-        loadMessagesRef.current(false, true);
-      }
-    }
-  }, [websocketState.syncSignal, websocketState.isConnected, selectedConversationId]);
-
-  // 补充：监听窗口聚焦事件，确保切回 Tab 时刷新
-  useEffect(() => {
-    const onFocus = () => {
-      console.log('窗口重新获得焦点，同步数据');
-      // 刷新会话列表（获取最新未读数和最后一条消息）
-      refreshConversationsRef.current(true);
-      
-      if (selectedConversationId) {
-        // 刷新当前会话消息
-        // @ts-ignore
-        loadMessagesRef.current(false, true);
-      }
-    };
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, [selectedConversationId]);
     
   // 跟踪已处理的消息ID，避免重复处理
   const processedMessageIdsRef = useRef<Set<string>>(new Set());
@@ -387,17 +341,7 @@ function SmartCommunicationContent() {
               <p className="text-sm text-gray-500">让我们快乐沟通</p>
             </div>
           </div>
-          
           <div className="flex items-center space-x-3">
-            <WebSocketStatus 
-              isConnected={websocketState.isConnected}
-              connectionStatus={websocketState.connectionStatus}
-              isEnabled={websocketState.isEnabled}
-              connectionType={websocketState.connectionType}
-              connect={websocketState.connect}
-              disconnect={websocketState.disconnect}
-            />
-            
             {isCustomer && (
               <button
                 onClick={handleStartNewConsultation}

@@ -786,9 +786,9 @@ class ContactService:
         request_id: str,
         action: str,
         message: Optional[str] = None
-    ) -> None:
-        """处理好友请求用例"""
-        self.handle_friend_request(
+    ) -> FriendshipResponse:
+        """处理好友请求用例，返回处理后的好友关系"""
+        return self.handle_friend_request(
             request_id=request_id,
             user_id=user_id,
             action=action,

@@ -63,6 +63,8 @@ from app.chat.models.chat import Conversation
 from app.identity_access.models.user import User as UserModel
 from sqlalchemy import and_
 import logging
+from app.websocket.broadcasting_service import BroadcastingService
+from app.websocket.broadcasting_factory import get_broadcasting_service_dependency
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +142,8 @@ async def search_users(
 async def send_friend_request(
     request: FriendRequestCreate,
     current_user: User = Depends(get_current_user),
-    contact_service: ContactService = Depends(get_contact_service)
+    contact_service: ContactService = Depends(get_contact_service),
+    broadcasting_service: BroadcastingService = Depends(get_broadcasting_service_dependency)
 ):
     """发送好友请求"""
     try:
@@ -150,6 +153,25 @@ async def send_friend_request(
             verification_message=request.verification_message,
             source=request.source
         )
+        
+        # 使用 WebSocket 向被请求方发送直接消息通知
+        try:
+            await broadcasting_service.send_direct_message(
+                user_id=result["friend_id"],
+                message_data={
+                    "type": "friend_request_received",
+                    "payload": {
+                        "request_id": result["id"],
+                        "user_id": result["user_id"],
+                        "friend_id": result["friend_id"],
+                    },
+                    "title": "新的好友请求",
+                    "content": "你有一条新的好友请求",
+                },
+            )
+        except Exception as e:
+            logger.error(f"发送好友请求 WebSocket 通知失败: {e}", exc_info=True)
+
         return ApiResponse.success(FriendRequestResponse(**result))
     except BusinessException:
         raise
@@ -189,16 +211,37 @@ async def handle_friend_request(
     request_id: str,
     action: FriendRequestAction,
     current_user: User = Depends(get_current_user),
-    contact_service: ContactService = Depends(get_contact_service)
+    contact_service: ContactService = Depends(get_contact_service),
+    broadcasting_service: BroadcastingService = Depends(get_broadcasting_service_dependency)
 ):
     """处理好友请求（接受/拒绝）"""
     try:
-        contact_service.handle_friend_request_use_case(
+        friendship = contact_service.handle_friend_request_use_case(
             user_id=str(current_user.id),
             request_id=request_id,
             action=action.action,
             message=action.message
         )
+        
+        # 如果接受请求，通知请求发起方（friendship.user_id）
+        try:
+          if friendship.status == "accepted":
+              await broadcasting_service.send_direct_message(
+                  user_id=friendship.user_id,
+                  message_data={
+                      "type": "friend_request_accepted",
+                      "payload": {
+                          "friendship_id": friendship.id,
+                          "user_id": friendship.user_id,
+                          "friend_id": friendship.friend_id,
+                      },
+                      "title": "好友请求已接受",
+                      "content": "你的好友请求已被接受",
+                  },
+              )
+        except Exception as e:
+          logger.error(f"处理好友请求 WebSocket 通知失败: {e}", exc_info=True)
+
         return ApiResponse.success({"message": "好友请求处理成功"})
     except BusinessException:
         raise

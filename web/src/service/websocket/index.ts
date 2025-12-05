@@ -3,7 +3,7 @@ import { WebSocketHeartbeat } from './core/heartbeat';
 import { WebSocketReconnector } from './core/reconnect';
 import { WebSocketSerializer } from './core/serializer';
 import { MessageAdapter } from './adapters/messageAdapter';
-import { MessageHandler, MessageHandlerRegistry, createDefaultHandlerRegistry } from './handlers';
+import { MessageHandler, MessageHandlerRegistry, MessageEventHandler, createDefaultHandlerRegistry } from './handlers';
 import { MessageQueue } from './core/messageQueue';
 import { ConnectionStatus, WebSocketConfig, MessageData, ConnectionParams } from './types';
 
@@ -455,6 +455,58 @@ export class WebSocketClient {
    */
   public getHandlerRegistry(): MessageHandlerRegistry {
     return this.handlerRegistry;
+  }
+
+  /**
+   * 内部工具：获取消息事件处理器
+   */
+  private getMessageEventHandler(): MessageEventHandler | null {
+    const handler = this.handlerRegistry
+      .getHandlers()
+      .find(h => (h as any).getName && (h as any).getName() === 'MessageEventHandler') as MessageEventHandler | undefined;
+    return handler || null;
+  }
+
+  /**
+   * 订阅新消息事件（new_message）
+   * @param callback 回调函数，参数为扁平化后的消息数据
+   * @returns 取消订阅函数
+   */
+  public onNewMessage(callback: (data: any) => void): () => void {
+    const handler = this.getMessageEventHandler();
+    if (!handler) {
+      if (this.config.debug) {
+        console.warn('未找到 MessageEventHandler，无法注册 new_message 回调');
+      }
+      return () => {};
+    }
+
+    handler.addNewMessageCallback(callback);
+
+    return () => {
+      handler.removeCallback('new_message', callback as any);
+    };
+  }
+
+  /**
+   * 订阅通用事件（event），例如 direct_message 或系统通知
+   * @param callback 回调函数，参数为事件数据
+   * @returns 取消订阅函数
+   */
+  public onEvent(callback: (data: any) => void): () => void {
+    const handler = this.getMessageEventHandler();
+    if (!handler) {
+      if (this.config.debug) {
+        console.warn('未找到 MessageEventHandler，无法注册通用事件回调');
+      }
+      return () => {};
+    }
+
+    handler.addEventCallback(callback);
+
+    return () => {
+      handler.removeCallback('event', callback as any);
+    };
   }
   
   /**
