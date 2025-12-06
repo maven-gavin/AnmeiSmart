@@ -193,6 +193,19 @@ export function useAppWebSocket(): AppWebSocketState {
     void connect();
   }, [connect]);
 
+  // 连接掉线后的自动重连监督：只要处于非连接状态，就每隔一段时间尝试一次 connect
+  useEffect(() => {
+    if (isConnected) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void connect();
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [isConnected, connect]);
+
   return {
     isConnected,
     connectionStatus,

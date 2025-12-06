@@ -83,9 +83,9 @@ function SmartCommunicationContent() {
   // 跟踪已处理的消息ID，避免重复处理
   const processedMessageIdsRef = useRef<Set<string>>(new Set());
   
-  // 处理WebSocket消息 - 接收新消息
+  // 处理WebSocket消息 - 接收新消息（即使当前未选中任何会话，也要更新未读和预览）
   useEffect(() => {
-    if (!websocketState.lastMessage || !selectedConversationId) return;
+    if (!websocketState.lastMessage) return;
     
     const { action, data } = websocketState.lastMessage;
     
@@ -140,7 +140,7 @@ function SmartCommunicationContent() {
     console.log('[page.tsx] 转换后的消息:', newMessage);
     
     // 检查消息是否属于当前会话
-    if (data.conversation_id === selectedConversationId) {
+    if (selectedConversationId && data.conversation_id === selectedConversationId) {
       console.log('[page.tsx] 消息属于当前会话，准备添加到消息列表');
       
       // 添加到消息列表
@@ -149,7 +149,7 @@ function SmartCommunicationContent() {
       // 更新会话列表中的最后一条消息
       updateLastMessageRef.current(data.conversation_id, newMessage);
     } else {
-      console.log('[page.tsx] 消息不属于当前会话:', {
+      console.log('[page.tsx] 消息不属于当前会话或当前未选中会话:', {
         messageConversationId: data.conversation_id,
         currentConversationId: selectedConversationId
       });

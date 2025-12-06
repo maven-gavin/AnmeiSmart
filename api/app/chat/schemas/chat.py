@@ -233,7 +233,7 @@ class MessageInfo(MessageBase):
         message_type = getattr(message, 'type', 'text')
         
         # 调试日志：记录模型转换过程
-        logger.info(f"MessageInfo.from_model - 转换前: message_id={getattr(message, 'id', 'unknown')}, type={message_type}, raw_content={content}")
+        # logger.debug(f"MessageInfo.from_model - 转换前: message_id={getattr(message, 'id', 'unknown')}, type={message_type}, raw_content={content}")
         
         # 确保content是字典格式
         if not isinstance(content, dict):
@@ -263,7 +263,7 @@ class MessageInfo(MessageBase):
         )
         
         # 调试日志：记录转换后的结果
-        logger.info(f"MessageInfo.from_model - 转换后: message_id={result.id}, content={result.content}")
+        # logger.debug(f"MessageInfo.from_model - 转换后: message_id={result.id}, content={result.content}")
         
         return result
 
