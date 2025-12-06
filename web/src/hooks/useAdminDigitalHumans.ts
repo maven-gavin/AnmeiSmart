@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react';
-import { apiClient } from '@/service/apiClient';
+import { useEffect, useState } from 'react';
+import { apiClient, handleApiError } from '@/service/apiClient';
 import toast from 'react-hot-toast';
-import type { 
-  AdminDigitalHuman, 
+import type {
+  AdminDigitalHuman,
   DigitalHumanFilters as AdminDigitalHumanFilters,
   DigitalHumanStats as AdminDigitalHumanStats,
-  UpdateDigitalHumanStatusRequest
 } from '@/types/digital-human';
 
 export function useAdminDigitalHumans() {
@@ -15,10 +14,12 @@ export function useAdminDigitalHumans() {
   const [filters, setFilters] = useState<AdminDigitalHumanFilters>({});
 
   // 获取数字人列表
-  const fetchDigitalHumans = async (currentFilters: AdminDigitalHumanFilters = {}): Promise<AdminDigitalHuman[]> => {
+  const fetchDigitalHumans = async (
+    currentFilters: AdminDigitalHumanFilters = {},
+  ): Promise<AdminDigitalHuman[]> => {
     try {
       const params = new URLSearchParams();
-      
+
       // 添加筛选参数
       Object.entries(currentFilters).forEach(([key, value]) => {
         if (value !== undefined && value !== '') {
@@ -31,101 +32,82 @@ export function useAdminDigitalHumans() {
         }
       });
 
-      const response = await apiClient.get<{
-        success: boolean;
-        data: AdminDigitalHuman[];
-        message?: string;
-      }>(`/admin/digital-humans?${params.toString()}`);
-      
-      if (response.data.success) {
-        return response.data.data;
-      } else {
-        throw new Error(response.data.message || '获取数字人列表失败');
-      }
-    } catch (error) {
-      console.error('获取数字人列表失败:', error);
-      throw error;
+      const response = await apiClient.get<AdminDigitalHuman[]>(
+        `/admin/digital-humans?${params.toString()}`,
+      );
+
+      return response.data ?? [];
+    } catch (err) {
+      handleApiError(err, '获取数字人列表失败');
+      throw err;
     }
   };
 
   // 切换数字人状态
   const toggleDigitalHumanStatus = async (
-    digitalHumanId: string, 
-    newStatus: string
+    digitalHumanId: string,
+    newStatus: string,
   ): Promise<AdminDigitalHuman> => {
     try {
-      const response = await apiClient.put<{
-        success: boolean;
-        data: AdminDigitalHuman;
-        message?: string;
-      }>(`/admin/digital-humans/${digitalHumanId}/status`, {
-        status: newStatus
-      });
-      
-      if (response.data.success) {
-        const updatedDigitalHuman = response.data.data;
-        setDigitalHumans(prev => 
-          prev.map(dh => dh.id === digitalHumanId ? updatedDigitalHuman : dh)
+      const response = await apiClient.put<AdminDigitalHuman>(
+        `/admin/digital-humans/${digitalHumanId}/status`,
+        {
+          status: newStatus,
+        },
+      );
+
+      const updatedDigitalHuman = response.data;
+
+      if (updatedDigitalHuman) {
+        setDigitalHumans(prev =>
+          prev.map(dh => (dh.id === digitalHumanId ? updatedDigitalHuman : dh)),
         );
-        toast.success('数字人状态更新成功');
-        return updatedDigitalHuman;
-      } else {
-        throw new Error(response.data.message || '更新数字人状态失败');
       }
-    } catch (error) {
-      console.error('更新数字人状态失败:', error);
-      toast.error('更新数字人状态失败');
-      throw error;
+
+      toast.success('数字人状态更新成功');
+      return updatedDigitalHuman;
+    } catch (err) {
+      handleApiError(err, '更新数字人状态失败');
+      throw err;
     }
   };
 
   // 获取数字人详情
   const getDigitalHuman = async (digitalHumanId: string): Promise<AdminDigitalHuman> => {
     try {
-      const response = await apiClient.get<{
-        success: boolean;
-        data: AdminDigitalHuman;
-        message?: string;
-      }>(`/admin/digital-humans/${digitalHumanId}`);
-      
-      if (response.data.success) {
-        return response.data.data;
-      } else {
-        throw new Error(response.data.message || '获取数字人详情失败');
-      }
-    } catch (error) {
-      console.error('获取数字人详情失败:', error);
-      throw error;
+      const response = await apiClient.get<AdminDigitalHuman>(
+        `/admin/digital-humans/${digitalHumanId}`,
+      );
+      return response.data;
+    } catch (err) {
+      handleApiError(err, '获取数字人详情失败');
+      throw err;
     }
   };
 
   // 批量操作数字人
   const batchUpdateDigitalHumans = async (
-    digitalHumanIds: string[], 
-    action: string, 
-    data?: any
+    digitalHumanIds: string[],
+    action: string,
+    data?: unknown,
   ): Promise<void> => {
     try {
-      const response = await apiClient.post<{
-        success: boolean;
-        message?: string;
-      }>('/admin/digital-humans/batch', {
-        digitalHumanIds,
-        action,
-        data
-      });
-      
-      if (response.data.success) {
-        // 重新加载数据
+      const response = await apiClient.post<{ results: unknown[] }>(
+        '/admin/digital-humans/batch',
+        {
+          digitalHumanIds,
+          action,
+          data,
+        },
+      );
+
+      if (response.data) {
         await refreshDigitalHumans();
         toast.success('批量操作成功');
-      } else {
-        throw new Error(response.data.message || '批量操作失败');
       }
-    } catch (error) {
-      console.error('批量操作失败:', error);
-      toast.error('批量操作失败');
-      throw error;
+    } catch (err) {
+      handleApiError(err, '批量操作失败');
+      throw err;
     }
   };
 
@@ -133,14 +115,13 @@ export function useAdminDigitalHumans() {
   const refreshDigitalHumans = async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const data = await fetchDigitalHumans(filters);
       setDigitalHumans(data);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '获取数字人列表失败';
-      setError(errorMessage);
-      toast.error(errorMessage);
+    } catch (err) {
+      const message = handleApiError(err, '获取数字人列表失败');
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -151,28 +132,29 @@ export function useAdminDigitalHumans() {
     setFilters(newFilters);
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const data = await fetchDigitalHumans(newFilters);
       setDigitalHumans(data);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '获取数字人列表失败';
-      setError(errorMessage);
-      toast.error(errorMessage);
+    } catch (err) {
+      const message = handleApiError(err, '获取数字人列表失败');
+      setError(message);
     } finally {
       setIsLoading(false);
     }
   };
 
   // 计算统计信息
-  const calculateStats = (digitalHumanList: AdminDigitalHuman[]): AdminDigitalHumanStats => {
-    const stats = {
+  const calculateStats = (
+    digitalHumanList: AdminDigitalHuman[],
+  ): AdminDigitalHumanStats => {
+    const stats: AdminDigitalHumanStats = {
       total: digitalHumanList.length,
       active: 0,
       inactive: 0,
       maintenance: 0,
       system: 0,
-      user: 0
+      user: 0,
     };
 
     digitalHumanList.forEach(dh => {
@@ -202,7 +184,7 @@ export function useAdminDigitalHumans() {
 
   // 初始化加载
   useEffect(() => {
-    refreshDigitalHumans();
+    void refreshDigitalHumans();
   }, []);
 
   const stats = calculateStats(digitalHumans);

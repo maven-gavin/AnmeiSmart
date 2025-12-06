@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
-import { apiClient } from '@/service/apiClient';
+import { useEffect, useState } from 'react';
+import { apiClient, handleApiError } from '@/service/apiClient';
 import toast from 'react-hot-toast';
-import type { 
-  DigitalHuman, 
-  CreateDigitalHumanRequest, 
+import type {
+  CreateDigitalHumanRequest,
+  DigitalHuman,
+  DigitalHumanStats,
   UpdateDigitalHumanRequest,
-  DigitalHumanStats
 } from '@/types/digital-human';
 
 export function useDigitalHumans() {
@@ -16,96 +16,69 @@ export function useDigitalHumans() {
   // 获取数字人列表
   const fetchDigitalHumans = async (): Promise<DigitalHuman[]> => {
     try {
-      const response = await apiClient.get<{
-        success: boolean;
-        data: DigitalHuman[];
-        message?: string;
-      }>('/digital-humans');
-      
-      if (response.data.success) {
-        return response.data.data;
-      } else {
-        throw new Error(response.data.message || '获取数字人列表失败');
-      }
-    } catch (error) {
-      console.error('获取数字人列表失败:', error);
-      throw error;
+      const response = await apiClient.get<DigitalHuman[]>('/digital-humans');
+      return response.data ?? [];
+    } catch (err) {
+      handleApiError(err, '获取数字人列表失败');
+      throw err;
     }
   };
 
   // 创建数字人
   const createDigitalHuman = async (data: CreateDigitalHumanRequest): Promise<DigitalHuman> => {
     try {
-      const response = await apiClient.post<{
-        success: boolean;
-        data: DigitalHuman;
-        message?: string;
-      }>('/digital-humans', data);
-      
-      if (response.data.success) {
-        const newDigitalHuman = response.data.data;
+      const response = await apiClient.post<DigitalHuman>('/digital-humans', data);
+      const newDigitalHuman = response.data;
+      if (newDigitalHuman) {
         setDigitalHumans(prev => [...prev, newDigitalHuman]);
-        return newDigitalHuman;
-      } else {
-        throw new Error(response.data.message || '创建数字人失败');
       }
-    } catch (error) {
-      console.error('创建数字人失败:', error);
-      throw error;
+      return newDigitalHuman;
+    } catch (err) {
+      handleApiError(err, '创建数字人失败');
+      throw err;
     }
   };
 
   // 更新数字人
   const updateDigitalHuman = async (
-    id: string, 
-    data: UpdateDigitalHumanRequest
+    id: string,
+    data: UpdateDigitalHumanRequest,
   ): Promise<DigitalHuman> => {
     try {
-      // 后端当前直接返回 DigitalHuman 对象，而不是 { success, data } 包装
       const response = await apiClient.put<DigitalHuman>(`/digital-humans/${id}`, data);
       const updatedDigitalHuman = response.data;
 
-      setDigitalHumans(prev => 
-        prev.map(dh => dh.id === id ? updatedDigitalHuman : dh)
-      );
+      if (updatedDigitalHuman) {
+        setDigitalHumans(prev => prev.map(dh => (dh.id === id ? updatedDigitalHuman : dh)));
+      }
 
       return updatedDigitalHuman;
-    } catch (error) {
-      console.error('更新数字人失败:', error);
-      throw error;
+    } catch (err) {
+      handleApiError(err, '更新数字人失败');
+      throw err;
     }
   };
 
   // 删除数字人
   const deleteDigitalHuman = async (id: string): Promise<void> => {
     try {
-      const response = await apiClient.delete<{
-        success: boolean;
-        message?: string;
-      }>(`/digital-humans/${id}`);
-      
-      if (response.data.success) {
-        setDigitalHumans(prev => prev.filter(dh => dh.id !== id));
-        toast.success('数字人删除成功');
-      } else {
-        throw new Error(response.data.message || '删除数字人失败');
-      }
-    } catch (error) {
-      console.error('删除数字人失败:', error);
-      toast.error('删除数字人失败');
-      throw error;
+      await apiClient.delete<null>(`/digital-humans/${id}`);
+      setDigitalHumans(prev => prev.filter(dh => dh.id !== id));
+      toast.success('数字人删除成功');
+    } catch (err) {
+      handleApiError(err, '删除数字人失败');
+      throw err;
     }
   };
 
   // 获取单个数字人详情
   const getDigitalHuman = async (id: string): Promise<DigitalHuman> => {
     try {
-      // 后端当前直接返回 DigitalHuman 对象
       const response = await apiClient.get<DigitalHuman>(`/digital-humans/${id}`);
       return response.data;
-    } catch (error) {
-      console.error('获取数字人详情失败:', error);
-      throw error;
+    } catch (err) {
+      handleApiError(err, '获取数字人详情失败');
+      throw err;
     }
   };
 
@@ -113,14 +86,13 @@ export function useDigitalHumans() {
   const refreshDigitalHumans = async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const data = await fetchDigitalHumans();
       setDigitalHumans(data);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '获取数字人列表失败';
-      setError(errorMessage);
-      toast.error(errorMessage);
+    } catch (err) {
+      const message = handleApiError(err, '获取数字人列表失败');
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -128,7 +100,7 @@ export function useDigitalHumans() {
 
   // 初始化加载
   useEffect(() => {
-    refreshDigitalHumans();
+    void refreshDigitalHumans();
   }, []);
 
   // 统计信息
