@@ -17,6 +17,8 @@ interface AgentChatPanelProps {
   isLoadingAgents?: boolean;
   selectedAgent?: AgentConfig | null;
   onSelectAgent?: (agent: AgentConfig) => void;
+  hideSidebar?: boolean;
+  className?: string;
 }
 
 export const AgentChatPanel = memo<AgentChatPanelProps>(({ 
@@ -24,6 +26,8 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
   isLoadingAgents = false,
   selectedAgent: externalSelectedAgent = null,
   onSelectAgent: externalOnSelectAgent,
+  hideSidebar = false,
+  className = '',
 }) => {
   // 内部状态管理（当没有外部传入时使用）
   const [internalSelectedAgent, setInternalSelectedAgent] = useState<AgentConfig | null>(null);
@@ -101,14 +105,16 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
   }) : [];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className={`flex h-screen overflow-hidden bg-gray-50 ${className}`}>
       {/* 左侧：智能体列表 */}
-      <AgentSidebar
-        agents={agents}
-        selectedAgent={selectedAgent}
-        onSelectAgent={handleSelectAgent}
-        isLoading={isLoadingAgents}
-      />
+      {!hideSidebar && (
+        <AgentSidebar
+          agents={agents}
+          selectedAgent={selectedAgent}
+          onSelectAgent={handleSelectAgent}
+          isLoading={isLoadingAgents}
+        />
+      )}
 
       {/* 中间：对话历史列表 */}
       {selectedAgent && (

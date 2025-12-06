@@ -6,6 +6,9 @@ import UserInfoBar from '@/components/chat/UserInfoBar';
 import { UserRole, AuthUser, Role } from '@/types/auth';
 import { WebSocketStatus } from '@/components/WebSocketStatus';
 import { useWebSocket } from '@/contexts/WebSocketContext';
+import AgentToolbar from '@/components/layout/AgentToolbar';
+import AgentDrawer from '@/components/layout/AgentDrawer';
+import type { AgentConfig } from '@/service/agentConfigService';
 
 export default function RoleHeader() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -14,6 +17,10 @@ export default function RoleHeader() {
   const [isClient, setIsClient] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const websocketState = useWebSocket();
+  
+  // 智能体相关状态
+  const [expandedAgent, setExpandedAgent] = useState<AgentConfig | null>(null);
+  const [allAgents, setAllAgents] = useState<AgentConfig[]>([]);
   
   // 在组件挂载时确保当前用户信息是最新的
   useEffect(() => {
@@ -29,6 +36,17 @@ export default function RoleHeader() {
       });
     }
   }, []);
+
+  // 处理智能体选择
+  const handleAgentSelect = (agent: AgentConfig) => {
+    if (expandedAgent?.id === agent.id) {
+      // 如果点击已展开的智能体，则关闭
+      setExpandedAgent(null);
+    } else {
+      // 否则展开新的智能体
+      setExpandedAgent(agent);
+    }
+  };
   
   // 获取角色显示信息（优先使用动态详情，降级使用静态配置）
   const getRoleDisplayInfo = (roleName: string) => {
@@ -134,7 +152,16 @@ export default function RoleHeader() {
           )}
         </div>
         
-        <div className="relative">
+        {/* 智能体探索工具栏 - 位于左侧组和右侧用户头像之间 */}
+        {isClient && (
+          <AgentToolbar 
+            selectedAgentId={expandedAgent?.id}
+            onAgentSelect={handleAgentSelect}
+            onAgentsLoaded={setAllAgents}
+          />
+        )}
+        
+        <div className="relative flex-shrink-0">
           {/* 将UserInfoBar移出按钮，避免嵌套不一致 */}
           <div 
             onClick={() => isClient && setDropdownOpen(!dropdownOpen)}
@@ -217,6 +244,15 @@ export default function RoleHeader() {
           )}
         </div>
       </div>
+      
+      {/* 智能体聊天抽屉 */}
+      <AgentDrawer
+        isOpen={!!expandedAgent}
+        agent={expandedAgent}
+        onClose={() => setExpandedAgent(null)}
+        onAgentChange={setExpandedAgent}
+        allAgents={allAgents}
+      />
     </header>
   );
 } 
