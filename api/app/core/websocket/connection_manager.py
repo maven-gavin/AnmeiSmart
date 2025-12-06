@@ -167,24 +167,33 @@ class ConnectionManager:
         return connections
     
     async def cleanup_disconnected_connections(self) -> int:
-        """清理断开的连接"""
+        """
+        清理断开的连接
+        
+        注意：
+        - 不再通过调用 websocket.ping() 来主动探测连接（Starlette WebSocket 不一定支持该方法）
+        - 仅根据框架自身维护的状态（client_state）判断是否已断开
+        - 真正的断开流程仍然由 websocket_endpoint 捕获 WebSocketDisconnect 后调用 disconnect 完成
+        """
         disconnected_count = 0
         disconnected_websockets = []
-        
+
         for websocket in list(self.connection_metadata.keys()):
             try:
-                # 尝试发送ping来检查连接状态
-                await websocket.ping()
-            except Exception:
-                # 连接已断开
-                disconnected_websockets.append(websocket)
-                disconnected_count += 1
-        
-        # 批量清理断开的连接
+                # 利用 Starlette/FastAPI 自带的 client_state 判断连接是否已经断开
+                state_name = getattr(getattr(websocket, "client_state", None), "name", None)
+                if state_name and state_name.upper() == "DISCONNECTED":
+                    disconnected_websockets.append(websocket)
+                    disconnected_count += 1
+            except Exception as e:
+                # 状态检查本身出错时，只记录日志，不主动把连接标记为断开
+                logger.error(f"检查连接状态失败，跳过清理: error={e}")
+
+        # 批量清理已经被框架标记为断开的连接
         for websocket in disconnected_websockets:
             await self.disconnect(websocket)
-        
+
         if disconnected_count > 0:
             logger.info(f"清理了 {disconnected_count} 个断开的连接")
-        
+
         return disconnected_count
