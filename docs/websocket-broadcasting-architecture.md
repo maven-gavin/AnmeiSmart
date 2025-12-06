@@ -4,10 +4,10 @@
 
 ## 概述
 
-AnmeiSmart系统采用了基于**页面级管理**和**智能广播**的WebSocket架构，实现了高效的实时通信和消息推送解决方案。架构包含两个核心组件：
+AnmeiSmart 系统采用了基于 **应用级单连接 + 智能广播** 的 WebSocket 架构，实现了高效的实时通信和消息推送。当前架构包含两个核心组件：
 
-1. **WebSocket 架构 V2**：基于"按需连接"和"页面级管理"的前端实时通信
-2. **BroadcastingService**：统一的消息广播和离线推送服务
+1. **WebSocket 架构 V2（前端）**：基于“应用级单连接 + 全局 Context 分发”的实时通信
+2. **BroadcastingService（后端）**：统一的消息广播和离线推送服务
 
 ## 项目文件结构
 
@@ -16,9 +16,11 @@ AnmeiSmart系统采用了基于**页面级管理**和**智能广播**的WebSocke
 ```
 web/src/
 ├── hooks/
-│   └── useWebSocketByPage.ts              # 页面级WebSocket Hook
+│   └── useAppWebSocket.ts                 # 应用级 WebSocket Hook（单长连接）
 ├── components/
-│   └── WebSocketStatus.tsx                # WebSocket状态指示器组件
+│   └── WebSocketStatus.tsx                # WebSocket 状态指示器组件（纯 UI）
+├── contexts/
+│   └── WebSocketContext.tsx               # WebSocketProvider + useWebSocket 全局 Context
 ├── service/
 │   ├── websocket/
 │   │   ├── index.ts                       # WebSocket客户端主入口
@@ -39,11 +41,9 @@ web/src/
 │   │   ├── state.ts                       # 聊天状态管理
 │   │   └── types.ts                       # 聊天相关类型定义
 │   ├── authService.ts                     # 认证服务
-│   └── utils.ts                          # 设备检测和配置工具
+│   └── utils.ts                           # 设备检测和配置工具
 └── app/
-    ├── test-websocket/
-    │   └── page.tsx                       # WebSocket测试页面
-    └── [各业务页面...]
+    └── [各业务页面...]                    # 页面通过 useWebSocket 使用全局连接
 ```
 
 ### 后端文件结构（api/）
@@ -89,8 +89,9 @@ api/app/
 
 | 文件                             | 作用                  | 说明                                                  |
 | -------------------------------- | --------------------- | ----------------------------------------------------- |
-| `useWebSocketByPage.ts`        | 页面级WebSocket管理   | 根据页面配置智能管理WebSocket连接，支持手动断开和重置 |
-| `WebSocketStatus.tsx`          | 连接状态UI组件        | 显示WebSocket连接状态和控制按钮                       |
+| `useAppWebSocket.ts`           | 应用级 WebSocket 管理 | 维护全局单一 WebSocket 连接，提供连接状态和 lastMessage |
+| `WebSocketContext.tsx`         | 全局 Context 封装     | 暴露 `WebSocketProvider` 与 `useWebSocket` 供全局使用 |
+| `WebSocketStatus.tsx`          | 连接状态 UI 组件      | 显示 WebSocket 连接状态（当前放在 `RoleHeader` 中）  |
 | `websocket/index.ts`           | WebSocket客户端主入口 | 提供统一的WebSocket客户端接口                         |
 | `websocket/core/connection.ts` | 连接管理              | 处理WebSocket连接的建立和维护                         |
 | `websocket/core/reconnect.ts`  | 重连机制              | 实现智能重连和指数退避策略                            |
@@ -112,55 +113,26 @@ api/app/
 
 ## 架构组件
 
-### 1. 前端 WebSocket 架构 V2
+### 1. 前端 WebSocket 架构 V2（应用级单连接）
 
 #### 核心设计原则
 
-- **页面配置驱动**：每个页面的WebSocket需求通过配置文件定义
-- **智能生命周期管理**：页面加载 → 配置检查 → 认证验证 → 条件连接
-- **功能特性按需加载**：不同页面启用不同的WebSocket功能
+- **应用级单连接**：整个应用（每个浏览器 Tab）共享一条 WebSocket 长连接
+- **Context 分发**：在根布局中挂载 `WebSocketProvider`，业务页面通过 `useWebSocket` 订阅状态和事件
+- **事件驱动 UI**：所有页面通过 `{ action, data }` 的事件模型驱动状态变更
+- **职责单一**：
+  - `useAppWebSocket`：负责连接、重连、心跳、连接状态、lastMessage
+  - `WebSocketClient`：封装底层连接和 `MessageHandlerRegistry`
+  - `MessageEventHandler`：将底层消息转换为统一的事件模型
 
-#### 页面配置示例
+#### 事件模型
 
-```typescript
-const PAGE_WEBSOCKET_CONFIG: Record<string, PageWebSocketConfig> = {
-  // 聊天页面 - 完整功能
-  '/chat': { 
-    enabled: true, 
-    requireAuth: true, 
-    autoConnect: true,
-    connectionType: 'chat',
-    features: ['messaging', 'typing_indicator', 'file_upload', 'voice_note', 'screen_share']
-  },
-  
-  // 管理页面 - 监控功能
-  '/admin': { 
-    enabled: true, 
-    requireAuth: true, 
-    autoConnect: true,
-    connectionType: 'admin',
-    features: ['system_notifications', 'user_monitoring', 'real_time_stats']
-  },
-  
-  // 测试页面配置
-  '/test-websocket': {
-    enabled: true,
-    requireAuth: true,
-    autoConnect: true,
-    connectionType: 'test',
-    features: ['messaging', 'testing', 'debug']
-  }
-}
-```
-
-#### 功能特性分布
-
-| 页面类型 | 消息传递 | 输入指示器 | 文件上传 | 系统监控 |
-| -------- | -------- | ---------- | -------- | -------- |
-| 医生聊天 | ✅       | ✅         | ✅       | ❌       |
-| 客户聊天 | ✅       | ✅         | ✅       | ❌       |
-| 顾问聊天 | ✅       | ✅         | ✅       | ❌       |
-| 管理页面 | ❌       | ❌         | ❌       | ✅       |
+- 聊天消息：`new_message`
+  - 由后端广播服务统一推送，前端通过 `client.onNewMessage` 订阅
+  - `useAppWebSocket` 统一转换为 `{ action: 'new_message', data: eventData }`
+- 通用事件（如联系人相关）：`friend_request_received`、`friend_request_accepted`、`friend_online_status_changed` 等
+  - 后端通过 `direct_message` 发送 `{ type, payload, ... }`
+  - `useAppWebSocket` 将其转换为 `{ action: type, data: payload }`
 
 #### 统一设备配置
 
@@ -238,78 +210,78 @@ HTTP API 端点
 
 ## 使用指南
 
-### 1. useWebSocketByPage Hook API
+### 1. 应用级 useAppWebSocket / useWebSocket API
 
-`useWebSocketByPage` Hook 返回以下属性和方法：
+`useAppWebSocket` 是内部 Hook，由 `WebSocketProvider` 使用；业务代码通过 Context 暴露的 `useWebSocket` 使用全局状态：
 
 #### 连接状态属性
 
-- `isConnected: boolean` - WebSocket是否已连接
+- `isConnected: boolean` - WebSocket 是否已连接
 - `connectionStatus: ConnectionStatus` - 连接状态枚举值（DISCONNECTED, CONNECTING, CONNECTED, ERROR）
-- `isEnabled: boolean` - 当前页面是否启用WebSocket
-- `connectionType: string` - 连接类型标识（如 'chat', 'admin'）
-- `supportedFeatures: string[]` - 当前页面支持的功能特性列表
+- `isEnabled: boolean` - 当前是否启用WebSocket（当前实现恒为 `true`）
+- `connectionType: string` - 连接类型标识（当前为 `'app'`）
 
 #### 数据属性
 
-- `lastMessage: any` - 最后收到的WebSocket消息（格式：`{ action: string, data: any }`）
-- `config: PageWebSocketConfig | null` - 当前页面的WebSocket配置
+- `lastMessage: any` - 最后收到的 WebSocket 事件（格式：`{ action: string, data: any }`）
 
 #### 方法
 
-- `connect(customParams?: any): Promise<boolean>` - 手动连接WebSocket
-- `disconnect(): void` - 手动断开WebSocket连接（断开后不会自动重连）
-- `resetManualDisconnect(): void` - 重置手动断开标志，重新启用自动连接
-- `sendMessage(message: any): boolean` - 发送WebSocket消息
+- `connect(): Promise<boolean>` - 手动触发连接（一般用于调试或显式重连）
+- `disconnect(): void` - 手动断开 WebSocket 连接
+- `sendMessage(message: any): boolean` - 发送 WebSocket 消息（内部会统一附加 `source: 'app'` 等元数据）
 
-### 2. 前端页面中使用 WebSocket
+### 2. 根布局中挂载 WebSocketProvider
+
+```tsx
+// app/layout.tsx
+import { AuthProvider } from '@/contexts/AuthContext';
+import { WebSocketProvider } from '@/contexts/WebSocketContext';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="zh-CN">
+      <body>
+        <AuthProvider>
+          <WebSocketProvider>
+            <main className="min-h-screen bg-gray-50">
+              {children}
+            </main>
+            {/* Toaster 等全局组件 */}
+          </WebSocketProvider>
+        </AuthProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+### 3. 前端页面中使用 WebSocket
 
 ```tsx
 'use client';
 
-import { useWebSocketByPage } from '@/hooks/useWebSocketByPage';
-import { WebSocketStatus } from '@/components/WebSocketStatus';
+import { useEffect } from 'react';
+import { useWebSocket } from '@/contexts/WebSocketContext';
 
 function ChatPage() {
-  const {
-    isConnected,
-    connectionStatus,
-    isEnabled,
-    connectionType,
-    supportedFeatures,
-    lastMessage,
-    sendMessage,
-    connect,
-    disconnect,
-    resetManualDisconnect,
-    config
-  } = useWebSocketByPage();
+  const websocketState = useWebSocket();
 
   // 监听消息
   useEffect(() => {
-    if (lastMessage?.action === 'new_message') {
-      console.log('收到消息:', lastMessage.data);
+    if (!websocketState.lastMessage) return;
+
+    const { action, data } = websocketState.lastMessage;
+    if (action === 'new_message') {
+      console.log('收到聊天消息:', data);
     }
-  }, [lastMessage]);
+  }, [websocketState.lastMessage]);
 
   return (
     <div>
-      <WebSocketStatus 
-        isConnected={isConnected}
-        connectionStatus={connectionStatus}
-        isEnabled={isEnabled}
-        connectionType={connectionType}
-        connect={connect}
-        disconnect={disconnect}
-      />
+      {/* 实际项目中 WebSocketStatus 已经放在 RoleHeader 中，这里仅示意如何使用全局状态 */}
       <div>
-        连接状态: {isConnected ? '已连接' : '未连接'}
-        {isEnabled && (
-          <div>功能特性: {supportedFeatures.join(', ')}</div>
-        )}
-        <button onClick={resetManualDisconnect}>
-          重新启用自动连接
-        </button>
+        连接状态: {websocketState.isConnected ? '已连接' : '未连接'}
       </div>
     </div>
   );
