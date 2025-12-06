@@ -9,12 +9,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { 
-  MoreHorizontal, 
-  Search, 
-  Star, 
-  User, 
-  Settings
+import {
+  MoreHorizontal,
+  Search,
+  Star,
+  User,
+  Settings,
+  Users,
 } from 'lucide-react';
 
 interface ChatActionsMenuProps {
@@ -22,6 +23,7 @@ interface ChatActionsMenuProps {
   isConsultant?: boolean;
   hasCustomerProfile?: boolean;
   onSearchToggle: () => void;
+  onParticipantsToggle: () => void;
   onImportantMessagesToggle: () => void;
   onCustomerProfileToggle: () => void;
   onConversationSettings: () => void;
@@ -32,6 +34,7 @@ export function ChatActionsMenu({
   isConsultant = false,
   hasCustomerProfile = false,
   onSearchToggle,
+  onParticipantsToggle,
   onImportantMessagesToggle,
   onCustomerProfileToggle,
   onConversationSettings
@@ -47,11 +50,17 @@ export function ChatActionsMenu({
           <MoreHorizontal className="w-4 h-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-56 bg-white">
         {/* 查找聊天内容 */}
         <DropdownMenuItem onClick={onSearchToggle} className="cursor-pointer">
           <Search className="mr-2 h-4 w-4" />
           <span>查找聊天内容</span>
+        </DropdownMenuItem>
+
+        {/* 参与者 */}
+        <DropdownMenuItem onClick={onParticipantsToggle} className="cursor-pointer">
+          <Users className="mr-2 h-4 w-4" />
+          <span>参与者</span>
         </DropdownMenuItem>
         
         {/* 重点消息 */}

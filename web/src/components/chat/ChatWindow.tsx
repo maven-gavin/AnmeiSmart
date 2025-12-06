@@ -22,6 +22,7 @@ interface ChatWindowProps {
   onLoadMessages: (forceRefresh?: boolean) => Promise<void>;
   onCustomerProfileToggle?: () => void;
   onSearchToggle?: () => void;
+  onParticipantsToggle?: () => void;
   onImportantToggle?: () => void;
   onSettingsToggle?: () => void;
   toggleMessageImportant?: (messageId: string, currentStatus: boolean) => Promise<void>;
@@ -39,6 +40,7 @@ export default function ChatWindow({
   onLoadMessages,
   onCustomerProfileToggle,
   onSearchToggle,
+  onParticipantsToggle,
   onImportantToggle,
   onSettingsToggle,
   toggleMessageImportant,
@@ -288,6 +290,7 @@ export default function ChatWindow({
           isConsultant={isConsultant}
           hasCustomerProfile={hasCustomerProfile}
           onSearchToggle={onSearchToggle || (() => {})}
+          onParticipantsToggle={onParticipantsToggle || (() => {})}
           onImportantMessagesToggle={onImportantToggle || (() => {})}
           onCustomerProfileToggle={onCustomerProfileToggle || (() => {})}
           onConversationSettings={onSettingsToggle || (() => {})}

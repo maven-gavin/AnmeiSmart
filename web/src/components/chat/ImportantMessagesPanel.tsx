@@ -150,7 +150,7 @@ export function ImportantMessagesPanel({
   if (!isOpen) return null;
 
   return (
-    <Card className="w-96 h-[600px] flex flex-col shadow-lg">
+    <Card className="w-full h-[600px] flex flex-col shadow-lg">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-medium flex items-center">

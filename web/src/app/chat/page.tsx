@@ -12,6 +12,7 @@ import { ErrorDisplay } from '@/components/ui/ErrorDisplay';
 import { ChatSearchPanel } from '@/components/chat/ChatSearchPanel';
 import { ImportantMessagesPanel } from '@/components/chat/ImportantMessagesPanel';
 import { ConversationSettingsPanel } from '@/components/chat/ConversationSettingsPanel';
+import { ConversationParticipantsPanel } from '@/components/chat/ConversationParticipantsPanel';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
 import { useAuthContext } from '@/contexts/AuthContext';
 // 自定义hooks
@@ -168,7 +169,7 @@ function SmartCommunicationContent() {
   const [loadingFriendConversation, setLoadingFriendConversation] = useState(false);
   
   // 右侧面板状态管理 - 每次只显示一个面板
-  type RightPanelType = 'customer' | 'search' | 'important' | 'settings' | null;
+  type RightPanelType = 'customer' | 'search' | 'participants' | 'important' | 'settings' | null;
   const [activeRightPanel, setActiveRightPanel] = useState<RightPanelType>('customer');
   
   const prevConversationIdRef = useRef<string | null>(selectedConversationId);
@@ -263,6 +264,10 @@ function SmartCommunicationContent() {
 
   const handleSearchToggle = useCallback(() => {
     handleRightPanelToggle('search');
+  }, [handleRightPanelToggle]);
+
+  const handleParticipantsToggle = useCallback(() => {
+    handleRightPanelToggle('participants');
   }, [handleRightPanelToggle]);
 
   const handleImportantToggle = useCallback(() => {
@@ -364,6 +369,7 @@ function SmartCommunicationContent() {
               onLoadMessages={loadMessages}
               onCustomerProfileToggle={handleCustomerProfileToggle}
               onSearchToggle={handleSearchToggle}
+              onParticipantsToggle={handleParticipantsToggle}
               onImportantToggle={handleImportantToggle}
               onSettingsToggle={handleSettingsToggle}
               toggleMessageImportant={toggleMessageImportant}
@@ -395,7 +401,7 @@ function SmartCommunicationContent() {
         {activeRightPanel && (
           <div className="w-80 flex-shrink-0 border-l border-gray-200 bg-white">
             {/* 客户资料面板 */}
-            {activeRightPanel === 'customer' && isConsultant && selectedCustomerId && (
+            {activeRightPanel === 'customer' && selectedCustomerId && (
               <CustomerProfile 
                 customerId={selectedCustomerId} 
                 conversationId={selectedConversationId || undefined} 
@@ -409,6 +415,15 @@ function SmartCommunicationContent() {
                 isOpen={true}
                 onClose={() => setActiveRightPanel(null)}
                 onMessageClick={handleMessageClick}
+              />
+            )}
+
+            {/* 参与者面板 */}
+            {activeRightPanel === 'participants' && selectedConversationId && selectedConversation && (
+              <ConversationParticipantsPanel
+                conversationId={selectedConversation.id}
+                isOpen={true}
+                onClose={() => setActiveRightPanel(null)}
               />
             )}
             
