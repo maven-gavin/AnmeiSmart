@@ -18,7 +18,7 @@ import { useAuthContext } from '@/contexts/AuthContext';
 import { useConversationState } from '@/hooks/useConversationState';
 import { useMessageState } from '@/hooks/useMessageState';
 import { useWebSocket } from '@/contexts/WebSocketContext';
-import { Message } from '@/types/chat';
+import { Message, SenderType } from '@/types/chat';
 
 function SmartCommunicationContent() {
   const router = useRouter();
@@ -128,7 +128,8 @@ function SmartCommunicationContent() {
       type: data.type || 'text',
       sender: {
         id: data.sender_id,
-        type: (data.sender_type as 'chat' | 'system') || 'chat',
+        // WebSocket 层统一使用 'user' | 'ai' | 'system'
+        type: (data.sender_type as SenderType) || 'user',
         name: data.sender_name || '未知用户',
         avatar: data.sender_avatar || '/avatars/user.png'
       },

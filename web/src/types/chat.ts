@@ -19,7 +19,8 @@ export interface Customer {
   priority?: 'low' | 'medium' | 'high';
 }
 
-export type SenderType = 'chat' | 'system';
+// 统一的发送者类型：用户 / AI 助手 / 系统
+export type SenderType = 'user' | 'ai' | 'system';
 
 // 消息发送状态
 export type MessageStatus = 'pending' | 'sent' | 'failed';

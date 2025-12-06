@@ -118,7 +118,9 @@ export class ChatDataMapper {
     // 回退到单独的字段
     return {
       id: apiResponse.sender_id || 'unknown',
-      type: (apiResponse.sender_type as 'chat' | 'system') || 'chat',
+      // 后端 sender_type 旧值为 chat/system，这里统一映射到 user/system，
+      // 未来如果引入 AI 侧主动发消息，可直接返回 'ai'
+      type: (apiResponse.sender_type as any) === 'system' ? 'system' : 'user',
       name: apiResponse.sender_name || '未知用户',
       avatar: apiResponse.sender_avatar || '/avatars/user.png'
     };

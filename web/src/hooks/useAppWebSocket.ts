@@ -219,16 +219,10 @@ export function useAppWebSocket(): AppWebSocketState {
 }
 
 function mapUserRoleToSenderType(role: string): SenderType {
-  switch (role) {
-    case 'customer':
-      return SenderType.CUSTOMER;
-    case 'consultant':
-      return SenderType.CONSULTANT;
-    case 'doctor':
-      return SenderType.DOCTOR;
-    default:
-      return SenderType.USER;
-  }
+  // 应用级长连接目前只代表「当前登录用户」本身
+  // 无论其业务角色是 customer / consultant / doctor 等，SenderType 都统一归为 USER
+  // 如果后续接入专用 AI 设备连接，可以在这里根据 role 映射为 SenderType.AI
+  return SenderType.USER;
 }
 
 

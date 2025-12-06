@@ -25,13 +25,9 @@ export enum MessageType {
  * 发送者类型
  */
 export enum SenderType {
-  USER = 'user',           // 普通用户
-  CUSTOMER = 'customer',   // 客户
-  CONSULTANT = 'consultant', // 顾问
-  DOCTOR = 'doctor',       // 医生
-  AI = 'ai',               // AI助手
-  SYSTEM = 'system',       // 系统
-  DIGITAL_HUMAN = 'digital_human' // 数字人
+  USER = 'user',     // 用户自己发送的消息
+  AI = 'ai',         // AI 助手发送的消息
+  SYSTEM = 'system', // 系统发送的消息
 }
 
 /**

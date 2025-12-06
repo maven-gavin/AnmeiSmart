@@ -416,13 +416,15 @@ export class MessageAdapter {
     
     // 尝试映射常见类型
     const typeMap: Record<string, SenderType> = {
+      // 用户相关角色一律归为 USER
       'user': SenderType.USER,
-      'customer': SenderType.CUSTOMER,
-      'client': SenderType.CUSTOMER,
-      'consultant': SenderType.CONSULTANT,
-      'advisor': SenderType.CONSULTANT,
-      'doctor': SenderType.DOCTOR,
-      'physician': SenderType.DOCTOR,
+      'customer': SenderType.USER,
+      'client': SenderType.USER,
+      'consultant': SenderType.USER,
+      'advisor': SenderType.USER,
+      'doctor': SenderType.USER,
+      'physician': SenderType.USER,
+      'digital_human': SenderType.AI,
       'ai': SenderType.AI,
       'bot': SenderType.AI,
       'assistant': SenderType.AI,
@@ -442,9 +444,6 @@ export class MessageAdapter {
   private getDefaultNameForType(type: SenderType): string {
     const nameMap: Record<SenderType, string> = {
       [SenderType.USER]: '用户',
-      [SenderType.CUSTOMER]: '客户',
-      [SenderType.CONSULTANT]: '顾问',
-      [SenderType.DOCTOR]: '医生',
       [SenderType.AI]: 'AI助手',
       [SenderType.SYSTEM]: '系统',
     };

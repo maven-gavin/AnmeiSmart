@@ -20,7 +20,8 @@ class MessageSender(BaseModel):
     id: str
     name: str
     avatar: Optional[str] = None
-    type: Literal["chat", "system"]
+    # 统一的发送者类型：user(用户) / ai(AI助手) / system(系统)
+    type: Literal["user", "ai", "system"]
 
 
 # ===== 消息内容结构定义 =====
@@ -91,7 +92,8 @@ class MessageCreate(MessageBase):
     """创建消息的请求模型"""
     conversation_id: str
     sender_id: str
-    sender_type: Literal["customer", "consultant", "doctor", "ai", "system", "digital_human"]
+    # 统一 SenderType：user / ai / system
+    sender_type: Literal["user", "ai", "system"]
     reply_to_message_id: Optional[str] = None
     extra_metadata: Optional[Dict[str, Any]] = None
 
@@ -198,7 +200,15 @@ class MessageInfo(MessageBase):
         # 获取sender信息
         sender_id = getattr(message, 'sender_id', None)
         sender_digital_human_id = getattr(message, 'sender_digital_human_id', None)
-        sender_type = getattr(message, 'sender_type', 'chat')  # 默认为chat
+        sender_type_raw = getattr(message, 'sender_type', 'chat')  # 旧值为chat/system
+        # 兼容旧值和历史角色枚举，统一映射为 user/ai/system
+        if sender_type_raw == "system":
+            sender_type = "system"
+        elif sender_type_raw in ("ai", "digital_human"):
+            sender_type = "ai"
+        else:
+            # 包括 chat、customer、consultant、doctor 等，统一归为 user
+            sender_type = "user"
         
         # 构建sender对象
         sender_name = "未知用户"

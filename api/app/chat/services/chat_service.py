@@ -386,7 +386,7 @@ class ChatService:
         conversation_id: str,
         sender_id: str,
         content: str,
-        sender_type: str = "chat",
+        sender_type: str = "user",
         reply_to_message_id: Optional[str] = None
     ) -> MessageInfo:
         """创建文本消息"""
@@ -648,7 +648,7 @@ class ChatService:
                 conversation_id=conversation_id,
                 sender_id=str(sender.id),
                 content=text,
-                sender_type="chat",  # 智能聊天消息统一使用chat
+                sender_type="user",  # 智能聊天消息统一使用 user
                 reply_to_message_id=request.reply_to_message_id
             )
         elif request.type == "media":
@@ -681,7 +681,7 @@ class ChatService:
             conversation_id=conversation_id,
             sender_id=str(sender.id),
             content=request.text,
-            sender_type="chat",  # 智能聊天消息统一使用chat
+            sender_type="user",  # 智能聊天消息统一使用 user
             reply_to_message_id=request.reply_to_message_id
         )
     
@@ -782,7 +782,7 @@ class ChatService:
             },
             type="structured",
             sender_id=str(sender.id),
-            sender_type="chat",  # 智能聊天消息统一使用chat
+            sender_type="user",  # 智能聊天消息统一使用 user
             is_read=False,
             extra_metadata=getattr(request, 'metadata', None)
         )
@@ -888,7 +888,7 @@ class ChatService:
             content=content,
             type="media",
             sender_id=sender_id,
-            sender_type="chat",  # 智能聊天消息统一使用chat
+            sender_type="user",  # 智能聊天消息统一使用 user
             is_read=False,
             is_important=is_important
         )
