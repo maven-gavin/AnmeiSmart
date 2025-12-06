@@ -1,35 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Edit, 
-  Trash2, 
-  Settings, 
-  Bot, 
-  User, 
-  Building, 
-  Zap,
-  MoreVertical,
-  Shield
-} from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { EnhancedPagination } from '@/components/ui/pagination';
+import { Shield, Bot, User, Building, Zap } from 'lucide-react';
 
 import type { DigitalHuman } from '@/types/digital-human';
 
@@ -46,8 +20,35 @@ export default function DigitalHumanList({
   onDelete,
   onConfigureAgents
 }: DigitalHumanListProps) {
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedDigitalHuman, setSelectedDigitalHuman] = useState<DigitalHuman | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(digitalHumans.length / itemsPerPage));
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [digitalHumans, currentPage, itemsPerPage]);
+
+  const getTypeStyle = (type: string) => {
+    const styles: Record<string, string> = {
+      personal: 'bg-blue-100 text-blue-800',
+      business: 'bg-purple-100 text-purple-800',
+      specialized: 'bg-green-100 text-green-800',
+      system: 'bg-orange-100 text-orange-800'
+    };
+    return styles[type] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      personal: '个人助手',
+      business: '商务助手',
+      specialized: '专业助手',
+      system: '系统助手'
+    };
+    return labels[type] || type;
+  };
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -64,229 +65,177 @@ export default function DigitalHumanList({
     }
   };
 
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case 'personal':
-        return '个人助手';
-      case 'business':
-        return '商务助手';
-      case 'specialized':
-        return '专业助手';
-      case 'system':
-        return '系统助手';
-      default:
-        return '未知类型';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-100 text-green-800';
-      case 'inactive':
-        return 'bg-gray-100 text-gray-800';
-      case 'maintenance':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'active':
-        return '活跃';
-      case 'inactive':
-        return '停用';
-      case 'maintenance':
-        return '维护中';
-      default:
-        return '未知';
-    }
-  };
-
-  const handleDeleteClick = (digitalHuman: DigitalHuman) => {
-    setSelectedDigitalHuman(digitalHuman);
-    setDeleteDialogOpen(true);
-  };
-
-  const handleConfirmDelete = () => {
-    if (selectedDigitalHuman) {
-      onDelete(selectedDigitalHuman.id);
-    }
-    setDeleteDialogOpen(false);
-    setSelectedDigitalHuman(null);
-  };
-
   const formatDate = (dateString?: string) => {
     if (!dateString) return '从未';
-    return new Date(dateString).toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    try {
+      return new Date(dateString).toLocaleString('zh-CN');
+    } catch {
+      return '无效日期';
+    }
   };
 
-  if (digitalHumans.length === 0) {
-    return (
-      <div className="p-8 text-center">
-        <Bot className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">还没有数字人</h3>
-        <p className="text-gray-500 mb-6">创建您的第一个数字人助手，开始智能对话体验</p>
-      </div>
-    );
-  }
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentDigitalHumans = digitalHumans.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.max(1, Math.ceil(digitalHumans.length / itemsPerPage));
 
   return (
-    <div className="p-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {digitalHumans.map((digitalHuman) => (
-          <div
-            key={digitalHuman.id}
-            className="border rounded-lg p-6 hover:shadow-md transition-shadow"
-          >
-            {/* 头部信息 */}
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white font-semibold">
-                  {digitalHuman.avatar ? (
-                    <img
-                      src={digitalHuman.avatar}
-                      alt={digitalHuman.name}
-                      className="w-full h-full rounded-full object-cover"
-                    />
-                  ) : (
-                    digitalHuman.name.charAt(0).toUpperCase()
-                  )}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900 flex items-center space-x-2">
-                    <span>{digitalHuman.name}</span>
-                    {digitalHuman.is_system_created && (
-                      <Shield className="h-4 w-4 text-blue-500" title="系统创建" />
-                    )}
-                  </h3>
-                  <div className="flex items-center space-x-2 mt-1">
-                    {getTypeIcon(digitalHuman.type)}
-                    <span className="text-sm text-gray-600">
-                      {getTypeLabel(digitalHuman.type)}
-                    </span>
+    <div className="space-y-4">
+      <div className="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
+        <table className="min-w-full divide-y divide-gray-100">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                数字人信息
+              </th>
+              <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
+                类型
+              </th>
+              <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
+                状态
+              </th>
+              <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
+                统计数据
+              </th>
+              <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
+                最后活跃
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                操作
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 bg-white">
+            {currentDigitalHumans.map((dh) => (
+              <tr key={dh.id} className="hover:bg-gray-50">
+                <td className="px-6 py-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-orange-600 text-sm font-semibold text-white">
+                      {dh.avatar ? (
+                        <img
+                          src={dh.avatar}
+                          alt={dh.name}
+                          className="h-full w-full rounded-full object-cover"
+                        />
+                      ) : (
+                        dh.name.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm font-medium text-gray-900">
+                          {dh.name}
+                        </span>
+                        {dh.is_system_created && (
+                          <span title="系统创建">
+                            <Shield className="h-4 w-4 text-blue-500" />
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-
-              {/* 操作菜单 */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => onEdit(digitalHuman.id)}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    编辑
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onConfigureAgents(digitalHuman.id)}>
-                    <Settings className="h-4 w-4 mr-2" />
-                    智能体配置
-                  </DropdownMenuItem>
-                  {!digitalHuman.is_system_created && (
-                    <DropdownMenuItem 
-                      onClick={() => handleDeleteClick(digitalHuman)}
-                      className="text-red-600"
+                </td>
+                <td className="px-6 py-4 text-center">
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${getTypeStyle(
+                      dh.type
+                    )}`}
+                  >
+                    {getTypeIcon(dh.type)}
+                    {getTypeLabel(dh.type)}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-center">
+                  <span
+                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      dh.status === 'active'
+                        ? 'bg-green-100 text-green-800'
+                        : dh.status === 'maintenance'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}
+                  >
+                    {dh.status === 'active'
+                      ? '活跃'
+                      : dh.status === 'maintenance'
+                      ? '维护中'
+                      : '停用'}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-center text-sm text-gray-600">
+                  <div className="space-y-1">
+                    <div>会话: {dh.conversation_count}</div>
+                    <div>消息: {dh.message_count}</div>
+                    <div>智能体: {dh.agent_count || 0}</div>
+                  </div>
+                </td>
+                <td className="px-6 py-4 text-center text-sm text-gray-500">
+                  {formatDate(dh.last_active_at)}
+                </td>
+                <td className="px-6 py-4 text-right text-sm">
+                  <div className="flex justify-end space-x-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onEdit(dh.id)}
+                      className="text-blue-600 hover:text-blue-800"
                     >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      删除
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+                      编辑
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onConfigureAgents(dh.id)}
+                      className="text-gray-600 hover:text-gray-800"
+                    >
+                      配置
+                    </Button>
+                    {!dh.is_system_created && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onDelete(dh.id)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        删除
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
 
-            {/* 描述 */}
-            {digitalHuman.description && (
-              <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                {digitalHuman.description}
-              </p>
+            {digitalHumans.length === 0 && (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="px-6 py-6 text-center text-sm text-gray-500"
+                >
+                  暂无数字人数据
+                </td>
+              </tr>
             )}
-
-            {/* 状态和统计 */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">状态</span>
-                <Badge className={getStatusColor(digitalHuman.status)}>
-                  {getStatusLabel(digitalHuman.status)}
-                </Badge>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-500">会话数</span>
-                  <div className="font-semibold">{digitalHuman.conversation_count}</div>
-                </div>
-                <div>
-                  <span className="text-gray-500">消息数</span>
-                  <div className="font-semibold">{digitalHuman.message_count}</div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500">智能体</span>
-                <span className="font-semibold">{digitalHuman.agent_count || 0} 个</span>
-              </div>
-
-              <div className="text-sm">
-                <span className="text-gray-500">最后活跃</span>
-                <div className="font-medium">{formatDate(digitalHuman.last_active_at)}</div>
-              </div>
-            </div>
-
-            {/* 快速操作按钮 */}
-            <div className="mt-6 flex space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onEdit(digitalHuman.id)}
-                className="flex-1"
-              >
-                <Edit className="h-4 w-4 mr-1" />
-                编辑
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onConfigureAgents(digitalHuman.id)}
-                className="flex-1"
-              >
-                <Settings className="h-4 w-4 mr-1" />
-                配置
-              </Button>
-            </div>
-          </div>
-        ))}
+          </tbody>
+        </table>
       </div>
 
-      {/* 删除确认对话框 */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>确认删除</AlertDialogTitle>
-            <AlertDialogDescription>
-              您确定要删除数字人 "{selectedDigitalHuman?.name}" 吗？
-              此操作不可撤销，相关的会话记录将被保留，但数字人将无法再使用。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDelete} className="bg-red-600 hover:bg-red-700">
-              删除
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {digitalHumans.length > 0 && (
+        <div className="mt-4">
+          <EnhancedPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={digitalHumans.length}
+            itemsPerPage={itemsPerPage}
+            itemsPerPageOptions={[5, 10, 20, 50]}
+            onPageChange={(page) => setCurrentPage(page)}
+            onItemsPerPageChange={(newItemsPerPage) => {
+              setItemsPerPage(newItemsPerPage);
+              setCurrentPage(1);
+            }}
+            showPageInput
+          />
+        </div>
+      )}
     </div>
   );
 }
