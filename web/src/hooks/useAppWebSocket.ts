@@ -168,16 +168,15 @@ export function useAppWebSocket(): AppWebSocketState {
 
     // 通用事件：用于 direct_message、system_notification 等
     const offEvent = client.onEvent((eventData: any) => {
-      // 只处理带 type 字段的通用事件，避免与 new_message 重复
-      if (!eventData || !eventData.type) {
+      // 只处理带 type 且包含 payload 的通用事件（例如联系人相关事件）
+      // 聊天 new_message 的 eventData 是扁平化消息数据，不含 payload 字段，这里忽略以避免覆盖 new_message
+      if (!eventData || !eventData.type || !('payload' in eventData)) {
         return;
       }
 
       setLastMessage({
-        // 统一使用 type 作为高层事件名称，例如 friend_request_received 等
         action: eventData.type,
-        // data 直接是业务有效负载，优先使用 payload 字段
-        data: eventData.payload ?? eventData,
+        data: eventData.payload,
       });
     });
 
