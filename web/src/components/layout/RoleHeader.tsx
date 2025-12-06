@@ -6,8 +6,16 @@ import UserInfoBar from '@/components/chat/UserInfoBar';
 import { UserRole, AuthUser, Role } from '@/types/auth';
 import { WebSocketStatus } from '@/components/WebSocketStatus';
 import { useWebSocket } from '@/contexts/WebSocketContext';
-import AgentToolbar from '@/components/layout/AgentToolbar';
-import AgentDrawer from '@/components/layout/AgentDrawer';
+import dynamic from 'next/dynamic';
+
+const AgentToolbar = dynamic(() => import('@/components/layout/AgentToolbar').then(mod => mod.AgentToolbar), {
+  ssr: false,
+  loading: () => <div className="h-10 flex-1 mx-6 bg-gray-50 rounded-lg animate-pulse" />
+});
+
+const AgentDrawer = dynamic(() => import('@/components/layout/AgentDrawer').then(mod => mod.AgentDrawer), {
+  ssr: false
+});
 import type { AgentConfig } from '@/service/agentConfigService';
 
 export default function RoleHeader() {

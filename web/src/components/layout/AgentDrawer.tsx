@@ -14,7 +14,7 @@ interface AgentDrawerProps {
   allAgents: AgentConfig[];
 }
 
-export default function AgentDrawer({
+export function AgentDrawer({
   isOpen,
   agent,
   onClose,

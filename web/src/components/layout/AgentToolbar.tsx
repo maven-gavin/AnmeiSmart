@@ -11,7 +11,7 @@ interface AgentToolbarProps {
   onAgentsLoaded?: (agents: AgentConfig[]) => void;
 }
 
-export default function AgentToolbar({ 
+export function AgentToolbar({ 
   selectedAgentId, 
   onAgentSelect,
   onAgentsLoaded 

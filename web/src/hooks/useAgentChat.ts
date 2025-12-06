@@ -23,6 +23,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [isResponding, setIsResponding] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isConversationsLoading, setIsConversationsLoading] = useState(false);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [appConfig, setAppConfig] = useState<ApplicationParameters | null>(null);
   
@@ -51,12 +52,15 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
   const loadConversations = useCallback(async () => {
     if (!isValidAgent) return;
     
+    setIsConversationsLoading(true);
     try {
       const list = await agentChatService.getAgentConversations(agentConfig.id);
       setConversations(list);
     } catch (error) {
       console.error('加载会话列表失败:', error);
       toast.error('加载会话列表失败');
+    } finally {
+      setIsConversationsLoading(false);
     }
   }, [agentConfig.id, isValidAgent]);
 
@@ -534,6 +538,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
     currentConversationId,
     isResponding,
     isLoading,
+    isConversationsLoading,
     currentTaskId,
     appConfig,
     

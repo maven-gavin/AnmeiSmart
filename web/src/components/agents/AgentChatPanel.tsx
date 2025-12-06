@@ -126,7 +126,7 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
           onSelectConversation={handleSelectConversation}
           onCreateNewChat={handleCreateNewChat}
           onConversationUpdate={handleConversationUpdate}
-          isLoading={chatState.isLoading}
+          isLoading={chatState.isConversationsLoading}
         />
       )}
 

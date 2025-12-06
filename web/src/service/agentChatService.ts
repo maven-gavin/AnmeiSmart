@@ -40,10 +40,23 @@ export const sendAgentMessage = async (
 export const getAgentConversations = async (
   agentConfigId: string
 ): Promise<AgentConversation[]> => {
-  const response = await apiClient.get<AgentConversation[]>(
+  const response = await apiClient.get<any[]>(
     `/agent/${agentConfigId}/conversations`
   );
-  return response.data;
+  
+  // 处理可能的响应包装
+  const data = Array.isArray(response.data) ? response.data : (response.data as any).data || [];
+  
+  // 映射后端字段到前端类型
+  return data.map((item: any) => ({
+    id: item.id,
+    agentConfigId: item.agent_config_id || item.agentConfigId || agentConfigId,
+    title: item.title,
+    createdAt: item.created_at || item.createdAt,
+    updatedAt: item.updated_at || item.updatedAt,
+    messageCount: item.message_count || item.messageCount || 0,
+    lastMessage: item.last_message || item.lastMessage
+  }));
 };
 
 /**
@@ -80,11 +93,23 @@ export const createAgentConversation = async (
   agentConfigId: string,
   title?: string
 ): Promise<AgentConversation> => {
-  const response = await apiClient.post<AgentConversation>(
+  const response = await apiClient.post<any>(
     `/agent/${agentConfigId}/conversations`,
     { body: { title } }
   );
-  return response.data;
+  
+  const item = response.data;
+  
+  // 映射后端字段到前端类型
+  return {
+    id: item.id,
+    agentConfigId: item.agent_config_id || item.agentConfigId || agentConfigId,
+    title: item.title,
+    createdAt: item.created_at || item.createdAt,
+    updatedAt: item.updated_at || item.updatedAt,
+    messageCount: item.message_count || item.messageCount || 0,
+    lastMessage: item.last_message || item.lastMessage
+  };
 };
 
 /**
