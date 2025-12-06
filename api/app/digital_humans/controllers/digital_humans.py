@@ -16,6 +16,7 @@ from ..schemas.digital_human import (
     UpdateDigitalHumanRequest,
     AddAgentConfigRequest,
     DigitalHumanAgentConfigInfo,
+    UpdateAgentConfigRequest,
 )
 from ..deps.digital_humans import get_digital_human_service
 from ..services.digital_human_service import DigitalHumanService
@@ -226,4 +227,38 @@ async def remove_agent_from_digital_human(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"移除智能体配置失败: {str(e)}"
+        )
+
+
+@router.put("/{digital_human_id}/agents/{config_id}", response_model=DigitalHumanAgentConfigInfo)
+async def update_digital_human_agent(
+    digital_human_id: str,
+    config_id: str,
+    data: UpdateAgentConfigRequest,
+    current_user: User = Depends(get_current_user),
+    service: DigitalHumanService = Depends(get_digital_human_service),
+):
+    """更新数字人的智能体配置"""
+    try:
+        updated_config = service.update_digital_human_agent(
+            digital_human_id=digital_human_id,
+            config_id=config_id,
+            user_id=current_user.id,
+            data=data,
+        )
+
+        if not updated_config:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="智能体配置不存在或无权限修改",
+            )
+
+        return updated_config
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"更新数字人智能体配置失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="更新智能体配置失败",
         )

@@ -20,7 +20,8 @@ from ..schemas.digital_human import (
     DigitalHumanResponse,
     AddAgentConfigRequest,
     DigitalHumanAgentConfigInfo,
-    AgentConfigInfo
+    AgentConfigInfo,
+    UpdateAgentConfigRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -359,6 +360,69 @@ class DigitalHumanService:
         except Exception as e:
             self.db.rollback()
             logger.error(f"移除智能体配置失败: {e}")
+            raise
+    
+    def update_digital_human_agent(
+        self,
+        digital_human_id: str,
+        config_id: str,
+        user_id: str,
+        data: UpdateAgentConfigRequest,
+    ) -> Optional[DigitalHumanAgentConfigInfo]:
+        """更新数字人的智能体配置"""
+        try:
+            config = (
+                self.db.query(DigitalHumanAgentConfig)
+                .join(DigitalHuman)
+                .filter(
+                    and_(
+                        DigitalHumanAgentConfig.id == config_id,
+                        DigitalHumanAgentConfig.digital_human_id == digital_human_id,
+                        DigitalHuman.user_id == user_id,
+                    )
+                )
+                .first()
+            )
+
+            if not config:
+                return None
+
+            update_data = data.model_dump(exclude_unset=True)
+
+            if "priority" in update_data:
+                config.priority = update_data["priority"]
+            if "is_active" in update_data:
+                config.is_active = update_data["is_active"]
+            if "scenarios" in update_data:
+                config.scenarios = update_data["scenarios"]
+            if "context_prompt" in update_data:
+                config.context_prompt = update_data["context_prompt"]
+
+            self.db.commit()
+            self.db.refresh(config)
+
+            agent_config = config.agent_config
+
+            return DigitalHumanAgentConfigInfo(
+                id=config.id,
+                priority=config.priority,
+                is_active=config.is_active,
+                scenarios=config.scenarios,
+                context_prompt=config.context_prompt,
+                agent_config=AgentConfigInfo(
+                    id=agent_config.id,
+                    app_name=agent_config.app_name,
+                    app_id=agent_config.app_id,
+                    environment=agent_config.environment,
+                    description=agent_config.description,
+                    enabled=agent_config.enabled,
+                    agent_type=agent_config.agent_type,
+                    capabilities=agent_config.capabilities,
+                ),
+            )
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"更新数字人智能体配置失败: {e}")
             raise
     
     def create_system_digital_human(self, user_id: str, username: str) -> DigitalHumanResponse:

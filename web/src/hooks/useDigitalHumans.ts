@@ -61,21 +61,15 @@ export function useDigitalHumans() {
     data: UpdateDigitalHumanRequest
   ): Promise<DigitalHuman> => {
     try {
-      const response = await apiClient.put<{
-        success: boolean;
-        data: DigitalHuman;
-        message?: string;
-      }>(`/digital-humans/${id}`, data);
-      
-      if (response.data.success) {
-        const updatedDigitalHuman = response.data.data;
-        setDigitalHumans(prev => 
-          prev.map(dh => dh.id === id ? updatedDigitalHuman : dh)
-        );
-        return updatedDigitalHuman;
-      } else {
-        throw new Error(response.data.message || '更新数字人失败');
-      }
+      // 后端当前直接返回 DigitalHuman 对象，而不是 { success, data } 包装
+      const response = await apiClient.put<DigitalHuman>(`/digital-humans/${id}`, data);
+      const updatedDigitalHuman = response.data;
+
+      setDigitalHumans(prev => 
+        prev.map(dh => dh.id === id ? updatedDigitalHuman : dh)
+      );
+
+      return updatedDigitalHuman;
     } catch (error) {
       console.error('更新数字人失败:', error);
       throw error;
@@ -106,17 +100,9 @@ export function useDigitalHumans() {
   // 获取单个数字人详情
   const getDigitalHuman = async (id: string): Promise<DigitalHuman> => {
     try {
-      const response = await apiClient.get<{
-        success: boolean;
-        data: DigitalHuman;
-        message?: string;
-      }>(`/digital-humans/${id}`);
-      
-      if (response.data.success) {
-        return response.data.data;
-      } else {
-        throw new Error(response.data.message || '获取数字人详情失败');
-      }
+      // 后端当前直接返回 DigitalHuman 对象
+      const response = await apiClient.get<DigitalHuman>(`/digital-humans/${id}`);
+      return response.data;
     } catch (error) {
       console.error('获取数字人详情失败:', error);
       throw error;

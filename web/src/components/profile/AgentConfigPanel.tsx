@@ -32,28 +32,9 @@ import {
   X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-
-interface AgentConfig {
-  id: string;
-  appName: string;
-  appId: string;
-  environment: string;
-  agentType?: string;
-  capabilities?: string[];
-  description?: string;
-  enabled: boolean;
-}
-
-interface DigitalHumanAgentConfig {
-  id: string;
-  digitalHumanId: string;
-  agentConfigId: string;
-  priority: number;
-  isActive: boolean;
-  scenarios?: string[];
-  contextPrompt?: string;
-  agentConfig: AgentConfig;
-}
+import { apiClient } from '@/service/apiClient';
+import agentConfigService, { AgentConfig as AvailableAgentConfig } from '@/service/agentConfigService';
+import type { DigitalHumanAgentConfig, AddAgentConfigRequest, UpdateAgentConfigRequest } from '@/types/digital-human';
 
 interface AgentConfigPanelProps {
   digitalHumanId: string;
@@ -65,7 +46,7 @@ export default function AgentConfigPanel({
   onBack
 }: AgentConfigPanelProps) {
   const [digitalHumanAgents, setDigitalHumanAgents] = useState<DigitalHumanAgentConfig[]>([]);
-  const [availableAgents, setAvailableAgents] = useState<AgentConfig[]>([]);
+  const [availableAgents, setAvailableAgents] = useState<AvailableAgentConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<DigitalHumanAgentConfig | null>(null);
@@ -84,15 +65,15 @@ export default function AgentConfigPanel({
   const loadData = async () => {
     setIsLoading(true);
     try {
-      // 加载数字人的智能体配置
-      const dhAgentsResponse = await fetch(`/api/digital-humans/${digitalHumanId}/agents`);
-      const dhAgentsData = await dhAgentsResponse.json();
-      setDigitalHumanAgents(dhAgentsData.data || []);
+      // 加载数字人的智能体配置（直接使用后端 /digital-humans/{id}/agents 接口）
+      const dhAgentsResponse = await apiClient.get<DigitalHumanAgentConfig[]>(
+        `/digital-humans/${digitalHumanId}/agents`
+      );
+      setDigitalHumanAgents(dhAgentsResponse.data || []);
 
-      // 加载可用的智能体配置
-      const agentsResponse = await fetch('/api/agent-configs');
-      const agentsData = await agentsResponse.json();
-      setAvailableAgents(agentsData.data || []);
+      // 加载可用的智能体配置，复用现有 agentConfigService
+      const agents = await agentConfigService.getAgentConfigs();
+      setAvailableAgents(agents);
     } catch (error) {
       console.error('加载数据失败:', error);
       toast.error('加载智能体配置失败');
@@ -108,28 +89,23 @@ export default function AgentConfigPanel({
     }
 
     try {
-      const response = await fetch(`/api/digital-humans/${digitalHumanId}/agents`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          agentConfigId: selectedAgentId,
-          priority,
-          scenarios,
-          contextPrompt,
-          isActive: true
-        }),
-      });
+      const payload: AddAgentConfigRequest = {
+        agent_config_id: selectedAgentId,
+        priority,
+        scenarios: scenarios.length ? scenarios : undefined,
+        context_prompt: contextPrompt || undefined,
+        is_active: true,
+      };
 
-      if (response.ok) {
-        toast.success('智能体添加成功');
-        setAddDialogOpen(false);
-        resetForm();
-        loadData();
-      } else {
-        throw new Error('添加失败');
-      }
+      await apiClient.post<DigitalHumanAgentConfig>(
+        `/digital-humans/${digitalHumanId}/agents`,
+        payload
+      );
+
+      toast.success('智能体添加成功');
+      setAddDialogOpen(false);
+      resetForm();
+      loadData();
     } catch (error) {
       console.error('添加智能体失败:', error);
       toast.error('添加智能体失败');
@@ -138,25 +114,20 @@ export default function AgentConfigPanel({
 
   const handleUpdateAgent = async (agentConfig: DigitalHumanAgentConfig) => {
     try {
-      const response = await fetch(`/api/digital-humans/${digitalHumanId}/agents/${agentConfig.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          priority: agentConfig.priority,
-          isActive: agentConfig.isActive,
-          scenarios: agentConfig.scenarios,
-          contextPrompt: agentConfig.contextPrompt
-        }),
-      });
+      const payload: UpdateAgentConfigRequest = {
+        priority: agentConfig.priority,
+        is_active: agentConfig.is_active,
+        scenarios: agentConfig.scenarios,
+        context_prompt: agentConfig.context_prompt,
+      };
 
-      if (response.ok) {
-        toast.success('智能体配置更新成功');
-        loadData();
-      } else {
-        throw new Error('更新失败');
-      }
+      await apiClient.put<DigitalHumanAgentConfig>(
+        `/digital-humans/${digitalHumanId}/agents/${agentConfig.id}`,
+        payload
+      );
+
+      toast.success('智能体配置更新成功');
+      loadData();
     } catch (error) {
       console.error('更新智能体配置失败:', error);
       toast.error('更新智能体配置失败');
@@ -165,16 +136,12 @@ export default function AgentConfigPanel({
 
   const handleRemoveAgent = async (agentId: string) => {
     try {
-      const response = await fetch(`/api/digital-humans/${digitalHumanId}/agents/${agentId}`, {
-        method: 'DELETE',
-      });
+      await apiClient.delete<void>(
+        `/digital-humans/${digitalHumanId}/agents/${agentId}`
+      );
 
-      if (response.ok) {
-        toast.success('智能体移除成功');
-        loadData();
-      } else {
-        throw new Error('移除失败');
-      }
+      toast.success('智能体移除成功');
+      loadData();
     } catch (error) {
       console.error('移除智能体失败:', error);
       toast.error('移除智能体失败');
@@ -216,7 +183,7 @@ export default function AgentConfigPanel({
   };
 
   const getAvailableAgents = () => {
-    const configuredAgentIds = digitalHumanAgents.map(dha => dha.agentConfigId);
+    const configuredAgentIds = digitalHumanAgents.map(dha => dha.agent_config.id);
     return availableAgents.filter(agent => !configuredAgentIds.includes(agent.id));
   };
 
@@ -369,10 +336,10 @@ export default function AgentConfigPanel({
                       </span>
                       <div>
                         <h4 className="font-semibold text-gray-900">
-                          {agentConfig.agentConfig.appName}
+                          {agentConfig.agent_config.app_name}
                         </h4>
                         <p className="text-sm text-gray-600">
-                          {agentConfig.agentConfig.description}
+                          {agentConfig.agent_config.description}
                         </p>
                       </div>
                     </div>
@@ -435,10 +402,10 @@ export default function AgentConfigPanel({
                 {/* 智能体详细信息 */}
                 <div className="mt-4 space-y-2">
                   <div className="flex items-center space-x-4 text-sm text-gray-600">
-                    <span>环境: {agentConfig.agentConfig.environment}</span>
-                    <span>应用ID: {agentConfig.agentConfig.appId}</span>
+                    <span>环境: {agentConfig.agent_config.environment}</span>
+                    <span>应用ID: {agentConfig.agent_config.app_id}</span>
                     <Badge variant={agentConfig.isActive ? 'default' : 'secondary'}>
-                      {agentConfig.isActive ? '启用' : '停用'}
+                      {agentConfig.is_active ? '启用' : '停用'}
                     </Badge>
                   </div>
 
@@ -459,7 +426,7 @@ export default function AgentConfigPanel({
                     <div>
                       <span className="text-sm text-gray-500">上下文: </span>
                       <p className="text-sm text-gray-700 mt-1 bg-gray-50 p-2 rounded">
-                        {agentConfig.contextPrompt}
+                        {agentConfig.context_prompt}
                       </p>
                     </div>
                   )}
