@@ -194,21 +194,6 @@ function SmartCommunicationContent() {
     }
   };
   
-  const handleStartNewConsultation = async () => {
-    setLoadingFriendConversation(true);
-    try {
-      const { apiClient } = await import('@/service/apiClient');
-      const response = await apiClient.post('/consultation/sessions');
-      const consultation = response.data as { id: string };
-      const url = `/chat?conversationId=${consultation.id}`;
-      router.push(url, { scroll: false });
-    } catch (error) {
-      console.error('创建咨询会话失败:', error);
-      alert('创建咨询会话失败，请重试');
-    } finally {
-      setLoadingFriendConversation(false);
-    }
-  };
 
   // 处理好友会话创建
   useEffect(() => {
@@ -341,19 +326,6 @@ function SmartCommunicationContent() {
               <h2 className="text-lg font-medium text-gray-800">智能沟通</h2>
               <p className="text-sm text-gray-500">让我们快乐沟通</p>
             </div>
-          </div>
-          <div className="flex items-center space-x-3">
-            {isCustomer && (
-              <button
-                onClick={handleStartNewConsultation}
-                className="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
-              >
-                <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                开始新的咨询
-              </button>
-            )}
           </div>
         </div>
       </div>
