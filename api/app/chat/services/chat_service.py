@@ -466,7 +466,7 @@ class ChatService:
             return None  # 无权限
         
         # 分离会话级别和个人级别的更新字段
-        conversation_fields = ['title', 'is_active', 'is_archived', 'tag']
+        conversation_fields = ['title', 'is_active', 'is_archived', 'tag', 'chat_mode']
         participant_fields = ['is_pinned']
         
         # 更新会话级别字段（只有owner可以修改）

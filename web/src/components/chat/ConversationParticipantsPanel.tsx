@@ -17,8 +17,9 @@ import {
   addConversationParticipant,
   removeConversationParticipant,
 } from '@/service/chatService';
-import { searchUsers } from '@/service/contacts/api';
-import type { UserSearchResult } from '@/types/contacts';
+import { ChatApiService } from '@/service/chat/api';
+import { getFriends } from '@/service/contacts/api';
+import type { Friendship } from '@/types/contacts';
 import type { ConversationParticipant } from '@/service/chat';
 
 interface ConversationParticipantsPanelProps {
@@ -69,7 +70,12 @@ export function ConversationParticipantsPanel({
   const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
+  // 搜索结果显示的好友信息（从好友关系表查询）
+  const [searchResults, setSearchResults] = useState<Array<{
+    id: string;
+    username: string;
+    avatar?: string;
+  }>>([]);
   const [searching, setSearching] = useState(false);
 
   // 加载会话参与者（来自 conversation_participants 表）
@@ -106,9 +112,9 @@ export function ConversationParticipantsPanel({
     };
   }, [conversationId, isOpen]);
 
-  // 搜索好友，用于添加为参与者
+  // 搜索好友，用于添加为参与者（从好友关系表查询）
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !user) return;
 
     const query = searchQuery.trim();
     if (query.length < 2) {
@@ -121,13 +127,33 @@ export function ConversationParticipantsPanel({
     const doSearch = async () => {
       setSearching(true);
       try {
-        const results = await searchUsers({
-          query,
-          search_type: 'all',
-          limit: 10,
+        // 使用 getFriends API，从好友关系表查询，支持搜索参数
+        const result = await getFriends({
+          search: query,
+          status: 'accepted', // 只查询已接受的好友关系
+          page: 1,
+          size: 10,
         });
-        if (!cancelled) {
-          setSearchResults(results || []);
+        
+        if (!cancelled && result?.items) {
+          // 从 Friendship 中提取好友信息
+          // 后端已经处理了双向关系，friend 字段始终表示当前用户的好友
+          const friends = result.items
+            .filter((friendship: Friendship) => {
+              // 只保留已接受的好友关系
+              return friendship.status === 'accepted' && friendship.friend;
+            })
+            .map((friendship: Friendship) => {
+              const friendInfo = friendship.friend;
+              return {
+                id: friendInfo?.id || '',
+                username: friendInfo?.username || '未知用户',
+                avatar: friendInfo?.avatar,
+              };
+            })
+            .filter(f => f.id); // 过滤掉无效的好友信息
+          
+          setSearchResults(friends);
         }
       } catch (e) {
         if (!cancelled) {
@@ -147,13 +173,28 @@ export function ConversationParticipantsPanel({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [searchQuery, isOpen]);
+  }, [searchQuery, isOpen, user]);
 
   const handleAddParticipant = useCallback(
     async (userId: string) => {
       if (!conversationId || !userId) return;
 
       try {
+        // 先获取会话详情，检查聊天模式
+        const conversation = await ChatApiService.getConversationDetails(conversationId);
+        if (!conversation) {
+          setError('会话不存在');
+          return;
+        }
+
+        // 如果会话是 single 模式，先更新为 group 模式
+        if (conversation.chat_mode === 'single') {
+          await ChatApiService.updateConversation(conversationId, {
+            chat_mode: 'group',
+          });
+        }
+
+        // 添加参与者
         const created = await addConversationParticipant(conversationId, userId, 'member');
         if (!created) return;
 
@@ -199,8 +240,8 @@ export function ConversationParticipantsPanel({
     return name.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
-  // 搜索结果中只展示好友（业务要求：搜索好友后添加）
-  const friendSearchResults = searchResults.filter(r => r.is_friend);
+  // 搜索结果已经是好友关系表中的好友，无需再过滤
+  const friendSearchResults = searchResults;
 
   if (!isOpen) return null;
 

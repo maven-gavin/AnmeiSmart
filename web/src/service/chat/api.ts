@@ -79,6 +79,23 @@ export class ChatApiService {
     
     await apiClient.patch(`${this.BASE_PATH}/conversations/${conversationId}`, requestData);
   }
+
+  /**
+   * 更新会话信息（支持更新 chat_mode 等字段）
+   */
+  public static async updateConversation(
+    conversationId: string,
+    updates: { chat_mode?: 'single' | 'group'; title?: string; [key: string]: any }
+  ): Promise<Conversation> {
+    const response = await apiClient.patch<ConversationApiResponse>(
+      `${this.BASE_PATH}/conversations/${conversationId}`,
+      updates
+    );
+    if (!response.data) {
+      throw new Error('更新会话失败：响应数据为空');
+    }
+    return ChatDataMapper.mapConversation(response.data);
+  }
   
   /**
    * 获取指定客户的会话列表
