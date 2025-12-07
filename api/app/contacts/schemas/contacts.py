@@ -141,6 +141,10 @@ class UserSearchResult(BaseModel):
     avatar: Optional[str] = Field(None, description="头像URL")
     phone: Optional[str] = Field(None, description="手机号")
     is_friend: bool = Field(False, description="是否已经是好友")
+    friendship_status: Optional[str] = Field(
+        None,
+        description="好友关系状态：pending/accepted/blocked/deleted 等；为 None 表示尚无任何好友关系"
+    )
     mutual_friends_count: int = Field(0, description="共同好友数量")
     
     @staticmethod
@@ -149,18 +153,25 @@ class UserSearchResult(BaseModel):
         if not user:
             return None
         
-        # 检查是否为好友（需要传入 db_session 来查询）
+        # 检查是否存在好友关系（需要传入 db_session 来查询）
         is_friend = False
+        friendship_status: Optional[str] = None
         mutual_friends_count = 0
         
         if db_session:
             from app.contacts.models.contacts import Friendship
+            # 好友关系是双向的，这里需要同时检查 user_id 和 friend_id
             friendship = db_session.query(Friendship).filter(
-                Friendship.user_id == current_user_id,
-                Friendship.friend_id == user.id,
-                Friendship.status == "accepted"
+                or_(
+                    and_(Friendship.user_id == current_user_id, Friendship.friend_id == user.id),
+                    and_(Friendship.friend_id == current_user_id, Friendship.user_id == user.id),
+                )
             ).first()
-            is_friend = friendship is not None
+            if friendship:
+                friendship_status = friendship.status
+                # 只要存在任意好友关系（包括 pending/accepted 等），就认为 is_friend 为 True，
+                # 由前端结合 friendship_status 决定显示“已是好友”还是“待确认”等文案
+                is_friend = True
             
             # 计算共同好友数量（简化版，后续可以优化）
             # TODO: 实现完整的共同好友计算逻辑
@@ -172,6 +183,7 @@ class UserSearchResult(BaseModel):
             avatar=user.avatar,
             phone=getattr(user, 'phone', None),
             is_friend=is_friend,
+             friendship_status=friendship_status,
             mutual_friends_count=mutual_friends_count
         )
 

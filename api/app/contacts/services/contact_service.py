@@ -709,8 +709,15 @@ class ContactService:
         search_type: str = "all",
         limit: int = 20
     ) -> List[Dict[str, Any]]:
-        """搜索用户（用于添加好友）"""
+        """搜索用户（用于添加好友）
+        
+        注意：
+        - 这里不仅返回基础的用户信息，还会同时返回当前用户与该用户之间是否已经存在好友关系
+        - 如果存在好友关系（无论 pending / accepted / blocked 等），会返回 is_friend=True 以及对应的 friendship_status
+        - 前端可以根据 friendship_status 决定展示“已是好友”还是“待确认”等状态，从而避免重复发送好友请求时报“好友关系已存在”
+        """
         from app.identity_access.models.user import User
+        from app.contacts.models.contacts import Friendship
         
         # 搜索用户（暂时简化实现，后续可以优化）
         search_term = f"%{query}%"
@@ -725,15 +732,32 @@ class ContactService:
             )
         ).limit(limit).all()
         
-        # 转换为响应格式
-        result = []
+        result: List[Dict[str, Any]] = []
         for user in users:
+            # 查询当前用户与该用户之间是否已经存在任何好友关系（双向）
+            friendship = self.db.query(Friendship).filter(
+                or_(
+                    and_(Friendship.user_id == current_user_id, Friendship.friend_id == user.id),
+                    and_(Friendship.friend_id == current_user_id, Friendship.user_id == user.id),
+                )
+            ).first()
+            
+            friendship_status: Optional[str] = None
+            is_friend = False
+            if friendship:
+                friendship_status = friendship.status
+                # 只要存在好友关系记录（包括 pending），就认为已经建立了关系，不允许再次发送请求
+                is_friend = True
+            
             result.append({
                 "id": user.id,
                 "name": user.username,  # UserSearchResult 期望 name 字段
                 "email": user.email,
                 "avatar": user.avatar,
-                "phone": user.phone
+                "phone": user.phone,
+                "is_friend": is_friend,
+                "friendship_status": friendship_status,
+                "mutual_friends_count": 0,
             })
         return result
     

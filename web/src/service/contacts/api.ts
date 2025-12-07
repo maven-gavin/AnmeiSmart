@@ -10,6 +10,7 @@ import type {
   FriendRequest,
   ContactPrivacySetting,
   ContactAnalytics,
+  FriendshipStatus,
   
   // 请求类型
   FriendRequestCreate,
@@ -72,23 +73,30 @@ export async function getFriends(filters: FriendListFilters & {
  * 搜索用户
  */
 export async function searchUsers(searchRequest: UserSearchRequest): Promise<UserSearchResult[]> {
-  // 后端返回 ApiResponse<List[UserSearchResult]>，其中 UserSearchResult 使用 name 而不是 username
-  // 并且后端返回的数据包含 mutual_friends_count，前端定义中没有
+  // 后端返回 ApiResponse<List[UserSearchResult>]，其中：
+  // - name 字段需要映射到前端的 username
+  // - is_friend / friendship_status 表示当前用户与该用户之间是否已经存在任何好友关系以及其状态
   const response = await apiClient.post<any[]>('/contacts/friends/search', searchRequest);
   const items = response.data || [];
   
-  return items.map(item => ({
-    id: item.id,
-    username: item.name || item.username || '未知用户', // 映射 name 到 username
-    avatar: item.avatar,
-    roles: [], // 后端未返回 roles，给默认空数组
-    is_friend: item.is_friend,
-    friendship_status: item.is_friend ? 'accepted' : undefined, // 简单推断状态
-    // 保留可能的额外字段
-    email: item.email,
-    phone: item.phone,
-    mutual_friends_count: item.mutual_friends_count
-  })) as unknown as UserSearchResult[];
+  return items.map((item) => {
+    const friendshipStatus = (item.friendship_status || undefined) as FriendshipStatus | undefined;
+    // 只要存在任何好友关系（包括 pending/accepted 等），就认为已经有关联关系，不再展示“添加”按钮
+    const hasRelationship = Boolean(friendshipStatus) || Boolean(item.is_friend);
+
+    return {
+      id: item.id,
+      username: item.name || item.username || '未知用户', // 映射 name 到 username
+      avatar: item.avatar,
+      roles: [], // 后端未返回 roles，给默认空数组
+      is_friend: hasRelationship,
+      friendship_status: friendshipStatus,
+      // 保留可能的额外字段
+      email: item.email,
+      phone: item.phone,
+      mutual_friends_count: item.mutual_friends_count ?? 0
+    } as UserSearchResult;
+  });
 }
 
 /**
