@@ -156,3 +156,41 @@ export const CACHE_TIME = {
   MESSAGES: 5000, // 5秒
   CONVERSATIONS: 10000, // 10秒
 } as const; 
+
+/**
+ * 会话参与者角色
+ */
+export type ConversationParticipantRole = 'owner' | 'admin' | 'member' | 'guest';
+
+/**
+ * 接管状态
+ */
+export type TakeoverStatus = 'full_takeover' | 'semi_takeover' | 'no_takeover';
+
+/**
+ * 会话参与者前端类型
+ */
+export interface ConversationParticipant {
+  id: string;
+  conversationId: string;
+  userId?: string;
+  userName?: string;
+  userAvatar?: string;
+  role: ConversationParticipantRole;
+  takeoverStatus: TakeoverStatus;
+  isActive: boolean;
+}
+
+/**
+ * 会话参与者 API 响应类型
+ */
+export interface ConversationParticipantApiResponse {
+  id: string;
+  conversation_id: string;
+  user_id?: string;
+  user_name?: string;
+  user_avatar?: string;
+  role: ConversationParticipantRole;
+  takeover_status?: TakeoverStatus;
+  is_active: boolean;
+}

@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from enum import Enum
 
 import logging
+
 logger = logging.getLogger(__name__)
 class MessageSender(BaseModel):
     """消息发送者信息"""
@@ -276,6 +277,59 @@ class MessageInfo(MessageBase):
         # logger.debug(f"MessageInfo.from_model - 转换后: message_id={result.id}, content={result.content}")
         
         return result
+
+
+# ===== 会话参与者模型定义 =====
+
+
+class ConversationParticipantInfo(BaseModel):
+    """会话参与者信息模型"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    conversation_id: str
+    user_id: Optional[str] = None
+    role: Literal["owner", "admin", "member", "guest"] = "member"
+    takeover_status: Literal["full_takeover", "semi_takeover", "no_takeover"] = "no_takeover"
+    is_active: bool = True
+    joined_at: Optional[datetime] = None
+    left_at: Optional[datetime] = None
+
+    # 展示用用户信息（从 User 关联中提取）
+    user_name: Optional[str] = None
+    user_avatar: Optional[str] = None
+
+    @staticmethod
+    def from_model(participant) -> "ConversationParticipantInfo":
+        """从 ConversationParticipant 模型转换为 Schema 模型"""
+        user = getattr(participant, "user", None)
+
+        user_name: Optional[str] = None
+        user_avatar: Optional[str] = None
+        if user is not None:
+            user_name = getattr(user, "username", None) or getattr(user, "name", None)
+            user_avatar = getattr(user, "avatar", None)
+
+        return ConversationParticipantInfo(
+            id=str(getattr(participant, "id", "")),
+            conversation_id=str(getattr(participant, "conversation_id", "")),
+            user_id=str(getattr(participant, "user_id", "")) if getattr(participant, "user_id", None) else None,
+            role=getattr(participant, "role", "member") or "member",
+            takeover_status=getattr(participant, "takeover_status", "no_takeover") or "no_takeover",
+            is_active=bool(getattr(participant, "is_active", True)),
+            joined_at=getattr(participant, "joined_at", None),
+            left_at=getattr(participant, "left_at", None),
+            user_name=user_name,
+            user_avatar=user_avatar,
+        )
+
+
+class ConversationParticipantCreate(BaseModel):
+    """创建会话参与者请求模型"""
+
+    user_id: str
+    role: Literal["owner", "admin", "member", "guest"] = "member"
 
 
 # ===== 便利函数用于创建不同类型的消息 =====

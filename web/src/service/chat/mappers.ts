@@ -3,8 +3,13 @@
  * 负责API响应数据与前端类型的转换
  */
 
-import { Conversation, Message, User } from '@/types/chat';
-import { ConversationApiResponse, MessageApiResponse } from './types';
+import { Conversation, Message } from '@/types/chat';
+import {
+  ConversationApiResponse,
+  MessageApiResponse,
+  ConversationParticipantApiResponse,
+  ConversationParticipant,
+} from './types';
 
 /**
  * 数据映射工具类
@@ -138,5 +143,32 @@ export class ChatDataMapper {
    */
   static mapMessages(apiResponses: MessageApiResponse[]): Message[] {
     return apiResponses.map(response => this.mapMessage(response));
+  }
+
+  /**
+   * 将API响应转换为 ConversationParticipant 类型
+   */
+  static mapConversationParticipant(
+    apiParticipant: ConversationParticipantApiResponse
+  ): ConversationParticipant {
+    return {
+      id: apiParticipant.id,
+      conversationId: apiParticipant.conversation_id,
+      userId: apiParticipant.user_id,
+      userName: apiParticipant.user_name,
+      userAvatar: apiParticipant.user_avatar || '/avatars/user.png',
+      role: apiParticipant.role,
+      takeoverStatus: apiParticipant.takeover_status || 'no_takeover',
+      isActive: apiParticipant.is_active,
+    };
+  }
+
+  /**
+   * 批量映射会话参与者列表
+   */
+  static mapConversationParticipants(
+    apiParticipants: ConversationParticipantApiResponse[]
+  ): ConversationParticipant[] {
+    return apiParticipants.map(p => this.mapConversationParticipant(p));
   }
 }

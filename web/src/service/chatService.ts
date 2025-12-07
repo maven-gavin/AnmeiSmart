@@ -15,7 +15,9 @@ import {
   type Conversation,
   type CustomerProfile,
   type Customer,
-  type ConsultationHistoryItem
+  type ConsultationHistoryItem,
+  type ConversationParticipant,
+  type ConversationParticipantRole,
 } from './chat';
 
 /**
@@ -254,6 +256,53 @@ export async function markMessageAsImportant(conversationId: string, messageId: 
 export function getImportantMessages(conversationId: string): Message[] {
   const messages = chatState.getChatMessages(conversationId);
   return messages.filter(msg => msg.is_important);
+}
+
+// ===== 会话参与者管理 =====
+
+/**
+ * 获取会话参与者列表
+ */
+export async function getConversationParticipants(
+  conversationId: string
+): Promise<ConversationParticipant[]> {
+  try {
+    return await ChatApiService.getConversationParticipants(conversationId);
+  } catch (error) {
+    console.error('获取会话参与者失败:', error);
+    return [];
+  }
+}
+
+/**
+ * 添加会话参与者
+ */
+export async function addConversationParticipant(
+  conversationId: string,
+  userId: string,
+  role: ConversationParticipantRole = 'member'
+): Promise<ConversationParticipant | null> {
+  try {
+    return await ChatApiService.addConversationParticipant(conversationId, userId, role);
+  } catch (error) {
+    console.error('添加会话参与者失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 移除会话参与者
+ */
+export async function removeConversationParticipant(
+  conversationId: string,
+  participantId: string
+): Promise<void> {
+  try {
+    await ChatApiService.removeConversationParticipant(conversationId, participantId);
+  } catch (error) {
+    console.error('移除会话参与者失败:', error);
+    throw error;
+  }
 }
 
 // ===== 客户档案和历史记录 =====

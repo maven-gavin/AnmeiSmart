@@ -94,6 +94,137 @@ class ChatService:
             if not is_system_message and str(participant.user_id) != str(sender_id):
                 participant.unread_count = (participant.unread_count or 0) + 1
     
+    # ============ 会话参与者管理 ============
+
+    def get_conversation_participants(self, conversation_id: str) -> List[ConversationParticipant]:
+        """获取会话参与者列表（仅返回活跃参与者）"""
+        conversation = self.db.query(Conversation).filter(
+            Conversation.id == conversation_id
+        ).first()
+
+        if not conversation:
+            raise BusinessException("会话不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
+
+        participants = self.db.query(ConversationParticipant).options(
+            joinedload(ConversationParticipant.user)
+        ).filter(
+            ConversationParticipant.conversation_id == conversation_id,
+            ConversationParticipant.is_active == True
+        ).all()
+
+        return participants
+
+    def add_conversation_participant(
+        self,
+        conversation_id: str,
+        current_user_id: str,
+        user_id: str,
+        role: str = "member"
+    ) -> ConversationParticipant:
+        """添加会话参与者
+
+        只有会话所有者或管理员可以添加参与者
+        """
+        conversation = self.db.query(Conversation).filter(
+            Conversation.id == conversation_id
+        ).first()
+
+        if not conversation:
+            raise BusinessException("会话不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
+
+        # 权限检查：当前用户必须是 owner 或在会话中且角色为 owner/admin
+        current_participant = self.db.query(ConversationParticipant).filter(
+            ConversationParticipant.conversation_id == conversation_id,
+            ConversationParticipant.user_id == current_user_id,
+            ConversationParticipant.is_active == True
+        ).first()
+
+        is_owner = str(conversation.owner_id) == current_user_id
+        if not is_owner and not (current_participant and current_participant.role in ("owner", "admin")):
+            raise BusinessException("无权管理会话参与者", code=ErrorCode.PERMISSION_DENIED)
+
+        # 无需将自己再次添加为参与者
+        if str(current_user_id) == str(user_id):
+            raise BusinessException("无需将自己添加为参与者", code=ErrorCode.INVALID_INPUT)
+
+        # 检查目标用户是否存在
+        user = self.db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise BusinessException("用户不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
+
+        # 查找现有参与者记录
+        participant = self.db.query(ConversationParticipant).filter(
+            ConversationParticipant.conversation_id == conversation_id,
+            ConversationParticipant.user_id == user_id
+        ).first()
+
+        if participant:
+            # 已存在参与者记录，恢复为活跃状态并可更新角色（owner 角色不允许被覆盖）
+            if not participant.is_active:
+                participant.is_active = True
+                participant.left_at = None
+            if role and participant.role != "owner":
+                participant.role = role
+        else:
+            participant = ConversationParticipant(
+                id=message_id(),  # 复用ID生成器
+                conversation_id=conversation_id,
+                user_id=user_id,
+                role=role or "member",
+                is_active=True,
+                message_count=0,
+                unread_count=0
+            )
+            self.db.add(participant)
+
+        self.db.commit()
+        self.db.refresh(participant)
+
+        return participant
+
+    def remove_conversation_participant(
+        self,
+        conversation_id: str,
+        current_user_id: str,
+        participant_id: str
+    ) -> None:
+        """移除会话参与者（逻辑删除：标记为不活跃）"""
+        conversation = self.db.query(Conversation).filter(
+            Conversation.id == conversation_id
+        ).first()
+
+        if not conversation:
+            raise BusinessException("会话不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
+
+        participant = self.db.query(ConversationParticipant).filter(
+            ConversationParticipant.id == participant_id,
+            ConversationParticipant.conversation_id == conversation_id
+        ).first()
+
+        if not participant or not participant.is_active:
+            # 已经被移除，视为成功
+            return
+
+        # 不允许移除会话所有者
+        if participant.role == "owner":
+            raise BusinessException("不能移除会话所有者", code=ErrorCode.PERMISSION_DENIED)
+
+        # 权限检查：当前用户必须是 owner 或 admin
+        current_participant = self.db.query(ConversationParticipant).filter(
+            ConversationParticipant.conversation_id == conversation_id,
+            ConversationParticipant.user_id == current_user_id,
+            ConversationParticipant.is_active == True
+        ).first()
+
+        is_owner = str(conversation.owner_id) == current_user_id
+        if not is_owner and not (current_participant and current_participant.role in ("owner", "admin")):
+            raise BusinessException("无权管理会话参与者", code=ErrorCode.PERMISSION_DENIED)
+
+        participant.is_active = False
+        participant.left_at = datetime.now()
+
+        self.db.commit()
+    
     # ============ 会话管理 ============
     
     def create_conversation(

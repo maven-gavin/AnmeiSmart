@@ -4,16 +4,18 @@
  */
 
 import { apiClient, ApiClientError } from '../apiClient';
-import { 
-  Message, 
-  Conversation, 
-  CustomerProfile 
+import {
+  Message,
+  Conversation,
+  CustomerProfile,
 } from '@/types/chat';
-import { 
-  ConversationApiResponse, 
-  MessageApiResponse, 
+import {
+  ConversationApiResponse,
+  MessageApiResponse,
   AIServiceRequest,
-  AI_INFO
+  AI_INFO,
+  ConversationParticipantApiResponse,
+  ConversationParticipant,
 } from './types';
 import { 
   Customer,
@@ -105,6 +107,58 @@ export class ChatApiService {
    */
   public static async markConversationAsRead(conversationId: string): Promise<void> {
     await apiClient.patch(`${this.BASE_PATH}/conversations/${conversationId}/read`, {});
+  }
+
+  // ===== 会话参与者 API =====
+
+  /**
+   * 获取会话参与者列表
+   */
+  public static async getConversationParticipants(
+    conversationId: string
+  ): Promise<ConversationParticipant[]> {
+    const response = await apiClient.get<ConversationParticipantApiResponse[]>(
+      `${this.BASE_PATH}/conversations/${conversationId}/participants`
+    );
+    const items = response.data || [];
+    return ChatDataMapper.mapConversationParticipants(Array.isArray(items) ? items : []);
+  }
+
+  /**
+   * 添加会话参与者
+   */
+  public static async addConversationParticipant(
+    conversationId: string,
+    userId: string,
+    role: ConversationParticipant['role'] = 'member'
+  ): Promise<ConversationParticipant> {
+    const requestData = {
+      user_id: userId,
+      role,
+    };
+
+    const response = await apiClient.post<ConversationParticipantApiResponse>(
+      `${this.BASE_PATH}/conversations/${conversationId}/participants`,
+      requestData
+    );
+
+    if (!response.data) {
+      throw new Error('添加参与者失败：响应数据为空');
+    }
+
+    return ChatDataMapper.mapConversationParticipant(response.data);
+  }
+
+  /**
+   * 移除会话参与者
+   */
+  public static async removeConversationParticipant(
+    conversationId: string,
+    participantId: string
+  ): Promise<void> {
+    await apiClient.delete(
+      `${this.BASE_PATH}/conversations/${conversationId}/participants/${participantId}`
+    );
   }
 
   /**

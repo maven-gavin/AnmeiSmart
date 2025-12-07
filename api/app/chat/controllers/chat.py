@@ -11,10 +11,16 @@ from app.common.deps import get_db
 from app.identity_access.deps import get_current_user
 from app.identity_access.models.user import User
 from app.chat.schemas.chat import (
-    ConversationCreate, ConversationInfo,
-    MessageCreateRequest, MessageInfo,
-    CreateTextMessageRequest, CreateMediaMessageRequest, 
-    CreateSystemEventRequest, CreateStructuredMessageRequest
+    ConversationCreate,
+    ConversationInfo,
+    MessageCreateRequest,
+    MessageInfo,
+    CreateTextMessageRequest,
+    CreateMediaMessageRequest,
+    CreateSystemEventRequest,
+    CreateStructuredMessageRequest,
+    ConversationParticipantInfo,
+    ConversationParticipantCreate,
 )
 from app.core.api import (
     BusinessException, 
@@ -116,6 +122,41 @@ async def get_conversation(
         raise SystemException("获取会话失败")
 
 
+@router.get(
+    "/conversations/{conversation_id}/participants",
+    response_model=ApiResponse[List[ConversationParticipantInfo]]
+)
+async def get_conversation_participants(
+    conversation_id: str,
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service)
+):
+    """获取会话参与者列表（owner + 成员，来自 conversation_participants 表）"""
+    try:
+        # 先检查是否有访问会话的权限
+        can_access = await chat_service.can_access_conversation(
+            conversation_id=conversation_id,
+            user_id=str(current_user.id)
+        )
+
+        if not can_access:
+            raise BusinessException(
+                "无权访问此会话",
+                code=ErrorCode.PERMISSION_DENIED,
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        participants = chat_service.get_conversation_participants(conversation_id)
+        data = [ConversationParticipantInfo.from_model(p) for p in participants]
+
+        return ApiResponse.success(data)
+    except BusinessException:
+        raise
+    except Exception as e:
+        logger.error(f"获取会话参与者失败: {e}", exc_info=True)
+        raise SystemException("获取会话参与者失败")
+
+
 @router.get("/conversations/{conversation_id}/messages", response_model=ApiResponse[List[MessageInfo]])
 async def get_conversation_messages(
     conversation_id: str,
@@ -182,6 +223,47 @@ async def create_message(
     except Exception as e:
         logger.error(f"创建消息失败: conversation_id={conversation_id}, error={str(e)}", exc_info=True)
         raise SystemException(f"创建消息失败: {str(e)}")
+
+
+@router.post(
+    "/conversations/{conversation_id}/participants",
+    response_model=ApiResponse[ConversationParticipantInfo],
+    status_code=status.HTTP_201_CREATED
+)
+async def add_conversation_participant(
+    conversation_id: str,
+    request: ConversationParticipantCreate,
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service)
+):
+    """添加会话参与者"""
+    try:
+        # 基础访问权限检查
+        can_access = await chat_service.can_access_conversation(
+            conversation_id=conversation_id,
+            user_id=str(current_user.id)
+        )
+
+        if not can_access:
+            raise BusinessException(
+                "无权访问此会话",
+                code=ErrorCode.PERMISSION_DENIED,
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        participant = chat_service.add_conversation_participant(
+            conversation_id=conversation_id,
+            current_user_id=str(current_user.id),
+            user_id=request.user_id,
+            role=request.role
+        )
+
+        return ApiResponse.success(ConversationParticipantInfo.from_model(participant))
+    except BusinessException:
+        raise
+    except Exception as e:
+        logger.error(f"添加会话参与者失败: {e}", exc_info=True)
+        raise SystemException("添加会话参与者失败")
 
 
 @router.post("/conversations/{conversation_id}/messages/text", response_model=ApiResponse[MessageInfo])
@@ -312,6 +394,44 @@ async def create_structured_message(
     except Exception as e:
         logger.error(f"创建结构化消息失败: {e}", exc_info=True)
         raise SystemException("创建结构化消息失败")
+
+
+@router.delete(
+    "/conversations/{conversation_id}/participants/{participant_id}",
+    response_model=ApiResponse[bool]
+)
+async def remove_conversation_participant(
+    conversation_id: str,
+    participant_id: str,
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service)
+):
+    """移除会话参与者（逻辑删除）"""
+    try:
+        can_access = await chat_service.can_access_conversation(
+            conversation_id=conversation_id,
+            user_id=str(current_user.id)
+        )
+
+        if not can_access:
+            raise BusinessException(
+                "无权访问此会话",
+                code=ErrorCode.PERMISSION_DENIED,
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        chat_service.remove_conversation_participant(
+            conversation_id=conversation_id,
+            current_user_id=str(current_user.id),
+            participant_id=participant_id
+        )
+
+        return ApiResponse.success(True)
+    except BusinessException:
+        raise
+    except Exception as e:
+        logger.error(f"移除会话参与者失败: {e}", exc_info=True)
+        raise SystemException("移除会话参与者失败")
 
 
 @router.patch("/conversations/{conversation_id}/read", response_model=ApiResponse[Dict[str, int]])
