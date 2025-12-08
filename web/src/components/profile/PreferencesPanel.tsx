@@ -119,6 +119,7 @@ export function PreferencesPanel() {
   }
 
   return (
+    <>
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -170,10 +171,10 @@ export function PreferencesPanel() {
             <div className="space-y-1">
               <Label htmlFor="notification_enabled" className="text-base font-medium">
                 启用通知
-              </Label>
-              <p className="text-sm text-gray-500">
-                接收系统通知和重要提醒
-              </p>
+                <span className="text-sm text-gray-500">
+                  接收系统通知和重要提醒
+                </span>
+              </Label>              
             </div>
             <Switch
               id="notification_enabled"
@@ -188,10 +189,10 @@ export function PreferencesPanel() {
             <div className="space-y-1">
               <Label htmlFor="email_notification" className="text-base font-medium">
                 邮件通知
+                <span className="text-sm text-gray-500">
+                  通过邮件接收重要通知和提醒
+                </span>
               </Label>
-              <p className="text-sm text-gray-500">
-                通过邮件接收重要通知和提醒
-              </p>
             </div>
             <Switch
               id="email_notification"
@@ -206,10 +207,10 @@ export function PreferencesPanel() {
             <div className="space-y-1">
               <Label htmlFor="push_notification" className="text-base font-medium">
                 推送通知
+                <span className="text-sm text-gray-500">
+                  在浏览器中显示即时通知
+                </span>
               </Label>
-              <p className="text-sm text-gray-500">
-                在浏览器中显示即时通知
-              </p>
             </div>
             <Switch
               id="push_notification"
@@ -219,45 +220,42 @@ export function PreferencesPanel() {
             />
           </div>
         </div>
-
-        {/* 当前设置状态 */}
-        {preferences && (
-          <div className="border-t pt-6">
-            <h4 className="mb-4 text-sm font-medium text-gray-700">当前设置状态</h4>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-gray-500">通知总开关</p>
-                <p className={`text-sm ${preferences.notification_enabled ? 'text-green-600' : 'text-gray-400'}`}>
-                  {preferences.notification_enabled ? '已启用' : '已关闭'}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-gray-500">邮件通知</p>
-                <p className={`text-sm ${preferences.email_notification && preferences.notification_enabled ? 'text-green-600' : 'text-gray-400'}`}>
-                  {preferences.email_notification && preferences.notification_enabled ? '已启用' : '已关闭'}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-gray-500">推送通知</p>
-                <p className={`text-sm ${preferences.push_notification && preferences.notification_enabled ? 'text-green-600' : 'text-gray-400'}`}>
-                  {preferences.push_notification && preferences.notification_enabled ? '已启用' : '已关闭'}
-                </p>
-              </div>
-            </div>
+      </CardContent>
+    </Card>
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>画像设置</CardTitle>
+            <CardDescription>
+              管理您的画像设置
+            </CardDescription>
           </div>
-        )}
-
-        {/* 说明信息 */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="text-sm font-medium text-blue-800 mb-2">温馨提示</h4>
-          <ul className="text-sm text-blue-700 space-y-1">
-            <li>• 关闭通知总开关将停止所有类型的通知</li>
-            <li>• 邮件通知包括重要系统消息和安全提醒</li>
-            <li>• 推送通知需要浏览器支持，首次使用时会请求权限</li>
-            <li>• 设置保存后立即生效，无需重新登录</li>
-          </ul>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleReset}
+              disabled={saving}
+            >
+              重置
+            </Button>
+            <Button 
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? '保存中...' : '保存设置'}
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium">基本画像</h3>
+          <h3 className="text-lg font-medium">偏好画像</h3>
+          <h3 className="text-lg font-medium">基本画像</h3>
         </div>
       </CardContent>
     </Card>
+    </>
   );
 } 

@@ -149,12 +149,10 @@ const mapAgentConfigToApi = (config: AgentConfigCreate | AgentConfigUpdate): any
  */
 export const createAgentConfig = async (config: AgentConfigCreate): Promise<AgentConfig> => {
   try {
-    // 转换字段名从驼峰到下划线
-    const apiData = mapAgentConfigToApi(config);
-    
+    // 后端期望camelCase格式，直接发送
     const response = await apiClient.post<any>(
       '/agent/configs',
-      { body: apiData }
+      { body: config }
     );
     
     const data = response.data.data;
@@ -177,12 +175,10 @@ export const updateAgentConfig = async (
   config: AgentConfigUpdate
 ): Promise<AgentConfig> => {
   try {
-    // 转换字段名从驼峰到下划线
-    const apiData = mapAgentConfigToApi(config);
-    
+    // 后端期望camelCase格式，直接发送
     const response = await apiClient.put<any>(
       `/agent/configs/${configId}`, 
-      { body: apiData }
+      { body: config }
     );
     
     const data = response.data.data;
