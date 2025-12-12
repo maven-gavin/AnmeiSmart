@@ -23,6 +23,11 @@ class CreateDigitalHumanRequest(DigitalHumanBase):
     pass
 
 
+class AdminCreateDigitalHumanRequest(CreateDigitalHumanRequest):
+    """管理员创建数字人请求（可指定所属用户）"""
+    user_id: str = Field(..., description="所属用户ID")
+
+
 class UpdateDigitalHumanRequest(BaseModel):
     """更新数字人请求"""
     name: Optional[str] = Field(None, min_length=2, max_length=255, description="数字人名称")
@@ -32,6 +37,11 @@ class UpdateDigitalHumanRequest(BaseModel):
     personality: Optional[Dict[str, Any]] = Field(None, description="性格特征配置")
     greeting_message: Optional[str] = Field(None, max_length=500, description="默认打招呼消息")
     welcome_message: Optional[str] = Field(None, max_length=500, description="欢迎消息模板")
+
+
+class AdminUpdateDigitalHumanRequest(UpdateDigitalHumanRequest):
+    """管理员更新数字人请求（可调整所属用户）"""
+    user_id: Optional[str] = Field(None, description="所属用户ID（管理员可调整归属）")
 
 
 class UserInfo(BaseModel):

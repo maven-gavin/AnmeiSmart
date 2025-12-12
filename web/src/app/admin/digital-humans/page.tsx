@@ -1,21 +1,19 @@
 'use client';
 
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,18 +24,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { apiClient } from '@/service/apiClient';
-import { handleApiError } from '@/service/apiClient';
+import { apiClient, ApiClientError } from '@/service/apiClient';
 import toast from 'react-hot-toast';
 import AppLayout from '@/components/layout/AppLayout';
 import { EnhancedPagination } from '@/components/ui/pagination';
+import { userService } from '@/service/userService';
+import type { User as AppUser } from '@/types/auth';
+import type { DigitalHuman, CreateDigitalHumanRequest, UpdateDigitalHumanRequest } from '@/types/digital-human';
+import DigitalHumanForm from '@/components/profile/DigitalHumanForm';
 import { 
   User, 
   Building, 
   Zap,
   Shield,
   Bot,
-  RefreshCw
+  RefreshCw,
+  Info
 } from 'lucide-react';
 
 type DigitalHumanItem = {
@@ -59,6 +61,34 @@ type DigitalHumanItem = {
   agent_count?: number;
   created_at: string;
   updated_at: string;
+};
+
+const parseFastApiDetailMessage = (detail: unknown): string | null => {
+  if (!Array.isArray(detail) || detail.length === 0) return null;
+  const first = detail[0] as any;
+  const msg = typeof first?.msg === 'string' ? first.msg : null;
+  return msg;
+};
+
+const getReadableErrorMessage = async (err: unknown, fallback: string): Promise<string> => {
+  if (err instanceof ApiClientError) {
+    return err.message || fallback;
+  }
+
+  if (err instanceof Response) {
+    try {
+      const data = await err.json();
+      if (typeof data?.message === 'string' && data.message) return data.message;
+      const detailMsg = parseFastApiDetailMessage((data as any)?.detail);
+      if (detailMsg) return detailMsg;
+    } catch {
+      // ignore
+    }
+    return fallback;
+  }
+
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
 };
 
 const normalizeDigitalHuman = (dh: any): DigitalHumanItem => {
@@ -90,6 +120,11 @@ export default function DigitalHumansPage() {
   const [digitalHumans, setDigitalHumans] = useState<DigitalHumanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // 用户列表（用于管理员分配/更改所属用户）
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [userSearchText, setUserSearchText] = useState('');
+  const [userLoading, setUserLoading] = useState(false);
   
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
@@ -100,16 +135,20 @@ export default function DigitalHumansPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   
-  // 编辑状态
-  const [editingDigitalHuman, setEditingDigitalHuman] = useState<DigitalHumanItem | null>(null);
-  const [editForm, setEditForm] = useState({
-    name: '',
-    description: '',
-    status: 'active' as 'active' | 'inactive' | 'maintenance'
-  });
+  // 编辑状态（复用个人中心数字人设定表单）
+  const [editingDigitalHumanId, setEditingDigitalHumanId] = useState<string | null>(null);
+  const [editingDigitalHumanDetail, setEditingDigitalHumanDetail] = useState<DigitalHuman | null>(null);
+  const [editDetailLoading, setEditDetailLoading] = useState(false);
+  const [editUserId, setEditUserId] = useState('');
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  // 创建状态（复用个人中心数字人设定表单）
+  const [createUserId, setCreateUserId] = useState('');
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   
   // 删除状态
   const [deleteTarget, setDeleteTarget] = useState<DigitalHumanItem | null>(null);
@@ -123,6 +162,7 @@ export default function DigitalHumansPage() {
     }
   }, [user, router]);
 
+
   // 获取数字人列表
   const fetchDigitalHumans = async (search?: string, status?: string, type?: string) => {
     setLoading(true);
@@ -132,22 +172,17 @@ export default function DigitalHumansPage() {
       if (search) params.append('search', search);
       if (status && status !== 'all') params.append('status', status);
       if (type && type !== 'all') params.append('type', type);
-      
-      type ApiResponse = {
-        success?: boolean;
-        data?: any[];
-        message?: string;
-      };
-      
-      const response = await apiClient.get<ApiResponse>(`/admin/digital-humans?${params.toString()}`);
-      if (response.data?.success && Array.isArray(response.data.data)) {
-        const normalized = response.data.data.map(normalizeDigitalHuman);
-        setDigitalHumans(normalized);
-      } else {
-        throw new Error(response.data?.message || '获取数字人列表失败');
-      }
+
+      // apiClient 内部会将后端 ApiResponse<T> 解包为 T（见其他 hooks 的用法）
+      const query = params.toString();
+      const url = query ? `/admin/digital-humans/?${query}` : '/admin/digital-humans/';
+      const response = await apiClient.get<any[]>(url);
+
+      const list = Array.isArray(response.data) ? response.data : [];
+      const normalized = list.map(normalizeDigitalHuman);
+      setDigitalHumans(normalized);
     } catch (err) {
-      const message = handleApiError(err, '获取数字人列表失败');
+      const message = await getReadableErrorMessage(err, '获取数字人列表失败');
       setError(message);
     } finally {
       setLoading(false);
@@ -177,6 +212,23 @@ export default function DigitalHumansPage() {
     fetchDigitalHumans();
   }, []);
 
+  const fetchUsers = async (search?: string) => {
+    setUserLoading(true);
+    try {
+      const result = await userService.getUsers({
+        skip: 0,
+        limit: 100,
+        search: search?.trim() || undefined,
+      });
+      setUsers(result.users);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '获取用户列表失败';
+      toast.error(message);
+    } finally {
+      setUserLoading(false);
+    }
+  };
+
   useEffect(() => {
     const totalPages = Math.max(1, Math.ceil(digitalHumans.length / itemsPerPage));
     if (currentPage > totalPages) {
@@ -184,45 +236,100 @@ export default function DigitalHumansPage() {
     }
   }, [digitalHumans, currentPage, itemsPerPage]);
 
-  // 打开编辑对话框
-  const handleOpenEdit = (dh: DigitalHumanItem) => {
-    setEditingDigitalHuman(dh);
-    setEditForm({
-      name: dh.name,
-      description: dh.description ?? '',
-      status: dh.status
-    });
+  // 打开编辑对话框（复用个人中心数字人设定表单）
+  const handleOpenEdit = async (dh: DigitalHumanItem) => {
     setEditError(null);
+    setEditingDigitalHumanId(dh.id);
+    setEditUserId(dh.user?.id ?? '');
+    setEditingDigitalHumanDetail(null);
     setIsEditDialogOpen(true);
-  };
 
-  // 提交编辑
-  const handleEditSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!editingDigitalHuman) return;
-
-    if (!editForm.name.trim()) {
-      setEditError('数字人名称不能为空');
-      return;
+    if (users.length === 0) {
+      void fetchUsers();
     }
 
+    setEditDetailLoading(true);
+    try {
+      const resp = await apiClient.get<DigitalHuman>(
+        `/admin/digital-humans/${dh.id}`,
+        {},
+        { silent: true },
+      );
+      setEditingDigitalHumanDetail(resp.data);
+    } catch (err) {
+      const message = await getReadableErrorMessage(err, '获取数字人详情失败');
+      setEditError(message);
+      toast.error(message);
+    } finally {
+      setEditDetailLoading(false);
+    }
+  };
+
+  const handleOpenCreate = () => {
+    setCreateError(null);
+    setCreateUserId('');
+    setIsCreateDialogOpen(true);
+    if (users.length === 0) {
+      void fetchUsers();
+    }
+  };
+
+  const handleAdminCreate = async (data: CreateDigitalHumanRequest | UpdateDigitalHumanRequest) => {
+    if (!createUserId) {
+      throw new Error('请选择所属用户');
+    }
+    setCreateLoading(true);
+    setCreateError(null);
+    try {
+      await apiClient.post(
+        `/admin/digital-humans/`,
+        {
+          user_id: createUserId,
+          ...data,
+        },
+        { silent: true },
+      );
+      setIsCreateDialogOpen(false);
+      setCreateUserId('');
+      await fetchDigitalHumans();
+    } catch (err) {
+      const message = await getReadableErrorMessage(err, '创建数字人失败');
+      setCreateError(message);
+      throw new Error(message);
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+  const handleAdminUpdate = async (data: CreateDigitalHumanRequest | UpdateDigitalHumanRequest) => {
+    if (!editingDigitalHumanId) return;
+    if (!editUserId) {
+      throw new Error('请选择所属用户');
+    }
     setEditLoading(true);
     setEditError(null);
-
     try {
-      await apiClient.put(`/admin/digital-humans/${editingDigitalHuman.id}`, {
-        name: editForm.name.trim(),
-        description: editForm.description.trim() || undefined,
-        status: editForm.status
-      });
-      
-      toast.success('数字人更新成功');
+      const payload: Record<string, unknown> = {
+        user_id: editUserId,
+        ...data,
+      };
+      // 后端管理员更新接口当前不支持修改 type，避免误导
+      delete payload.type;
+
+      await apiClient.put(
+        `/admin/digital-humans/${editingDigitalHumanId}`,
+        payload,
+        { silent: true },
+      );
+
       setIsEditDialogOpen(false);
-      setEditingDigitalHuman(null);
-      fetchDigitalHumans();
+      setEditingDigitalHumanId(null);
+      setEditingDigitalHumanDetail(null);
+      await fetchDigitalHumans();
     } catch (err) {
-      const message = handleApiError(err, '更新数字人失败');
+      const message = await getReadableErrorMessage(err, '更新数字人失败');
       setEditError(message);
+      throw new Error(message);
     } finally {
       setEditLoading(false);
     }
@@ -240,13 +347,14 @@ export default function DigitalHumansPage() {
 
     setDeleteLoading(true);
     try {
-      await apiClient.delete(`/admin/digital-humans/${deleteTarget.id}`);
+      await apiClient.delete(`/admin/digital-humans/${deleteTarget.id}`, {}, { silent: true });
       toast.success('数字人删除成功');
       setIsDeleteDialogOpen(false);
       setDeleteTarget(null);
       fetchDigitalHumans();
     } catch (err) {
-      handleApiError(err, '删除数字人失败');
+      const message = await getReadableErrorMessage(err, '删除数字人失败');
+      toast.error(message);
     } finally {
       setDeleteLoading(false);
     }
@@ -255,13 +363,16 @@ export default function DigitalHumansPage() {
   // 切换状态
   const handleToggleStatus = async (dh: DigitalHumanItem, newStatus: 'active' | 'inactive' | 'maintenance') => {
     try {
-      await apiClient.put(`/admin/digital-humans/${dh.id}/status`, {
-        status: newStatus
-      });
+      await apiClient.put(
+        `/admin/digital-humans/${dh.id}/status`,
+        { status: newStatus },
+        { silent: true },
+      );
       toast.success('状态更新成功');
       fetchDigitalHumans();
     } catch (err) {
-      handleApiError(err, '更新状态失败');
+      const message = await getReadableErrorMessage(err, '更新状态失败');
+      toast.error(message);
     }
   };
 
@@ -332,15 +443,15 @@ export default function DigitalHumansPage() {
       <div className="container mx-auto px-4 py-6">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-800">数字人管理</h1>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fetchDigitalHumans()}
-            className="flex items-center space-x-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            <span>刷新</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              className="bg-orange-500 hover:bg-orange-600"
+              size="sm"
+              onClick={handleOpenCreate}
+            >
+              + 创建数字人
+            </Button>
+          </div>
         </div>
 
         <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow">
@@ -542,16 +653,14 @@ export default function DigitalHumansPage() {
                           维护
                         </Button>
                       )}
-                      {!dh.is_system_created && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRequestDelete(dh)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          删除
-                        </Button>
-                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRequestDelete(dh)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        删除
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -589,94 +698,189 @@ export default function DigitalHumansPage() {
         )}
       </div>
 
-      {/* 编辑对话框 */}
-      <Dialog
+      {/* 编辑抽屉 */}
+      <Sheet
         open={isEditDialogOpen}
         onOpenChange={(open) => {
           if (!open) {
             if (editLoading) return;
             setIsEditDialogOpen(false);
-            setEditingDigitalHuman(null);
+            setEditingDigitalHumanId(null);
+            setEditingDigitalHumanDetail(null);
             setEditError(null);
             return;
           }
           setIsEditDialogOpen(true);
         }}
       >
-        <DialogContent className="sm:max-w-md bg-white">
-          <DialogHeader>
-            <DialogTitle>编辑数字人</DialogTitle>
-            <DialogDescription>
-              修改数字人的名称、描述和状态
-            </DialogDescription>
-          </DialogHeader>
+        <SheetContent side="right" className="w-[94vw] sm:w-[960px] lg:w-[1100px] max-h-screen overflow-y-auto">
+          <SheetHeader>
+            <div className="flex items-center gap-2">
+              <SheetTitle>编辑数字人</SheetTitle>
+              <InfoTooltip content="修改数字人的名称、描述、状态及所属用户" />
+            </div>
+          </SheetHeader>
           {editError && (
             <div className="rounded-md bg-red-50 p-3 text-sm text-red-500">
               {editError}
             </div>
           )}
-          <form onSubmit={handleEditSubmit} className="space-y-4">
+          <div className="space-y-4">
             <div>
-              <Label htmlFor="editName">数字人名称 *</Label>
-              <Input
-                id="editName"
-                value={editForm.name}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
-                disabled={editLoading}
-                placeholder="数字人名称"
-              />
-            </div>
-            <div>
-              <Label htmlFor="editDescription">描述</Label>
-              <Textarea
-                id="editDescription"
-                value={editForm.description}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
-                rows={3}
-                disabled={editLoading}
-                placeholder="可选: 数字人的详细描述"
-              />
-            </div>
-            <div>
-              <Label htmlFor="editStatus">状态</Label>
+              <Label htmlFor="editUser">所属用户 *</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="editUserSearch"
+                  value={userSearchText}
+                  onChange={(e) => setUserSearchText(e.target.value)}
+                  placeholder="搜索用户（用户名/邮箱）"
+                  disabled={editLoading || userLoading}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void fetchUsers(userSearchText);
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fetchUsers(userSearchText)}
+                  disabled={editLoading || userLoading}
+                >
+                  {userLoading ? '加载中...' : '搜索'}
+                </Button>
+              </div>
               <Select
-                value={editForm.status}
-                onValueChange={(value: 'active' | 'inactive' | 'maintenance') => 
-                  setEditForm((prev) => ({ ...prev, status: value }))
-                }
+                value={editUserId}
+                onValueChange={(value) => setEditUserId(value)}
                 disabled={editLoading}
               >
-                <SelectTrigger id="editStatus">
-                  <SelectValue />
+                <SelectTrigger id="editUser" className="mt-2">
+                  <SelectValue placeholder="请选择所属用户" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="active">活跃</SelectItem>
-                  <SelectItem value="inactive">停用</SelectItem>
-                  <SelectItem value="maintenance">维护中</SelectItem>
+                  {users.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.username}（{u.email}）
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
+
+            {editDetailLoading && (
+              <div className="flex items-center justify-center py-10">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500" />
+              </div>
+            )}
+
+            {!editDetailLoading && editingDigitalHumanDetail && (
+              <DigitalHumanForm
+                digitalHuman={editingDigitalHumanDetail}
+                onSubmit={handleAdminUpdate}
+                onCancel={() => {
                   if (editLoading) return;
                   setIsEditDialogOpen(false);
-                  setEditingDigitalHuman(null);
+                  setEditingDigitalHumanId(null);
+                  setEditingDigitalHumanDetail(null);
                   setEditError(null);
                 }}
-                disabled={editLoading}
+              />
+            )}
+
+            {!editDetailLoading && !editingDigitalHumanDetail && (
+              <div className="py-10 text-center text-sm text-gray-500">
+                未加载到数字人详情
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* 创建抽屉 */}
+      <Sheet
+        open={isCreateDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (createLoading) return;
+            setIsCreateDialogOpen(false);
+            setCreateError(null);
+            setCreateUserId('');
+            return;
+          }
+          setIsCreateDialogOpen(true);
+        }}
+      >
+        <SheetContent side="right" className="w-[94vw] sm:w-[960px] lg:w-[1100px] max-h-screen overflow-y-auto">
+          <SheetHeader>
+            <div className="flex items-center gap-2">
+              <SheetTitle>创建数字人</SheetTitle>
+              <InfoTooltip content="管理员可创建系统助手类型数字人，并分配所属用户" />
+            </div>
+          </SheetHeader>
+          {createError && (
+            <div className="rounded-md bg-red-50 p-3 text-sm text-red-500">
+              {createError}
+            </div>
+          )}
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="createUser">所属用户 *</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="createUserSearch"
+                  value={userSearchText}
+                  onChange={(e) => setUserSearchText(e.target.value)}
+                  placeholder="搜索用户（用户名/邮箱）"
+                  disabled={createLoading || userLoading}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void fetchUsers(userSearchText);
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fetchUsers(userSearchText)}
+                  disabled={createLoading || userLoading}
+                >
+                  {userLoading ? '加载中...' : '搜索'}
+                </Button>
+              </div>
+              <Select
+                value={createUserId}
+                onValueChange={(value) => setCreateUserId(value)}
+                disabled={createLoading}
               >
-                取消
-              </Button>
-              <Button type="submit" disabled={editLoading}>
-                {editLoading ? '保存中...' : '保存'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+                <SelectTrigger id="createUser" className="mt-2">
+                  <SelectValue placeholder="请选择所属用户" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.username}（{u.email}）
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DigitalHumanForm
+              allowSystemType={true}
+              onSubmit={handleAdminCreate}
+              onCancel={() => {
+                if (createLoading) return;
+                setIsCreateDialogOpen(false);
+                setCreateError(null);
+                setCreateUserId('');
+              }}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* 删除确认对话框 */}
       <AlertDialog

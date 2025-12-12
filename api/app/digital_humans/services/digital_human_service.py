@@ -8,6 +8,7 @@ from sqlalchemy import and_, or_
 from datetime import datetime
 
 from app.ai.models.agent_config import AgentConfig
+from app.identity_access.models.user import User
 
 from ..models.digital_human import (
     DigitalHuman, 
@@ -16,7 +17,9 @@ from ..models.digital_human import (
 from app.common.deps.uuid_utils import digital_human_id
 from ..schemas.digital_human import (
     CreateDigitalHumanRequest,
+    AdminCreateDigitalHumanRequest,
     UpdateDigitalHumanRequest,
+    AdminUpdateDigitalHumanRequest,
     DigitalHumanResponse,
     AddAgentConfigRequest,
     DigitalHumanAgentConfigInfo,
@@ -139,6 +142,45 @@ class DigitalHumanService:
             self.db.rollback()
             logger.error(f"创建数字人失败: {e}")
             raise
+
+    def create_digital_human_admin(self, data: AdminCreateDigitalHumanRequest) -> DigitalHumanResponse:
+        """管理员创建数字人（可指定所属用户，支持创建系统助手类型）"""
+        try:
+            user = self.db.query(User).filter(User.id == data.user_id).first()
+            if not user:
+                raise ValueError("所属用户不存在")
+
+            is_system_created = True if data.type == "system" else False
+
+            digital_human = DigitalHuman(
+                id=digital_human_id(),
+                name=data.name,
+                avatar=data.avatar,
+                description=data.description,
+                type=data.type,
+                status=data.status,
+                is_system_created=is_system_created,
+                personality=data.personality,
+                greeting_message=data.greeting_message,
+                welcome_message=data.welcome_message,
+                user_id=data.user_id,
+                conversation_count=0,
+                message_count=0,
+            )
+
+            self.db.add(digital_human)
+            self.db.commit()
+            self.db.refresh(digital_human)
+
+            logger.info(
+                f"管理员创建数字人成功: name={digital_human.name}, user_id={digital_human.user_id}, "
+                f"type={digital_human.type}, is_system_created={digital_human.is_system_created}"
+            )
+            return DigitalHumanResponse.from_model(digital_human)
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"管理员创建数字人失败: {e}")
+            raise
     
     def update_digital_human(self, digital_human_id: str, user_id: str, data: UpdateDigitalHumanRequest) -> Optional[DigitalHumanResponse]:
         """更新数字人信息"""
@@ -173,6 +215,41 @@ class DigitalHumanService:
             self.db.rollback()
             logger.error(f"更新数字人失败: {e}")
             raise
+
+    def update_digital_human_admin(
+        self, digital_human_id: str, data: AdminUpdateDigitalHumanRequest
+    ) -> Optional[DigitalHumanResponse]:
+        """管理员更新数字人信息（可调整所属用户）"""
+        try:
+            digital_human = self.db.query(DigitalHuman).filter(DigitalHuman.id == digital_human_id).first()
+            if not digital_human:
+                return None
+
+            update_data = data.dict(exclude_unset=True)
+
+            # 调整所属用户
+            if "user_id" in update_data and update_data["user_id"]:
+                new_user_id = update_data["user_id"]
+                user = self.db.query(User).filter(User.id == new_user_id).first()
+                if not user:
+                    raise ValueError("所属用户不存在")
+                digital_human.user_id = new_user_id
+
+            # 更新其他字段（不允许在此接口修改 type / is_system_created）
+            for field in ("name", "avatar", "description", "status", "personality", "greeting_message", "welcome_message"):
+                if field in update_data:
+                    setattr(digital_human, field, update_data[field])
+
+            digital_human.updated_at = datetime.utcnow()
+            self.db.commit()
+            self.db.refresh(digital_human)
+
+            logger.info(f"管理员更新数字人成功: id={digital_human.id}, name={digital_human.name}")
+            return DigitalHumanResponse.from_model(digital_human)
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"管理员更新数字人失败: {e}")
+            raise
     
     def delete_digital_human(self, digital_human_id: str, user_id: str) -> bool:
         """删除数字人（系统创建的不可删除）"""
@@ -199,6 +276,22 @@ class DigitalHumanService:
         except Exception as e:
             self.db.rollback()
             logger.error(f"删除数字人失败: {e}")
+            raise
+
+    def delete_digital_human_admin(self, digital_human_id: str) -> bool:
+        """管理员删除数字人（允许删除系统创建的数字人）"""
+        try:
+            digital_human = self.db.query(DigitalHuman).filter(DigitalHuman.id == digital_human_id).first()
+            if not digital_human:
+                return False
+
+            self.db.delete(digital_human)
+            self.db.commit()
+            logger.info(f"管理员删除数字人成功: id={digital_human_id}")
+            return True
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"管理员删除数字人失败: {e}")
             raise
     
     def update_digital_human_status(self, digital_human_id: str, new_status: str) -> Optional[DigitalHumanResponse]:

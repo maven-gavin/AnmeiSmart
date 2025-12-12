@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,6 +32,7 @@ interface DigitalHumanFormProps {
   digitalHuman?: DigitalHuman;
   onSubmit: (data: CreateDigitalHumanRequest | UpdateDigitalHumanRequest) => Promise<void>;
   onCancel: () => void;
+  allowSystemType?: boolean;
 }
 
 interface FormData {
@@ -44,10 +47,44 @@ interface FormData {
   personalitySpecialization: string;
 }
 
+const TRIM = (v: unknown) => (typeof v === 'string' ? v.trim() : v);
+
+const DigitalHumanFormSchema = z.object({
+  name: z.preprocess(
+    TRIM,
+    z
+      .string({ required_error: '请输入数字人名称' })
+      .min(2, '数字人名称至少2个字符')
+      .max(255, '数字人名称不能超过255个字符'),
+  ),
+  description: z.preprocess(
+    (v: unknown) => {
+      if (typeof v !== 'string') return v;
+      const trimmed = v.trim();
+      return trimmed === '' ? '' : trimmed;
+    },
+    z.string().max(500, '描述不能超过500个字符'),
+  ),
+  type: z.enum(['personal', 'business', 'specialized', 'system'], {
+    required_error: '请选择数字人类型',
+    invalid_type_error: '数字人类型无效',
+  }),
+  status: z.enum(['active', 'inactive', 'maintenance'], {
+    required_error: '请选择状态',
+    invalid_type_error: '状态无效',
+  }),
+  greetingMessage: z.string().max(500, '打招呼消息不能超过500个字符'),
+  welcomeMessage: z.string().max(500, '欢迎消息模板不能超过500个字符'),
+  personalityTone: z.string().min(1, '请选择语调风格'),
+  personalityStyle: z.string().min(1, '请选择交流风格'),
+  personalitySpecialization: z.string().min(1, '请选择专业领域'),
+});
+
 export default function DigitalHumanForm({
   digitalHuman,
   onSubmit,
-  onCancel
+  onCancel,
+  allowSystemType = false,
 }: DigitalHumanFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -60,6 +97,7 @@ export default function DigitalHumanForm({
     watch,
     formState: { errors }
   } = useForm<FormData>({
+    resolver: zodResolver(DigitalHumanFormSchema),
     defaultValues: {
       name: digitalHuman?.name || '',
       description: digitalHuman?.description || '',
@@ -106,11 +144,11 @@ export default function DigitalHumanForm({
     try {
       const submitData: CreateDigitalHumanRequest | UpdateDigitalHumanRequest = {
         name: data.name,
-        description: data.description,
-        ...(data.type !== 'system' && { type: data.type }),
+        description: data.description.trim() || undefined,
+        ...((allowSystemType || data.type !== 'system') && { type: data.type }),
         status: data.status,
-        greeting_message: data.greetingMessage,
-        welcome_message: data.welcomeMessage,
+        greeting_message: data.greetingMessage.trim() || undefined,
+        welcome_message: data.welcomeMessage.trim() || undefined,
         personality: {
           tone: data.personalityTone,
           style: data.personalityStyle,
@@ -128,7 +166,8 @@ export default function DigitalHumanForm({
       toast.success(isEditing ? '数字人更新成功' : '数字人创建成功');
     } catch (error) {
       console.error('提交失败:', error);
-      toast.error(isEditing ? '数字人更新失败' : '数字人创建失败');
+      const message = error instanceof Error ? error.message : (isEditing ? '数字人更新失败' : '数字人创建失败');
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -199,11 +238,7 @@ export default function DigitalHumanForm({
                   <Label htmlFor="name">数字人名称 *</Label>
                   <Input
                     id="name"
-                    {...register('name', {
-                      required: '请输入数字人名称',
-                      minLength: { value: 2, message: '名称至少2个字符' },
-                      maxLength: { value: 50, message: '名称不能超过50个字符' }
-                    })}
+                    {...register('name')}
                     placeholder="为你的数字人起一个名字"
                     className={errors.name ? 'border-red-500 focus-visible:ring-red-500' : ''}
                     disabled={isSystemCreated} // 系统创建的数字人名称不可修改
@@ -241,7 +276,7 @@ export default function DigitalHumanForm({
                           <span>专业助手</span>
                         </div>
                       </SelectItem>
-                      {isEditing && isSystemCreated && (
+                      {(allowSystemType || (isEditing && isSystemCreated)) && (
                         <SelectItem value="system">
                           <div className="flex items-center space-x-2">
                             <Shield className="h-4 w-4" />
@@ -258,9 +293,7 @@ export default function DigitalHumanForm({
                 <Label htmlFor="description">描述</Label>
                 <Textarea
                   id="description"
-                  {...register('description', {
-                    maxLength: { value: 200, message: '描述不能超过200个字符' }
-                  })}
+                  {...register('description')}
                   placeholder="简要描述这个数字人的功能和特点，方便后续管理和区分"
                   rows={3}
                   className={errors.description ? 'border-red-500 focus-visible:ring-red-500' : ''}
@@ -374,9 +407,7 @@ export default function DigitalHumanForm({
               <Label htmlFor="greetingMessage">打招呼消息</Label>
               <Textarea
                 id="greetingMessage"
-                {...register('greetingMessage', {
-                  maxLength: { value: 500, message: '打招呼消息不能超过500个字符' }
-                })}
+                {...register('greetingMessage')}
                 placeholder="例如：你好，我是你的专属数字助手，很高兴认识你～"
                 rows={2}
               />
@@ -389,9 +420,7 @@ export default function DigitalHumanForm({
               <Label htmlFor="welcomeMessage">欢迎消息模板</Label>
               <Textarea
                 id="welcomeMessage"
-                {...register('welcomeMessage', {
-                  maxLength: { value: 500, message: '欢迎消息不能超过500个字符' }
-                })}
+                {...register('welcomeMessage')}
                 placeholder="例如：欢迎来到我们的服务，我可以帮你解答产品、方案等相关问题。"
                 rows={2}
               />

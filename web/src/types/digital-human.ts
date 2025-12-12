@@ -63,7 +63,7 @@ export interface CreateDigitalHumanRequest {
   name: string;
   avatar?: string;
   description?: string;
-  type: 'personal' | 'business' | 'specialized';
+  type: 'personal' | 'business' | 'specialized' | 'system';
   status?: 'active' | 'inactive' | 'maintenance';
   personality?: {
     tone?: string;

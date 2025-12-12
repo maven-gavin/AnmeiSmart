@@ -15,6 +15,8 @@ from app.core.api import ApiResponse, BusinessException, ErrorCode, SystemExcept
 from app.common.deps import get_db
 from app.digital_humans.schemas.digital_human import (
     AdminDigitalHumanResponse,
+    AdminCreateDigitalHumanRequest,
+    AdminUpdateDigitalHumanRequest,
     UpdateDigitalHumanStatusRequest,
 )
 from app.identity_access.deps import get_current_admin
@@ -58,6 +60,32 @@ async def get_all_digital_humans(
         raise _handle_unexpected_error("管理员获取数字人列表失败", e)
 
 
+@router.post(
+    "/",
+    response_model=ApiResponse[AdminDigitalHumanResponse],
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_digital_human_admin(
+    data: AdminCreateDigitalHumanRequest,
+    current_user: User = Depends(get_current_admin),
+    service: DigitalHumanService = Depends(get_digital_human_service),
+) -> ApiResponse[AdminDigitalHumanResponse]:
+    """创建数字人（管理员专用，可创建系统助手并分配所属用户）"""
+    try:
+        digital_human = service.create_digital_human_admin(data)
+        return ApiResponse.success(digital_human, message="创建数字人成功")
+    except ValueError as e:
+        raise BusinessException(
+            str(e),
+            code=ErrorCode.VALIDATION_ERROR,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise _handle_unexpected_error("管理员创建数字人失败", e)
+
+
 @router.get(
     "/{digital_human_id}",
     response_model=ApiResponse[AdminDigitalHumanResponse],
@@ -84,6 +112,38 @@ async def get_digital_human_detail(
         raise
     except Exception as e:
         raise _handle_unexpected_error("管理员获取数字人详情失败", e)
+
+
+@router.put(
+    "/{digital_human_id}",
+    response_model=ApiResponse[AdminDigitalHumanResponse],
+)
+async def update_digital_human_admin(
+    digital_human_id: str,
+    data: AdminUpdateDigitalHumanRequest,
+    current_user: User = Depends(get_current_admin),
+    service: DigitalHumanService = Depends(get_digital_human_service),
+) -> ApiResponse[AdminDigitalHumanResponse]:
+    """更新数字人（管理员专用，可调整所属用户）"""
+    try:
+        digital_human = service.update_digital_human_admin(digital_human_id, data)
+        if not digital_human:
+            raise BusinessException(
+                "数字人不存在",
+                code=ErrorCode.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        return ApiResponse.success(digital_human, message="更新数字人成功")
+    except ValueError as e:
+        raise BusinessException(
+            str(e),
+            code=ErrorCode.VALIDATION_ERROR,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise _handle_unexpected_error("管理员更新数字人失败", e)
 
 
 @router.put(
@@ -121,6 +181,31 @@ async def update_digital_human_status(
         raise
     except Exception as e:
         raise _handle_unexpected_error("管理员更新数字人状态失败", e)
+
+
+@router.delete(
+    "/{digital_human_id}",
+    response_model=ApiResponse[None],
+)
+async def delete_digital_human_admin(
+    digital_human_id: str,
+    current_user: User = Depends(get_current_admin),
+    service: DigitalHumanService = Depends(get_digital_human_service),
+) -> ApiResponse[None]:
+    """删除数字人（管理员专用，允许删除系统创建数字人）"""
+    try:
+        success = service.delete_digital_human_admin(digital_human_id)
+        if not success:
+            raise BusinessException(
+                "数字人不存在",
+                code=ErrorCode.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        return ApiResponse.success(message="删除数字人成功")
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise _handle_unexpected_error("管理员删除数字人失败", e)
 
 
 @router.post(

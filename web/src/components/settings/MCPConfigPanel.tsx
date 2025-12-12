@@ -339,13 +339,6 @@ export function MCPConfigPanel() {
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-6 shadow">
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-800">MCP配置管理</h2>
-        <p className="mt-1 text-sm text-gray-600">
-          管理Model Context Protocol工具分组和权限配置
-        </p>
-      </div>
-
       {/* 错误提示 */}
       {error && (
         <Alert variant="destructive" className="mb-6">
@@ -362,13 +355,6 @@ export function MCPConfigPanel() {
           </AlertDescription>
         </Alert>
       )}
-
-      {/* 说明提示 */}
-      <Alert className="mb-6">
-        <AlertDescription>
-          MCP（Model Context Protocol）是一个开放标准协议，为AI平台提供标准化的工具调用接口。通过分组管理可以精确控制不同用户的工具访问权限。每个启用的分组会自动生成一个唯一的Server URL用于外部系统调用。
-        </AlertDescription>
-      </Alert>
 
       <Tabs defaultValue="groups" className="space-y-4">
         <TabsList className="grid w-full grid-cols-2">
