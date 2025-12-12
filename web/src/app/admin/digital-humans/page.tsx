@@ -32,6 +32,7 @@ import { userService } from '@/service/userService';
 import type { User as AppUser } from '@/types/auth';
 import type { DigitalHuman, CreateDigitalHumanRequest, UpdateDigitalHumanRequest } from '@/types/digital-human';
 import DigitalHumanForm from '@/components/profile/DigitalHumanForm';
+import { UserCombobox } from '@/components/ui/user-combobox';
 import { 
   User, 
   Building, 
@@ -123,7 +124,6 @@ export default function DigitalHumansPage() {
 
   // 用户列表（用于管理员分配/更改所属用户）
   const [users, setUsers] = useState<AppUser[]>([]);
-  const [userSearchText, setUserSearchText] = useState('');
   const [userLoading, setUserLoading] = useState(false);
   
   // 分页状态
@@ -728,45 +728,18 @@ export default function DigitalHumansPage() {
           <div className="space-y-4">
             <div>
               <Label htmlFor="editUser">所属用户 *</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="editUserSearch"
-                  value={userSearchText}
-                  onChange={(e) => setUserSearchText(e.target.value)}
-                  placeholder="搜索用户（用户名/邮箱）"
-                  disabled={editLoading || userLoading}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      void fetchUsers(userSearchText);
-                    }
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fetchUsers(userSearchText)}
-                  disabled={editLoading || userLoading}
-                >
-                  {userLoading ? '加载中...' : '搜索'}
-                </Button>
-              </div>
-              <Select
+              <UserCombobox
                 value={editUserId}
-                onValueChange={(value) => setEditUserId(value)}
+                onValueChange={setEditUserId}
+                users={users}
+                onSearch={fetchUsers}
+                isLoading={userLoading}
                 disabled={editLoading}
-              >
-                <SelectTrigger id="editUser" className="mt-2">
-                  <SelectValue placeholder="请选择所属用户" />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.username}（{u.email}）
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="选择所属用户..."
+                searchPlaceholder="搜索用户名或邮箱..."
+                emptyText="未找到匹配的用户"
+                className="mt-2"
+              />
             </div>
 
             {editDetailLoading && (
@@ -827,45 +800,18 @@ export default function DigitalHumansPage() {
           <div className="space-y-4">
             <div>
               <Label htmlFor="createUser">所属用户 *</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="createUserSearch"
-                  value={userSearchText}
-                  onChange={(e) => setUserSearchText(e.target.value)}
-                  placeholder="搜索用户（用户名/邮箱）"
-                  disabled={createLoading || userLoading}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      void fetchUsers(userSearchText);
-                    }
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fetchUsers(userSearchText)}
-                  disabled={createLoading || userLoading}
-                >
-                  {userLoading ? '加载中...' : '搜索'}
-                </Button>
-              </div>
-              <Select
+              <UserCombobox
                 value={createUserId}
-                onValueChange={(value) => setCreateUserId(value)}
+                onValueChange={setCreateUserId}
+                users={users}
+                onSearch={fetchUsers}
+                isLoading={userLoading}
                 disabled={createLoading}
-              >
-                <SelectTrigger id="createUser" className="mt-2">
-                  <SelectValue placeholder="请选择所属用户" />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.username}（{u.email}）
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="选择所属用户..."
+                searchPlaceholder="搜索用户名或邮箱..."
+                emptyText="未找到匹配的用户"
+                className="mt-2"
+              />
             </div>
 
             <DigitalHumanForm
