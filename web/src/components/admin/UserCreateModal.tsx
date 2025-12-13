@@ -117,11 +117,11 @@ export default function UserCreateModal({ isOpen, onClose, onUserCreated }: User
       await userService.createUser({
         username,
         email,
-        password,
+        password, // password 字段在创建时需要，但不在 User 类型中
         phone: phone || undefined,
         roles,
         tenantId: tenantId || 'system'
-      });
+      } as any);
       
       onUserCreated();
     } catch (err: any) {

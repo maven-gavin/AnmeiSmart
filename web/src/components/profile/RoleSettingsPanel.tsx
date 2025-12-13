@@ -313,7 +313,7 @@ export function RoleSettingsPanel() {
               <div className="space-y-1">
                 <p className="text-sm font-medium text-gray-500">设置时间</p>
                 <p className="text-sm text-gray-600">
-                  {new Date(defaultRole.created_at).toLocaleString('zh-CN')}
+                  {defaultRole.created_at ? new Date(defaultRole.created_at).toLocaleString('zh-CN') : '未知'}
                 </p>
               </div>
             </div>

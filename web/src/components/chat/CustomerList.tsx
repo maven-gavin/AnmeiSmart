@@ -326,7 +326,7 @@ export default function CustomerList({
       console.log(`获取到客户 ${customer.id} 的会话列表:`, conversations.length > 0 ? conversations.length + '个会话' : '无会话');
       
       // 找到活跃的会话或使用最近更新的会话
-      let selectedConversation = conversations.find(conv => conv.status === 'active');
+      let selectedConversation = conversations.find(conv => conv.isActive) || conversations[0];
       
       // 如果没有活跃会话，则按更新时间排序选择最近的会话
       if (!selectedConversation && conversations.length > 0) {

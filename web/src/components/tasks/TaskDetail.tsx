@@ -31,7 +31,8 @@ interface PendingTask {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   createdBy?: {
     id: string;
-    name: string;
+    username: string;
+    email: string;
   };
   assignedTo?: {
     id: string;
@@ -375,7 +376,7 @@ export default function TaskDetail({
               {task.createdBy && (
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500">创建人</span>
-                  <span>{task.createdBy.name}</span>
+                  <span>{task.createdBy.username}</span>
                 </div>
               )}
 

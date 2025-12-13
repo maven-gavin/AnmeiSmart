@@ -97,7 +97,7 @@ export function AIMessage({
     
     // 否则直接返回原始内容（确保不包含任何标签）
     // 如果原始内容包含标签但格式不正确，至少不会导致 React 报错
-    const safeContent = message.content?.replace(/<think>.*?<\/redacted_reasoning>/gs, '') || '';
+    const safeContent = message.content?.replace(/<think>[\s\S]*?<\/redacted_reasoning>/g, '') || '';
     return {
       normalContent: safeContent.trim(),
       thinkSections: undefined

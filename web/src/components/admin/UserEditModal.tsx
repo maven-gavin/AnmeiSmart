@@ -148,10 +148,10 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
         updateData.roles = roles; 
     }
     
-    if (isActive !== user.isActive) updateData.is_active = isActive;
+    if (isActive !== user.isActive) (updateData as any).is_active = isActive;
     
     try {
-      await userService.updateUser(String(user.id), updateData as Partial<User>);
+      await userService.updateUser(String(user.id), updateData as any);
       onUserUpdated();
     } catch (err: any) {
       toast.error(err.message || '更新用户失败');

@@ -171,7 +171,7 @@ export default function MessageInput({
         type: 'text',
         sender: {
           id: currentUser.id,
-          type: 'chat', // 所有用户发送的聊天消息都使用 'chat'
+          type: 'user', // 所有用户发送的聊天消息都使用 'user'
           name: currentUser.name,
           avatar: currentUser.avatar || '/avatars/user.png',
         },
@@ -223,7 +223,7 @@ export default function MessageInput({
         type: 'media',
         sender: {
           id: user?.id || '',
-          type: 'chat', // 所有用户发送的聊天消息都使用 'chat'
+          type: 'user', // 所有用户发送的聊天消息都使用 'user'
           name: user?.name || '',
           avatar: user?.avatar || '',
         },
@@ -343,7 +343,7 @@ export default function MessageInput({
         type: 'media',
         sender: {
           id: user?.id || '',
-          type: 'chat', // 所有用户发送的聊天消息都使用 'chat'
+          type: 'user', // 所有用户发送的聊天消息都使用 'user'
           name: user?.name || '',
           avatar: user?.avatar || '',
         },
@@ -449,7 +449,7 @@ export default function MessageInput({
         type: 'media',
         sender: {
           id: user?.id || '',
-          type: 'chat', // 所有用户发送的聊天消息都使用 'chat'
+          type: 'user', // 所有用户发送的聊天消息都使用 'user'
           name: user?.name || '',
           avatar: user?.avatar || '',
         },

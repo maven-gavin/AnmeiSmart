@@ -6,7 +6,8 @@ import AppLayout from '@/components/layout/AppLayout';
 import DigitalHumanList from '@/components/profile/DigitalHumanList';
 import DigitalHumanForm from '@/components/profile/DigitalHumanForm';
 import AgentConfigPanel from '@/components/profile/AgentConfigPanel';
-import { useDigitalHumans, CreateDigitalHumanRequest, UpdateDigitalHumanRequest } from '@/hooks/useDigitalHumans';
+import { useDigitalHumans } from '@/hooks/useDigitalHumans';
+import type { CreateDigitalHumanRequest, UpdateDigitalHumanRequest } from '@/types/digital-human';
 import { Button } from '@/components/ui/button';
 import { Plus, ArrowLeft } from 'lucide-react';
 
@@ -24,9 +25,10 @@ export default function DigitalHumanManagementPage() {
     refreshDigitalHumans
   } = useDigitalHumans();
 
-  const handleCreateDigitalHuman = async (data: CreateDigitalHumanRequest) => {
+  const handleCreateDigitalHuman = async (data: CreateDigitalHumanRequest | UpdateDigitalHumanRequest) => {
     try {
-      await createDigitalHuman(data);
+      // 创建时确保所有必需字段都存在
+      await createDigitalHuman(data as CreateDigitalHumanRequest);
       setActiveView('list');
     } catch (error) {
       console.error('创建数字人失败:', error);

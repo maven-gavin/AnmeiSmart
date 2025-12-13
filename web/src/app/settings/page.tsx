@@ -78,7 +78,7 @@ export default function SystemSettingsPage() {
               settings={{
                 siteName: settings.siteName,
                 logoUrl: settings.logoUrl,
-                maintenanceMode: settings.maintenanceMode
+                maintenanceMode: (settings as any).maintenanceMode ?? false
               }}
               onSubmit={updateGeneralSettings}
               isSubmitting={isSubmitting}

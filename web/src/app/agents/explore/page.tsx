@@ -13,7 +13,7 @@ import { LoadingSpinner } from '@/components/agents/LoadingSpinner';
 import type { AgentConfig } from '@/service/agentConfigService';
 import { toast } from 'react-hot-toast';
 
-export function AgentsPage() {
+function AgentsPage() {
   const { user } = useAuthContext();
   const { configs: agentConfigs, isLoading } = useAgentConfigs();
   

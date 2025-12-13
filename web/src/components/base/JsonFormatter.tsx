@@ -20,7 +20,7 @@ export function JsonFormatter({ content, className }: JsonFormatterProps) {
       return true;
     } catch {
       // 检查是否包含JSON模式
-      const jsonPattern = /^\s*[\{\[].*[\}\]]\s*$/s;
+      const jsonPattern = /^\s*[\{\[][\s\S]*[\}\]]\s*$/;
       return jsonPattern.test(text.trim());
     }
   };

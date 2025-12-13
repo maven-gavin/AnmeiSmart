@@ -55,7 +55,7 @@ export default function AgentConfigPanel({
   const [selectedAgentId, setSelectedAgentId] = useState('');
   const [priority, setPriority] = useState(1);
   const [scenarios, setScenarios] = useState<string[]>([]);
-  const [contextPrompt, setContextPrompt] = useState('');
+  const [context_prompt, setContextPrompt] = useState('');
   const [newScenario, setNewScenario] = useState('');
 
   useEffect(() => {
@@ -93,7 +93,7 @@ export default function AgentConfigPanel({
         agent_config_id: selectedAgentId,
         priority,
         scenarios: scenarios.length ? scenarios : undefined,
-        context_prompt: contextPrompt || undefined,
+        context_prompt: context_prompt || undefined,
         is_active: true,
       };
 
@@ -158,7 +158,7 @@ export default function AgentConfigPanel({
   const handleToggleActive = async (agentId: string) => {
     const agent = digitalHumanAgents.find(a => a.id === agentId);
     if (agent) {
-      await handleUpdateAgent({ ...agent, isActive: !agent.isActive });
+      await handleUpdateAgent({ ...agent, is_active: !agent.is_active });
     }
   };
 
@@ -288,7 +288,7 @@ export default function AgentConfigPanel({
                 <Label htmlFor="context-prompt">上下文提示词</Label>
                 <Textarea
                   id="context-prompt"
-                  value={contextPrompt}
+                  value={context_prompt}
                   onChange={(e) => setContextPrompt(e.target.value)}
                   placeholder="为这个智能体设置特定的上下文提示词"
                   rows={3}
@@ -326,7 +326,7 @@ export default function AgentConfigPanel({
             .map((agentConfig, index) => (
               <div
                 key={agentConfig.id}
-                className={`border rounded-lg p-4 ${!agentConfig.isActive ? 'opacity-60' : ''}`}
+                className={`border rounded-lg p-4 ${!agentConfig.is_active ? 'opacity-60' : ''}`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
@@ -373,9 +373,9 @@ export default function AgentConfigPanel({
                       variant="ghost"
                       size="sm"
                       onClick={() => handleToggleActive(agentConfig.id)}
-                      className={agentConfig.isActive ? 'text-green-600' : 'text-gray-400'}
+                      className={agentConfig.is_active ? 'text-green-600' : 'text-gray-400'}
                     >
-                      {agentConfig.isActive ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                      {agentConfig.is_active ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
                     </Button>
 
                     {/* 编辑 */}
@@ -404,7 +404,7 @@ export default function AgentConfigPanel({
                   <div className="flex items-center space-x-4 text-sm text-gray-600">
                     <span>环境: {agentConfig.agent_config.environment}</span>
                     <span>应用ID: {agentConfig.agent_config.app_id}</span>
-                    <Badge variant={agentConfig.isActive ? 'default' : 'secondary'}>
+                    <Badge variant={agentConfig.is_active ? 'default' : 'secondary'}>
                       {agentConfig.is_active ? '启用' : '停用'}
                     </Badge>
                   </div>
@@ -422,7 +422,7 @@ export default function AgentConfigPanel({
                     </div>
                   )}
 
-                  {agentConfig.contextPrompt && (
+                  {agentConfig.context_prompt && (
                     <div>
                       <span className="text-sm text-gray-500">上下文: </span>
                       <p className="text-sm text-gray-700 mt-1 bg-gray-50 p-2 rounded">

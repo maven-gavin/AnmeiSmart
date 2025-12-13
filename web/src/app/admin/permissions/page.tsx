@@ -107,7 +107,11 @@ export default function PermissionsPage() {
       setLoading(true);
       setError(null);
       const permissionsData = await permissionService.getPermissions();
-      setPermissions(permissionsData);
+      // 处理返回类型：可能是数组或包含 permissions 字段的对象
+      const permissionsArray = Array.isArray(permissionsData) 
+        ? permissionsData 
+        : permissionsData.permissions;
+      setPermissions(permissionsArray);
     } catch (err) {
       const message = handleApiError(err, '加载数据失败');
       setError(message);

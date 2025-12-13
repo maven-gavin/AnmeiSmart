@@ -95,11 +95,11 @@ export function ChatSearchPanel({
         filteredMessages = filteredMessages.filter(msg => {
           switch (currentFilters.sender) {
             case 'user':
-              return msg.sender.type === 'user' || msg.sender.type === 'customer';
+              return msg.sender.type === 'user';
             case 'ai':
               return msg.sender.type === 'ai';
             case 'consultant':
-              return msg.sender.type === 'consultant';
+              return false; // SenderType 不包含 'consultant'，返回 false
             default:
               return true;
           }

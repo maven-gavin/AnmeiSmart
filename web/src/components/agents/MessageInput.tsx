@@ -42,9 +42,7 @@ export function MessageInput({
     startRecording,
     stopRecording,
     cancelRecording
-  } = useRecording({
-    onRecordingComplete: handleRecordingComplete
-  });
+  } = useRecording();
 
   // 文件上传
   const {
@@ -74,12 +72,10 @@ export function MessageInput({
     try {
       // 收集文件
       const files: File[] = [];
-      if (imagePreview) {
-        const file = getTempFile();
-        if (file) files.push(file);
-      }
+      // 注意：imagePreview 是 data URL，不需要通过 getTempFile 获取
+      // 如果需要发送图片文件，应该从 imagePreview data URL 重新创建 File 对象
       if (filePreview) {
-        const file = getTempFile();
+        const file = getTempFile(filePreview.file_url);
         if (file) files.push(file);
       }
       
@@ -153,7 +149,7 @@ export function MessageInput({
               <div className="text-center">
                 <Paperclip className="mx-auto h-6 w-6 text-gray-400" />
                 <p className="mt-1 truncate text-xs text-gray-600">
-                  {filePreview.name}
+                  {filePreview.file_name}
                 </p>
               </div>
               <button
@@ -189,7 +185,13 @@ export function MessageInput({
             <Button
               variant="ghost"
               size="sm"
-              onClick={isRecording ? stopRecording : startRecording}
+              onClick={isRecording ? async () => {
+                const audioUrl = await stopRecording();
+                if (audioUrl) {
+                  handleRecordingComplete(new Blob([], { type: 'audio/webm' }));
+                  setAudioPreview(audioUrl);
+                }
+              } : startRecording}
               disabled={disabled || isResponding}
               title={isRecording ? '停止录音' : '语音输入'}
               className={cn(

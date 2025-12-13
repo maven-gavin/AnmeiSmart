@@ -265,7 +265,12 @@ export default function FileManager({ conversationId, isOpen, onClose }: FileMan
                 <div key={file.message_id} className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg">
                   {/* 文件展示 */}
                   <div className="flex-1">
-                    <FileMessage fileInfo={file.file_info} />
+                    <FileMessage 
+                      fileInfo={file.file_info} 
+                      message={{} as any}
+                      searchTerm=""
+                      compact={false}
+                    />
                   </div>
 
                   {/* 文件信息 */}

@@ -225,7 +225,7 @@ export default function AdminDigitalHumanDetail({
               <div className="flex items-center space-x-2">
                 <h2 className="text-xl font-bold text-gray-900">{digitalHuman.name}</h2>
                 {digitalHuman.isSystemCreated && (
-                  <Shield className="h-5 w-5 text-blue-500" title="系统创建" />
+                  <Shield className="h-5 w-5 text-blue-500" aria-label="系统创建" />
                 )}
               </div>
               <p className="text-gray-600">{digitalHuman.description || '暂无描述'}</p>

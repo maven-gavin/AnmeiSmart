@@ -217,7 +217,7 @@ export default function AdminDigitalHumanList({
                         {digitalHuman.name}
                       </h3>
                       {digitalHuman.is_system_created && (
-                        <Shield className="h-4 w-4 text-blue-500" title="系统创建" />
+                        <Shield className="h-4 w-4 text-blue-500" aria-label="系统创建" />
                       )}
                     </div>
                     <p className="text-sm text-gray-600 truncate">
