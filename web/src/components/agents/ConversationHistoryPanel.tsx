@@ -1,12 +1,28 @@
 import { useState, useRef } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { Plus, MessageSquare, Calendar, Edit2, Check, X } from 'lucide-react';
+import { Plus, MessageSquare, Calendar, Edit2, Check, X, MoreVertical, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { renameAgentConversation } from '@/service/agentChatService';
 import { toast } from 'react-hot-toast';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export interface AgentConversation {
   id: string;
@@ -24,6 +40,7 @@ interface ConversationHistoryPanelProps {
   onSelectConversation: (conversationId: string) => void;
   onCreateNewChat: () => void;
   onConversationUpdate?: (conversationId: string, title: string) => void;
+  onDeleteConversation?: (conversationId: string) => void;
   isLoading?: boolean;
 }
 
@@ -35,12 +52,17 @@ export function ConversationHistoryPanel({
   onSelectConversation,
   onCreateNewChat,
   onConversationUpdate,
+  onDeleteConversation,
   isLoading = false,
 }: ConversationHistoryPanelProps) {
   // 标题编辑状态
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
+  
+  // 删除确认对话框状态
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
 
   // 开始编辑标题
   const startEditTitle = (conversation: AgentConversation, e: React.MouseEvent) => {
@@ -84,6 +106,22 @@ export function ConversationHistoryPanel({
       saveTitle(conversationId);
     } else if (e.key === 'Escape') {
       cancelEditTitle();
+    }
+  };
+
+  // 打开删除确认对话框
+  const handleDeleteClick = (conversationId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConversationToDelete(conversationId);
+    setDeleteDialogOpen(true);
+  };
+
+  // 确认删除
+  const handleConfirmDelete = async () => {
+    if (conversationToDelete && onDeleteConversation) {
+      onDeleteConversation(conversationToDelete);
+      setDeleteDialogOpen(false);
+      setConversationToDelete(null);
     }
   };
   return (
@@ -175,14 +213,36 @@ export function ConversationHistoryPanel({
                         >
                           {conversation.title}
                         </button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={(e) => startEditTitle(conversation, e)}
-                          className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Edit2 className="h-3 w-3" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startEditTitle(conversation, e);
+                              }}
+                            >
+                              <Edit2 className="mr-2 h-4 w-4" />
+                              编辑
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => handleDeleteClick(conversation.id, e)}
+                              className="text-red-600 focus:text-red-600"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              删除
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </>
                     )}
                   </div>
@@ -222,6 +282,27 @@ export function ConversationHistoryPanel({
           </div>
         )}
       </ScrollArea>
+
+      {/* 删除确认对话框 */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除这个对话吗？此操作无法撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

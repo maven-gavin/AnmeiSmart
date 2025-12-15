@@ -81,6 +81,11 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
     chatState.loadConversations();
   };
 
+  // 删除对话
+  const handleDeleteConversation = async (conversationId: string) => {
+    await chatState.deleteConversation(conversationId);
+  };
+
   // 转换对话数据格式
   const conversationsForPanel = selectedAgent && chatState ? chatState.conversations.map(conv => {
     // 安全地创建日期对象
@@ -126,6 +131,7 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
           onSelectConversation={handleSelectConversation}
           onCreateNewChat={handleCreateNewChat}
           onConversationUpdate={handleConversationUpdate}
+          onDeleteConversation={handleDeleteConversation}
           isLoading={chatState.isConversationsLoading}
         />
       )}

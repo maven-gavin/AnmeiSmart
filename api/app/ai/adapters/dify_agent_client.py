@@ -520,7 +520,15 @@ class ChatClient(DifyClient):
             f"/conversations/{conversation_id}",
             json_data=data
         )
-        return response.json()
+        # 204 No Content 响应没有响应体，不需要解析 JSON
+        if response.status_code == 204:
+            return {}
+        # 如果有响应体，尝试解析 JSON
+        try:
+            return response.json() if response.text else {}
+        except (json.JSONDecodeError, ValueError):
+            # 如果响应体为空或无法解析，返回空字典
+            return {}
     
     async def audio_to_text(
         self,
