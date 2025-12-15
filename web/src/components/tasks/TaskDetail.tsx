@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { apiClient, handleApiError } from '@/service/apiClient';
 import { 
   ArrowLeft, 
   Clock, 
@@ -22,32 +23,7 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import toast from 'react-hot-toast';
 
-interface PendingTask {
-  id: string;
-  title: string;
-  description?: string;
-  taskType: string;
-  status: 'pending' | 'assigned' | 'in_progress' | 'completed' | 'cancelled';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  createdBy?: {
-    id: string;
-    username: string;
-    email: string;
-  };
-  assignedTo?: {
-    id: string;
-    name: string;
-  };
-  relatedObjectType?: string;
-  relatedObjectId?: string;
-  taskData?: any;
-  dueDate?: string;
-  completedAt?: string;
-  result?: any;
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
-}
+import type { PendingTask } from '@/types/task';
 
 interface TaskDetailProps {
   taskId: string;
@@ -75,19 +51,13 @@ export default function TaskDetail({
   const loadTaskDetail = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/tasks/${taskId}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setTask(data.data);
-        setNotes(data.data.notes || '');
-        setResult(data.data.result ? JSON.stringify(data.data.result, null, 2) : '');
-      } else {
-        toast.error('加载任务详情失败');
-      }
+      const response = await apiClient.get<PendingTask>(`/tasks/${taskId}`);
+      setTask(response.data);
+      setNotes(response.data.notes || '');
+      setResult(response.data.result ? JSON.stringify(response.data.result, null, 2) : '');
     } catch (error) {
       console.error('加载任务详情失败:', error);
-      toast.error('加载任务详情失败');
+      handleApiError(error, '加载任务详情失败');
     } finally {
       setIsLoading(false);
     }
@@ -207,11 +177,11 @@ export default function TaskDetail({
 
   const canStart = (task: PendingTask) => {
     return (task.status === 'assigned' || task.status === 'pending') && 
-           (task.assignedTo?.id === currentUserId || !task.assignedTo);
+           (task.assigned_to?.id === currentUserId || !task.assigned_to);
   };
 
   const canComplete = (task: PendingTask) => {
-    return task.status === 'in_progress' && task.assignedTo?.id === currentUserId;
+    return task.status === 'in_progress' && task.assigned_to?.id === currentUserId;
   };
 
   const canCancel = (task: PendingTask) => {
@@ -260,7 +230,7 @@ export default function TaskDetail({
           </Button>
           <div>
             <h2 className="text-xl font-bold text-gray-900">{task.title}</h2>
-            <p className="text-gray-600 mt-1">{getTaskTypeLabel(task.taskType)}</p>
+            <p className="text-gray-600 mt-1">{getTaskTypeLabel(task.task_type)}</p>
           </div>
         </div>
 
@@ -286,11 +256,11 @@ export default function TaskDetail({
           </div>
 
           {/* 任务数据 */}
-          {task.taskData && (
+          {task.task_data && (
             <div className="bg-gray-50 rounded-lg p-4">
               <h3 className="font-semibold text-gray-900 mb-2">任务数据</h3>
               <pre className="text-sm text-gray-700 bg-white p-3 rounded border overflow-auto">
-                {JSON.stringify(task.taskData, null, 2)}
+                {JSON.stringify(task.task_data, null, 2)}
               </pre>
             </div>
           )}
@@ -351,51 +321,51 @@ export default function TaskDetail({
 
               <div className="flex items-center justify-between">
                 <span className="text-gray-500">创建时间</span>
-                <span>{format(new Date(task.createdAt), 'yyyy-MM-dd HH:mm', { locale: zhCN })}</span>
+                <span>{format(new Date(task.created_at), 'yyyy-MM-dd HH:mm', { locale: zhCN })}</span>
               </div>
 
-              {task.dueDate && (
+              {task.due_date && (
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500">截止时间</span>
-                  <span className={isOverdue(task.dueDate) ? 'text-red-600' : ''}>
-                    {format(new Date(task.dueDate), 'yyyy-MM-dd HH:mm', { locale: zhCN })}
-                    {isOverdue(task.dueDate) && (
+                  <span className={isOverdue(task.due_date) ? 'text-red-600' : ''}>
+                    {format(new Date(task.due_date), 'yyyy-MM-dd HH:mm', { locale: zhCN })}
+                    {isOverdue(task.due_date) && (
                       <AlertCircle className="h-4 w-4 inline ml-1" />
                     )}
                   </span>
                 </div>
               )}
 
-              {task.completedAt && (
+              {task.completed_at && (
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500">完成时间</span>
-                  <span>{format(new Date(task.completedAt), 'yyyy-MM-dd HH:mm', { locale: zhCN })}</span>
+                  <span>{format(new Date(task.completed_at), 'yyyy-MM-dd HH:mm', { locale: zhCN })}</span>
                 </div>
               )}
 
-              {task.createdBy && (
+              {task.created_by && (
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500">创建人</span>
-                  <span>{task.createdBy.username}</span>
+                  <span>{task.created_by.username}</span>
                 </div>
               )}
 
-              {task.assignedTo && (
+              {task.assigned_to && (
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500">负责人</span>
-                  <span>{task.assignedTo.name}</span>
+                  <span>{task.assigned_to.username}</span>
                 </div>
               )}
 
-              {task.relatedObjectType && (
+              {task.related_object_type && (
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500">关联对象</span>
                   <div className="text-right">
                     <Badge variant="outline" className="text-xs mb-1">
-                      {task.relatedObjectType}
+                      {task.related_object_type}
                     </Badge>
                     <div className="font-mono text-xs text-gray-600">
-                      {task.relatedObjectId}
+                      {task.related_object_id}
                     </div>
                   </div>
                 </div>
@@ -442,7 +412,7 @@ export default function TaskDetail({
                 </Button>
               )}
 
-              {task.status === 'in_progress' && task.assignedTo?.id === currentUserId && (
+              {task.status === 'in_progress' && task.assigned_to?.id === currentUserId && (
                 <Button
                   variant="outline"
                   onClick={() => handleStatusUpdate('assigned')}

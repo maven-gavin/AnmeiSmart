@@ -19,6 +19,13 @@ export const menuConfig: MenuConfig = {
       roles: ['doctor','consultant', 'customer', 'admin', 'operator']
     },    
     {
+      id: 'task-governance-admin',
+      label: '任务治理',
+      path: '/admin/task-governance',
+      icon: 'task-icon',
+      roles: ['admin']
+    },
+    {
       id: 'agents-explore',
       label: '智能体探索',
       path: '/agents/explore',
@@ -38,16 +45,7 @@ export const menuConfig: MenuConfig = {
       path: '/contacts',
       icon: 'contacts-icon',
       roles: ['doctor', 'consultant', 'customer', 'admin', 'operator']
-    },    
-    // 医生端菜单
-    // 患者管理模块已移除
-    
-    // 顾问端菜单
-    // 术前模拟与方案推荐模块已移除
-    
-    // 客户端菜单
-    
-    // 管理端菜单
+    },  
     {
       id: 'users',
       label: '用户管理',

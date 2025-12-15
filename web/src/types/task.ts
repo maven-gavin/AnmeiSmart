@@ -1,46 +1,44 @@
-/**
- * 待办任务相关类型定义
- */
+// 待办任务相关类型定义（与后端 /api/v1/tasks 字段命名保持一致：snake_case）
 
 export interface PendingTask {
   id: string;
   title: string;
   description?: string;
-  taskType: string;
+  task_type: string;
   status: 'pending' | 'assigned' | 'in_progress' | 'completed' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'urgent';
-  createdBy?: {
+  created_by?: {
     id: string;
     username: string;
     email: string;
   };
-  assignedTo?: {
+  assigned_to?: {
     id: string;
     username: string;
     email: string;
   };
-  assignedAt?: string;
-  relatedObjectType?: string;
-  relatedObjectId?: string;
-  taskData?: any;
-  dueDate?: string;
-  completedAt?: string;
+  assigned_at?: string;
+  related_object_type?: string;
+  related_object_id?: string;
+  task_data?: unknown;
+  due_date?: string;
+  completed_at?: string;
   result?: any;
   notes?: string;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface CreateTaskRequest {
   title: string;
   description?: string;
-  taskType: string;
+  task_type: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
-  dueDate?: string;
-  relatedObjectType?: string;
-  relatedObjectId?: string;
-  taskData?: any;
-  assignedTo?: string;
+  due_date?: string;
+  related_object_type?: string;
+  related_object_id?: string;
+  task_data?: unknown;
+  assigned_to?: string;
 }
 
 export interface UpdateTaskRequest {
@@ -55,11 +53,11 @@ export interface UpdateTaskRequest {
 export interface TaskFilters {
   status?: string;
   priority?: string;
-  taskType?: string;
-  assignedTo?: string;
-  createdBy?: string;
+  task_type?: string;
+  assigned_to?: string;
+  created_by?: string;
   search?: string;
-  dateRange?: {
+  date_range?: {
     start?: string;
     end?: string;
   };
@@ -84,7 +82,14 @@ export const TASK_TYPE_LABELS: Record<string, string> = {
   prescription_review: '处方审核',
   medical_consultation: '医疗咨询',
   system_maintenance: '系统维护',
-  user_feedback: '用户反馈'
+  user_feedback: '用户反馈',
+  // MVP：可治理任务中枢（制造业销售视角）
+  create_ticket: '创建工单',
+  assign: '分派',
+  transfer: '转派',
+  set_sla: '设置SLA/提醒',
+  create_followup: '创建跟进任务',
+  sensitive_guard: '敏感拦截（待确认）',
 };
 
 // 任务状态标签映射

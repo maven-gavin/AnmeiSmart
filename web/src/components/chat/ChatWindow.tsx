@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useCallback, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { Conversation, type Message } from '@/types/chat'
 import ChatMessage from '@/components/chat/message/ChatMessage'
 import MessageInput from '@/components/chat/MessageInput'
@@ -11,6 +12,9 @@ import { useConversationTitleEditor } from '@/hooks/useConversationTitleEditor'
 import { ChatActionsMenu } from '@/components/chat/ChatActionsMenu'
 // 工具函数
 import { getDisplayTitle, groupMessagesByDate } from '@/utils/conversationUtils'
+import toast from 'react-hot-toast'
+import { taskGovernanceService } from '@/service/taskGovernanceService'
+import { MessageUtils } from '@/utils/messageUtils'
 
 interface ChatWindowProps {
   conversation: Conversation;
@@ -18,6 +22,8 @@ interface ChatWindowProps {
   loadingMessages: boolean;
   isConsultant?: boolean;
   hasCustomerProfile?: boolean;
+  sceneKey?: string;
+  digitalHumanId?: string;
   onAction: (action: string, conversationId: string) => void;
   onLoadMessages: (forceRefresh?: boolean) => Promise<void>;
   onCustomerProfileToggle?: () => void;
@@ -36,6 +42,8 @@ export default function ChatWindow({
   loadingMessages,
   isConsultant = false,
   hasCustomerProfile = false,
+  sceneKey,
+  digitalHumanId,
   onAction,
   onLoadMessages,
   onCustomerProfileToggle,
@@ -48,6 +56,7 @@ export default function ChatWindow({
   onInputFocus
 }: ChatWindowProps) {
   const { user } = useAuthContext();
+  const router = useRouter()
 
   // 聊天容器引用
   const chatContainerRef = useRef<HTMLDivElement>(null)
@@ -137,6 +146,62 @@ export default function ChatWindow({
         if (onMessageAdded) {
           onMessageAdded(message);
         }
+
+        // M3：可治理任务中枢路由（最小侵入式）
+        // - 仅在提供 sceneKey 且有可提取文本时触发
+        // - 不阻断现有发送流程：路由失败仅记录，不影响发送
+        try {
+          const routeText = MessageUtils.getTextContent(message)?.trim()
+          if (sceneKey && routeText) {
+            const result = await taskGovernanceService.route({
+              scene_key: sceneKey,
+              text: routeText,
+              digital_human_id: digitalHumanId || undefined,
+              conversation_id: conversation.id,
+              message_id: savedMessage.id,
+              create_fallback_task: true,
+            })
+
+            if (result.created_tasks?.length) {
+              const firstSuggestionText = result.suggestions?.find((s) => typeof s?.text === 'string')?.text as string | undefined
+              toast((t) => (
+                <div className="flex items-center gap-3">
+                  <div className="text-sm text-gray-800">
+                    {result.route_type === 'sensitive' ? '命中敏感拦截' : '已生成任务'}：{result.created_tasks.length} 条
+                  </div>
+                  {result.route_type === 'sensitive' && firstSuggestionText && (
+                    <button
+                      className="text-sm text-gray-600 hover:text-gray-800"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(firstSuggestionText)
+                          toast.dismiss(t.id)
+                          toast.success('已复制安全改写')
+                        } catch {
+                          toast.error('复制失败，请手动复制')
+                        }
+                      }}
+                    >
+                      复制安全改写
+                    </button>
+                  )}
+                  <button
+                    className="text-sm text-orange-600 hover:text-orange-700"
+                    onClick={() => {
+                      toast.dismiss(t.id)
+                      router.push('/tasks')
+                    }}
+                  >
+                    去处理
+                  </button>
+                </div>
+              ))
+            }
+          }
+        } catch (routeError) {
+          // 路由失败不影响发送
+          console.warn('任务路由执行失败（已忽略）:', routeError)
+        }
       } catch (saveError) {
         message.status = 'failed';
         message.error = saveError instanceof Error ? saveError.message : '发送失败';
@@ -153,7 +218,7 @@ export default function ChatWindow({
         onMessageAdded(message);
       }
     }
-  }, [conversation.id, user, scrollToBottom, onMessageAdded])
+  }, [conversation.id, digitalHumanId, onMessageAdded, router, sceneKey, scrollToBottom, user])
 
   // 消息操作回调函数
   const handleToggleImportant = useCallback(async (messageId: string) => {

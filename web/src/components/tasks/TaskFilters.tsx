@@ -12,18 +12,7 @@ import {
 } from '@/components/ui/select';
 import { X, Search, RotateCcw } from 'lucide-react';
 
-export interface TaskFilters {
-  status?: string;
-  priority?: string;
-  taskType?: string;
-  assignedTo?: string;
-  createdBy?: string;
-  search?: string;
-  dateRange?: {
-    start?: string;
-    end?: string;
-  };
-}
+import type { TaskFilters } from '@/types/task';
 
 interface TaskFiltersProps {
   filters: TaskFilters;
@@ -48,8 +37,8 @@ export default function TaskFilters({
   const handleDateRangeChange = (key: 'start' | 'end', value: string) => {
     onFiltersChange({
       ...filters,
-      dateRange: {
-        ...filters.dateRange,
+      date_range: {
+        ...filters.date_range,
         [key]: value
       }
     });
@@ -62,7 +51,7 @@ export default function TaskFilters({
   const hasActiveFilters = () => {
     return Object.keys(filters).some(key => {
       const value = filters[key as keyof TaskFilters];
-      if (key === 'dateRange') {
+      if (key === 'date_range') {
         return value && typeof value === 'object' && (value.start || value.end);
       }
       return value && value !== '' && value !== 'all';
@@ -142,10 +131,10 @@ export default function TaskFilters({
 
         {/* 任务类型 */}
         <div>
-          <Label htmlFor="taskType">任务类型</Label>
+          <Label htmlFor="task_type">任务类型</Label>
           <Select
-            value={filters.taskType || 'all'}
-            onValueChange={(value) => handleFilterChange('taskType', value)}
+            value={filters.task_type || 'all'}
+            onValueChange={(value) => handleFilterChange('task_type', value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="选择任务类型" />
@@ -168,7 +157,7 @@ export default function TaskFilters({
           <Input
             id="start-date"
             type="date"
-            value={filters.dateRange?.start || ''}
+            value={filters.date_range?.start || ''}
             onChange={(e) => handleDateRangeChange('start', e.target.value)}
           />
         </div>
@@ -177,7 +166,7 @@ export default function TaskFilters({
           <Input
             id="end-date"
             type="date"
-            value={filters.dateRange?.end || ''}
+            value={filters.date_range?.end || ''}
             onChange={(e) => handleDateRangeChange('end', e.target.value)}
           />
         </div>

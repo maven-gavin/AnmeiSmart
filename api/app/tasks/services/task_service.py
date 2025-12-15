@@ -41,7 +41,8 @@ class TaskService:
         )
         
         # 根据用户角色筛选任务
-        if user_role == "administrator":
+        is_admin = user_role in {"administrator", "admin", "super_admin"}
+        if is_admin:
             # 管理员可以看到所有任务
             pass
         elif user_role == "consultant":
@@ -109,7 +110,8 @@ class TaskService:
             return None
         
         # 权限检查
-        if user_role != "administrator":
+        is_admin = user_role in {"administrator", "admin", "super_admin"}
+        if not is_admin:
             if task.assigned_to != user_id and not (task.status == "pending" and not task.assigned_to):
                 return None
         
@@ -199,9 +201,10 @@ class TaskService:
             raise BusinessException("任务不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
         
         # 权限检查
-        if user_role != "administrator":
+        is_admin = user_role in {"administrator", "admin", "super_admin"}
+        if not is_admin:
             if task.assigned_to != user_id:
-                raise BusinessException("无权修改此任务", code=ErrorCode.ACCESS_DENIED)
+                raise BusinessException("无权修改此任务", code=ErrorCode.PERMISSION_DENIED)
         
         # 根据状态更新
         if task_data.status == "completed":

@@ -5,8 +5,16 @@
 """
 
 from .task import PendingTask
+from .task_queue import TaskQueue
+from .routing_rule import TaskRoutingRule
+from .sensitive_rule import TaskSensitiveRule
+from .task_event import TaskEvent
 
 __all__ = [
     "PendingTask",
+    "TaskQueue",
+    "TaskRoutingRule",
+    "TaskSensitiveRule",
+    "TaskEvent",
 ]
 

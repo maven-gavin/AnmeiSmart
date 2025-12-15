@@ -8,6 +8,7 @@ import CustomerProfile from '@/components/profile/CustomerProfile';
 import ConversationHistoryList from '@/components/chat/ConversationHistoryList';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { ErrorDisplay } from '@/components/ui/ErrorDisplay';
+import { Input } from '@/components/ui/input';
 // 新增面板组件
 import { ChatSearchPanel } from '@/components/chat/ChatSearchPanel';
 import { ImportantMessagesPanel } from '@/components/chat/ImportantMessagesPanel';
@@ -44,6 +45,24 @@ function SmartCommunicationContent() {
   const selectedCustomerId = searchParams?.get('customerId');
   const selectedConversationId = searchParams?.get('conversationId');
   const selectedFriendId = searchParams?.get('friend');
+  const sceneKeyFromUrl = searchParams?.get('scene_key') || '';
+  const digitalHumanIdFromUrl = searchParams?.get('digital_human_id') || '';
+
+  // 可治理任务中枢：场景Key（为空则不触发任务路由，避免影响现有聊天）
+  const [sceneKeyDraft, setSceneKeyDraft] = useState(sceneKeyFromUrl);
+  useEffect(() => {
+    setSceneKeyDraft(sceneKeyFromUrl);
+  }, [sceneKeyFromUrl]);
+
+  const commitSceneKeyToUrl = useCallback((nextSceneKey: string) => {
+    const next = nextSceneKey.trim();
+    const params = new URLSearchParams(searchParams?.toString());
+    if (next) params.set('scene_key', next);
+    else params.delete('scene_key');
+    // 保持其他参数不变
+    const qs = params.toString();
+    router.replace(`/chat${qs ? `?${qs}` : ''}`, { scroll: false });
+  }, [router, searchParams]);
   
   // 使用自定义hooks管理状态
   const {
@@ -332,6 +351,24 @@ function SmartCommunicationContent() {
               <p className="text-sm text-gray-500">让我们快乐沟通</p>
             </div>
           </div>
+
+          {/* M3：对话入口注入（最小版）——配置 scene_key 以启用任务路由 */}
+          <div className="flex items-center gap-2">
+            <div className="text-xs text-gray-500">scene_key</div>
+            <Input
+              value={sceneKeyDraft}
+              onChange={(e) => setSceneKeyDraft(e.target.value)}
+              onBlur={() => commitSceneKeyToUrl(sceneKeyDraft)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commitSceneKeyToUrl(sceneKeyDraft);
+                }
+              }}
+              placeholder="留空=不触发任务路由"
+              className="h-8 w-56 text-sm"
+            />
+          </div>
         </div>
       </div>
       
@@ -365,6 +402,8 @@ function SmartCommunicationContent() {
               loadingMessages={loadingMessages}
               isConsultant={isConsultant}
               hasCustomerProfile={!!selectedCustomerId}
+              sceneKey={sceneKeyFromUrl || undefined}
+              digitalHumanId={digitalHumanIdFromUrl || undefined}
               onAction={handleConversationAction}
               onLoadMessages={loadMessages}
               onCustomerProfileToggle={handleCustomerProfileToggle}

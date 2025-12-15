@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/service/apiClient';
 import toast from 'react-hot-toast';
+import { handleApiError } from '@/service/apiClient';
 import type { 
   PendingTask, 
   TaskFilters, 
@@ -22,32 +23,24 @@ export function usePendingTasks(userRole?: string) {
       
       // 根据用户角色添加默认筛选
       if (userRole) {
-        params.append('userRole', userRole);
+        params.append('user_role', userRole);
       }
       
       // 添加筛选参数
       Object.entries(currentFilters).forEach(([key, value]) => {
         if (value && value !== '') {
-          if (key === 'dateRange' && typeof value === 'object') {
-            if (value.start) params.append('startDate', value.start);
-            if (value.end) params.append('endDate', value.end);
+          if (key === 'date_range' && typeof value === 'object') {
+            // TODO: 后端当前未实现日期范围筛选，先不发送
+            // if (value.start) params.append('start_date', value.start)
+            // if (value.end) params.append('end_date', value.end)
           } else {
             params.append(key, String(value));
           }
         }
       });
 
-      const response = await apiClient.get<{
-        success: boolean;
-        data: PendingTask[];
-        message?: string;
-      }>(`/tasks?${params.toString()}`);
-      
-      if (response.data.success) {
-        return response.data.data;
-      } else {
-        throw new Error(response.data.message || '获取任务列表失败');
-      }
+      const response = await apiClient.get<PendingTask[]>(`/tasks?${params.toString()}`);
+      return response.data;
     } catch (error) {
       console.error('获取任务列表失败:', error);
       throw error;
@@ -57,25 +50,14 @@ export function usePendingTasks(userRole?: string) {
   // 认领任务
   const claimTask = async (taskId: string): Promise<PendingTask> => {
     try {
-      const response = await apiClient.post<{
-        success: boolean;
-        data: PendingTask;
-        message?: string;
-      }>(`/tasks/${taskId}/claim`);
-      
-      if (response.data.success) {
-        const updatedTask = response.data.data;
-        setTasks(prev => 
-          prev.map(task => task.id === taskId ? updatedTask : task)
-        );
-        toast.success('任务认领成功');
-        return updatedTask;
-      } else {
-        throw new Error(response.data.message || '认领任务失败');
-      }
+      const response = await apiClient.post<PendingTask>(`/tasks/${taskId}/claim`);
+      const updatedTask = response.data;
+      setTasks(prev => prev.map(task => task.id === taskId ? updatedTask : task));
+      toast.success('任务认领成功');
+      return updatedTask;
     } catch (error) {
       console.error('认领任务失败:', error);
-      toast.error('认领任务失败');
+      handleApiError(error, '认领任务失败');
       throw error;
     }
   };
@@ -87,26 +69,17 @@ export function usePendingTasks(userRole?: string) {
     updateData?: any
   ): Promise<PendingTask> => {
     try {
-      const response = await apiClient.put<{
-        success: boolean;
-        data: PendingTask;
-        message?: string;
-      }>(`/tasks/${taskId}`, {
+      const response = await apiClient.put<PendingTask>(`/tasks/${taskId}`, {
         status,
         ...updateData
       });
       
-      if (response.data.success) {
-        const updatedTask = response.data.data;
-        setTasks(prev => 
-          prev.map(task => task.id === taskId ? updatedTask : task)
-        );
-        return updatedTask;
-      } else {
-        throw new Error(response.data.message || '更新任务状态失败');
-      }
+      const updatedTask = response.data;
+      setTasks(prev => prev.map(task => task.id === taskId ? updatedTask : task));
+      return updatedTask;
     } catch (error) {
       console.error('更新任务状态失败:', error);
+      handleApiError(error, '更新任务状态失败');
       throw error;
     }
   };
@@ -114,17 +87,8 @@ export function usePendingTasks(userRole?: string) {
   // 获取任务详情
   const getTask = async (taskId: string): Promise<PendingTask> => {
     try {
-      const response = await apiClient.get<{
-        success: boolean;
-        data: PendingTask;
-        message?: string;
-      }>(`/tasks/${taskId}`);
-      
-      if (response.data.success) {
-        return response.data.data;
-      } else {
-        throw new Error(response.data.message || '获取任务详情失败');
-      }
+      const response = await apiClient.get<PendingTask>(`/tasks/${taskId}`);
+      return response.data;
     } catch (error) {
       console.error('获取任务详情失败:', error);
       throw error;
@@ -140,9 +104,8 @@ export function usePendingTasks(userRole?: string) {
       const data = await fetchTasks(filters);
       setTasks(data);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '获取任务列表失败';
+      const errorMessage = handleApiError(error, '获取任务列表失败');
       setError(errorMessage);
-      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -158,9 +121,8 @@ export function usePendingTasks(userRole?: string) {
       const data = await fetchTasks(newFilters);
       setTasks(data);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '获取任务列表失败';
+      const errorMessage = handleApiError(error, '获取任务列表失败');
       setError(errorMessage);
-      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }

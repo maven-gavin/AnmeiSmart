@@ -126,11 +126,11 @@ export default function TaskList({
   };
 
   const canClaim = (task: PendingTask) => {
-    return task.status === 'pending' && !task.assignedTo;
+    return task.status === 'pending' && !task.assigned_to;
   };
 
   const isAssignedToCurrentUser = (task: PendingTask) => {
-    return task.assignedTo?.id === currentUserId;
+    return task.assigned_to?.id === currentUserId;
   };
 
   if (tasks.length === 0) {
@@ -149,7 +149,7 @@ export default function TaskList({
         <div
           key={task.id}
           className={`p-6 hover:bg-gray-50 transition-colors ${
-            isOverdue(task.dueDate) ? 'border-l-4 border-red-500' : ''
+            isOverdue(task.due_date) ? 'border-l-4 border-red-500' : ''
           }`}
         >
           <div className="flex items-start justify-between">
@@ -162,7 +162,7 @@ export default function TaskList({
                   </h3>
                   <div className="flex items-center space-x-2 mb-2">
                     <Badge variant="outline" className="text-xs">
-                      {getTaskTypeLabel(task.taskType)}
+                      {getTaskTypeLabel(task.task_type)}
                     </Badge>
                     <Badge className={getStatusColor(task.status)}>
                       {getStatusLabel(task.status)}
@@ -186,32 +186,32 @@ export default function TaskList({
                 <div className="flex items-center space-x-1">
                   <Calendar className="h-4 w-4" />
                   <span>
-                    创建于 {formatDateSafely(task.createdAt)}
+                    创建于 {formatDateSafely(task.created_at)}
                   </span>
                 </div>
 
-                {task.createdBy && (
+                {task.created_by && (
                   <div className="flex items-center space-x-1">
                     <User className="h-4 w-4" />
-                    <span>创建人: {task.createdBy.name}</span>
+                    <span>创建人: {task.created_by.username}</span>
                   </div>
                 )}
 
-                {task.assignedTo && (
+                {task.assigned_to && (
                   <div className="flex items-center space-x-1">
                     <User className="h-4 w-4" />
-                    <span>负责人: {task.assignedTo.name}</span>
+                    <span>负责人: {task.assigned_to.username}</span>
                   </div>
                 )}
 
-                {task.dueDate && (
+                {task.due_date && (
                   <div className={`flex items-center space-x-1 ${
-                    isOverdue(task.dueDate) ? 'text-red-600' : ''
+                    isOverdue(task.due_date) ? 'text-red-600' : ''
                   }`}>
                     <Clock className="h-4 w-4" />
                     <span>
-                      截止: {formatDateSafely(task.dueDate)}
-                      {isOverdue(task.dueDate) && (
+                      截止: {formatDateSafely(task.due_date)}
+                      {isOverdue(task.due_date) && (
                         <AlertCircle className="h-4 w-4 inline ml-1" />
                       )}
                     </span>
@@ -252,14 +252,14 @@ export default function TaskList({
           </div>
 
           {/* 关联对象信息 */}
-          {task.relatedObjectType && task.relatedObjectId && (
+          {task.related_object_type && task.related_object_id && (
             <div className="mt-3 pt-3 border-t border-gray-100">
               <div className="flex items-center space-x-2 text-sm text-gray-500">
                 <span>关联对象:</span>
                 <Badge variant="outline" className="text-xs">
-                  {task.relatedObjectType}
+                  {task.related_object_type}
                 </Badge>
-                <span className="font-mono text-xs">{task.relatedObjectId}</span>
+                <span className="font-mono text-xs">{task.related_object_id}</span>
               </div>
             </div>
           )}
