@@ -26,6 +26,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
   const [isConversationsLoading, setIsConversationsLoading] = useState(false);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [appConfig, setAppConfig] = useState<ApplicationParameters | null>(null);
+  const [savedInputs, setSavedInputs] = useState<Record<string, any> | null>(null);  // 保存首次对话的inputs
   
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -83,6 +84,19 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
   // 发送消息
   const sendMessage = useCallback(async (text: string, inputs?: Record<string, any>) => {
     if (!text.trim() || isResponding || !isValidAgent) return;
+    
+    // 如果有新的inputs，保存它们；后续对话使用保存的inputs
+    // 优先使用新传入的inputs，否则使用保存的inputs
+    const effectiveInputs = inputs && Object.keys(inputs).length > 0 
+      ? inputs 
+      : (savedInputs || {});
+    
+    // 如果有新的inputs（非空），保存它们供后续对话使用
+    if (inputs && Object.keys(inputs).length > 0) {
+      setSavedInputs(inputs);
+      console.log('[useAgentChat] 保存inputs:', inputs);
+    }
+    console.log('[useAgentChat] 发送消息，使用inputs:', effectiveInputs);
 
     const questionId = `question-${Date.now()}`;
     const userMessage: AgentMessage = {
@@ -405,7 +419,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
             setMessages(getMessages().filter(m => m.id !== placeholderAnswerId));
           },
         },
-        inputs
+        effectiveInputs
       );
     } catch (error) {
       setIsResponding(false);
@@ -430,11 +444,13 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
     setMessages,
     loadConversations,
     onError,
+    savedInputs,  // 添加savedInputs到依赖数组
   ]);
 
   // 切换会话
   const switchConversation = useCallback((conversationId: string | null) => {
     setCurrentConversationId(conversationId);
+    setSavedInputs(null);  // 切换会话时清空保存的inputs
     if (conversationId) {
       loadMessages(conversationId);
     } else {
@@ -516,6 +532,8 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
     setCurrentTaskId(null);
     // 重置应用配置
     setAppConfig(null);
+    // 重置保存的inputs
+    setSavedInputs(null);
     // 中止当前请求
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();

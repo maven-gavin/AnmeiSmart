@@ -116,7 +116,7 @@ export interface SSECallbacks {
 export interface UserInputFormField {
   variable: string;              // 变量名
   label: string;                 // 显示标签
-  type: 'text-input' | 'paragraph' | 'number' | 'select' | 'file' | 'file-list';
+  type?: 'text-input' | 'paragraph' | 'number' | 'select' | 'file' | 'file-list';  // 类型（可选，默认text-input）
   required: boolean;             // 是否必填
   max_length?: number;           // 最大长度
   default?: string | number;     // 默认值

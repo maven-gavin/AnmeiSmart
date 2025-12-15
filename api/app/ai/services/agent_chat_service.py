@@ -776,23 +776,28 @@ class AgentChatService:
         )
         
         # 转换 user_input_form 结构
+        # Dify 原生格式: [{"text-input": {...}}, {"number": {...}}]
+        # 目标格式: [{"type": "text-input", ...}, {"type": "number", ...}]
         if "user_input_form" in result and isinstance(result["user_input_form"], list):
+            logger.debug(f"📥 Dify 原始 user_input_form: {json.dumps(result['user_input_form'], ensure_ascii=False)}")
+            
             transformed_form = []
             for item in result["user_input_form"]:
-                # Dify 返回的结构是: [{"field-type": {field_config}}]
-                # 需要转换为: [{field_config}]
                 if isinstance(item, dict):
-                    # 获取嵌套的字段配置
+                    # 获取嵌套的字段配置，键名就是字段类型
                     for field_type_key, field_config in item.items():
                         if isinstance(field_config, dict):
+                            # 将类型作为 type 属性添加到配置中
+                            field_config["type"] = field_type_key
                             transformed_form.append(field_config)
+                            logger.debug(f"📝 转换字段: {field_type_key} -> {field_config}")
                             break
                 else:
                     # 如果已经是正确的结构，直接使用
                     transformed_form.append(item)
             
             result["user_input_form"] = transformed_form
-            logger.info(f"转换后的 user_input_form: {transformed_form}")
+            logger.info(f"✅ 转换后的 user_input_form: {json.dumps(transformed_form, ensure_ascii=False)}")
         
         logger.info(f"获取应用参数成功")
         return result

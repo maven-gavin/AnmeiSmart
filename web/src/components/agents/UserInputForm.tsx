@@ -230,8 +230,10 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
   // 渲染字段
   const renderField = (field: UserInputFormField) => {
     const value = values[field.variable] ?? '';
+    // 默认使用 text-input 类型（Dify API可能不返回type字段）
+    const fieldType = field.type || 'text-input';
 
-    switch (field.type) {
+    switch (fieldType) {
       case 'text-input':
         return (
           <Input

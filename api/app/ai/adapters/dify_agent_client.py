@@ -327,7 +327,20 @@ class ChatClient(DifyClient):
             async with httpx.AsyncClient(timeout=300.0) as client:
                 if stream:
                     async with client.stream("POST", url, headers=self.headers, json=data) as response:
-                        response.raise_for_status()
+                        # 流式请求需要先读取响应体再检查状态
+                        if response.status_code >= 400:
+                            error_body = await response.aread()
+                            error_text = error_body.decode('utf-8', errors='replace')
+                            error_json = {}
+                            try:
+                                error_json = json.loads(error_text)
+                            except:
+                                pass
+                            logger.error(f"Dify API 返回错误: status={response.status_code}, body={error_text}, json={error_json}")
+                            error_message = f"data: {json.dumps({'event': 'error', 'status': response.status_code, 'message': f'Dify API error: {response.status_code}', 'detail': error_text, 'error_json': error_json}, ensure_ascii=False)}\n\n"
+                            yield error_message.encode('utf-8')
+                            return
+                        
                         buffer = ""
                         async for line in response.aiter_lines():
                             if not line.strip():
@@ -352,7 +365,7 @@ class ChatClient(DifyClient):
             except:
                 pass
             logger.error(f"Dify API 返回错误: status={e.response.status_code}, body={error_body}, json={error_json}")
-            error_message = f"data: {json.dumps({'event': 'error', 'status': e.response.status_code, 'message': str(e), 'detail': error_body, 'error_json': error_json})}\n\n"
+            error_message = f"data: {json.dumps({'event': 'error', 'status': e.response.status_code, 'message': str(e), 'detail': error_body, 'error_json': error_json}, ensure_ascii=False)}\n\n"
             yield error_message.encode('utf-8')
         except Exception as e:
             logger.error(f"请求失败: {str(e)}", exc_info=True)
