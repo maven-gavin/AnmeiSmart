@@ -1,6 +1,6 @@
-// 待办任务相关类型定义（与后端 /api/v1/tasks 字段命名保持一致：snake_case）
+// 任务相关类型定义（与后端 /api/v1/tasks 字段命名保持一致：snake_case）
 
-export interface PendingTask {
+export interface Task {
   id: string;
   title: string;
   description?: string;

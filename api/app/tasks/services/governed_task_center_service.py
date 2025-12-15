@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from app.core.api import BusinessException, ErrorCode
-from app.tasks.models import PendingTask, TaskQueue
+from app.tasks.models import Task, TaskQueue
 from app.tasks.schemas.governed_route import RouteTaskRequest, RouteTaskResponse
 from app.tasks.schemas.task import TaskResponse
 from app.tasks.services.task_event_service import TaskEventService
@@ -60,7 +60,7 @@ class GovernedTaskCenterService:
             .first()
         )
 
-    def _apply_assignment_from_queue(self, task: PendingTask, queue: Optional[TaskQueue]) -> None:
+    def _apply_assignment_from_queue(self, task: Task, queue: Optional[TaskQueue]) -> None:
         if not queue:
             return
         if queue.rotation_strategy != "fixed":
@@ -83,7 +83,7 @@ class GovernedTaskCenterService:
             rule, category = sensitive_hit
             suggestions = rule.suggestion_templates or _default_sensitive_suggestions(category)
 
-            task = PendingTask(
+            task = Task(
                 title=f"敏感拦截（{category}）",
                 description="命中敏感规则，建议使用安全改写版本后再发送/再执行",
                 task_type="sensitive_guard",
@@ -126,7 +126,7 @@ class GovernedTaskCenterService:
             if not request.create_fallback_task:
                 return RouteTaskResponse(route_type="none", created_tasks=[])
 
-            task = PendingTask(
+            task = Task(
                 title="需要配置路由规则",
                 description=f"场景={request.scene_key} 未命中关键词规则，请管理员配置路由与任务模板",
                 task_type="routing_config_required",
@@ -149,7 +149,7 @@ class GovernedTaskCenterService:
             return RouteTaskResponse(route_type="none", created_tasks=[TaskResponse.from_model(task)])
 
         templates: List[Dict[str, Any]] = list(rule.task_templates or [])
-        created: List[PendingTask] = []
+        created: List[Task] = []
         now = datetime.now()
 
         for t in templates:
@@ -169,7 +169,7 @@ class GovernedTaskCenterService:
             queue_name = t.get("queue_name")
             queue = self._pick_queue(request.scene_key, queue_name=queue_name)
 
-            task = PendingTask(
+            task = Task(
                 title=title,
                 description=description,
                 task_type=task_type,

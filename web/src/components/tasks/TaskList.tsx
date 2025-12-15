@@ -15,11 +15,11 @@ import {
 import { formatDistanceToNow, isValid } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
-import type { PendingTask } from '@/types/task';
+import type { Task } from '@/types/task';
 import { TASK_TYPE_LABELS } from '@/types/task';
 
 interface TaskListProps {
-  tasks: PendingTask[];
+  tasks: Task[];
   onTaskSelect: (taskId: string) => void;
   onTaskClaim: (taskId: string) => void;
   currentUserId?: string;
@@ -125,11 +125,11 @@ export default function TaskList({
     return date < new Date();
   };
 
-  const canClaim = (task: PendingTask) => {
+  const canClaim = (task: Task) => {
     return task.status === 'pending' && !task.assigned_to;
   };
 
-  const isAssignedToCurrentUser = (task: PendingTask) => {
+  const isAssignedToCurrentUser = (task: Task) => {
     return task.assigned_to?.id === currentUserId;
   };
 

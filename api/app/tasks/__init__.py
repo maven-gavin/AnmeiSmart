@@ -6,13 +6,13 @@
 from .controllers import tasks_router
 
 # 导出模型
-from .models import PendingTask
+from .models import Task
 
 # 导出服务
 from .services import TaskService
 
 __all__ = [
     "tasks_router",
-    "PendingTask",
+    "Task",
     "TaskService",
 ]

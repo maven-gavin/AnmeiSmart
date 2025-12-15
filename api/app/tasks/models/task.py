@@ -4,15 +4,15 @@ from sqlalchemy.orm import relationship
 from app.common.models.base_model import BaseModel
 from app.common.deps.uuid_utils import task_id
 
-class PendingTask(BaseModel):
-    """待办任务聚合根 - 管理系统任务和工作流"""
-    __tablename__ = "pending_tasks"
+class Task(BaseModel):
+    """任务聚合根 - 管理系统任务和工作流"""
+    __tablename__ = "tasks"
     __table_args__ = (
-        Index('idx_pending_task_type', 'task_type'),
-        Index('idx_pending_task_status', 'status'),
-        Index('idx_pending_task_assignee', 'assigned_to'),
-        Index('idx_pending_task_priority', 'priority'),
-        {"comment": "待办任务表，记录系统发出的待处理任务"}
+        Index('idx_task_type', 'task_type'),
+        Index('idx_task_status', 'status'),
+        Index('idx_task_assignee', 'assigned_to'),
+        Index('idx_task_priority', 'priority'),
+        {"comment": "任务表，记录所有任务记录"}
     )
 
     id = Column(String(36), primary_key=True, default=task_id, comment="任务ID")
@@ -53,5 +53,5 @@ class PendingTask(BaseModel):
     assigned_to_user = relationship("app.identity_access.models.user.User", foreign_keys=[assigned_to], overlaps="assigned_tasks")
     
     def __repr__(self):
-        return f"<PendingTask(id={self.id}, type={self.task_type}, status={self.status})>"
+        return f"<Task(id={self.id}, type={self.task_type}, status={self.status})>"
 

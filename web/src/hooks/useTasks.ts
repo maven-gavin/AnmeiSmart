@@ -3,21 +3,21 @@ import { apiClient } from '@/service/apiClient';
 import toast from 'react-hot-toast';
 import { handleApiError } from '@/service/apiClient';
 import type { 
-  PendingTask, 
+  Task, 
   TaskFilters, 
   TaskStats, 
   CreateTaskRequest,
   UpdateTaskRequest
 } from '@/types/task';
 
-export function usePendingTasks(userRole?: string) {
-  const [tasks, setTasks] = useState<PendingTask[]>([]);
+export function useTasks(userRole?: string) {
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<TaskFilters>({});
 
   // 获取任务列表
-  const fetchTasks = async (currentFilters: TaskFilters = {}): Promise<PendingTask[]> => {
+  const fetchTasks = async (currentFilters: TaskFilters = {}): Promise<Task[]> => {
     try {
       const params = new URLSearchParams();
       
@@ -39,7 +39,7 @@ export function usePendingTasks(userRole?: string) {
         }
       });
 
-      const response = await apiClient.get<PendingTask[]>(`/tasks?${params.toString()}`);
+      const response = await apiClient.get<Task[]>(`/tasks?${params.toString()}`);
       return response.data;
     } catch (error) {
       console.error('获取任务列表失败:', error);
@@ -48,9 +48,9 @@ export function usePendingTasks(userRole?: string) {
   };
 
   // 认领任务
-  const claimTask = async (taskId: string): Promise<PendingTask> => {
+  const claimTask = async (taskId: string): Promise<Task> => {
     try {
-      const response = await apiClient.post<PendingTask>(`/tasks/${taskId}/claim`);
+      const response = await apiClient.post<Task>(`/tasks/${taskId}/claim`);
       const updatedTask = response.data;
       setTasks(prev => prev.map(task => task.id === taskId ? updatedTask : task));
       toast.success('任务认领成功');
@@ -67,9 +67,9 @@ export function usePendingTasks(userRole?: string) {
     taskId: string, 
     status: string, 
     updateData?: any
-  ): Promise<PendingTask> => {
+  ): Promise<Task> => {
     try {
-      const response = await apiClient.put<PendingTask>(`/tasks/${taskId}`, {
+      const response = await apiClient.put<Task>(`/tasks/${taskId}`, {
         status,
         ...updateData
       });
@@ -85,9 +85,9 @@ export function usePendingTasks(userRole?: string) {
   };
 
   // 获取任务详情
-  const getTask = async (taskId: string): Promise<PendingTask> => {
+  const getTask = async (taskId: string): Promise<Task> => {
     try {
-      const response = await apiClient.get<PendingTask>(`/tasks/${taskId}`);
+      const response = await apiClient.get<Task>(`/tasks/${taskId}`);
       return response.data;
     } catch (error) {
       console.error('获取任务详情失败:', error);
@@ -129,7 +129,7 @@ export function usePendingTasks(userRole?: string) {
   };
 
   // 计算统计信息
-  const calculateStats = (taskList: PendingTask[]): TaskStats => {
+  const calculateStats = (taskList: Task[]): TaskStats => {
     const stats = {
       total: taskList.length,
       pending: 0,
@@ -187,3 +187,4 @@ export function usePendingTasks(userRole?: string) {
     refreshTasks,
   };
 }
+

@@ -1,6 +1,6 @@
 // 可治理任务中枢（M1/M2）前端类型
 
-import type { PendingTask } from '@/types/task'
+import type { Task } from '@/types/task'
 
 export type TaskQueueRotationStrategy = 'fixed' | 'round_robin'
 export type TaskRuleMatchType = 'contains' | 'regex'
@@ -60,7 +60,7 @@ export interface RouteTaskResponse {
   matched_sensitive_rule_id?: string | null
   sensitive_category?: SensitiveCategory | null
   suggestions?: Array<Record<string, unknown>> | null
-  created_tasks: PendingTask[]
+  created_tasks: Task[]
 }
 
 export interface TaskGovernanceSceneMetrics {

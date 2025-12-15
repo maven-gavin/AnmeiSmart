@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_
 from datetime import datetime
 
-from app.tasks.models.task import PendingTask
+from app.tasks.models.task import Task
 from app.tasks.schemas.task import (
     TaskResponse, CreateTaskRequest, UpdateTaskRequest, UserInfo
 )
@@ -35,9 +35,9 @@ class TaskService:
         search: Optional[str] = None
     ) -> List[TaskResponse]:
         """获取用户相关任务列表"""
-        query = self.db.query(PendingTask).options(
-            joinedload(PendingTask.created_by_user),
-            joinedload(PendingTask.assigned_to_user)
+        query = self.db.query(Task).options(
+            joinedload(Task.created_by_user),
+            joinedload(Task.assigned_to_user)
         )
         
         # 根据用户角色筛选任务
@@ -49,10 +49,10 @@ class TaskService:
             # 顾问可以看到：1. 分配给自己的任务 2. 新用户接待类任务
             query = query.filter(
                 or_(
-                    PendingTask.assigned_to == user_id,
+                    Task.assigned_to == user_id,
                     and_(
-                        PendingTask.task_type.in_(['new_user_reception']),
-                        PendingTask.status == 'pending'
+                        Task.task_type.in_(['new_user_reception']),
+                        Task.status == 'pending'
                     )
                 )
             )
@@ -60,35 +60,35 @@ class TaskService:
             # 医生可以看到：1. 分配给自己的任务 2. 医疗相关任务
             query = query.filter(
                 or_(
-                    PendingTask.assigned_to == user_id,
+                    Task.assigned_to == user_id,
                     and_(
-                        PendingTask.task_type.in_(['prescription_review']),
-                        PendingTask.status == 'pending'
+                        Task.task_type.in_(['prescription_review']),
+                        Task.status == 'pending'
                     )
                 )
             )
         else:
             # 其他角色只能看到分配给自己的任务
-            query = query.filter(PendingTask.assigned_to == user_id)
+            query = query.filter(Task.assigned_to == user_id)
         
         # 应用筛选条件
         if status:
-            query = query.filter(PendingTask.status == status)
+            query = query.filter(Task.status == status)
         if task_type:
-            query = query.filter(PendingTask.task_type == task_type)
+            query = query.filter(Task.task_type == task_type)
         if priority:
-            query = query.filter(PendingTask.priority == priority)
+            query = query.filter(Task.priority == priority)
         if search:
             query = query.filter(
                 or_(
-                    PendingTask.title.contains(search),
-                    PendingTask.description.contains(search)
+                    Task.title.contains(search),
+                    Task.description.contains(search)
                 )
             )
         
         tasks = query.order_by(
-            PendingTask.priority.desc(),
-            PendingTask.created_at.desc()
+            Task.priority.desc(),
+            Task.created_at.desc()
         ).all()
         
         # 转换为响应模型
@@ -101,10 +101,10 @@ class TaskService:
         user_role: str
     ) -> Optional[TaskResponse]:
         """获取任务详情"""
-        task = self.db.query(PendingTask).options(
-            joinedload(PendingTask.created_by_user),
-            joinedload(PendingTask.assigned_to_user)
-        ).filter(PendingTask.id == task_id).first()
+        task = self.db.query(Task).options(
+            joinedload(Task.created_by_user),
+            joinedload(Task.assigned_to_user)
+        ).filter(Task.id == task_id).first()
         
         if not task:
             return None
@@ -128,7 +128,7 @@ class TaskService:
             raise BusinessException("任务标题不能为空", code=ErrorCode.INVALID_INPUT)
         
         # 创建任务
-        task = PendingTask(
+        task = Task(
             id=task_id(),
             title=task_data.title,
             description=task_data.description,
@@ -151,16 +151,16 @@ class TaskService:
         self.db.refresh(task)
         
         # 重新加载关联数据
-        task = self.db.query(PendingTask).options(
-            joinedload(PendingTask.created_by_user),
-            joinedload(PendingTask.assigned_to_user)
-        ).filter(PendingTask.id == task.id).first()
+        task = self.db.query(Task).options(
+            joinedload(Task.created_by_user),
+            joinedload(Task.assigned_to_user)
+        ).filter(Task.id == task.id).first()
         
         return self._to_response(task)
     
     def claim_task(self, task_id: str, user_id: str) -> TaskResponse:
         """认领任务"""
-        task = self.db.query(PendingTask).filter(PendingTask.id == task_id).first()
+        task = self.db.query(Task).filter(Task.id == task_id).first()
         
         if not task:
             raise BusinessException("任务不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
@@ -180,10 +180,10 @@ class TaskService:
         self.db.refresh(task)
         
         # 重新加载关联数据
-        task = self.db.query(PendingTask).options(
-            joinedload(PendingTask.created_by_user),
-            joinedload(PendingTask.assigned_to_user)
-        ).filter(PendingTask.id == task.id).first()
+        task = self.db.query(Task).options(
+            joinedload(Task.created_by_user),
+            joinedload(Task.assigned_to_user)
+        ).filter(Task.id == task.id).first()
         
         return self._to_response(task)
     
@@ -195,7 +195,7 @@ class TaskService:
         task_data: UpdateTaskRequest
     ) -> TaskResponse:
         """更新任务"""
-        task = self.db.query(PendingTask).filter(PendingTask.id == task_id).first()
+        task = self.db.query(Task).filter(Task.id == task_id).first()
         
         if not task:
             raise BusinessException("任务不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
@@ -231,16 +231,16 @@ class TaskService:
         self.db.refresh(task)
         
         # 重新加载关联数据
-        task = self.db.query(PendingTask).options(
-            joinedload(PendingTask.created_by_user),
-            joinedload(PendingTask.assigned_to_user)
-        ).filter(PendingTask.id == task.id).first()
+        task = self.db.query(Task).options(
+            joinedload(Task.created_by_user),
+            joinedload(Task.assigned_to_user)
+        ).filter(Task.id == task.id).first()
         
         return self._to_response(task)
     
     def create_new_user_reception_task(self, user_id: str, username: str) -> TaskResponse:
         """创建新用户接待任务"""
-        task = PendingTask(
+        task = Task(
             id=task_id(),
             title=f"新用户接待：{username}",
             description=f"为新注册用户 {username} 创建接待任务，请及时联系并提供服务",
@@ -257,14 +257,14 @@ class TaskService:
         self.db.refresh(task)
         
         # 重新加载关联数据
-        task = self.db.query(PendingTask).options(
-            joinedload(PendingTask.created_by_user),
-            joinedload(PendingTask.assigned_to_user)
-        ).filter(PendingTask.id == task.id).first()
+        task = self.db.query(Task).options(
+            joinedload(Task.created_by_user),
+            joinedload(Task.assigned_to_user)
+        ).filter(Task.id == task.id).first()
         
         return self._to_response(task)
     
-    def _to_response(self, task: PendingTask) -> TaskResponse:
+    def _to_response(self, task: Task) -> TaskResponse:
         """转换任务模型为响应模型"""
         return TaskResponse(
             id=task.id,

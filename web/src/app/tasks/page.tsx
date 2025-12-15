@@ -6,7 +6,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import TaskList from '@/components/tasks/TaskList';
 import TaskDetail from '@/components/tasks/TaskDetail';
 import TaskFilters from '@/components/tasks/TaskFilters';
-import { usePendingTasks } from '@/hooks/usePendingTasks';
+import { useTasks } from '@/hooks/useTasks';
 
 import { Button } from '@/components/ui/button';
 import { 
@@ -33,7 +33,7 @@ export default function TasksPage() {
     claimTask,
     updateTaskStatus,
     refreshTasks
-  } = usePendingTasks(user?.currentRole);
+  } = useTasks(user?.currentRole);
 
   const handleTaskSelect = (taskId: string) => {
     setSelectedTaskId(taskId);

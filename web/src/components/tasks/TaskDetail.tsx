@@ -23,7 +23,7 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import toast from 'react-hot-toast';
 
-import type { PendingTask } from '@/types/task';
+import type { Task } from '@/types/task';
 
 interface TaskDetailProps {
   taskId: string;
@@ -38,7 +38,7 @@ export default function TaskDetail({
   onStatusUpdate,
   currentUserId
 }: TaskDetailProps) {
-  const [task, setTask] = useState<PendingTask | null>(null);
+  const [task, setTask] = useState<Task | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [notes, setNotes] = useState('');
@@ -51,7 +51,7 @@ export default function TaskDetail({
   const loadTaskDetail = async () => {
     setIsLoading(true);
     try {
-      const response = await apiClient.get<PendingTask>(`/tasks/${taskId}`);
+      const response = await apiClient.get<Task>(`/tasks/${taskId}`);
       setTask(response.data);
       setNotes(response.data.notes || '');
       setResult(response.data.result ? JSON.stringify(response.data.result, null, 2) : '');
@@ -175,16 +175,16 @@ export default function TaskDetail({
     return new Date(dueDate) < new Date();
   };
 
-  const canStart = (task: PendingTask) => {
+  const canStart = (task: Task) => {
     return (task.status === 'assigned' || task.status === 'pending') && 
            (task.assigned_to?.id === currentUserId || !task.assigned_to);
   };
 
-  const canComplete = (task: PendingTask) => {
+  const canComplete = (task: Task) => {
     return task.status === 'in_progress' && task.assigned_to?.id === currentUserId;
   };
 
-  const canCancel = (task: PendingTask) => {
+  const canCancel = (task: Task) => {
     return task.status !== 'completed' && task.status !== 'cancelled';
   };
 

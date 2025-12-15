@@ -6,7 +6,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from app.tasks.models.task import PendingTask
+from app.tasks.models.task import Task
 from app.tasks.schemas.task_metrics import (
     TaskGovernanceMetricsResponse,
     TaskGovernanceSceneMetrics,
@@ -27,7 +27,7 @@ class _Agg:
     avg_cycle_time_minutes: Optional[float] = None
 
 
-def _safe_scene_key(task: PendingTask) -> str:
+def _safe_scene_key(task: Task) -> str:
     data = task.task_data or {}
     scene_key = data.get("scene_key")
     if isinstance(scene_key, str) and scene_key.strip():
@@ -67,26 +67,26 @@ class TaskMetricsService:
         now = datetime.now(timezone.utc)
 
         # 1) 取期间创建的任务（用于 created 口径）
-        created_tasks: List[PendingTask] = (
-            self.db.query(PendingTask)
-            .filter(PendingTask.created_at >= start_at, PendingTask.created_at < end_at)
+        created_tasks: List[Task] = (
+            self.db.query(Task)
+            .filter(Task.created_at >= start_at, Task.created_at < end_at)
             .all()
         )
 
         # 2) 取期间完成的任务（用于 cycle_time / SLA 口径）
-        completed_tasks: List[PendingTask] = (
-            self.db.query(PendingTask)
-            .filter(PendingTask.completed_at.isnot(None))
-            .filter(PendingTask.completed_at >= start_at, PendingTask.completed_at < end_at)
+        completed_tasks: List[Task] = (
+            self.db.query(Task)
+            .filter(Task.completed_at.isnot(None))
+            .filter(Task.completed_at >= start_at, Task.completed_at < end_at)
             .all()
         )
 
         # 3) 为了计算超期未完成（当前时刻），取有 due_date 且未完成的任务
-        open_overdue_tasks: List[PendingTask] = (
-            self.db.query(PendingTask)
-            .filter(PendingTask.due_date.isnot(None))
-            .filter(PendingTask.status.in_(["pending", "assigned", "in_progress"]))
-            .filter(PendingTask.due_date < now)
+        open_overdue_tasks: List[Task] = (
+            self.db.query(Task)
+            .filter(Task.due_date.isnot(None))
+            .filter(Task.status.in_(["pending", "assigned", "in_progress"]))
+            .filter(Task.due_date < now)
             .all()
         )
 
@@ -96,15 +96,15 @@ class TaskMetricsService:
             open_overdue_tasks = [t for t in open_overdue_tasks if _safe_scene_key(t) == scene_key]
 
         # 聚合：按 scene_key 分桶
-        by_scene_created: Dict[str, List[PendingTask]] = {}
+        by_scene_created: Dict[str, List[Task]] = {}
         for t in created_tasks:
             by_scene_created.setdefault(_safe_scene_key(t), []).append(t)
 
-        by_scene_completed: Dict[str, List[PendingTask]] = {}
+        by_scene_completed: Dict[str, List[Task]] = {}
         for t in completed_tasks:
             by_scene_completed.setdefault(_safe_scene_key(t), []).append(t)
 
-        by_scene_overdue: Dict[str, List[PendingTask]] = {}
+        by_scene_overdue: Dict[str, List[Task]] = {}
         for t in open_overdue_tasks:
             by_scene_overdue.setdefault(_safe_scene_key(t), []).append(t)
 
