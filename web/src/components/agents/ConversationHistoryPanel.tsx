@@ -63,6 +63,7 @@ export function ConversationHistoryPanel({
   // 删除确认对话框状态
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // 开始编辑标题
   const startEditTitle = (conversation: AgentConversation, e: React.MouseEvent) => {
@@ -118,10 +119,19 @@ export function ConversationHistoryPanel({
 
   // 确认删除
   const handleConfirmDelete = async () => {
-    if (conversationToDelete && onDeleteConversation) {
-      onDeleteConversation(conversationToDelete);
+    if (!conversationToDelete || !onDeleteConversation || isDeleting) return;
+    
+    setIsDeleting(true);
+    try {
+      await onDeleteConversation(conversationToDelete);
+      // 删除成功后关闭对话框
       setDeleteDialogOpen(false);
       setConversationToDelete(null);
+    } catch (error) {
+      // 删除失败时保持对话框打开，让用户看到错误提示
+      console.error('删除对话失败:', error);
+    } finally {
+      setIsDeleting(false);
     }
   };
   return (
@@ -284,7 +294,21 @@ export function ConversationHistoryPanel({
       </ScrollArea>
 
       {/* 删除确认对话框 */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          // 如果正在删除，不允许关闭对话框
+          if (isDeleting && !open) {
+            // 保持对话框打开状态，不更新 deleteDialogOpen
+            return;
+          }
+          // 正常关闭流程
+          setDeleteDialogOpen(open);
+          if (!open) {
+            setConversationToDelete(null);
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除</AlertDialogTitle>
@@ -293,12 +317,27 @@ export function ConversationHistoryPanel({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDelete}
-              className="bg-red-600 hover:bg-red-700"
+            <AlertDialogCancel
+              onClick={() => {
+                if (isDeleting) return;
+                setDeleteDialogOpen(false);
+                setConversationToDelete(null);
+              }}
+              disabled={isDeleting}
             >
-              删除
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async (e) => {
+                // 阻止 AlertDialogAction 的默认关闭行为
+                e.preventDefault();
+                e.stopPropagation();
+                await handleConfirmDelete();
+              }}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={isDeleting}
+            >
+              {isDeleting ? '删除中...' : '删除'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

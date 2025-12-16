@@ -19,8 +19,10 @@ import { apiClient } from '@/service/apiClient';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { saveMessage } from '@/service/chatService';
 import PlanGenerationButton from './PlanGenerationButton';
+import { ScreenshotCapture } from './ScreenshotCapture';
 import { useSearchParams } from 'next/navigation';
 import { Send, Smile, Image, Paperclip, Mic } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 interface MessageInputProps {
   conversationId: string;
@@ -190,6 +192,37 @@ export default function MessageInput({
       throw error;
     }
   }
+
+  // 处理截图
+  const handleScreenshot = async (blob: Blob) => {
+    try {
+      // 创建 blob URL
+      const blobUrl = URL.createObjectURL(blob);
+      
+      // 创建文件对象
+      const file = new File([blob], `screenshot_${Date.now()}.png`, {
+        type: 'image/png'
+      });
+      
+      // 创建 FileInfo
+      const fileInfo: FileInfo = {
+        file_url: blobUrl,
+        file_name: file.name,
+        file_type: 'image',
+        mime_type: 'image/png',
+        file_size: blob.size,
+      };
+      
+      // 添加到临时文件管理（如果需要）
+      // addTempFile(fileInfo.file_url, file);
+      
+      // 使用现有的图片发送逻辑
+      await sendImageMessage(blobUrl);
+    } catch (error) {
+      console.error('处理截图失败:', error);
+      toast.error('处理截图失败');
+    }
+  };
 
   // 发送图片消息
   const sendImageMessage = async (imageUrl: string, text?: string) => {
@@ -683,6 +716,12 @@ export default function MessageInput({
             >
               <Image className="h-5 w-5" />
             </button>
+            
+            {/* 截图按钮 */}
+            <ScreenshotCapture 
+              onCapture={handleScreenshot}
+              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+            />
             
             <button 
               className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"

@@ -10,6 +10,7 @@ from app.contacts.controllers import contacts
 from app.mcp.controllers import mcp_config, mcp_server, mcp_oauth
 from app.digital_humans.controllers import digital_humans, admin_digital_humans
 from app.tasks.controllers import tasks
+from app.channels.controllers import webhook as channel_webhook
 
 api_router = APIRouter()
 
