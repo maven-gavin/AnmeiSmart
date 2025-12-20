@@ -109,8 +109,8 @@ export function useDigitalHumans() {
     active: digitalHumans.filter(dh => dh.status === 'active').length,
     inactive: digitalHumans.filter(dh => dh.status === 'inactive').length,
     maintenance: digitalHumans.filter(dh => dh.status === 'maintenance').length,
-    system: digitalHumans.filter(dh => dh.isSystemCreated).length,
-    user: digitalHumans.filter(dh => !dh.isSystemCreated).length,
+    system: digitalHumans.filter(dh => dh.is_system_created).length,
+    user: digitalHumans.filter(dh => !dh.is_system_created).length,
   };
 
   return {

@@ -2,6 +2,9 @@
  * Agent 对话相关类型定义
  */
 
+import type { ThoughtItem } from '@/types/chat';
+import type { VisionFile } from '@/types/smart-brain-app';
+
 // 消息文件
 export interface MessageFile {
   id: string;
@@ -90,8 +93,10 @@ export interface SSECallbacks {
     errorMessage?: string;
     errorCode?: string;
   }) => void;
-  onThought?: (thought: AgentThought) => void;
-  onFile?: (file: MessageFile) => void;
+  // 注意：streaming 的 agent_thought 事件是 Dify/后端的 snake_case 原始结构
+  onThought?: (thought: ThoughtItem) => void;
+  // 注意：streaming 的 message_file 事件是 SmartBrain 的 VisionFile 结构
+  onFile?: (file: VisionFile) => void;
   onMessageEnd?: (data: any) => void;
   onMessageReplace?: (data: any) => void;
   onTextChunk?: (textChunk: { task_id: string; workflow_run_id: string; event: string; data: { text: string } }) => void;

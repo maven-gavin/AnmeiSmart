@@ -23,11 +23,13 @@ export function useSearch(messages: Message[]) {
       }
       
       const normalizedTerm = term.toLowerCase()
-      const results = messages.filter(msg => 
-        typeof msg.content === 'string' && 
-        msg.content.toLowerCase().includes(normalizedTerm) &&
-        msg.type === 'text'
-      )
+      const results = messages.filter((msg) => {
+        if (msg.type !== 'text') return false
+
+        // 统一消息模型：text 消息内容结构为 { text: string }
+        const text = (msg.content as { text?: unknown })?.text
+        return typeof text === 'string' && text.toLowerCase().includes(normalizedTerm)
+      })
       
       setSearchResults(results)
       

@@ -171,8 +171,8 @@ export function useAdminDigitalHumans() {
           break;
       }
 
-      // 统计创建方式
-      if (dh.isSystemCreated) {
+      // 统计创建方式（后端字段为 snake_case）
+      if (dh.is_system_created) {
         stats.system++;
       } else {
         stats.user++;

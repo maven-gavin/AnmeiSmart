@@ -293,7 +293,6 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
                     thought: thoughtContent,
                     tool: thoughtItem.tool,
                     toolInput: thoughtItem.tool_input,
-                    toolOutput: thoughtItem.tool_output,
                     observation: thoughtItem.observation,
                     position: message.agentThoughts.length
                   });
@@ -308,7 +307,12 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
             if (!aiMessage.files) {
               aiMessage.files = [];
             }
-            aiMessage.files.push(file);
+            // VisionFile -> MessageFile（UI 展示需要固定结构）
+            aiMessage.files.push({
+              id: file.id || file.upload_file_id,
+              type: String(file.type).includes('image') ? 'image' : 'file',
+              url: file.url,
+            });
           },
           onMessageEnd: (messageEndData) => {
             // message_end事件表示流式输出结束
@@ -401,15 +405,14 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
             // 检查是否是用户主动停止（AbortError）
             // 支持多种格式：字符串 "AbortError"、"AbortError: The user aborted a request."
             // 或 Error 对象 { name: "AbortError" }
-            const errorStr = typeof error === 'string' ? error : (error?.toString?.() || '');
+            const errorStr = String(error || '');
             const isAborted = 
               errorStr.includes('AbortError') || 
-              (error && typeof error === 'object' && 'name' in error && (error as any).name === 'AbortError') ||
               errorStr.includes('aborted');
             
             if (!isAborted) {
-              toast.error(error || '发送消息失败');
-              onError?.(error);
+              toast.error(errorStr || '发送消息失败');
+              onError?.(errorStr);
             } else {
               // 用户主动停止，静默处理，不显示错误提示
               console.log('[useAgentChat] 用户主动停止生成');

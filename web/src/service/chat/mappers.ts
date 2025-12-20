@@ -3,7 +3,7 @@
  * 负责API响应数据与前端类型的转换
  */
 
-import { Conversation, Message } from '@/types/chat';
+import { Conversation, Message, User } from '@/types/chat';
 import {
   ConversationApiResponse,
   MessageApiResponse,

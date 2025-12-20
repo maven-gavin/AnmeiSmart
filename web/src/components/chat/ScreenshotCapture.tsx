@@ -31,11 +31,10 @@ export function ScreenshotCapture({
         useCORS: true,
         allowTaint: false,
         background: '#ffffff',
-        scale: 1,  // 可根据需要调整清晰度（1 = 标准，2 = 高清）
+        width: element.scrollWidth,
+        height: element.scrollHeight,
         logging: false,  // 禁用日志以提高性能
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight,
-      });
+      } as any);  // 使用 as any 绕过类型检查，因为类型定义较旧
       
       // 将 canvas 转换为 blob
       canvas.toBlob(

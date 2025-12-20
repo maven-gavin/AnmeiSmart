@@ -1,5 +1,5 @@
 import { authService } from './authService';
-import { apiClient } from './apiClient';
+import { apiClient, ApiClientError } from './apiClient';
 import { Message } from '@/types/chat';
 
 // 客户信息接口，匹配后端响应格式
@@ -56,11 +56,8 @@ class CustomerService {
   // 获取客户列表（仅限企业内部用户）
   async getCustomerList(): Promise<CustomerListItem[]> {
     try {
-      const response = await apiClient.get('/customers');
-      if (!response.ok) {
-        throw new Error(`获取客户列表失败: ${response.status}`);
-      }
-      return response.data || [];
+      const response = await apiClient.get<CustomerListItem[]>('/customers');
+      return response.data ?? [];
     } catch (error) {
       console.error('获取客户列表失败:', error);
       throw error;
@@ -70,15 +67,12 @@ class CustomerService {
   // 获取客户详细信息
   async getCustomerById(customerId: string): Promise<CustomerInfo | null> {
     try {
-      const response = await apiClient.get(`/customers/${customerId}`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          return null;
-        }
-        throw new Error(`获取客户信息失败: ${response.status}`);
-      }
+      const response = await apiClient.get<CustomerInfo>(`/customers/${customerId}`);
       return response.data;
     } catch (error) {
+      if (error instanceof ApiClientError && error.status === 404) {
+        return null;
+      }
       console.error('获取客户信息失败:', error);
       throw error;
     }
@@ -87,15 +81,12 @@ class CustomerService {
   // 获取客户档案
   async getCustomerProfile(customerId: string): Promise<CustomerProfile | null> {
     try {
-      const response = await apiClient.get(`/customers/${customerId}/profile`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          return null;
-        }
-        throw new Error(`获取客户档案失败: ${response.status}`);
-      }
+      const response = await apiClient.get<CustomerProfile>(`/customers/${customerId}/profile`);
       return response.data;
     } catch (error) {
+      if (error instanceof ApiClientError && error.status === 404) {
+        return null;
+      }
       console.error('获取客户档案失败:', error);
       throw error;
     }

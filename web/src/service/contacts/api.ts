@@ -35,6 +35,7 @@ import type {
   PaginatedFriendRequests,
   PaginatedGroupMembers,
   FriendListFilters
+  , TagCategory
 } from '@/types/contacts';
 
 // ============================================================================
@@ -65,7 +66,7 @@ export async function getFriends(filters: FriendListFilters & {
   if (filters.page) params.append('page', filters.page.toString());
   if (filters.size) params.append('size', filters.size.toString());
   
-  const response = await apiClient.get(`/contacts/friends?${params.toString()}`);
+  const response = await apiClient.get<PaginatedFriends>(`/contacts/friends?${params.toString()}`);
   return response.data;
 }
 
@@ -103,7 +104,7 @@ export async function searchUsers(searchRequest: UserSearchRequest): Promise<Use
  * 发送好友请求
  */
 export async function sendFriendRequest(request: FriendRequestCreate): Promise<FriendRequest> {
-  const response = await apiClient.post('/contacts/friends/request', request);
+  const response = await apiClient.post<FriendRequest>('/contacts/friends/request', request);
   return response.data;
 }
 
@@ -124,7 +125,7 @@ export async function getFriendRequests(
   
   if (status) params.append('status', status);
   
-  const response = await apiClient.get(`/contacts/friends/requests?${params.toString()}`);
+  const response = await apiClient.get<PaginatedFriendRequests>(`/contacts/friends/requests?${params.toString()}`);
   return response.data;
 }
 
@@ -139,7 +140,7 @@ export async function handleFriendRequest(requestId: string, action: FriendReque
  * 更新好友关系
  */
 export async function updateFriendship(friendshipId: string, updateData: UpdateFriendshipRequest): Promise<Friendship> {
-  const response = await apiClient.put(`/contacts/friends/${friendshipId}`, updateData);
+  const response = await apiClient.put<Friendship>(`/contacts/friends/${friendshipId}`, updateData);
   return response.data;
 }
 
@@ -154,7 +155,7 @@ export async function deleteFriendship(friendshipId: string): Promise<void> {
  * 批量好友操作
  */
 export async function batchFriendOperations(operations: BatchFriendOperations): Promise<BatchOperationResponse> {
-  const response = await apiClient.post('/contacts/friends/batch', operations);
+  const response = await apiClient.post<BatchOperationResponse>('/contacts/friends/batch', operations);
   return response.data;
 }
 
@@ -173,7 +174,7 @@ export async function getContactTags(
   if (category) params.append('category', category);
   params.append('include_system', includeSystem.toString());
   
-  const response = await apiClient.get(`/contacts/tags?${params.toString()}`);
+  const response = await apiClient.get<ContactTag[]>(`/contacts/tags?${params.toString()}`);
   return response.data;
 }
 
@@ -181,7 +182,7 @@ export async function getContactTags(
  * 创建联系人标签
  */
 export async function createContactTag(tagData: ContactTagCreate): Promise<ContactTag> {
-  const response = await apiClient.post('/contacts/tags', tagData);
+  const response = await apiClient.post<ContactTag>('/contacts/tags', tagData);
   return response.data;
 }
 
@@ -189,7 +190,7 @@ export async function createContactTag(tagData: ContactTagCreate): Promise<Conta
  * 更新联系人标签
  */
 export async function updateContactTag(tagId: string, updateData: ContactTagUpdate): Promise<ContactTag> {
-  const response = await apiClient.put(`/contacts/tags/${tagId}`, updateData);
+  const response = await apiClient.put<ContactTag>(`/contacts/tags/${tagId}`, updateData);
   return response.data;
 }
 
@@ -220,7 +221,7 @@ export async function getFriendsByTag(
     size: size.toString()
   });
   
-  const response = await apiClient.get(`/contacts/tags/${tagId}/friends?${params.toString()}`);
+  const response = await apiClient.get<PaginatedFriends>(`/contacts/tags/${tagId}/friends?${params.toString()}`);
   return response.data;
 }
 
@@ -231,7 +232,7 @@ export async function getTagSuggestions(friendshipId?: string): Promise<TagSugge
   const params = new URLSearchParams();
   if (friendshipId) params.append('friendship_id', friendshipId);
   
-  const response = await apiClient.get(`/contacts/tags/suggestions?${params.toString()}`);
+  const response = await apiClient.get<TagSuggestion[]>(`/contacts/tags/suggestions?${params.toString()}`);
   return response.data;
 }
 
@@ -247,7 +248,7 @@ export async function getContactGroups(includeMembers: boolean = false): Promise
     include_members: includeMembers.toString()
   });
   
-  const response = await apiClient.get(`/contacts/groups?${params.toString()}`);
+  const response = await apiClient.get<ContactGroup[]>(`/contacts/groups?${params.toString()}`);
   return response.data;
 }
 
@@ -255,7 +256,7 @@ export async function getContactGroups(includeMembers: boolean = false): Promise
  * 创建联系人分组
  */
 export async function createContactGroup(groupData: CreateContactGroupRequest): Promise<ContactGroup> {
-  const response = await apiClient.post('/contacts/groups', groupData);
+  const response = await apiClient.post<ContactGroup>('/contacts/groups', groupData);
   return response.data;
 }
 
@@ -263,7 +264,7 @@ export async function createContactGroup(groupData: CreateContactGroupRequest): 
  * 更新联系人分组
  */
 export async function updateContactGroup(groupId: string, updateData: UpdateContactGroupRequest): Promise<ContactGroup> {
-  const response = await apiClient.put(`/contacts/groups/${groupId}`, updateData);
+  const response = await apiClient.put<ContactGroup>(`/contacts/groups/${groupId}`, updateData);
   return response.data;
 }
 
@@ -287,7 +288,7 @@ export async function getGroupMembers(
     size: size.toString()
   });
   
-  const response = await apiClient.get(`/contacts/groups/${groupId}/members?${params.toString()}`);
+  const response = await apiClient.get<PaginatedGroupMembers>(`/contacts/groups/${groupId}/members?${params.toString()}`);
   return response.data;
 }
 
@@ -314,7 +315,7 @@ export async function createGroupChat(groupId: string, chatConfig: CreateGroupCh
  * 获取联系人隐私设置
  */
 export async function getContactPrivacySettings(): Promise<ContactPrivacySetting> {
-  const response = await apiClient.get('/contacts/privacy');
+  const response = await apiClient.get<ContactPrivacySetting>('/contacts/privacy');
   return response.data;
 }
 
@@ -322,7 +323,7 @@ export async function getContactPrivacySettings(): Promise<ContactPrivacySetting
  * 更新联系人隐私设置
  */
 export async function updateContactPrivacySettings(settings: UpdatePrivacySettingsRequest): Promise<ContactPrivacySetting> {
-  const response = await apiClient.put('/contacts/privacy', settings);
+  const response = await apiClient.put<ContactPrivacySetting>('/contacts/privacy', settings);
   return response.data;
 }
 
@@ -336,7 +337,7 @@ export async function updateContactPrivacySettings(settings: UpdatePrivacySettin
 export async function getContactAnalytics(period: 'week' | 'month' | 'quarter' | 'year' = 'month'): Promise<ContactAnalytics> {
   const params = new URLSearchParams({ period });
   
-  const response = await apiClient.get(`/contacts/analytics?${params.toString()}`);
+  const response = await apiClient.get<ContactAnalytics>(`/contacts/analytics?${params.toString()}`);
   return response.data;
 }
 
