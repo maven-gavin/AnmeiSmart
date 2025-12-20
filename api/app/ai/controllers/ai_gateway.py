@@ -242,7 +242,7 @@ async def reload_configuration(
         )
     
     try:
-        from app.services.ai.ai_gateway_service import reload_ai_gateway_service
+        from app.ai.ai_gateway_service import reload_ai_gateway_service
         reload_ai_gateway_service()
         
         from datetime import datetime

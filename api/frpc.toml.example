@@ -1,0 +1,50 @@
+# FRP 客户端配置示例（FRP 0.65.0+）
+# 复制此文件为 frpc.toml 并修改相应配置
+
+# 服务器地址和端口
+serverAddr = "your_server_ip_or_domain"
+serverPort = 7000
+
+# 认证配置（与服务器端一致）
+[auth]
+method = "token"
+token = "your_secure_token_here"
+
+# 日志配置
+[log]
+to = "./frpc.log"
+level = "info"
+maxDays = 3
+
+# ============================================
+# 方式一：HTTP 模式（推荐，需要域名和 SSL）
+# ============================================
+[[proxies]]
+name = "web_8000_http"
+type = "http"
+localIP = "127.0.0.1"
+localPort = 8000
+# 自定义域名（需要将域名解析到 FRP 服务器 IP）
+customDomains = ["your-domain.com"]
+
+# ============================================
+# 方式二：TCP 模式（需要服务器端配置 Nginx + SSL）
+# ============================================
+[[proxies]]
+name = "web_8000_tcp"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8000
+# 服务器端映射的端口
+remotePort = 6000
+
+# ============================================
+# 使用说明：
+# 1. 选择一种模式（HTTP 或 TCP），注释掉另一种
+# 2. HTTP 模式：需要配置域名和 SSL 证书
+# 3. TCP 模式：需要在服务器端配置 Nginx 反向代理和 SSL 证书
+# 4. 企业微信 Webhook URL：
+#    - HTTP 模式: https://your-domain.com/api/v1/channels/webhook/wechat-work
+#    - TCP 模式: https://your-server-ip:6000/api/v1/channels/webhook/wechat-work
+# ============================================
+

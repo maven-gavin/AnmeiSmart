@@ -59,6 +59,10 @@ debug.log
 .env
 .env.local
 .env.*.local
+api/.env
+api/.env.*
+web/.env
+web/.env.*
 
 # Python虚拟环境
 .Python

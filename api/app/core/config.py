@@ -19,6 +19,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8000",  # FastAPI on localhost IP
         "http://169.254.89.234:3000",  # Remote access IP (shown in terminal)
         "http://192.168.0.192:8000",  # MCP Inspector access IP
+        "https://anmei.jibu.club",  # Production frontend (HTTPS)
+        "http://anmei.jibu.club",  # Production frontend (HTTP)
     ]
     
     # 数据库配置

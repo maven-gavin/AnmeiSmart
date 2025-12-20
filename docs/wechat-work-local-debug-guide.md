@@ -31,8 +31,8 @@
    - 在应用详情页，找到「接收消息」
    - 点击「设置API接收」
    - 填写以下信息：
-     - **URL**：`https://your-ngrok-url.ngrok.io/api/v1/channels/webhook/wechat-work`
-       - 本地调试需要使用内网穿透工具（见下方）
+     - **URL**：`https://your-frp-domain.com/api/v1/channels/webhook/wechat-work` 或 `https://your-server-ip:port/api/v1/channels/webhook/wechat-work`
+       - 本地调试需要使用内网穿透工具（推荐使用 FRP，见下方）
      - **Token**：自定义一个字符串（如：`your_random_token_123456`）
      - **EncodingAESKey**：点击「随机获取」或手动输入43位字符
    - 点击「保存」
@@ -46,32 +46,68 @@
 
 ## 2. 本地环境配置
 
-### 2.1 安装内网穿透工具（推荐 ngrok）
+### 2.1 安装内网穿透工具（推荐 FRP）
 
-**方式一：使用 ngrok（推荐）**
+**方式一：使用 FRP（推荐）**
 
-```bash
-# macOS
-brew install ngrok
+FRP 是一个开源的内网穿透工具，需要自己搭建服务器。详细配置请参考：[FRP 配置指南](./frp-setup-guide.md)
 
-# 或下载：https://ngrok.com/download
-```
+**快速开始：**
+
+1. **服务器端配置**（需要一台有公网 IP 的服务器）
+   - 下载并配置 FRP 服务端
+   - 启动服务端服务
+
+2. **客户端配置**（本地开发机）
+   ```bash
+   # macOS
+   brew install frp
+   
+   # 或从 GitHub 下载：https://github.com/fatedier/frp/releases
+   ```
+
+3. **创建客户端配置文件** `frpc.ini`：
+   ```ini
+   [common]
+   server_addr = your_server_ip_or_domain
+   server_port = 7000
+   token = your_secure_token
+
+   [web_8000]
+   type = http
+   local_ip = 127.0.0.1
+   local_port = 8000
+   custom_domains = your-domain.com  # 需要将域名解析到服务器IP
+   ```
+
+4. **启动客户端**：
+   ```bash
+   frpc -c frpc.ini
+   ```
 
 **方式二：使用其他工具**
+- **ngrok**：`brew install ngrok`（简单但有限制）
 - **localtunnel**：`npm install -g localtunnel`
 - **serveo**：无需安装，直接使用 SSH
-- **frp**：开源内网穿透工具
 
 ### 2.2 启动内网穿透
 
-```bash
-# 使用 ngrok（假设后端运行在 8000 端口）
-ngrok http 8000
+**使用 FRP：**
 
-# 会显示类似以下信息：
-# Forwarding  https://xxxx-xxxx-xxxx.ngrok.io -> http://localhost:8000
-# 复制这个 https URL
+```bash
+# 启动 FRP 客户端（假设后端运行在 8000 端口）
+frpc -c frpc.ini
+
+# 如果配置了域名，可以通过以下 URL 访问：
+# https://your-domain.com/api/v1/channels/webhook/wechat-work
+# 
+# 如果使用 TCP 模式，需要通过服务器 IP 和端口访问：
+# https://your-server-ip:6000/api/v1/channels/webhook/wechat-work
 ```
+
+**注意**：企业微信要求 HTTPS，所以：
+- 如果使用 HTTP 模式，需要配置域名和 SSL 证书
+- 如果使用 TCP 模式，需要在服务器端配置 Nginx 反向代理和 SSL 证书
 
 ### 2.3 配置环境变量
 
@@ -97,8 +133,20 @@ WECHAT_WORK_ENCODING_AES_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 将内网穿透的 URL 更新到企业微信应用配置中：
 
+**如果使用 FRP HTTP 模式（推荐）：**
 ```
-https://your-ngrok-url.ngrok.io/api/v1/channels/webhook/wechat-work
+https://your-domain.com/api/v1/channels/webhook/wechat-work
+```
+
+**如果使用 FRP TCP 模式：**
+```
+https://your-server-ip:6000/api/v1/channels/webhook/wechat-work
+```
+（需要在服务器端配置 Nginx 反向代理和 SSL 证书）
+
+**如果使用其他工具（如 ngrok）：**
+```
+https://your-tunnel-url/api/v1/channels/webhook/wechat-work
 ```
 
 ## 3. 启动本地服务
@@ -178,9 +226,12 @@ success = await adapter.send_message(
 
 **解决方案**：
 1. 检查 Webhook URL 配置是否正确
-2. 检查内网穿透工具是否正常运行
-3. 检查后端服务是否运行
-4. 查看企业微信应用日志（应用详情页 → 接收消息 → 查看日志）
+2. 检查 FRP 客户端是否正常运行（`frpc -c frpc.ini`）
+3. 检查 FRP 服务器端是否正常运行
+4. 检查后端服务是否运行
+5. 检查域名解析是否正确（如果使用 HTTP 模式）
+6. 检查 SSL 证书是否有效
+7. 查看企业微信应用日志（应用详情页 → 接收消息 → 查看日志）
 
 ### 5.3 消息发送失败
 
@@ -200,6 +251,10 @@ success = await adapter.send_message(
 - Webhook 接收日志
 - 消息处理日志
 - API 调用日志
+
+FRP 客户端日志：
+- 日志文件：`frpc.log`（在运行 frpc 的目录）
+- 查看实时日志：`tail -f frpc.log`
 
 ### 6.2 使用企业微信测试工具
 
@@ -245,6 +300,8 @@ if __name__ == "__main__":
 3. **配置 HTTPS** 证书（企业微信要求 HTTPS）
 4. **设置防火墙规则** 允许企业微信服务器访问
 5. **监控日志** 确保消息正常收发
+6. **使用 systemd/launchd** 管理 FRP 客户端服务，确保自动启动和重启
+7. **配置域名和 SSL** 证书（推荐使用 Let's Encrypt 免费证书）
 
 ## 8. 安全注意事项
 

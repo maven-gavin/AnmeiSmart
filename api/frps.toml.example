@@ -1,0 +1,37 @@
+# FRP 服务器端配置示例（FRP 0.65.0+）
+# 在服务器上使用此配置
+
+# 服务端绑定地址和端口
+bindAddr = "0.0.0.0"
+bindPort = 7000
+
+# 认证配置（必须设置，与客户端配置一致）
+[auth]
+method = "token"
+token = "your_secure_token_here"
+
+# Web 管理界面配置（可选，用于查看连接状态）
+[webServer]
+addr = "0.0.0.0"
+port = 7500
+user = "admin"
+password = "your_secure_password"
+
+# 日志配置
+[log]
+to = "/var/log/frps.log"
+level = "info"
+maxDays = 3
+
+# 最大连接池大小
+maxPoolCount = 5
+
+# ============================================
+# 使用说明：
+# 1. 将此文件保存为 frps.toml
+# 2. 修改 token 为安全的随机字符串
+# 3. 修改 webServer.password 为安全的密码
+# 4. 启动服务端: ./frps -c frps.toml
+# 5. 或使用 systemd 服务管理（推荐）
+# ============================================
+
