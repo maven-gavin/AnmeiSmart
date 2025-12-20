@@ -1,5 +1,5 @@
 # Use dockerproxy.com public mirror for faster image pulling
-FROM dockerproxy.com/library/node:22-alpine3.21 AS base
+FROM node:22-alpine3.21 AS base
 
 # Install dependencies only when needed
 FROM base AS deps
