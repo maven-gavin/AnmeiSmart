@@ -30,7 +30,7 @@ export function ScreenshotCapture({
       const canvas = await html2canvas(element, {
         useCORS: true,
         allowTaint: false,
-        backgroundColor: '#ffffff',
+        background: '#ffffff',
         scale: 1,  // 可根据需要调整清晰度（1 = 标准，2 = 高清）
         logging: false,  // 禁用日志以提高性能
         windowWidth: element.scrollWidth,
