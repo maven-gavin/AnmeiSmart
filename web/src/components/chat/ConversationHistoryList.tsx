@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { cn } from '@/service/utils';
 import { Conversation } from '@/types/chat';
 import { getDisplayTitle, formatMessageContent } from '@/utils/conversationUtils';
@@ -9,17 +10,26 @@ interface ConversationHistoryListProps {
   isLoading: boolean;
   selectedConversationId?: string | null;
   onConversationSelect?: (conversationId: string) => void;
+  onFilterChange?: (unassignedOnly: boolean) => void;
 }
 
 export default function ConversationHistoryList({ 
   conversations,
   isLoading,
   selectedConversationId,
-  onConversationSelect
+  onConversationSelect,
+  onFilterChange
 }: ConversationHistoryListProps) {
+  const [filterMode, setFilterMode] = React.useState<'all' | 'unassigned'>('all');
+
   // 处理会话选择
   const handleConversationSelect = (conversationId: string) => {
     onConversationSelect?.(conversationId);
+  };
+
+  const handleFilterChange = (mode: 'all' | 'unassigned') => {
+    setFilterMode(mode);
+    onFilterChange?.(mode === 'unassigned');
   };
 
   // 渲染头像组件
@@ -140,9 +150,32 @@ export default function ConversationHistoryList({
   // 渲染会话列表
   return (
     <div className="h-full flex flex-col">
-      {/* 标题 */}
-      <div className="p-3 border-b border-gray-200">
-        <h3 className="text-sm font-medium text-gray-700">消息</h3>
+      {/* 标题和过滤器 */}
+      <div className="p-3 border-b border-gray-200 flex items-center justify-between">
+        <div className="flex bg-gray-100 p-1 rounded-full">
+          <button
+            onClick={() => handleFilterChange('all')}
+            className={cn(
+              "px-3 py-1 text-xs font-medium rounded-full transition-all",
+              filterMode === 'all' 
+                ? "bg-white text-orange-600 shadow-sm" 
+                : "text-gray-500 hover:text-gray-700"
+            )}
+          >
+            所有
+          </button>
+          <button
+            onClick={() => handleFilterChange('unassigned')}
+            className={cn(
+              "px-3 py-1 text-xs font-medium rounded-full transition-all",
+              filterMode === 'unassigned' 
+                ? "bg-white text-orange-600 shadow-sm" 
+                : "text-gray-500 hover:text-gray-700"
+            )}
+          >
+            未分配的
+          </button>
+        </div>
       </div>
 
       {/* 会话列表 */}

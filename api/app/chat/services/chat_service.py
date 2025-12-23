@@ -339,14 +339,68 @@ class ChatService:
         user_role: Optional[str] = None,
         skip: int = 0,
         limit: int = 100,
-        search: Optional[str] = None
+        search: Optional[str] = None,
+        unassigned_only: bool = False
     ) -> PaginatedRecords[ConversationInfo]:
         """根据查询条件获取用户参与的会话列表
         
         从会话参与者表中分页查询指定用户参与的会话，支持标题模糊搜索，按修改时间倒序排列
         owner 也是参与者（角色为 owner），所以直接从 participant 表查询即可
         """
-        # 从参与者表开始，JOIN 会话表（我的会话）
+        # 如果是查询未分配会话
+        if unassigned_only:
+            from sqlalchemy import not_
+            # 查询没有活跃参与者的会话
+            query = self.db.query(Conversation).filter(
+                Conversation.is_active == True,
+                not_(Conversation.participants.any(ConversationParticipant.is_active == True))
+            )
+            
+            # 如果提供了搜索关键词
+            if search and search.strip():
+                search_pattern = f"%{search.strip()}%"
+                query = query.filter(Conversation.title.like(search_pattern))
+                
+            total = query.count()
+            
+            # 按更新时间倒序
+            query = query.order_by(desc(Conversation.updated_at))
+            conversations = query.offset(skip).limit(limit).all()
+            
+            # 加载关联数据
+            conversation_ids = [conv.id for conv in conversations]
+            if conversation_ids:
+                conversations = self.db.query(Conversation).options(
+                    joinedload(Conversation.owner),
+                    joinedload(Conversation.participants).joinedload(ConversationParticipant.user)
+                ).filter(Conversation.id.in_(conversation_ids)).order_by(desc(Conversation.updated_at)).all()
+            
+            # 批量获取最后一条消息
+            last_messages = {}
+            if conversation_ids:
+                from sqlalchemy import func
+                
+                # 获取每个会话的最新消息 ID
+                latest_msg_ids = self.db.query(
+                    func.max(Message.id)
+                ).filter(
+                    Message.conversation_id.in_(conversation_ids)
+                ).group_by(Message.conversation_id).all()
+                
+                latest_msg_ids = [id_tuple[0] for id_tuple in latest_msg_ids if id_tuple[0]]
+                
+                if latest_msg_ids:
+                    latest_msgs = self.db.query(Message).filter(Message.id.in_(latest_msg_ids)).all()
+                    last_messages = {msg.conversation_id: MessageInfo.from_model(msg) for msg in latest_msgs}
+
+            return PaginatedRecords(
+                items=[ConversationInfo.from_model(c, last_message=last_messages.get(c.id)) for c in conversations],
+                total=total,
+                skip=skip,
+                limit=limit
+            )
+
+        # 原有逻辑：从参与者表开始，JOIN 会话表（我的会话）
         # 这样可以查询用户作为参与者的所有会话（包括 owner 角色的会话）
         # 使用别名以便在排序中使用 participant 字段
         query = self.db.query(Conversation, ConversationParticipant).join(

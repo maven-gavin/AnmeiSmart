@@ -142,16 +142,18 @@ export async function getConversationMessages(conversationId: string, forceRefre
 /**
  * 获取所有会话
  */
-export async function getConversations(): Promise<Conversation[]> {
+export async function getConversations(unassignedOnly: boolean = false): Promise<Conversation[]> {
   // 检查是否已有请求正在进行
   if (chatState.isRequestingConversationsState()) {
     return chatState.getConversations();
   }
   
-  // 检查缓存是否在有效期内
-  const conversations = chatState.getConversations();
-  if (conversations.length > 0 && chatState.isConversationsCacheValid()) {
-    return conversations;
+  // 只有在非未分配过滤时才使用缓存
+  if (!unassignedOnly) {
+    const conversations = chatState.getConversations();
+    if (conversations.length > 0 && chatState.isConversationsCacheValid()) {
+      return conversations;
+    }
   }
   
   try {
@@ -159,11 +161,13 @@ export async function getConversations(): Promise<Conversation[]> {
     chatState.setRequestingConversations(true);
     
     // 使用API服务获取会话列表
-    const formattedConversations = await ChatApiService.getConversations();
+    const formattedConversations = await ChatApiService.getConversations(unassignedOnly);
     
-    // 更新本地缓存
-    chatState.setConversations(formattedConversations);
-    chatState.updateConversationsRequestTime();
+    // 只有在非未分配过滤时才更新本地通用缓存
+    if (!unassignedOnly) {
+      chatState.setConversations(formattedConversations);
+      chatState.updateConversationsRequestTime();
+    }
     
     return formattedConversations;
   } catch (error) {
@@ -175,7 +179,7 @@ export async function getConversations(): Promise<Conversation[]> {
     }
     
     // 其他错误返回缓存数据
-    return conversations;
+    return chatState.getConversations();
   } finally {
     // 重置请求标志
     chatState.setRequestingConversations(false);

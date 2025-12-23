@@ -381,6 +381,7 @@ function SmartCommunicationContent() {
             isLoading={loadingConversations}
             onConversationSelect={handleConversationSelect}
             selectedConversationId={selectedConversationId}
+            onFilterChange={(unassignedOnly) => refreshConversations(false, unassignedOnly)}
           />
         </div>
         

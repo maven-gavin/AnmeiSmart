@@ -14,10 +14,10 @@ export const useConversationState = () => {
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
 
   // 刷新会话列表
-  const refreshConversations = useCallback(async (silent = false) => {
+  const refreshConversations = useCallback(async (silent = false, unassignedOnly = false) => {
     try {
       if (!silent) setLoadingConversations(true);
-      const data = await getConversations();
+      const data = await getConversations(unassignedOnly);
       setConversations(data);
     } catch (error) {
       console.error('刷新会话列表失败:', error);

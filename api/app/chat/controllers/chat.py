@@ -73,13 +73,14 @@ async def create_conversation(
 @router.get("/conversations", response_model=ApiResponse[PaginatedRecords[ConversationInfo]])
 async def get_conversations(
     search: Optional[str] = None,
+    unassigned_only: bool = Query(False, description="是否仅获取未分配的会话"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """根据查询条件获取用户参与的会话列表"""
-    logger.info(f"端点：开始获取会话列表 - user_id={current_user.id}, skip={skip}, limit={limit}")
+    logger.info(f"端点：开始获取会话列表 - user_id={current_user.id}, unassigned_only={unassigned_only}, skip={skip}, limit={limit}")
     
     try:
         paginated_records = chat_service.get_conversations(
@@ -87,7 +88,8 @@ async def get_conversations(
             user_role=None,  # 不再需要角色映射，sender_type统一为chat
             skip=skip,
             limit=limit,
-            search=search
+            search=search,
+            unassigned_only=unassigned_only
         )
         return ApiResponse.success(data=paginated_records)
         

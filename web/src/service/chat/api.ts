@@ -36,9 +36,13 @@ export class ChatApiService {
   /**
    * 获取会话列表
    */
-  public static async getConversations(): Promise<Conversation[]> {
+  public static async getConversations(unassignedOnly: boolean = false): Promise<Conversation[]> {
     // 后端返回分页对象 { items, total, skip, limit }
-    const response = await apiClient.get<{ items: ConversationApiResponse[]; total: number; skip: number; limit: number }>(`${this.BASE_PATH}/conversations`);
+    const url = unassignedOnly 
+      ? `${this.BASE_PATH}/conversations?unassigned_only=true` 
+      : `${this.BASE_PATH}/conversations`;
+      
+    const response = await apiClient.get<{ items: ConversationApiResponse[]; total: number; skip: number; limit: number }>(url);
     // 从分页对象中提取 items 数组
     const items = response.data?.items || response.data || [];
     return ChatDataMapper.mapConversations(Array.isArray(items) ? items : []);
