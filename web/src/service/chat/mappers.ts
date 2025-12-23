@@ -38,7 +38,8 @@ export class ChatDataMapper {
       isActive: apiResponse.is_active,
       isArchived: apiResponse.is_archived,
       is_pinned: apiResponse.is_pinned || false,
-      pinned_at: apiResponse.pinned_at
+      pinned_at: apiResponse.pinned_at,
+      extra_metadata: apiResponse.extra_metadata
     };
   }
 

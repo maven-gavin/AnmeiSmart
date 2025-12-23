@@ -103,6 +103,15 @@ export default function ConversationHistoryList({
           </span>
         </div>
       )}
+
+      {/* 渠道标签（不新增页面，仅增加标识） */}
+      {conversation.tag === 'channel' && (
+        <div className="flex-shrink-0 ml-2">
+          <span className="inline-flex items-center justify-center h-5 px-2 text-xs font-medium text-white bg-emerald-600 rounded-full">
+            {['wechat_work', 'wechat_work_kf'].includes(conversation.extra_metadata?.channel?.type) ? '企微' : '渠道'}
+          </span>
+        </div>
+      )}
     </>
   );
 

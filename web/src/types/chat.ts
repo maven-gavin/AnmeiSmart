@@ -180,7 +180,7 @@ export interface Conversation {
   id: string;
   title: string;
   chat_mode: 'single' | 'group';  // 重构：type改为chat_mode
-  tag: 'chat' | 'consultation';   // 重构：新增tag字段区分会话类型
+  tag: 'chat' | 'consultation' | 'channel';   // 渠道会话复用现有列表
   owner_id: string;
   owner?: User;
   first_participant_id?: string;  // 新增：第一个参与者ID
@@ -195,6 +195,7 @@ export interface Conversation {
   isArchived: boolean;
   is_pinned?: boolean;            // 新增：是否置顶
   pinned_at?: string;             // 新增：置顶时间
+  extra_metadata?: { [key: string]: any };
 }
 
 export interface CustomerProfile {

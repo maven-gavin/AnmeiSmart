@@ -32,7 +32,10 @@ from app.core.api import (
 
 # 导入服务层
 from app.chat.services.chat_service import ChatService
+from app.channels.services.channel_service import ChannelService
+from app.channels.deps.channel_deps import get_channel_service
 from app.chat.deps.chat import get_chat_service
+from app.chat.models.chat import Conversation, Message
 
 # 导入事件总线
 from app.core.websocket.events import event_bus, EventTypes
@@ -198,16 +201,32 @@ async def create_message(
     conversation_id: str,
     request: MessageCreateRequest,
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service)
+    chat_service: ChatService = Depends(get_chat_service),
+    channel_service: ChannelService = Depends(get_channel_service),
 ):
     """创建通用消息"""
     try:
         logger.info(f"创建消息请求: conversation_id={conversation_id}, type={request.type}")
-        message = chat_service.create_message_use_case(
+        message = chat_service.create_message(
             conversation_id=conversation_id,
             request=request,
             sender=current_user
         )
+
+        # 渠道会话：将消息转发到对应渠道（不影响现有页面，只影响发送去向）
+        try:
+            conv_model = chat_service.db.query(Conversation).filter(Conversation.id == conversation_id).first()
+            if conv_model and conv_model.tag == "channel":
+                channel_meta = (conv_model.extra_metadata or {}).get("channel") if isinstance(conv_model.extra_metadata, dict) else None
+                if isinstance(channel_meta, dict):
+                    channel_type = channel_meta.get("type")
+                    peer_id = channel_meta.get("peer_id")
+                    if channel_type and peer_id:
+                        msg_model = chat_service.db.query(Message).filter(Message.id == message.id).first()
+                        if msg_model:
+                            await channel_service.send_to_channel(msg_model, channel_type=channel_type, channel_user_id=peer_id)
+        except Exception as e:
+            logger.error(f"渠道消息转发失败: conversation_id={conversation_id}, error={e}", exc_info=True)
         
         # 广播消息
         await chat_service.broadcast_message_safe(
@@ -275,7 +294,7 @@ async def create_text_message(
 ):
     """创建文本消息"""
     try:
-        message = chat_service.create_text_message_use_case(
+        message = chat_service.create_text_message_from_request(
             conversation_id=conversation_id,
             request=request,
             sender=current_user
@@ -306,7 +325,7 @@ async def create_media_message(
 ):
     """创建媒体消息"""
     try:
-        message = chat_service.create_media_message_use_case(
+        message = chat_service.create_media_message_from_request(
             conversation_id=conversation_id,
             request=request,
             sender=current_user
@@ -337,7 +356,7 @@ async def create_system_event_message(
 ):
     """创建系统事件消息"""
     try:
-        message = chat_service.create_system_event_message_use_case(
+        message = chat_service.create_system_event_message(
             conversation_id=conversation_id,
             request=request,
             sender=current_user
@@ -374,7 +393,7 @@ async def create_structured_message(
 ):
     """创建结构化消息"""
     try:
-        message = chat_service.create_structured_message_use_case(
+        message = chat_service.create_structured_message(
             conversation_id=conversation_id,
             request=request,
             sender=current_user
@@ -460,7 +479,7 @@ async def mark_message_as_read(
 ):
     """标记消息为已读"""
     try:
-        success = chat_service.mark_message_as_read_use_case(message_id)
+        success = chat_service.mark_message_as_read(message_id)
         if not success:
             raise BusinessException(
                 "消息不存在", 
@@ -488,7 +507,7 @@ async def mark_message_as_important(
     try:
         is_important = request_data.get("is_important", False)
         
-        success = chat_service.mark_message_as_important_use_case(
+        success = chat_service.mark_message_as_important(
             message_id=message_id,
             is_important=is_important
         )
@@ -524,7 +543,7 @@ async def get_conversation_summary(
     """获取会话摘要"""
     try:
         # 暂时返回会话信息作为摘要，后续可以添加专门的摘要功能
-        summary = chat_service.get_conversation_by_id_use_case(
+        summary = chat_service.get_conversation_by_id(
             conversation_id=conversation_id,
             user_id=str(current_user.id),
             user_role=None  # 不再需要角色映射，sender_type统一为chat

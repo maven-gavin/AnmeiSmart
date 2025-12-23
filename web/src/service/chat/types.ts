@@ -60,7 +60,7 @@ export interface ConversationApiResponse {
   id: string;
   title: string;
   chat_mode: 'single' | 'group';
-  tag: 'chat' | 'consultation';
+  tag: 'chat' | 'consultation' | 'channel';
   owner_id: string;
   owner?: {
     id: string;
@@ -79,6 +79,7 @@ export interface ConversationApiResponse {
   is_archived: boolean;
   is_pinned?: boolean;
   pinned_at?: string;
+  extra_metadata?: { [key: string]: any };
 }
 
 export interface MessageApiResponse {
@@ -113,7 +114,7 @@ export interface CreateConversationRequest {
   customer_id: string; // 保持向后兼容，后端会映射到owner_id
   title: string;
   chat_mode?: 'single' | 'group';
-  tag?: 'chat' | 'consultation';
+  tag?: 'chat' | 'consultation' | 'channel';
 }
 
 /**

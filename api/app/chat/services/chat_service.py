@@ -66,7 +66,7 @@ class ChatService:
     def _update_participant_stats_on_new_message(
         self,
         conversation_id: str,
-        sender_id: str,
+        sender_id: Optional[str],
         is_system_message: bool = False
     ):
         """当有新消息时，更新所有参与者的统计信息
@@ -85,14 +85,69 @@ class ChatService:
         now = datetime.now()
         
         for participant in participants:
-            # 更新发送者消息总数
-            if str(participant.user_id) == str(sender_id):
+            # 更新发送者消息总数（仅当 sender_id 存在且匹配参与者）
+            if sender_id and str(participant.user_id) == str(sender_id):
                 participant.message_count = (participant.message_count or 0) + 1
                 participant.last_message_at = now
-            
-            # 如果是发送者或是系统消息，不增加未读数；否则增加未读数
-            if not is_system_message and str(participant.user_id) != str(sender_id):
+
+            # 系统消息不增加未读；外部入站（sender_id=None）视为所有参与者未读+1
+            if is_system_message:
+                continue
+
+            if sender_id:
+                if str(participant.user_id) != str(sender_id):
+                    participant.unread_count = (participant.unread_count or 0) + 1
+            else:
                 participant.unread_count = (participant.unread_count or 0) + 1
+                participant.last_message_at = now
+
+    def _get_channel_assignment(self, conversation: Conversation) -> Dict[str, Any]:
+        extra = conversation.extra_metadata or {}
+        assignment = extra.get("assignment") or {}
+        if not isinstance(assignment, dict):
+            return {}
+        return assignment
+
+    def _get_channel_info(self, conversation: Conversation) -> Dict[str, Any]:
+        extra = conversation.extra_metadata or {}
+        channel = extra.get("channel") or {}
+        if not isinstance(channel, dict):
+            return {}
+        return channel
+
+    def claim_channel_conversation_if_needed(self, conversation_id: str, user: User) -> Conversation:
+        """领取渠道会话（未分配 -> 已领取，独占）"""
+        conversation = self.db.query(Conversation).filter(
+            Conversation.id == conversation_id
+        ).with_for_update().first()
+
+        if not conversation:
+            raise BusinessException("会话不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
+
+        if conversation.tag != "channel":
+            return conversation
+
+        assignment = self._get_channel_assignment(conversation)
+        status = assignment.get("status") or "unassigned"
+        assignee_user_id = assignment.get("assignee_user_id")
+
+        if status == "assigned" and assignee_user_id and str(assignee_user_id) != str(user.id):
+            raise BusinessException("该客户会话已被其他人领取", code=ErrorCode.PERMISSION_DENIED)
+
+        if status != "assigned" or not assignee_user_id:
+            extra = conversation.extra_metadata or {}
+            extra["assignment"] = {
+                "status": "assigned",
+                "assignee_user_id": str(user.id),
+                "assignee_name": getattr(user, "username", None),
+                "assigned_at": datetime.now().isoformat(),
+            }
+            conversation.extra_metadata = extra
+
+        # 确保领取人有 participant 记录（用于会话列表与未读）
+        self._get_or_create_participant(conversation_id=conversation.id, user_id=str(user.id), default_role="owner")
+        self.db.flush()
+        return conversation
     
     # ============ 会话参与者管理 ============
 
@@ -291,7 +346,7 @@ class ChatService:
         从会话参与者表中分页查询指定用户参与的会话，支持标题模糊搜索，按修改时间倒序排列
         owner 也是参与者（角色为 owner），所以直接从 participant 表查询即可
         """
-        # 从参与者表开始，JOIN 会话表
+        # 从参与者表开始，JOIN 会话表（我的会话）
         # 这样可以查询用户作为参与者的所有会话（包括 owner 角色的会话）
         # 使用别名以便在排序中使用 participant 字段
         query = self.db.query(Conversation, ConversationParticipant).join(
@@ -307,8 +362,33 @@ class ChatService:
             search_pattern = f"%{search.strip()}%"
             query = query.filter(Conversation.title.like(search_pattern))
         
-        # 获取总数（在分页之前）
-        total = query.count()
+        # 额外：把“渠道会话(未分配/已领取给我)”也拼进来，满足不新增前端页面的要求
+        from sqlalchemy import cast, String, or_
+
+        channel_query = self.db.query(Conversation).filter(
+            Conversation.tag == "channel"
+        )
+
+        if search and search.strip():
+            search_pattern = f"%{search.strip()}%"
+            channel_query = channel_query.filter(Conversation.title.like(search_pattern))
+
+        # assignment.assignee_user_id == user_id 或 assignment.status 为空/未分配
+        channel_query = channel_query.filter(
+            or_(
+                cast(Conversation.extra_metadata["assignment"]["assignee_user_id"], String) == user_id,
+                cast(Conversation.extra_metadata["assignment"]["status"], String).is_(None),
+                cast(Conversation.extra_metadata["assignment"]["status"], String) == "unassigned",
+            )
+        )
+
+        # 获取总数（简单合并统计：我的会话 + 渠道会话去重）
+        base_results = query.all()
+        channel_results = channel_query.all()
+        merged_ids = {conv.id for conv, _ in base_results}
+        for conv in channel_results:
+            merged_ids.add(conv.id)
+        total = len(merged_ids)
         
         # 按个人化视角排序：置顶优先，然后按最后消息时间（参与者视角），最后按会话更新时间
         query = query.order_by(
@@ -318,16 +398,25 @@ class ChatService:
             desc(Conversation.updated_at)  # 会话更新时间倒序
         )
         
-        # 分页
-        results = query.offset(skip).limit(limit).all()
+        # 分页：先按原逻辑取我的会话，再补渠道会话（未分配/已领取给我），最后统一排序与裁剪
+        results = query.all()
         
         # 提取会话对象和参与者对象（因为查询返回的是 (Conversation, ConversationParticipant) 元组）
-        conversations = []
-        participants_dict = {}
+        conversations: List[Conversation] = []
+        participants_dict: Dict[str, ConversationParticipant] = {}
         for conv, participant in results:
             conversations.append(conv)
             participants_dict[conv.id] = participant
+
+        # 合并渠道会话（避免重复）
+        for conv in channel_results:
+            if conv.id not in participants_dict and conv.id not in {c.id for c in conversations}:
+                conversations.append(conv)
         
+        # 统一按更新时间倒序（先做简单排序，再裁剪分页）
+        conversations.sort(key=lambda c: getattr(c, "updated_at", datetime.min), reverse=True)
+        conversations = conversations[skip: skip + limit]
+
         # 加载关联数据（owner 和 participants）
         conversation_ids = [conv.id for conv in conversations]
         if conversation_ids:
@@ -390,14 +479,34 @@ class ChatService:
             joinedload(Conversation.participants).joinedload(ConversationParticipant.user)
         ).filter(Conversation.id == conversation_id)
         
-        # 权限检查：检查用户是否是owner或参与者
+        # 权限检查：检查用户是否是 owner 或参与者；渠道会话允许未分配阶段被任何员工打开并“首发自动领取”
         participant = None
         if user_id:
             # 先查询会话是否存在
             conversation = query.first()
             if not conversation:
                 return None
-            
+
+            if conversation.tag == "channel":
+                assignment = self._get_channel_assignment(conversation)
+                status = assignment.get("status") or "unassigned"
+                assignee_user_id = assignment.get("assignee_user_id")
+
+                if status != "assigned" or not assignee_user_id:
+                    # 未分配：允许访问（但不自动创建 participant，避免污染列表排序/未读）
+                    participant = None
+                else:
+                    # 已领取：仅领取人可访问（owner/admin 仍可访问由 can_access_conversation 覆盖）
+                    if str(assignee_user_id) != str(user_id) and str(conversation.owner_id) != str(user_id):
+                        # 也允许参与者访问（如已创建 participant）
+                        participant = self.db.query(ConversationParticipant).filter(
+                            ConversationParticipant.conversation_id == conversation_id,
+                            ConversationParticipant.user_id == user_id,
+                            ConversationParticipant.is_active == True
+                        ).first()
+                        if not participant:
+                            return None
+
             # 检查用户是否是owner
             if str(conversation.owner_id) == user_id:
                 # 是owner，获取或创建参与者记录
@@ -411,8 +520,18 @@ class ChatService:
                 ).first()
                 
                 if not participant:
-                    # 既不是owner也不是参与者，拒绝访问
-                    return None
+                    # 渠道会话未分配：允许访问
+                    if conversation.tag == "channel":
+                        assignment = self._get_channel_assignment(conversation)
+                        status = assignment.get("status") or "unassigned"
+                        assignee_user_id = assignment.get("assignee_user_id")
+                        if status != "assigned" or not assignee_user_id:
+                            participant = None
+                        else:
+                            return None
+                    else:
+                        # 既不是owner也不是参与者，拒绝访问
+                        return None
         else:
             conversation = query.first()
             if not conversation:
@@ -431,13 +550,13 @@ class ChatService:
         
         return ConversationInfo.from_model(conversation, last_message=last_message, participant=participant)
     
-    def get_conversation_by_id_use_case(
+    def get_conversation_by_id(
         self,
         conversation_id: str,
         user_id: str,
         user_role: Optional[str] = None
     ) -> Optional[ConversationInfo]:
-        """根据ID获取会话（用例方法）"""
+        """根据ID获取会话"""
         return self.get_conversation(conversation_id=conversation_id, user_id=user_id)
     
     def update_conversation(
@@ -467,7 +586,6 @@ class ChatService:
         
         # 分离会话级别和个人级别的更新字段
         conversation_fields = ['title', 'is_active', 'is_archived', 'tag', 'chat_mode']
-        participant_fields = ['is_pinned']
         
         # 更新会话级别字段（只有owner可以修改）
         if is_owner:
@@ -515,10 +633,11 @@ class ChatService:
     def create_text_message(
         self,
         conversation_id: str,
-        sender_id: str,
+        sender_id: Optional[str],
         content: str,
         sender_type: str = "user",
-        reply_to_message_id: Optional[str] = None
+        reply_to_message_id: Optional[str] = None,
+        extra_metadata: Optional[Dict[str, Any]] = None
     ) -> MessageInfo:
         """创建文本消息"""
         # 验证会话存在
@@ -541,7 +660,8 @@ class ChatService:
             sender_id=sender_id,
             sender_type=sender_type,
             is_read=False,
-            reply_to_message_id=reply_to_message_id
+            reply_to_message_id=reply_to_message_id,
+            extra_metadata=extra_metadata
         )
         
         self.db.add(message)
@@ -564,11 +684,12 @@ class ChatService:
     def create_media_message(
         self,
         conversation_id: str,
-        sender_id: str,
+        sender_id: Optional[str],
         media_type: str,
         media_url: str,
         text: Optional[str] = None,
-        sender_type: str = "chat"
+        sender_type: str = "chat",
+        extra_metadata: Optional[Dict[str, Any]] = None
     ) -> MessageInfo:
         """创建媒体消息"""
         # 验证会话存在
@@ -604,7 +725,8 @@ class ChatService:
             type="media",
             sender_id=sender_id,
             sender_type=sender_type,
-            is_read=False
+            is_read=False,
+            extra_metadata=extra_metadata
         )
         
         self.db.add(message)
@@ -691,8 +813,8 @@ class ChatService:
         
         return count
     
-    def mark_message_as_read_use_case(self, message_id: str, user_id: Optional[str] = None) -> bool:
-        """标记消息为已读（用例方法）"""
+    def mark_message_as_read(self, message_id: str, user_id: Optional[str] = None) -> bool:
+        """标记消息为已读"""
         message = self.db.query(Message).filter(Message.id == message_id).first()
         if not message:
             return False
@@ -714,12 +836,12 @@ class ChatService:
         self.db.commit()
         return True
     
-    def mark_message_as_important_use_case(
+    def mark_message_as_important(
         self,
         message_id: str,
         is_important: bool
     ) -> bool:
-        """标记消息为重点（用例方法）"""
+        """标记消息为重点"""
         message = self.db.query(Message).filter(Message.id == message_id).first()
         if not message:
             return False
@@ -751,13 +873,39 @@ class ChatService:
     
     # ============ 消息创建用例方法 ============
     
-    def create_message_use_case(
+    def create_message(
         self,
         conversation_id: str,
         request: MessageCreateRequest,
         sender: User
     ) -> MessageInfo:
-        """创建通用消息用例"""
+        """创建通用消息"""
+        # 渠道会话：首次发送自动领取（独占）
+        conversation = self.db.query(Conversation).filter(Conversation.id == conversation_id).first()
+        if not conversation:
+            raise BusinessException("会话不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
+
+        channel_extra: Optional[Dict[str, Any]] = None
+        if conversation.tag == "channel":
+            # 领取（若已被他人领取会抛异常）
+            self.claim_channel_conversation_if_needed(conversation_id=conversation_id, user=sender)
+            self.db.commit()
+            self.db.refresh(conversation)
+
+            channel_info = self._get_channel_info(conversation)
+            assignment = self._get_channel_assignment(conversation)
+            channel_extra = {
+                "channel": {
+                    "type": channel_info.get("type"),
+                    "peer_id": channel_info.get("peer_id"),
+                    "peer_name": channel_info.get("peer_name"),
+                    "direction": "outbound",
+                    "assignee_user_id": assignment.get("assignee_user_id"),
+                    "assignee_name": assignment.get("assignee_name"),
+                    "from_user_name": getattr(sender, "username", None),
+                }
+            }
+
         # 验证content字段
         if not request.content:
             raise BusinessException("消息内容不能为空", code=ErrorCode.INVALID_INPUT)
@@ -780,7 +928,8 @@ class ChatService:
                 sender_id=str(sender.id),
                 content=text,
                 sender_type="user",  # 智能聊天消息统一使用 user
-                reply_to_message_id=request.reply_to_message_id
+                reply_to_message_id=request.reply_to_message_id,
+                extra_metadata=channel_extra
             )
         elif request.type == "media":
             # 从 content 中提取媒体信息
@@ -794,20 +943,21 @@ class ChatService:
                     media_type=media_type,
                     media_url=media_url,
                     text=text,
-                    sender_type="chat"  # 智能聊天消息统一使用chat
+                    sender_type="chat",  # 智能聊天消息统一使用chat
+                    extra_metadata=channel_extra
                 )
             else:
                 raise ValueError("媒体消息内容格式不正确")
         else:
             raise ValueError(f"不支持的消息类型: {request.type}")
     
-    def create_text_message_use_case(
+    def create_text_message_from_request(
         self,
         conversation_id: str,
         request: CreateTextMessageRequest,
         sender: User
     ) -> MessageInfo:
-        """创建文本消息用例"""
+        """创建文本消息"""
         return self.create_text_message(
             conversation_id=conversation_id,
             sender_id=str(sender.id),
@@ -816,13 +966,13 @@ class ChatService:
             reply_to_message_id=request.reply_to_message_id
         )
     
-    def create_media_message_use_case(
+    def create_media_message_from_request(
         self,
         conversation_id: str,
         request: CreateMediaMessageRequest,
         sender: User
     ) -> MessageInfo:
-        """创建媒体消息用例"""
+        """创建媒体消息"""
         # 使用create_media_message_with_details方法，确保文件名和大小正确传递
         return self.create_media_message_with_details(
             conversation_id=conversation_id,
@@ -837,13 +987,13 @@ class ChatService:
             upload_method=getattr(request, 'upload_method', None)
         )
     
-    def create_system_event_message_use_case(
+    def create_system_event_message(
         self,
         conversation_id: str,
         request: CreateSystemEventRequest,
         sender: User
     ) -> MessageInfo:
-        """创建系统事件消息用例"""
+        """创建系统事件消息"""
         # 权限检查：只有管理员可以创建系统事件消息
         from app.identity_access.deps.permission_deps import get_user_primary_role
         sender_role = get_user_primary_role(sender)
@@ -885,13 +1035,13 @@ class ChatService:
         from app.chat.schemas.chat import MessageInfo
         return MessageInfo.from_model(message)
     
-    def create_structured_message_use_case(
+    def create_structured_message(
         self,
         conversation_id: str,
         request: CreateStructuredMessageRequest,
         sender: User
     ) -> MessageInfo:
-        """创建结构化消息用例"""
+        """创建结构化消息"""
         # 验证会话存在
         conversation = self.db.query(Conversation).filter(
             Conversation.id == conversation_id
@@ -944,6 +1094,16 @@ class ChatService:
         if not conversation:
             return False
         
+        # 渠道会话：未分配允许访问；已领取仅领取人/owner/参与者/管理员允许
+        if conversation.tag == "channel":
+            assignment = self._get_channel_assignment(conversation)
+            status = assignment.get("status") or "unassigned"
+            assignee_user_id = assignment.get("assignee_user_id")
+            if status != "assigned" or not assignee_user_id:
+                return True
+            if str(assignee_user_id) == str(user_id):
+                return True
+
         # 检查是否是会话所有者
         if str(conversation.owner_id) == user_id:
             return True

@@ -9,6 +9,7 @@ from app.channels.interfaces import ChannelAdapter, ChannelMessage
 from app.channels.models.channel_config import ChannelConfig
 from app.chat.services.chat_service import ChatService
 from app.chat.models.chat import Message, Conversation
+from app.core.api import BusinessException, ErrorCode
 
 logger = logging.getLogger(__name__)
 
@@ -55,42 +56,60 @@ class ChannelService:
                 logger.info(f"消息已存在，跳过处理: {channel_message.channel_message_id}")
                 return existing_message
             
-            # 3. 根据消息类型创建消息
+            # 3. 准备渠道信息
+            channel_metadata = {
+                "type": channel_message.channel_type,
+                "channel_message_id": channel_message.channel_message_id,
+                "peer_id": channel_message.channel_user_id,
+                "peer_name": channel_message.extra_data.get("peer_name") if channel_message.extra_data else None,
+                "direction": "inbound",
+            }
+            
+            # 合并 extra_metadata
+            extra_metadata = channel_message.extra_data or {}
+            if "channel" not in extra_metadata:
+                extra_metadata["channel"] = channel_metadata
+            else:
+                extra_metadata["channel"].update(channel_metadata)
+            
+            # 4. 根据消息类型创建消息
             if channel_message.message_type == "text":
-                message = self.chat_service.create_text_message(
+                message_info = self.chat_service.create_text_message(
                     conversation_id=conversation.id,
-                    sender_id=channel_message.channel_user_id,  # TODO: 需要映射到系统用户ID
+                    sender_id=None,  # 渠道入站：外部发送者不对应系统 user_id
                     content=channel_message.content.get("text", ""),
-                    sender_type="user"
+                    sender_type="user",
+                    extra_metadata=extra_metadata
                 )
             elif channel_message.message_type == "media":
                 media_info = channel_message.content.get("media_info", {})
-                message = self.chat_service.create_media_message_with_details(
+                message_info = self.chat_service.create_media_message_with_details(
                     conversation_id=conversation.id,
-                    sender_id=channel_message.channel_user_id,
+                    sender_id=None,
                     media_url=media_info.get("url", ""),
                     media_name=media_info.get("name"),
                     mime_type=media_info.get("mime_type"),
                     size_bytes=media_info.get("size_bytes"),
                     text=channel_message.content.get("text"),
-                    metadata=channel_message.extra_data or {}
+                    metadata=extra_metadata
                 )
             else:
                 logger.warning(f"不支持的消息类型: {channel_message.message_type}")
                 return None
             
-            # 4. 在 extra_metadata 中存储渠道信息
-            if not message.extra_metadata:
-                message.extra_metadata = {}
+            # 5. 通过 message_id 查询 ORM 对象（因为 create_* 方法返回的是 MessageInfo schema）
+            message = self.db.query(Message).filter(Message.id == message_info.id).first()
+            if not message:
+                logger.error(f"无法找到刚创建的消息: {message_info.id}")
+                return None
             
-            message.extra_metadata["channel"] = {
-                "type": channel_message.channel_type,
-                "channel_message_id": channel_message.channel_message_id,
-                "channel_user_id": channel_message.channel_user_id
-            }
-            
-            self.db.commit()
-            self.db.refresh(message)
+            # 6. 确保 extra_metadata 已正确设置（双重保险）
+            if not message.extra_metadata or "channel" not in message.extra_metadata:
+                if not message.extra_metadata:
+                    message.extra_metadata = {}
+                message.extra_metadata["channel"] = channel_metadata
+                self.db.commit()
+                self.db.refresh(message)
             
             logger.info(f"成功处理渠道消息: {channel_message.channel_message_id}")
             return message
@@ -135,31 +154,52 @@ class ChannelService:
     
     async def _get_or_create_conversation(self, channel_message: ChannelMessage) -> Conversation:
         """获取或创建会话"""
-        # TODO: 实现会话查找或创建逻辑
-        # 需要考虑：
-        # 1. 根据渠道用户ID查找已有会话
-        # 2. 如果没有，创建新会话
-        # 3. 会话标题可以从渠道用户信息获取
-        
-        # 临时实现：创建新会话
-        from app.chat.models.chat import Conversation
+        from sqlalchemy import cast, String
         from app.common.deps.uuid_utils import conversation_id
-        
+        from app.identity_access.models.user import User
+
+        peer_id = channel_message.channel_user_id
+
+        # 1) 查找已有渠道会话
+        existing = self.db.query(Conversation).filter(
+            Conversation.tag == "channel",
+            cast(Conversation.extra_metadata["channel"]["type"], String) == channel_message.channel_type,
+            cast(Conversation.extra_metadata["channel"]["peer_id"], String) == peer_id,
+        ).first()
+
+        if existing:
+            return existing
+
+        # 2) 选择一个可用 owner（仅用于满足外键，权限由 tag=channel 的规则控制）
+        owner = self.db.query(User).order_by(User.created_at.asc()).first()
+        if not owner:
+            raise BusinessException("系统内没有可用用户，无法创建渠道会话", code=ErrorCode.SYSTEM_ERROR)
+
+        title = f"{channel_message.channel_type}:{peer_id}"
+
         conversation = Conversation(
             id=conversation_id(),
-            title=f"{channel_message.channel_type} - {channel_message.channel_user_id}",
-            owner_id=channel_message.channel_user_id,  # TODO: 需要映射到系统用户ID
+            title=title,
+            owner_id=str(owner.id),
             chat_mode="single",
             tag="channel",
             extra_metadata={
-                "channel_type": channel_message.channel_type,
-                "channel_user_id": channel_message.channel_user_id
-            }
+                "channel": {
+                    "type": channel_message.channel_type,
+                    "peer_id": peer_id,
+                    "peer_name": channel_message.extra_data.get("peer_name") if channel_message.extra_data else None,
+                },
+                "assignment": {
+                    "status": "unassigned",
+                    "assignee_user_id": None,
+                    "assignee_name": None,
+                    "assigned_at": None,
+                },
+            },
         )
-        
+
         self.db.add(conversation)
         self.db.commit()
         self.db.refresh(conversation)
-        
         return conversation
 

@@ -81,6 +81,9 @@ api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 # 通讯录管理路由
 api_router.include_router(contacts.router, prefix="/contacts", tags=["contacts"])
 
+# 渠道Webhook路由
+api_router.include_router(channel_webhook.router, tags=["channels"])
+
 # 后续可添加其他路由
 
 # 在这里添加其他路由器

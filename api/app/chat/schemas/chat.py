@@ -229,8 +229,18 @@ class MessageInfo(MessageBase):
                 sender_avatar = getattr(sender_obj, "avatar", None)
                 actual_sender_id = sender_id or "unknown"
             else:
-                sender_name = "未知用户"
-                actual_sender_id = sender_id or "unknown"
+                # 渠道入站：没有系统 sender 时，尝试从 extra_metadata.channel 取展示名
+                extra_metadata_for_sender = getattr(message, 'extra_metadata', None) or {}
+                channel_meta = None
+                if isinstance(extra_metadata_for_sender, dict):
+                    channel_meta = extra_metadata_for_sender.get("channel")
+
+                if isinstance(channel_meta, dict):
+                    sender_name = channel_meta.get("peer_name") or channel_meta.get("peer_id") or "外部客户"
+                    actual_sender_id = channel_meta.get("peer_id") or "unknown"
+                else:
+                    sender_name = "未知用户"
+                    actual_sender_id = sender_id or "unknown"
         
         sender = MessageSender(
             id=actual_sender_id,
@@ -399,6 +409,7 @@ class ConversationBase(BaseModel):
     chat_mode: str = "single"  # 会话模式：single, group
     owner_id: str  # 会话所有者
     tag: str = "chat"  # 会话标签：chat, consultation
+    extra_metadata: Optional[Dict[str, Any]] = None
 
 
 class ConversationCreate(ConversationBase):
@@ -502,6 +513,7 @@ class ConversationInfo(ConversationBase):
             chat_mode=getattr(conversation, 'chat_mode', 'single'),
             tag=getattr(conversation, 'tag', 'chat'),
             owner_id=getattr(conversation, 'owner_id', ''),
+            extra_metadata=getattr(conversation, 'extra_metadata', None),
             created_at=getattr(conversation, 'created_at', datetime.now()),
             updated_at=getattr(conversation, 'updated_at', datetime.now()),
             is_active=getattr(conversation, 'is_active', True),

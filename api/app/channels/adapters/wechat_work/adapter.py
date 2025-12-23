@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 
 from app.channels.interfaces import ChannelAdapter, ChannelMessage
 from app.channels.adapters.wechat_work.client import WeChatWorkClient
+from app.channels.adapters.wechat_work.crypto import WeChatWorkCrypto
 from app.chat.models.chat import Message
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,19 @@ class WeChatWorkAdapter(ChannelAdapter):
         )
         self.token = config.get("token", "")  # Webhook验证token
         self.encoding_aes_key = config.get("encoding_aes_key", "")  # 消息加解密key
+        self.corp_id = config.get("corp_id", "")
+        
+        # 初始化加解密工具（如果配置了EncodingAESKey）
+        self.crypto = None
+        if self.token and self.encoding_aes_key and self.corp_id:
+            try:
+                self.crypto = WeChatWorkCrypto(
+                    token=self.token,
+                    encoding_aes_key=self.encoding_aes_key,
+                    corp_id=self.corp_id
+                )
+            except Exception as e:
+                logger.warning(f"初始化企业微信加解密工具失败: {e}")
     
     def get_channel_type(self) -> str:
         """获取渠道类型"""
@@ -87,6 +101,14 @@ class WeChatWorkAdapter(ChannelAdapter):
         try:
             if message.type == "text":
                 content = message.content.get("text", "")
+                # 渠道转发：外部看到的是应用身份，这里用前缀补充 A 的名字
+                extra = message.extra_metadata or {}
+                channel_meta = extra.get("channel") if isinstance(extra, dict) else None
+                from_user_name = None
+                if isinstance(channel_meta, dict):
+                    from_user_name = channel_meta.get("from_user_name")
+                if from_user_name:
+                    content = f"【{from_user_name}】{content}"
                 return await self.client.send_text_message(channel_user_id, content)
             elif message.type == "media":
                 media_info = message.content.get("media_info", {})
@@ -118,24 +140,52 @@ class WeChatWorkAdapter(ChannelAdapter):
         - nonce: 随机数
         - echostr: 随机字符串（仅验证时使用）
         """
-        # TODO: 实现签名验证逻辑
-        # 企业微信使用SHA1签名算法
-        # 参考：https://developer.work.weixin.qq.com/document/path/90930
-        
-        # 临时实现：简单验证token是否存在
         query_params = request.query_params
         msg_signature = query_params.get("msg_signature")
         timestamp = query_params.get("timestamp")
         nonce = query_params.get("nonce")
+        echostr = query_params.get("echostr")
         
         if not all([msg_signature, timestamp, nonce]):
             logger.warning("Webhook验证参数不完整")
             return False
         
-        # TODO: 实现完整的签名验证
-        # 这里暂时返回True，实际生产环境需要实现签名验证
-        logger.info("Webhook验证通过（临时实现）")
+        # 如果没有配置加解密工具，使用简单验证
+        if not self.crypto:
+            logger.warning("未配置加解密工具，使用简单验证")
+            return True
+        
+        # 如果有echostr，进行签名验证
+        if echostr:
+            is_valid = self.crypto.verify_signature(
+                msg_signature=msg_signature,
+                timestamp=timestamp,
+                nonce=nonce,
+                echostr=echostr
+            )
+            if is_valid:
+                logger.info("Webhook签名验证通过")
+            return is_valid
+        
+        # 没有echostr的情况（POST请求），只验证签名参数存在
+        logger.info("Webhook验证通过（POST请求）")
         return True
+    
+    def decrypt_echostr(self, encrypted_echostr: str) -> Optional[str]:
+        """
+        解密企业微信的echostr
+        
+        Args:
+            encrypted_echostr: Base64编码的加密字符串
+            
+        Returns:
+            解密后的明文，失败返回None
+        """
+        if not self.crypto:
+            logger.error("未配置加解密工具，无法解密echostr")
+            return None
+        
+        return self.crypto.decrypt_echostr(encrypted_echostr)
     
     async def _upload_media_to_wechat(self, media_url: str) -> Optional[str]:
         """
