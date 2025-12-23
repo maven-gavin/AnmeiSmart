@@ -92,8 +92,48 @@ class WeChatWorkAdapter(ChannelAdapter):
                 timestamp=create_time,
                 extra_data={"media_id": media_id}
             )
+        elif msg_type == "file":
+            media_id = raw_message.get("MediaId", "")
+            file_name = raw_message.get("FileName", "unknown")
+            file_ext = raw_message.get("FileExt", "")
+            file_size = raw_message.get("FileSize", 0)
+            return ChannelMessage(
+                channel_type="wechat_work",
+                channel_message_id=msg_id,
+                channel_user_id=from_user,
+                content={
+                    "media_info": {
+                        "url": "",  # file 类型没有 PicUrl，需要通过 MediaId 下载
+                        "media_id": media_id,
+                        "name": file_name,
+                        "size_bytes": int(file_size),
+                        "mime_type": "application/octet-stream"
+                    }
+                },
+                message_type="media",
+                timestamp=create_time,
+                extra_data={
+                    "media_id": media_id,
+                    "file_name": file_name,
+                    "file_ext": file_ext
+                }
+            )
+        elif msg_type == "event":
+            event = raw_message.get("Event", "")
+            logger.info(f"收到企业微信事件: event={event}, from={from_user}")
+            # 返回一个特殊的系统消息或空，取决于业务需求
+            return ChannelMessage(
+                channel_type="wechat_work",
+                channel_message_id=msg_id or f"evt_{create_time}",
+                channel_user_id=from_user,
+                content={"text": f"[系统事件: {event}]"},
+                message_type="text",
+                timestamp=create_time,
+                extra_data={"event": event}
+            )
         else:
             logger.warning(f"不支持的消息类型: {msg_type}")
+            logger.debug(f"原始消息内容: {raw_message}")
             raise ValueError(f"不支持的消息类型: {msg_type}")
     
     async def send_message(self, message: Message, channel_user_id: str) -> bool:

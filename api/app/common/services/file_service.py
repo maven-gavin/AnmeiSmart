@@ -632,6 +632,54 @@ class FileService:
         except Exception as e:
             logger.error(f"文件上传失败: {str(e)}")
             raise HTTPException(status_code=500, detail=f"文件上传失败: {str(e)}")
+
+    async def upload_binary_data(
+        self,
+        data: bytes,
+        filename: str,
+        conversation_id: str,
+        user_id: str,
+        mime_type: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        上传二进制数据到MinIO（适用于渠道入站媒体）
+        """
+        try:
+            if not mime_type:
+                mime_type, _ = mimetypes.guess_type(filename)
+                mime_type = mime_type or "application/octet-stream"
+            
+            file_category = self.get_file_category(mime_type)
+            
+            # 生成唯一文件名
+            file_extension = os.path.splitext(filename)[1]
+            if not file_extension and mime_type.startswith("image/"):
+                file_extension = ".jpg" # 默认图
+            
+            unique_filename = f"{uuid.uuid4().hex}{file_extension}"
+            object_name = f"{user_id}/{conversation_id}/{unique_filename}"
+            
+            # 上传到MinIO
+            file_url = self.minio_client.upload_file_data(
+                object_name=object_name,
+                file_data=data,
+                content_type=mime_type
+            )
+            
+            logger.info(f"二进制数据上传成功: {filename} -> {file_url}")
+            
+            return {
+                "file_url": file_url,
+                "file_name": filename,
+                "file_size": len(data),
+                "file_type": file_category,
+                "mime_type": mime_type,
+                "object_name": object_name,
+                "metadata": {}
+            }
+        except Exception as e:
+            logger.error(f"二进制数据上传失败: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"文件存储失败")
     
     def delete_file(self, object_name: str) -> bool:
         """

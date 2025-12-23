@@ -140,10 +140,22 @@ class WeChatWorkCrypto:
         if not data:
             raise ValueError("empty decrypted data")
         pad = data[-1]
-        if pad < 1 or pad > 16:
-            raise ValueError("invalid pkcs7 padding")
+        # 调试日志：记录解密后的末尾字节
+        logger.debug(f"PKCS7 解填充: data_len={len(data)}, pad_value={pad}, last_16_bytes={data[-16:].hex()}")
+        
+        # 企业微信使用 32 字节作为填充块大小
+        if pad < 1 or pad > 32:
+            raise ValueError(f"invalid pkcs7 padding value: {pad}")
         if len(data) < pad:
             raise ValueError("invalid pkcs7 padding length")
+        
+        # 验证填充内容是否一致
+        padding = data[-pad:]
+        if any(p != pad for p in padding):
+            # 记录具体的填充内容以便排查
+            logger.warning(f"填充内容验证失败: pad={pad}, padding={padding.hex()}")
+            raise ValueError("invalid pkcs7 padding content")
+            
         return data[:-pad]
 
     @staticmethod

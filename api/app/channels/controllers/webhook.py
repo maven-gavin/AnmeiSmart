@@ -111,6 +111,9 @@ async def wechat_work_webhook(
                 if decrypted:
                     xml_content = decrypted
                     logger.info(f"企业微信消息解密成功: {xml_content}...")
+                else:
+                    logger.error("企业微信消息解密失败")
+                    raise HTTPException(status_code=400, detail="消息解密失败")
 
             raw_message = adapter.parse_xml_message(xml_content)
         else:
@@ -187,6 +190,9 @@ async def wechat_work_kf_webhook(
         decrypted = adapter.decrypt_encrypt_field(encrypt)
         if decrypted:
             decrypt_body = decrypted
+        else:
+            logger.error("微信客服消息解密失败")
+            raise HTTPException(status_code=400, detail="消息解密失败")
 
     payload = adapter.parse_incoming_payload(decrypt_body)
     channel_message = await adapter.receive_message(payload)

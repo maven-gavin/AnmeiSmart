@@ -125,32 +125,54 @@ export default function ConversationHistoryList({
     </>
   );
 
-  // 渲染加载状态
-  if (isLoading) {
+  // 渲染内容区域
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex flex-1 items-center justify-center">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
+          <span className="ml-2 text-sm text-gray-500">加载历史会话...</span>
+        </div>
+      );
+    }
+
+    if (conversations.length === 0) {
+      return (
+        <div className="flex flex-1 flex-col items-center justify-center text-gray-500 p-4">
+          <svg className="h-12 w-12 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          <p className="text-sm">暂无历史会话</p>
+        </div>
+      );
+    }
+
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
-        <span className="ml-2 text-sm text-gray-500">加载历史会话...</span>
+      <div className="flex-1 overflow-y-auto">
+        {conversations.map(conversation => (
+          <div
+            key={conversation.id}
+            onClick={() => handleConversationSelect(conversation.id)}
+            className={cn(
+              'flex items-center p-3 border-b border-gray-100 cursor-pointer transition-colors',
+              selectedConversationId === conversation.id 
+                ? 'bg-orange-50 border-orange-200' 
+                : 'hover:bg-gray-50'
+            )}
+          >
+            {renderAvatar(conversation)}
+            {renderConversationInfo(conversation)}
+            {renderTags(conversation)}
+          </div>
+        ))}
       </div>
     );
-  }
+  };
 
-  // 渲染空状态
-  if (conversations.length === 0) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center text-gray-500">
-        <svg className="h-12 w-12 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
-        <p className="text-sm">暂无历史会话</p>
-      </div>
-    );
-  }
-
-  // 渲染会话列表
+  // 渲染主结构
   return (
     <div className="h-full flex flex-col">
-      {/* 标题和过滤器 */}
+      {/* 标题和过滤器 - 始终显示 */}
       <div className="p-3 border-b border-gray-200 flex items-center justify-between">
         <div className="flex bg-gray-100 p-1 rounded-full">
           <button
@@ -178,25 +200,8 @@ export default function ConversationHistoryList({
         </div>
       </div>
 
-      {/* 会话列表 */}
-      <div className="flex-1 overflow-y-auto">
-        {conversations.map(conversation => (
-          <div
-            key={conversation.id}
-            onClick={() => handleConversationSelect(conversation.id)}
-            className={cn(
-              'flex items-center p-3 border-b border-gray-100 cursor-pointer transition-colors',
-              selectedConversationId === conversation.id 
-                ? 'bg-orange-50 border-orange-200' 
-                : 'hover:bg-gray-50'
-            )}
-          >
-            {renderAvatar(conversation)}
-            {renderConversationInfo(conversation)}
-            {renderTags(conversation)}
-          </div>
-        ))}
-      </div>
+      {/* 动态内容区域 */}
+      {renderContent()}
     </div>
   );
 } 

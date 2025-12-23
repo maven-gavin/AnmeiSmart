@@ -164,3 +164,41 @@ class WeChatWorkClient:
                 logger.error(f"上传媒体异常: {e}")
                 return None
 
+    async def download_media(self, media_id: str) -> Optional[bytes]:
+        """
+        从企业微信下载媒体文件
+        
+        Args:
+            media_id: 媒体文件ID
+            
+        Returns:
+            文件二进制数据 或 None
+        """
+        token = await self.get_access_token()
+        url = f"{self.BASE_URL}/cgi-bin/media/get"
+        params = {
+            "access_token": token,
+            "media_id": media_id
+        }
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                
+                # 检查响应头，如果不是文件流可能是错误信息
+                content_type = response.headers.get("Content-Type", "")
+                if "application/json" in content_type:
+                    data = response.json()
+                    if data.get("errcode") != 0:
+                        logger.error(f"下载媒体失败: {data.get('errmsg')}, errcode: {data.get('errcode')}")
+                        return None
+                
+                return response.content
+            except httpx.HTTPError as e:
+                logger.error(f"下载媒体 HTTP错误: {e}")
+                return None
+            except Exception as e:
+                logger.error(f"下载媒体异常: {e}")
+                return None
+

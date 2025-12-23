@@ -9,6 +9,7 @@ from app.channels.interfaces import ChannelAdapter, ChannelMessage
 from app.channels.models.channel_config import ChannelConfig
 from app.chat.services.chat_service import ChatService
 from app.chat.models.chat import Message, Conversation
+from app.common.services.file_service import FileService
 from app.core.api import BusinessException, ErrorCode
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,9 @@ class ChannelService:
     def __init__(self, db: Session, broadcasting_service=None):
         self.db = db
         self.adapters: Dict[str, ChannelAdapter] = {}
+        self.broadcasting_service = broadcasting_service
         self.chat_service = ChatService(db=db, broadcasting_service=broadcasting_service)
+        self.file_service = FileService(db=db)
     
     def register_adapter(self, channel_type: str, adapter: ChannelAdapter):
         """注册渠道适配器"""
@@ -83,6 +86,39 @@ class ChannelService:
                 )
             elif channel_message.message_type == "media":
                 media_info = channel_message.content.get("media_info", {})
+                
+                # 如果是企业微信媒体，且有MediaId，尝试下载并转存到我们的MinIO
+                media_id = channel_message.extra_data.get("media_id") if channel_message.extra_data else None
+                if media_id and channel_message.channel_type == "wechat_work":
+                    adapter = self.get_adapter("wechat_work")
+                    if adapter and hasattr(adapter, "client"):
+                        logger.info(f"尝试下载并转存企业微信媒体: media_id={media_id}")
+                        data = await adapter.client.download_media(media_id)
+                        if data:
+                            # 转存到我们的MinIO
+                            # 尝试获取文件名
+                            filename = media_info.get("name") or channel_message.extra_data.get("file_name") or f"wechat_{media_id}"
+                            
+                            # 获取 MIME 类型
+                            mime_type = media_info.get("mime_type")
+                            
+                            upload_result = await self.file_service.upload_binary_data(
+                                data=data,
+                                filename=filename,
+                                conversation_id=conversation.id,
+                                user_id=conversation.owner_id, # 使用会话所有者作为文件归属
+                                mime_type=mime_type
+                            )
+                            
+                            # 更新 media_info 使用我们的存储信息
+                            media_info["url"] = upload_result["file_url"]
+                            media_info["name"] = upload_result["file_name"]
+                            media_info["size_bytes"] = upload_result["file_size"]
+                            media_info["mime_type"] = upload_result["mime_type"]
+                            logger.info(f"企业微信媒体转存成功: {media_info['url']}")
+                        else:
+                            logger.warning(f"下载企业微信媒体失败: media_id={media_id}")
+
                 message_info = self.chat_service.create_media_message_with_details(
                     conversation_id=conversation.id,
                     sender_id=None,
@@ -112,6 +148,19 @@ class ChannelService:
                 self.db.refresh(message)
             
             logger.info(f"成功处理渠道消息: {channel_message.channel_message_id}")
+            
+            # 7. 广播新消息到 WebSocket
+            if self.broadcasting_service:
+                try:
+                    # 使用 message_info (Schema) 转换为字典进行广播
+                    await self.broadcasting_service.broadcast_message(
+                        conversation_id=conversation.id,
+                        message_data=message_info.model_dump()
+                    )
+                    logger.info(f"成功广播渠道消息: {channel_message.channel_message_id}")
+                except Exception as e:
+                    logger.error(f"广播渠道消息失败: {e}", exc_info=True)
+            
             return message
             
         except Exception as e:
@@ -153,29 +202,72 @@ class ChannelService:
             return False
     
     async def _get_or_create_conversation(self, channel_message: ChannelMessage) -> Conversation:
-        """获取或创建会话"""
+        """
+        获取或创建会话
+        
+        根据 channel_type 和 peer_id 判断是否为同一个会话。
+        如果 peer_id 和 type 相同，就认为是同一个会话。
+        """
         from sqlalchemy import cast, String
         from app.common.deps.uuid_utils import conversation_id
         from app.identity_access.models.user import User
 
         peer_id = channel_message.channel_user_id
+        channel_type = channel_message.channel_type
+        
+        logger.info(f"查找或创建渠道会话: channel_type={channel_type}, peer_id={peer_id}")
 
         # 1) 查找已有渠道会话
-        existing = self.db.query(Conversation).filter(
-            Conversation.tag == "channel",
-            cast(Conversation.extra_metadata["channel"]["type"], String) == channel_message.channel_type,
-            cast(Conversation.extra_metadata["channel"]["peer_id"], String) == peer_id,
-        ).first()
-
+        # 根据 channel_type 和 peer_id 判断是否为同一个会话
+        # 先尝试SQL查询（性能好），如果失败则使用Python方式查询（更可靠）
+        existing = None
+        
+        # 方法1：使用SQL查询（需要确保extra_metadata结构正确）
+        try:
+            existing = self.db.query(Conversation).filter(
+                Conversation.tag == "channel",
+                Conversation.extra_metadata.isnot(None),
+                cast(Conversation.extra_metadata["channel"]["type"], String) == channel_type,
+                cast(Conversation.extra_metadata["channel"]["peer_id"], String) == peer_id,
+            ).first()
+        except Exception as e:
+            logger.warning(f"SQL查询渠道会话失败，将使用Python方式查询: {e}")
+        
+        # 方法2：如果SQL查询失败或返回None，使用Python方式查询（备用方案）
+        if not existing:
+            try:
+                all_channel_convs = self.db.query(Conversation).filter(
+                    Conversation.tag == "channel",
+                    Conversation.extra_metadata.isnot(None)
+                ).all()
+                
+                for conv in all_channel_convs:
+                    if conv.extra_metadata and isinstance(conv.extra_metadata, dict):
+                        channel_meta = conv.extra_metadata.get("channel", {})
+                        if (isinstance(channel_meta, dict) and 
+                            channel_meta.get("type") == channel_type and 
+                            str(channel_meta.get("peer_id")) == str(peer_id)):
+                            existing = conv
+                            logger.info(f"通过Python方式找到已存在的渠道会话: conversation_id={conv.id}, channel_type={channel_type}, peer_id={peer_id}")
+                            break
+            except Exception as e:
+                logger.error(f"Python方式查询渠道会话也失败: {e}", exc_info=True)
+        
         if existing:
+            logger.info(f"找到已存在的渠道会话: conversation_id={existing.id}, channel_type={channel_type}, peer_id={peer_id}")
             return existing
+        
+        logger.info(f"未找到匹配的渠道会话，将创建新会话: channel_type={channel_type}, peer_id={peer_id}")
 
-        # 2) 选择一个可用 owner（仅用于满足外键，权限由 tag=channel 的规则控制）
+        # 2) 没有找到匹配的会话，创建新会话
+        # 选择一个可用 owner（仅用于满足外键，权限由 tag=channel 的规则控制）
         owner = self.db.query(User).order_by(User.created_at.asc()).first()
         if not owner:
             raise BusinessException("系统内没有可用用户，无法创建渠道会话", code=ErrorCode.SYSTEM_ERROR)
 
-        title = f"{channel_message.channel_type}:{peer_id}"
+        title = f"{channel_type}:{peer_id}"
+        
+        logger.info(f"创建新的渠道会话: title={title}, channel_type={channel_type}, peer_id={peer_id}")
 
         conversation = Conversation(
             id=conversation_id(),
@@ -185,7 +277,7 @@ class ChannelService:
             tag="channel",
             extra_metadata={
                 "channel": {
-                    "type": channel_message.channel_type,
+                    "type": channel_type,
                     "peer_id": peer_id,
                     "peer_name": channel_message.extra_data.get("peer_name") if channel_message.extra_data else None,
                 },
@@ -201,5 +293,7 @@ class ChannelService:
         self.db.add(conversation)
         self.db.commit()
         self.db.refresh(conversation)
+        
+        logger.info(f"成功创建新的渠道会话: conversation_id={conversation.id}, title={title}")
         return conversation
 
