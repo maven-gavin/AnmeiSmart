@@ -79,9 +79,9 @@ async def wechat_work_webhook(
 ):
     """
     接收企业微信 Webhook 消息（POST请求）
-    
-    企业微信会向此端点推送消息
     """
+    # 打印最原始的请求信息，用于确认请求是否到达
+    logger.info(f"--- [Webhook Entry] 收到企业微信 POST 请求: signature={msg_signature}, timestamp={timestamp} ---")
     try:
         # 获取适配器
         adapter = channel_service.get_adapter("wechat_work")
@@ -171,6 +171,7 @@ async def wechat_work_kf_webhook(
     channel_service: ChannelService = Depends(get_channel_service),
 ):
     """接收微信客服回调消息（POST）"""
+    logger.info(f"--- [Webhook Entry] 收到微信客服 POST 请求: signature={msg_signature}, timestamp={timestamp} ---")
     adapter = channel_service.get_adapter("wechat_work_kf")
     if not adapter or not isinstance(adapter, WeChatWorkKfAdapter):
         raise HTTPException(status_code=500, detail="渠道适配器未配置")
