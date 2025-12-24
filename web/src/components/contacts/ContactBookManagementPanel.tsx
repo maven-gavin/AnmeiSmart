@@ -9,6 +9,7 @@ import { AddFriendModal } from './AddFriendModal';
 import { EditFriendModal } from './EditFriendModal';
 import { FriendRequestList } from './FriendRequestList';
 import { TagManagementPanel } from './TagManagement/TagManagementPanel';
+import { useRadixDialogBodyCleanup } from '@/hooks/useRadixDialogBodyCleanup';
 import type { 
   Friendship, 
   ContactTag, 
@@ -119,28 +120,8 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
       setIsDeleteDialogOpen(true);
     }
   }, [deleteLoading, isDeleteDialogOpen]);
-  
-  // 修复：确保对话框关闭时清理 body 的 pointer-events 样式
-  // Radix UI 有时在状态不同步时不会正确清理样式
-  useEffect(() => {
-    if (!isDeleteDialogOpen) {
-      // 使用 requestAnimationFrame 确保在下一帧清理，此时 Radix UI 应该已经完成清理
-      const frameId = requestAnimationFrame(() => {
-        // 再次检查，确保在下一帧清理
-        requestAnimationFrame(() => {
-          if (document.body.style.pointerEvents === 'none') {
-            document.body.style.removeProperty('pointer-events');
-          }
-          // 同时清理可能的 overflow 样式
-          if (document.body.style.overflow === 'hidden') {
-            document.body.style.removeProperty('overflow');
-          }
-        });
-      });
-      
-      return () => cancelAnimationFrame(frameId);
-    }
-  }, [isDeleteDialogOpen]);
+
+  useRadixDialogBodyCleanup(isDeleteDialogOpen);
   
   const loadInitialData = async () => {
     if (!user?.id) return;

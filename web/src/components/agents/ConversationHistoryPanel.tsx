@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useRef, useState } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Plus, MessageSquare, Calendar, Edit2, Check, X, MoreVertical, Trash2 } from 'lucide-react';
@@ -7,6 +7,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { renameAgentConversation } from '@/service/agentChatService';
 import { toast } from 'react-hot-toast';
+import { useRadixDialogBodyCleanup } from '@/hooks/useRadixDialogBodyCleanup';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,6 +66,9 @@ export function ConversationHistoryPanel({
   const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // 兜底：防止 Radix 在极少数情况下未清理 body 锁定样式，导致页面不可点击
+  useRadixDialogBodyCleanup(deleteDialogOpen);
+
   // 开始编辑标题
   const startEditTitle = (conversation: AgentConversation, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -119,11 +123,12 @@ export function ConversationHistoryPanel({
 
   // 确认删除
   const handleConfirmDelete = async () => {
-    if (!conversationToDelete || !onDeleteConversation || isDeleting) return;
+    const conversationId = conversationToDelete;
+    if (!conversationId || !onDeleteConversation || isDeleting) return;
     
     setIsDeleting(true);
     try {
-      await onDeleteConversation(conversationToDelete);
+      await onDeleteConversation(conversationId);
       // 删除成功后关闭对话框
       setDeleteDialogOpen(false);
       setConversationToDelete(null);
@@ -287,7 +292,7 @@ export function ConversationHistoryPanel({
               暂无对话记录
             </p>
             <p className="text-xs text-gray-500">
-              点击"Start New chat"开始新对话
+              点击“Start New chat”开始新对话
             </p>
           </div>
         )}
@@ -297,15 +302,12 @@ export function ConversationHistoryPanel({
       <AlertDialog
         open={deleteDialogOpen}
         onOpenChange={(open) => {
-          // 如果正在删除，不允许关闭对话框
-          if (isDeleting && !open) {
-            // 保持对话框打开状态，不更新 deleteDialogOpen
-            return;
-          }
-          // 正常关闭流程
           setDeleteDialogOpen(open);
           if (!open) {
-            setConversationToDelete(null);
+            // 删除中时保留待删除会话ID，避免竞态导致删除函数拿到 null
+            if (!isDeleting) {
+              setConversationToDelete(null);
+            }
           }
         }}
       >
@@ -317,23 +319,11 @@ export function ConversationHistoryPanel({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={() => {
-                if (isDeleting) return;
-                setDeleteDialogOpen(false);
-                setConversationToDelete(null);
-              }}
-              disabled={isDeleting}
-            >
+            <AlertDialogCancel disabled={isDeleting}>
               取消
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={async (e) => {
-                // 阻止 AlertDialogAction 的默认关闭行为
-                e.preventDefault();
-                e.stopPropagation();
-                await handleConfirmDelete();
-              }}
+              onClick={handleConfirmDelete}
               className="bg-red-600 hover:bg-red-700"
               disabled={isDeleting}
             >
