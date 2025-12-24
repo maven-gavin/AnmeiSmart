@@ -132,20 +132,20 @@ export function AIMessage({
             {message.isStreaming && !message.content && (
               <div className="flex items-center gap-2">
                 <div className="flex gap-1">
-                  <span 
+                  <div 
                     className="h-2 w-2 animate-bounce rounded-full bg-gray-400" 
                     style={{ animationDelay: '0ms' }}
                   />
-                  <span 
+                  <div 
                     className="h-2 w-2 animate-bounce rounded-full bg-gray-400" 
                     style={{ animationDelay: '150ms' }}
                   />
-                  <span 
+                  <div 
                     className="h-2 w-2 animate-bounce rounded-full bg-gray-400" 
                     style={{ animationDelay: '300ms' }}
                   />
                 </div>
-                <span className="text-sm text-gray-500">AI 正在思考...</span>
+                <div className="text-sm text-gray-500">AI 正在思考...</div>
               </div>
             )}
             
