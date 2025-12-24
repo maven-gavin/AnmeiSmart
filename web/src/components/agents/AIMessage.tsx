@@ -32,6 +32,14 @@ export function AIMessage({
 
   // 判断是否启用 TTS
   const enableTTS = config?.text_to_speech?.enabled ?? false;
+
+  const shouldShowSuggestedQuestions =
+    Boolean(message.shouldLoadSuggestedQuestions) &&
+    isLastMessage &&
+    !message.isStreaming &&
+    !message.isError &&
+    Boolean(message.content) &&
+    Boolean(onSelectQuestion);
   
   // 处理历史消息：如果 thinkSections 未定义但 content 包含标签，解析并分离内容
   const { normalContent, thinkSections } = useMemo(() => {
@@ -180,11 +188,11 @@ export function AIMessage({
         </div>
 
         {/* 建议问题 - 只在最后一个消息时显示 */}
-        {isLastMessage && !message.isStreaming && !message.isError && message.content && onSelectQuestion && (
+        {shouldShowSuggestedQuestions && (
           <SuggestedQuestions
             messageId={message.id}
             agentConfigId={agentConfigId}
-            onSelectQuestion={onSelectQuestion}
+            onSelectQuestion={onSelectQuestion!}
           />
         )}
         

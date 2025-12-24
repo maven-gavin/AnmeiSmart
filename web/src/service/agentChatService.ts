@@ -82,7 +82,9 @@ export const getAgentMessages = async (
     agentThoughts: msg.agent_thoughts,
     files: msg.files,
     isError: msg.is_error,
-    feedback: msg.feedback
+    feedback: msg.feedback,
+    // 历史消息不触发“加载建议问题...”
+    shouldLoadSuggestedQuestions: false,
   }));
 };
 

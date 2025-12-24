@@ -61,6 +61,11 @@ export interface AgentMessage {
   // 新增：反馈和建议
   feedback?: MessageFeedback;     // 消息反馈
   suggestedQuestions?: string[];  // 建议问题（仅 AI 消息）
+
+  // 仅对“刚生成的 AI 回复”开启：用于控制是否触发 SuggestedQuestions 的加载
+  // - 历史消息：不应触发（避免加载历史最后一条时出现“加载建议问题...”）
+  // - 新回复：仅对本次提问刚产生的那条 AI 消息触发
+  shouldLoadSuggestedQuestions?: boolean;
 }
 
 // 会话

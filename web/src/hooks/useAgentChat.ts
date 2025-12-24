@@ -119,7 +119,12 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
     };
     
     // 一次性添加用户消息和占位消息，避免重复添加
-    setMessages((prev) => [...prev, userMessage, placeholderMessage]);
+    // 同时：清理旧消息的建议问题触发标记，确保“只有刚产生的消息气泡”会触发加载
+    setMessages((prev) => [
+      ...prev.map((m) => (m.shouldLoadSuggestedQuestions ? { ...m, shouldLoadSuggestedQuestions: false } : m)),
+      userMessage,
+      placeholderMessage,
+    ]);
     setIsResponding(true);
 
     // AI 响应消息
@@ -131,6 +136,8 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
       timestamp: new Date().toISOString(),
       agentThoughts: [],
       thinkSections: [],  // 用于 StreamMarkdown 组件的思考内容数组
+      // 仅本次提问新产生的 AI 回复，才触发建议问题加载
+      shouldLoadSuggestedQuestions: true,
     };
 
     // 打字机效果：用于处理大块文本的分块显示
