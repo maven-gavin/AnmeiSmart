@@ -17,14 +17,16 @@ interface FAQSectionProps {
 
 // 完整的FAQ数据
 const allFAQs: FAQ[] = [
-  { id: 'faq1', question: '双眼皮手术恢复时间?', answer: '一般1-2周基本恢复，完全恢复需1-3个月。', tags: ['双眼皮', '恢复', '手术'] },
-  { id: 'faq2', question: '医美项目价格咨询', answer: '我们提供多种套餐，价格从XX起，可根据您的需求定制。', tags: ['价格', '套餐', '咨询'] },
-  { id: 'faq3', question: '术后护理注意事项', answer: '术后需避免剧烈运动，保持伤口清洁，按医嘱服药。', tags: ['术后', '护理', '注意事项'] },
-  { id: 'faq4', question: '玻尿酸能维持多久?', answer: '根据注射部位和产品不同，一般可维持6-18个月。', tags: ['玻尿酸', '持续时间', '效果'] },
-  { id: 'faq5', question: '肉毒素注射有副作用吗?', answer: '常见副作用包括注射部位疼痛、轻微肿胀，通常数天内消退。', tags: ['肉毒素', '副作用', '注射'] },
-  { id: 'faq6', question: '医美手术前需要准备什么?', answer: '术前需进行相关检查，避免服用影响凝血的药物，遵医嘱调整饮食。', tags: ['术前', '准备', '检查'] },
-  { id: 'faq7', question: '哪些人不适合做医美手术?', answer: '孕妇、有严重疾病、自身免疫性疾病患者等不适合。具体需医生评估。', tags: ['禁忌', '不适合', '评估'] },
-  { id: 'faq8', question: '光子嫩肤后多久可以化妆?', answer: '一般建议术后24小时内不化妆，48小时后可轻微化妆。', tags: ['光子嫩肤', '化妆', '术后'] },
+  { id: 'faq1', question: '订单交期延误了怎么办？', answer: '系统会自动生成交期核查工单，分派给PMC部门，2小时内给出交期反馈。同时我会在今天16:00前给您回复最新进展。', tags: ['交期', '延误', '催货', '工单'] },
+  { id: 'faq2', question: '能给我报个含税价吗？', answer: '我需要先确认您的数量、交期和付款条款，然后为您生成正式报价单。系统会自动创建报价申请工单，24小时内给您正式报价。', tags: ['报价', '含税', '价格', '折扣'] },
+  { id: 'faq3', question: '你们的产品能替代XX品牌吗？', answer: '我需要了解您的应用场景、工况条件和数量等信息。系统会生成技术澄清工单，由FAE团队评估替代可行性，并提供ROHS/材质证明等资料。', tags: ['替代', '技术选型', '认证', '材质'] },
+  { id: 'faq4', question: '这批货有质量问题，要你们赔偿', answer: '非常抱歉给您带来困扰。系统已自动创建高优先级质量异常工单，QE团队会在4小时内初步响应。我会立即回访收集批次信息，按流程评估处理方案。', tags: ['质量', '不良', '索赔', '异常'] },
+  { id: 'faq5', question: '能便宜10%吗？给个底价', answer: '我需要先了解您的具体需求（数量、交期、付款方式），然后为您申请正式报价。系统会创建报价申请工单，由报价部门在24小时内给出合规报价单。', tags: ['折扣', '价格', '报价', '底价'] },
+  { id: 'faq6', question: '需要ROHS认证和材质证明', answer: '没问题。系统会生成技术澄清工单，FAE团队会为您提供完整的认证资料。请提供应用场景和工况信息，以便我们给出最准确的替代方案。', tags: ['认证', 'ROHS', '材质证明', '技术'] },
+  { id: 'faq7', question: '能保证明天一定到货吗？', answer: '我会立即核查当前出货节点和物流安排，给您确认最准确的到货时间。如果时间紧张，我们也可以提供替代方案（如加急或分批发货）。', tags: ['交期', '承诺', '到货', '物流'] },
+  { id: 'faq8', question: '把你们的工艺参数和图纸发给我', answer: '我可以先提供产品手册、技术白皮书和认证报告等公开资料。如需详细的工艺参数和图纸，需要您签署NDA后，系统会创建资料申请工单，由法务和研发部门审核后提供。', tags: ['图纸', '工艺参数', '保密', '资料'] },
+  { id: 'faq9', question: '你们有类似客户案例吗？', answer: '我可以提供公开的产品应用案例和技术白皮书。如需详细的客户案例和项目资料，需要签署保密协议后，系统会走资料申请流程，由相关部门审核后提供。', tags: ['客户案例', '案例', '资料', '保密'] },
+  { id: 'faq10', question: '质量问题的赔偿金额怎么算？', answer: '我们会先收集完整的批次信息、不良品照片和检测报告等证据，QE团队会在4小时内初步评估。具体的赔偿方案需要按公司流程评估，我会及时跟进并向您反馈处理进展。', tags: ['索赔', '赔偿', '质量', '流程'] },
 ];
 
 export default function FAQSection({
@@ -40,7 +42,7 @@ export default function FAQSection({
 
   // 内部化的FAQ选择处理
   const handleSelectFAQ = (faq: FAQ) => {
-    onSelectFAQ(faq.question);
+    onSelectFAQ(faq.answer); // 传入答案而不是问题
     setIsVisible(false); // 选择后自动关闭
   };
 
@@ -59,7 +61,7 @@ export default function FAQSection({
     return messages.map(msg => msg.content || '').join('|');
   }, [messages]);
 
-  // 基于聊天记录推荐FAQ - 移除useCallback，改为普通函数
+  // 基于聊天记录推荐FAQ 
   const recommendFAQsBasedOnChat = useCallback((msgs: Array<{content: string}>) => {
     if (msgs.length === 0) {
       return allFAQs.slice(0, 3);
@@ -216,7 +218,7 @@ export default function FAQSection({
           </div>
         </div>
         
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 max-h-96 overflow-y-auto pr-1">
           {recommendedFAQs.length > 0 ? (
             recommendedFAQs.map(faq => (
               <button
