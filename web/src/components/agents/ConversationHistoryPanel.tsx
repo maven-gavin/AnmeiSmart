@@ -239,7 +239,7 @@ export function ConversationHistoryPanel({
                               <MoreVertical className="h-3 w-3" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenuContent align="end" className="bg-white" onClick={(e) => e.stopPropagation()}>
                             <DropdownMenuItem
                               onClick={(e) => {
                                 e.stopPropagation();
