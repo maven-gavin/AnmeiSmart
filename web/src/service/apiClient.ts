@@ -327,6 +327,29 @@ function handleStream(response: Response, handlers: StreamHandlers & { onData: I
   let bufferObj: SSEEventData = {}
   const isFirstMessage = { current: true }
 
+  // 查找一个完整 SSE event 的分隔符位置（支持 \n\n 和 \r\n\r\n）
+  function findEventSeparatorIndex(input: string): { index: number; sepLen: number } | null {
+    const idxCRLF = input.indexOf('\r\n\r\n')
+    const idxLF = input.indexOf('\n\n')
+    if (idxCRLF === -1 && idxLF === -1) return null
+    if (idxCRLF !== -1 && (idxLF === -1 || idxCRLF < idxLF)) return { index: idxCRLF, sepLen: 4 }
+    return { index: idxLF, sepLen: 2 }
+  }
+
+  function extractEventData(eventBlock: string): string {
+    // SSE 允许 data: 和 data: <space> 两种形式；同一个事件可能有多行 data:
+    const lines = eventBlock.split(/\r?\n/)
+    const dataParts: string[] = []
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue
+      let part = line.slice(5) // after 'data:'
+      if (part.startsWith(' ')) part = part.slice(1)
+      dataParts.push(part)
+    }
+    // 这里用 '' 拼接更稳妥：若服务端把 JSON 拆成多行 data:，不会引入额外换行导致 JSON.parse 失败
+    return dataParts.join('')
+  }
+
   function read(): void {
     let hasError = false
     if (!reader) return
@@ -338,22 +361,19 @@ function handleStream(response: Response, handlers: StreamHandlers & { onData: I
       }
 
       buffer += decoder.decode(result.value, { stream: true })
-      const lines = buffer.split('\n')
-
       try {
-        for (const message of lines) {
-          if (!message.startsWith('data: ')) continue
+        // 按 SSE 事件分隔符解析，避免按行拆分导致丢片段（尤其是多行 data: 或 data: 不带空格的情况）
+        while (true) {
+          const sep = findEventSeparatorIndex(buffer)
+          if (!sep) break
 
-          try {
-            bufferObj = JSON.parse(message.substring(6)) as SSEEventData
-          } catch {
-            // 处理消息截断情况
-            handlers.onData('', isFirstMessage.current, {
-              conversationId: bufferObj?.conversation_id,
-              messageId: bufferObj?.message_id || '',
-            })
-            continue
-          }
+          const eventBlock = buffer.slice(0, sep.index)
+          buffer = buffer.slice(sep.index + sep.sepLen)
+
+          const dataStr = extractEventData(eventBlock)
+          if (!dataStr) continue
+
+          bufferObj = JSON.parse(dataStr) as SSEEventData
 
           // 处理错误状态
           if (bufferObj.status === 400 || !bufferObj.event) {
@@ -378,8 +398,6 @@ function handleStream(response: Response, handlers: StreamHandlers & { onData: I
             console.warn('[SSE] 未处理的事件类型:', bufferObj.event, bufferObj)
           }
         }
-
-        buffer = lines[lines.length - 1] || ''
       } catch (e) {
         handlers.onData('', false, {
           conversationId: undefined,

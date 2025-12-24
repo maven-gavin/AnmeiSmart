@@ -44,17 +44,15 @@ class StreamBuffer:
                     self.in_reasoning_tag = False
                 else:
                     # 未找到结束标签，检查末尾是否可能被截断
-                    # 如果末尾是 "</redacted_reasoning" 的一部分，保留在缓冲区
-                    if len(self.buffer) >= len(self.CLOSE_TAG):
-                        # 检查末尾是否可能是结束标签的开头
-                        check_len = min(len(self.CLOSE_TAG) - 1, len(self.buffer))
-                        if self.buffer[-check_len:] == self.CLOSE_TAG[:check_len]:
-                            # 可能是被截断的结束标签，保留末尾
-                            safe_len = len(self.buffer) - check_len
-                            if safe_len > 0:
-                                think_output.append(self.buffer[:safe_len])
-                            self.buffer = self.buffer[safe_len:]
-                            break
+                    # 如果末尾是 "</think>" 的一部分，保留在缓冲区（不要求 buffer 长度 >= CLOSE_TAG）
+                    check_len = min(len(self.CLOSE_TAG) - 1, len(self.buffer))
+                    if check_len > 0 and self.buffer[-check_len:] == self.CLOSE_TAG[:check_len]:
+                        # 可能是被截断的结束标签，保留末尾
+                        safe_len = len(self.buffer) - check_len
+                        if safe_len > 0:
+                            think_output.append(self.buffer[:safe_len])
+                        self.buffer = self.buffer[safe_len:]
+                        break
                     
                     # 没有截断风险，输出所有思考内容
                     think_output.append(self.buffer)

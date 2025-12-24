@@ -58,6 +58,30 @@ class AgentChatService:
         """
         dify_client: Optional[DifyAgentClient] = None
         stream_buffer = StreamBuffer()
+        dify_sse_buffer = ""
+
+        def _find_event_separator_index(input_str: str) -> Optional[tuple[int, int]]:
+            """找到一个完整 SSE event 分隔符的位置，返回 (index, sep_len)。"""
+            idx_crlf = input_str.find("\r\n\r\n")
+            idx_lf = input_str.find("\n\n")
+            if idx_crlf == -1 and idx_lf == -1:
+                return None
+            if idx_crlf != -1 and (idx_lf == -1 or idx_crlf < idx_lf):
+                return (idx_crlf, 4)
+            return (idx_lf, 2)
+
+        def _extract_event_data(event_block: str) -> str:
+            """兼容 data: 与 data: <space>，并支持同一个事件多行 data:。"""
+            data_parts: list[str] = []
+            for line in event_block.splitlines():
+                if not line.startswith("data:"):
+                    continue
+                part = line[5:]
+                if part.startswith(" "):
+                    part = part[1:]
+                data_parts.append(part)
+            # Dify 返回的 data 通常是一行 JSON；若被拆成多行，拼接可避免插入换行导致 json.loads 失败
+            return "".join(data_parts)
         
         try:
             logger.info("=" * 80)
@@ -124,17 +148,24 @@ class AgentChatService:
                 chunk_count += 1
                 chunk_str = chunk.decode('utf-8') if isinstance(chunk, bytes) else chunk
                 
-                # 处理可能包含多个 SSE 事件的情况
-                events = chunk_str.strip().split('\n\n')
-                
-                for event_str in events:
-                    if not event_str.startswith('data: '):
+                # 使用缓冲区按 SSE 事件分隔符解析，避免 chunk 边界/多行 data: 导致丢片段
+                dify_sse_buffer += chunk_str
+
+                while True:
+                    sep = _find_event_separator_index(dify_sse_buffer)
+                    if not sep:
+                        break
+                    sep_idx, sep_len = sep
+                    event_block = dify_sse_buffer[:sep_idx]
+                    dify_sse_buffer = dify_sse_buffer[sep_idx + sep_len:]
+
+                    data_str = _extract_event_data(event_block)
+                    if not data_str:
                         continue
-                        
+
                     try:
-                        data_str = event_str[6:]
                         data = json.loads(data_str)
-                        event_type = data.get('event', 'unknown')
+                        event_type = data.get("event", "unknown")
                         
                         # 更新元数据
                         if data.get('conversation_id'):
@@ -202,16 +233,18 @@ class AgentChatService:
                                 thought_event_str = f"data: {json.dumps(thought_data, ensure_ascii=False)}\n\n"
                                 yield thought_event_str.encode('utf-8')
                             
-                            # 发送原始结束事件
-                            yield (event_str + "\n\n").encode('utf-8')
+                            # 发送原始结束事件（重新规范化为 data: JSON）
+                            yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n".encode('utf-8')
                             
                         else:
                             # 其他事件直接转发
-                            yield (event_str + "\n\n").encode('utf-8')
+                            yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n".encode('utf-8')
                             
                     except json.JSONDecodeError:
-                        # 解析失败，直接转发原内容
-                        yield (event_str + "\n\n").encode('utf-8')
+                        # 解析失败：继续等待后续 chunk 补全（不要把半截 JSON 往下游转发）
+                        # 将本次 block 放回缓冲区头部并退出循环
+                        dify_sse_buffer = event_block + ("\n\n" if sep_len == 2 else "\r\n\r\n") + dify_sse_buffer
+                        break
                 
                 if chunk_count % 10 == 0:
                     logger.debug(f"📦 已处理 {chunk_count} 个 chunks...")

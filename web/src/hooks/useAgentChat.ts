@@ -157,7 +157,16 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
           produce((draft) => {
             const idx = draft.findIndex(m => m.id === placeholderAnswerId || m.id === aiMessage.id);
             if (idx !== -1) {
-              draft[idx] = { ...aiMessage, isStreaming: true };
+              const prev = draft[idx];
+              draft[idx] = {
+                ...prev,
+                ...aiMessage,
+                // 关键：避免流式文本更新覆盖掉 onThought 里累积的思考内容
+                agentThoughts: prev.agentThoughts ?? aiMessage.agentThoughts,
+                thinkSections: prev.thinkSections ?? aiMessage.thinkSections,
+                files: aiMessage.files ?? prev.files,
+                isStreaming: true,
+              };
             }
           })
         );
@@ -224,7 +233,15 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
                 produce((draft) => {
                   const idx = draft.findIndex(m => m.id === placeholderAnswerId || m.id === aiMessage.id);
                   if (idx !== -1) {
-                    draft[idx] = { ...aiMessage, isStreaming: true };
+                    const prev = draft[idx];
+                    draft[idx] = {
+                      ...prev,
+                      ...aiMessage,
+                      agentThoughts: prev.agentThoughts ?? aiMessage.agentThoughts,
+                      thinkSections: prev.thinkSections ?? aiMessage.thinkSections,
+                      files: aiMessage.files ?? prev.files,
+                      isStreaming: true,
+                    };
                   }
                 })
               );
@@ -239,10 +256,18 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
               
               // 更新消息列表
               setMessages(
-                produce(getMessages(), (draft) => {
+                produce((draft) => {
                   const idx = draft.findIndex(m => m.id === placeholderAnswerId);
                   if (idx !== -1) {
-                    draft[idx] = { ...aiMessage, isStreaming: true };
+                    const prev = draft[idx];
+                    draft[idx] = {
+                      ...prev,
+                      ...aiMessage,
+                      agentThoughts: prev.agentThoughts ?? aiMessage.agentThoughts,
+                      thinkSections: prev.thinkSections ?? aiMessage.thinkSections,
+                      files: aiMessage.files ?? prev.files,
+                      isStreaming: true,
+                    };
                   }
                 })
               );
@@ -254,7 +279,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
             
             // 更新消息列表，使用 produce 确保不可变更新
             setMessages(
-              produce(getMessages(), (draft) => {
+              produce((draft) => {
                 const idx = draft.findIndex(m => m.id === placeholderAnswerId || m.id === aiMessage.id);
                 if (idx === -1) return;
                 
@@ -326,10 +351,18 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
               if (metadata.answer && typeof metadata.answer === 'string') {
                 aiMessage.content = metadata.answer;
                 setMessages(
-                  produce(getMessages(), (draft) => {
+                  produce((draft) => {
                     const idx = draft.findIndex(m => m.id === placeholderAnswerId);
                     if (idx !== -1) {
-                      draft[idx] = { ...aiMessage, isStreaming: true };
+                      const prev = draft[idx];
+                      draft[idx] = {
+                        ...prev,
+                        ...aiMessage,
+                        agentThoughts: prev.agentThoughts ?? aiMessage.agentThoughts,
+                        thinkSections: prev.thinkSections ?? aiMessage.thinkSections,
+                        files: aiMessage.files ?? prev.files,
+                        isStreaming: true,
+                      };
                     }
                   })
                 );
@@ -358,10 +391,18 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
               // 如果有内容，更新消息列表
               if (aiMessage.content) {
                 setMessages(
-                  produce(getMessages(), (draft) => {
+                  produce((draft) => {
                     const idx = draft.findIndex(m => m.id === placeholderAnswerId);
                     if (idx !== -1) {
-                      draft[idx] = { ...aiMessage, isStreaming: true };
+                      const prev = draft[idx];
+                      draft[idx] = {
+                        ...prev,
+                        ...aiMessage,
+                        agentThoughts: prev.agentThoughts ?? aiMessage.agentThoughts,
+                        thinkSections: prev.thinkSections ?? aiMessage.thinkSections,
+                        files: aiMessage.files ?? prev.files,
+                        isStreaming: true,
+                      };
                     }
                   })
                 );
@@ -389,7 +430,16 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
               produce((draft) => {
                 const idx = draft.findIndex(m => m.id === placeholderAnswerId || m.id === aiMessage.id);
                 if (idx !== -1) {
-                  draft[idx] = { ...aiMessage, isStreaming: false, isError: hasError };
+                  const prev = draft[idx];
+                  draft[idx] = {
+                    ...prev,
+                    ...aiMessage,
+                    agentThoughts: prev.agentThoughts ?? aiMessage.agentThoughts,
+                    thinkSections: prev.thinkSections ?? aiMessage.thinkSections,
+                    files: aiMessage.files ?? prev.files,
+                    isStreaming: false,
+                    isError: hasError,
+                  };
                 }
               })
             );
