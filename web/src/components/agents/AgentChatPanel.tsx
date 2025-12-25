@@ -2,7 +2,7 @@
 
 import { memo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Receipt } from 'lucide-react';
+import { Receipt, BrainCircuit } from 'lucide-react';
 import type { AgentConfig } from '@/service/agentConfigService';
 import { useAgentChat } from '@/hooks/useAgentChat';
 import { MessageList } from './MessageList';
@@ -11,11 +11,14 @@ import { EmptyState } from './EmptyState';
 import { AgentSidebar } from './AgentSidebar';
 import { ConversationHistoryPanel } from './ConversationHistoryPanel';
 import { ApplicationParameters } from '@/types/agent-chat';
+import { DigitalHuman } from '@/types/digital-human';
+import { AvatarCircle } from '@/components/ui/AvatarCircle';
 
 interface AgentChatPanelProps {
   agents: AgentConfig[];
   isLoadingAgents?: boolean;
   selectedAgent?: AgentConfig | null;
+  digitalHuman?: DigitalHuman | null;
   onSelectAgent?: (agent: AgentConfig) => void;
   hideSidebar?: boolean;
   className?: string;
@@ -25,6 +28,7 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
   agents,
   isLoadingAgents = false,
   selectedAgent: externalSelectedAgent = null,
+  digitalHuman = null,
   onSelectAgent: externalOnSelectAgent,
   hideSidebar = false,
   className = '',
@@ -123,8 +127,8 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
 
       {/* 中间：对话历史列表 */}
       {selectedAgent && (
-        <ConversationHistoryPanel
-          agentName={selectedAgent.appName}
+          <ConversationHistoryPanel
+          agentName={digitalHuman ? digitalHuman.name : selectedAgent.appName}
           agentConfigId={selectedAgent.id}
           conversations={conversationsForPanel}
           selectedConversationId={chatState.currentConversationId}
@@ -141,21 +145,39 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
         {selectedAgent ? (
           <>
             {/* 顶部标题栏 */}
-            <div className="flex h-14 items-center justify-between border-b border-gray-200 bg-white px-6">
-              <div className="flex items-center space-x-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-orange-100 to-orange-200">
-                  <Receipt className="h-5 w-5 text-orange-600" />
+            <div className="flex h-16 items-center justify-between border-b border-gray-100 bg-white px-6">
+              <div className="flex items-center space-x-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-100 overflow-hidden shadow-sm">
+                  {digitalHuman ? (
+                    <AvatarCircle 
+                      name={digitalHuman.name}
+                      avatar={digitalHuman.avatar}
+                      sizeClassName="w-full h-full"
+                    />
+                  ) : (
+                    <Receipt className="h-5 w-5 text-orange-500" />
+                  )}
                 </div>
-                <div className="flex items-center space-x-2">
-                  <h1 className="text-lg font-semibold text-gray-900">
-                    {selectedAgent.appName}
-                  </h1>
-                  <Badge 
-                    variant="secondary" 
-                    className="bg-gray-100 text-gray-600"
-                  >
-                    {selectedAgent.environment}
-                  </Badge>
+                <div className="flex flex-col">
+                  <div className="flex items-center space-x-2">
+                    <h1 className="text-lg font-bold text-gray-900 leading-none">
+                      {digitalHuman ? digitalHuman.name : selectedAgent.appName}
+                    </h1>
+                    {digitalHuman && (
+                      <Badge 
+                        variant="outline" 
+                        className="text-[10px] py-0 h-4 bg-orange-50 text-orange-600 border-orange-100"
+                      >
+                        数字人
+                      </Badge>
+                    )}
+                  </div>
+                  {digitalHuman && (
+                    <span className="text-xs text-gray-400 mt-1 flex items-center">
+                      <BrainCircuit className="h-3 w-3 mr-1" />
+                      当前能力: {selectedAgent.appName}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -191,7 +213,7 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
                   disabled={chatState.isResponding}
                   isResponding={chatState.isResponding}
                   onStop={chatState.stopResponding}
-                  placeholder={`向 ${selectedAgent.appName} 提问...`}
+                  placeholder={`向 ${digitalHuman ? digitalHuman.name : selectedAgent.appName} 提问...`}
                   config={appConfig}
                 />
               </div>

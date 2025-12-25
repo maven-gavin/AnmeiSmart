@@ -8,15 +8,15 @@ import { WebSocketStatus } from '@/components/WebSocketStatus';
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import dynamic from 'next/dynamic';
 
-const AgentToolbar = dynamic(() => import('@/components/layout/AgentToolbar').then(mod => mod.AgentToolbar), {
+const DigitalHumanToolbar = dynamic(() => import('@/components/layout/DigitalHumanToolbar').then(mod => mod.DigitalHumanToolbar), {
   ssr: false,
-  loading: () => <div className="h-10 flex-1 mx-6 bg-gray-50 rounded-lg animate-pulse" />
+  loading: () => <div className="h-12 flex-1 mx-6 bg-gray-50 rounded-xl animate-pulse" />
 });
 
-const AgentDrawer = dynamic(() => import('@/components/layout/AgentDrawer').then(mod => mod.AgentDrawer), {
+const DigitalHumanDrawer = dynamic(() => import('@/components/layout/DigitalHumanDrawer').then(mod => mod.DigitalHumanDrawer), {
   ssr: false
 });
-import type { AgentConfig } from '@/service/agentConfigService';
+import { DigitalHuman } from '@/types/digital-human';
 
 export default function RoleHeader() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -26,9 +26,9 @@ export default function RoleHeader() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const websocketState = useWebSocket();
   
-  // 智能体相关状态
-  const [expandedAgent, setExpandedAgent] = useState<AgentConfig | null>(null);
-  const [allAgents, setAllAgents] = useState<AgentConfig[]>([]);
+  // 数字人相关状态
+  const [expandedDigitalHuman, setExpandedDigitalHuman] = useState<DigitalHuman | null>(null);
+  const [allDigitalHumans, setAllDigitalHumans] = useState<DigitalHuman[]>([]);
   
   // 在组件挂载时确保当前用户信息是最新的
   useEffect(() => {
@@ -45,14 +45,14 @@ export default function RoleHeader() {
     }
   }, []);
 
-  // 处理智能体选择
-  const handleAgentSelect = (agent: AgentConfig) => {
-    if (expandedAgent?.id === agent.id) {
-      // 如果点击已展开的智能体，则关闭
-      setExpandedAgent(null);
+  // 处理数字人选择
+  const handleDigitalHumanSelect = (item: DigitalHuman) => {
+    if (expandedDigitalHuman?.id === item.id) {
+      // 如果点击已展开的，则关闭
+      setExpandedDigitalHuman(null);
     } else {
-      // 否则展开新的智能体
-      setExpandedAgent(agent);
+      // 否则展开新的
+      setExpandedDigitalHuman(item);
     }
   };
   
@@ -160,12 +160,12 @@ export default function RoleHeader() {
           )}
         </div>
         
-        {/* 智能体探索工具栏 - 位于左侧组和右侧用户头像之间 */}
+        {/* 数字人探索工具栏 - 位于左侧组和右侧用户头像之间 */}
         {isClient && (
-          <AgentToolbar 
-            selectedAgentId={expandedAgent?.id}
-            onAgentSelect={handleAgentSelect}
-            onAgentsLoaded={setAllAgents}
+          <DigitalHumanToolbar 
+            selectedId={expandedDigitalHuman?.id}
+            onSelect={handleDigitalHumanSelect}
+            onLoaded={setAllDigitalHumans}
           />
         )}
         
@@ -253,13 +253,13 @@ export default function RoleHeader() {
         </div>
       </div>
       
-      {/* 智能体聊天抽屉 */}
-      <AgentDrawer
-        isOpen={!!expandedAgent}
-        agent={expandedAgent}
-        onClose={() => setExpandedAgent(null)}
-        onAgentChange={setExpandedAgent}
-        allAgents={allAgents}
+      {/* 数字人聊天抽屉 */}
+      <DigitalHumanDrawer
+        isOpen={!!expandedDigitalHuman}
+        digitalHuman={expandedDigitalHuman}
+        onClose={() => setExpandedDigitalHuman(null)}
+        onDigitalHumanChange={setExpandedDigitalHuman}
+        allDigitalHumans={allDigitalHumans}
       />
     </header>
   );

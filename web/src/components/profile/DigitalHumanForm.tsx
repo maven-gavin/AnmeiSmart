@@ -259,7 +259,6 @@ export default function DigitalHumanForm({
                     {...register('name')}
                     placeholder="为你的数字人起一个名字"
                     className={errors.name ? 'border-red-500 focus-visible:ring-red-500' : ''}
-                    disabled={isSystemCreated} // 系统创建的数字人名称不可修改
                   />
                   {errors.name && (
                     <p className="text-xs text-red-600 mt-1">{errors.name.message}</p>
@@ -270,7 +269,6 @@ export default function DigitalHumanForm({
                   <Select
                     value={watchedType}
                     onValueChange={(value) => setValue('type', value as any)}
-                    disabled={isSystemCreated} // 系统创建的数字人类型不可修改
                   >
                     <SelectTrigger className={errors.type ? 'border-red-500 focus-visible:ring-red-500' : ''}>
                       <SelectValue placeholder="选择数字人类型" />

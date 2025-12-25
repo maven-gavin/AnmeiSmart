@@ -237,10 +237,7 @@ export default function AgentConfigPanel({
                   <SelectContent>
                     {getAvailableAgents().map(agent => (
                       <SelectItem key={agent.id} value={agent.id}>
-                        <div>
-                          <div className="font-medium">{agent.appName}</div>
-                          <div className="text-sm text-gray-500">{agent.description}</div>
-                        </div>
+                        {agent.appName}
                       </SelectItem>
                     ))}
                   </SelectContent>

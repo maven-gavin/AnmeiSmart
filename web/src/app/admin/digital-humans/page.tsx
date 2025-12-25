@@ -350,8 +350,6 @@ export default function DigitalHumansPage() {
         user_id: editUserId || null,
         ...data,
       };
-      // 后端管理员更新接口当前不支持修改 type，避免误导
-      delete payload.type;
 
       await apiClient.put(
         `/admin/digital-humans/${editingDigitalHumanId}`,
@@ -753,6 +751,7 @@ export default function DigitalHumansPage() {
             {!editDetailLoading && editingDigitalHumanDetail && (
               <DigitalHumanForm
                 digitalHuman={editingDigitalHumanDetail}
+                allowSystemType={true}
                 onSubmit={handleAdminUpdate}
                 onCancel={handleCloseEditSheet}
               />
