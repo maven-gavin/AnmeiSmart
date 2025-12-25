@@ -7,6 +7,7 @@ import { UserRole, AuthUser, Role } from '@/types/auth';
 import { WebSocketStatus } from '@/components/WebSocketStatus';
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import dynamic from 'next/dynamic';
+import { useDigitalHuman } from '@/contexts/DigitalHumanContext';
 
 const DigitalHumanToolbar = dynamic(() => import('@/components/layout/DigitalHumanToolbar').then(mod => mod.DigitalHumanToolbar), {
   ssr: false,
@@ -25,9 +26,9 @@ export default function RoleHeader() {
   const [isClient, setIsClient] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const websocketState = useWebSocket();
+  const { currentDigitalHuman, openDigitalHuman, closeDigitalHuman } = useDigitalHuman();
   
   // 数字人相关状态
-  const [expandedDigitalHuman, setExpandedDigitalHuman] = useState<DigitalHuman | null>(null);
   const [allDigitalHumans, setAllDigitalHumans] = useState<DigitalHuman[]>([]);
   
   // 在组件挂载时确保当前用户信息是最新的
@@ -47,12 +48,10 @@ export default function RoleHeader() {
 
   // 处理数字人选择
   const handleDigitalHumanSelect = (item: DigitalHuman) => {
-    if (expandedDigitalHuman?.id === item.id) {
-      // 如果点击已展开的，则关闭
-      setExpandedDigitalHuman(null);
+    if (currentDigitalHuman?.id === item.id) {
+      closeDigitalHuman();
     } else {
-      // 否则展开新的
-      setExpandedDigitalHuman(item);
+      openDigitalHuman(item);
     }
   };
   
@@ -163,7 +162,7 @@ export default function RoleHeader() {
         {/* 数字人探索工具栏 - 位于左侧组和右侧用户头像之间 */}
         {isClient && (
           <DigitalHumanToolbar 
-            selectedId={expandedDigitalHuman?.id}
+            selectedId={currentDigitalHuman?.id}
             onSelect={handleDigitalHumanSelect}
             onLoaded={setAllDigitalHumans}
           />
@@ -254,13 +253,7 @@ export default function RoleHeader() {
       </div>
       
       {/* 数字人聊天抽屉 */}
-      <DigitalHumanDrawer
-        isOpen={!!expandedDigitalHuman}
-        digitalHuman={expandedDigitalHuman}
-        onClose={() => setExpandedDigitalHuman(null)}
-        onDigitalHumanChange={setExpandedDigitalHuman}
-        allDigitalHumans={allDigitalHumans}
-      />
+      <DigitalHumanDrawer />
     </header>
   );
 } 

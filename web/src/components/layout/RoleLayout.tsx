@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { authService } from '@/service/authService';
 import RoleHeader from './RoleHeader';
 import { UserRole } from '@/types/auth';
+import { DigitalHumanProvider } from '@/contexts/DigitalHumanContext';
 
 interface RoleLayoutProps {
   children: ReactNode;
@@ -53,11 +54,13 @@ export default function RoleLayout({ children, requiredRole }: RoleLayoutProps) 
   }
 
   return (
-    <div className="flex h-screen max-h-screen flex-col overflow-hidden bg-gray-50">
-      <RoleHeader />
-      <main className="flex flex-1 overflow-hidden">
-        {children}
-      </main>
-    </div>
+    <DigitalHumanProvider>
+      <div className="flex h-screen max-h-screen flex-col overflow-hidden bg-gray-50">
+        <RoleHeader />
+        <main className="flex flex-1 overflow-hidden">
+          {children}
+        </main>
+      </div>
+    </DigitalHumanProvider>
   );
 } 

@@ -114,7 +114,7 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
   }) : [];
 
   return (
-    <div className={`flex h-screen overflow-hidden bg-gray-50 ${className}`}>
+    <div className={`flex h-full min-h-0 overflow-hidden bg-gray-50 ${className}`}>
       {/* 左侧：智能体列表 */}
       {!hideSidebar && (
         <AgentSidebar
