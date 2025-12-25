@@ -82,6 +82,15 @@ export function useDigitalHumans() {
     }
   };
 
+  // 获取并写入本地状态（用于保存后回填）
+  const fetchAndSetDigitalHuman = async (id: string): Promise<DigitalHuman> => {
+    const dh = await getDigitalHuman(id);
+    if (dh) {
+      setDigitalHumans(prev => prev.map(item => (item.id === id ? dh : item)));
+    }
+    return dh;
+  };
+
   // 刷新数字人列表
   const refreshDigitalHumans = async () => {
     setIsLoading(true);
@@ -122,6 +131,7 @@ export function useDigitalHumans() {
     updateDigitalHuman,
     deleteDigitalHuman,
     getDigitalHuman,
+    fetchAndSetDigitalHuman,
     refreshDigitalHumans,
   };
 }

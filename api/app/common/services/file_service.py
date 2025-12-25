@@ -633,6 +633,51 @@ class FileService:
             logger.error(f"文件上传失败: {str(e)}")
             raise HTTPException(status_code=500, detail=f"文件上传失败: {str(e)}")
 
+    async def upload_avatar(
+        self,
+        file: UploadFile,
+        user_id: str,
+    ) -> Dict[str, Any]:
+        """
+        上传用户头像/配置类图片（不依赖会话）
+
+        - 仅允许 image 类型
+        - 存储路径: {user_id}/avatars/{unique_filename}
+        """
+        try:
+            # 验证文件
+            file_info = self.validate_file(file)
+            if file_info["category"] != "image":
+                raise HTTPException(status_code=400, detail="仅支持上传图片类型文件")
+
+            file_extension = os.path.splitext(file_info["filename"])[1]
+            unique_filename = f"{uuid.uuid4().hex}{file_extension}"
+            object_name = f"{user_id}/avatars/{unique_filename}"
+
+            file_content = await file.read()
+            file_url = self.minio_client.upload_file_data(
+                object_name=object_name,
+                file_data=file_content,
+                content_type=file_info["content_type"],
+            )
+
+            logger.info(f"头像上传成功: {file_info['filename']} -> {file_url}")
+
+            return {
+                "file_url": file_url,
+                "file_name": file_info["filename"],
+                "file_size": file_info["size"],
+                "file_type": file_info["category"],
+                "mime_type": file_info["content_type"],
+                "object_name": object_name,
+                "metadata": {},
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"头像上传失败: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"头像上传失败: {str(e)}")
+
     async def upload_binary_data(
         self,
         data: bytes,

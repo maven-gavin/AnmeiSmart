@@ -6,7 +6,7 @@ import json
 import logging
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -81,6 +81,73 @@ async def upload_file(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"文件上传失败: {str(e)}")
+
+
+@router.post("/upload-avatar", response_model=FileUploadResponse)
+async def upload_avatar(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    上传头像/配置类图片（不依赖会话）
+
+    Returns:
+        文件上传响应（file_info.file_url 可直接用于前端展示）
+    """
+    try:
+        file_service = FileService(db)
+        file_info_dict = await file_service.upload_avatar(file=file, user_id=current_user.id)
+
+        # 返回浏览器可访问的公共URL（避免直接暴露/依赖 Minio 内网地址）
+        object_name = file_info_dict.get("object_name")
+        if object_name:
+            file_info_dict["file_url"] = str(request.url_for("public_file", object_name=object_name))
+
+        return FileUploadResponse(
+            success=True,
+            message="头像上传成功",
+            file_info=file_info_dict,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"头像上传失败: {str(e)}")
+
+
+@router.get("/public/{object_name:path}", name="public_file")
+async def public_file(object_name: str, db: Session = Depends(get_db)):
+    """
+    公共文件访问端点（用于头像等无需鉴权展示的资源）
+
+    安全策略：
+    - 仅允许访问 avatars 目录下的对象，避免公开所有聊天文件
+    """
+    try:
+        if "/avatars/" not in object_name:
+            raise HTTPException(status_code=403, detail="禁止访问此资源")
+
+        file_service = FileService(db)
+        file_stream = file_service.get_file_stream(object_name)
+        if not file_stream:
+            raise HTTPException(status_code=404, detail="文件不存在")
+
+        meta = file_service.get_file_metadata(object_name) or {}
+        content_type = meta.get("content_type", "application/octet-stream")
+
+        return StreamingResponse(
+            file_stream,
+            media_type=content_type,
+            headers={
+                # 头像可缓存，URL 每次上传都会变化（uuid文件名）
+                "Cache-Control": "public, max-age=31536000, immutable",
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"文件访问失败: {str(e)}")
 
 
 @router.get("/download/{object_name:path}")

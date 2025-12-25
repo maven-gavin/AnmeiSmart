@@ -9,6 +9,7 @@ import type { CreateDigitalHumanRequest, UpdateDigitalHumanRequest } from '@/typ
 import { Button } from '@/components/ui/button';
 import { Plus, ArrowLeft, Bot, Users, Zap, Activity } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { normalizeAvatarUrl } from '@/utils/avatarUrl';
 
 export default function DigitalHumanManagementPanel() {
   const [activeView, setActiveView] = useState<'overview' | 'list' | 'create' | 'edit' | 'agents'>('overview');
@@ -20,7 +21,8 @@ export default function DigitalHumanManagementPanel() {
     stats,
     createDigitalHuman,
     updateDigitalHuman,
-    deleteDigitalHuman
+    deleteDigitalHuman,
+    fetchAndSetDigitalHuman
   } = useDigitalHumans();
 
   const handleCreateDigitalHuman = async (
@@ -44,8 +46,8 @@ export default function DigitalHumanManagementPanel() {
         selectedDigitalHuman,
         data as UpdateDigitalHumanRequest
       );
-      setActiveView('list');
-      setSelectedDigitalHuman(null);
+      // 保存成功后立刻拉取一次最新详情并回填，避免列表/编辑页看到旧头像
+      await fetchAndSetDigitalHuman(selectedDigitalHuman);
     } catch (error) {
       console.error('更新数字人失败:', error);
     }
@@ -273,15 +275,19 @@ export default function DigitalHumanManagementPanel() {
                     >
                       <CardContent className="flex h-40 flex-col justify-center">
                         <div className="mb-3 pt-6 flex items-center gap-3">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-orange-600 text-sm font-semibold text-white shadow-sm">
-                            {digitalHuman.avatar ? (
+                          <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-orange-400 to-orange-600 text-sm font-semibold text-white shadow-sm">
+                            <span className="absolute inset-0 flex items-center justify-center">
+                              {digitalHuman.name.charAt(0).toUpperCase()}
+                            </span>
+                            {normalizeAvatarUrl(digitalHuman.avatar) && (
                               <img
-                                src={digitalHuman.avatar}
+                                src={normalizeAvatarUrl(digitalHuman.avatar)}
                                 alt={digitalHuman.name}
                                 className="h-full w-full rounded-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
                               />
-                            ) : (
-                              digitalHuman.name.charAt(0).toUpperCase()
                             )}
                           </div>
                           <div className="min-w-0 flex-1">

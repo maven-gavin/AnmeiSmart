@@ -26,7 +26,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Upload, User, Building, Zap, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+import { apiClient } from '@/service/apiClient';
 import type { DigitalHuman, CreateDigitalHumanRequest, UpdateDigitalHumanRequest } from '@/types/digital-human';
+import { normalizeAvatarUrl } from '@/utils/avatarUrl';
 
 interface DigitalHumanFormProps {
   digitalHuman?: DigitalHuman;
@@ -117,13 +119,17 @@ export default function DigitalHumanForm({
 
   useEffect(() => {
     if (digitalHuman?.avatar) {
-      setAvatarPreview(digitalHuman.avatar);
+      setAvatarPreview(normalizeAvatarUrl(digitalHuman.avatar) ?? null);
     }
   }, [digitalHuman]);
 
   const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast.error('请选择图片文件');
+        return;
+      }
       if (file.size > 5 * 1024 * 1024) { // 5MB limit
         toast.error('头像文件大小不能超过 5MB');
         return;
@@ -158,8 +164,20 @@ export default function DigitalHumanForm({
 
       // 如果有头像文件，需要先上传
       if (avatarFile) {
-        // TODO: 实现头像上传逻辑
-        // submitData.avatar = uploadedAvatarUrl;
+        const formData = new FormData();
+        formData.append('file', avatarFile);
+
+        const { data: result } = await apiClient.upload<any>('/files/upload-avatar', formData);
+        if (!result?.success) {
+          throw new Error(result?.message || '头像上传失败');
+        }
+
+        const avatarUrl = result?.file_info?.file_url as string | undefined;
+        if (!avatarUrl) {
+          throw new Error('服务器返回的头像地址为空');
+        }
+
+        submitData.avatar = avatarUrl;
       }
 
       await onSubmit(submitData);
