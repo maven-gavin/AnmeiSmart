@@ -22,7 +22,7 @@ import {
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import toast from 'react-hot-toast';
-import { normalizeAvatarUrl } from '@/utils/avatarUrl';
+import { AvatarCircle } from '@/components/ui/AvatarCircle';
 
 interface DigitalHuman {
   id: string;
@@ -211,21 +211,11 @@ export default function AdminDigitalHumanDetail({
             <span>返回列表</span>
           </Button>
           <div className="flex items-center space-x-3">
-            <div className="relative w-12 h-12 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white font-semibold overflow-hidden">
-              <span className="absolute inset-0 flex items-center justify-center">
-                {digitalHuman.name.charAt(0).toUpperCase()}
-              </span>
-              {normalizeAvatarUrl(digitalHuman.avatar) && (
-                <img
-                  src={normalizeAvatarUrl(digitalHuman.avatar)}
-                  alt={digitalHuman.name}
-                  className="w-full h-full rounded-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                  }}
-                />
-              )}
-            </div>
+            <AvatarCircle
+              name={digitalHuman.name}
+              avatar={digitalHuman.avatar}
+              sizeClassName="w-12 h-12"
+            />
             <div>
               <div className="flex items-center space-x-2">
                 <h2 className="text-xl font-bold text-gray-900">{digitalHuman.name}</h2>

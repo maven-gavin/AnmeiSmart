@@ -42,7 +42,7 @@ import {
   RefreshCw,
   Info
 } from 'lucide-react';
-import { normalizeAvatarUrl } from '@/utils/avatarUrl';
+import { AvatarCircle } from '@/components/ui/AvatarCircle';
 
 type DigitalHumanItem = {
   id: string;
@@ -562,21 +562,12 @@ export default function DigitalHumansPage() {
                 <tr key={dh.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-3">
-                      <div className="relative w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white font-semibold flex-shrink-0 overflow-hidden">
-                        <span className="absolute inset-0 flex items-center justify-center">
-                          {dh.name.charAt(0).toUpperCase()}
-                        </span>
-                        {normalizeAvatarUrl(dh.avatar) && (
-                          <img
-                            src={normalizeAvatarUrl(dh.avatar)}
-                            alt={dh.name}
-                            className="w-full h-full rounded-full object-cover"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                            }}
-                          />
-                        )}
-                      </div>
+                      <AvatarCircle
+                        name={dh.name}
+                        avatar={dh.avatar}
+                        sizeClassName="w-10 h-10"
+                        className="flex-shrink-0"
+                      />
                       <div className="min-w-0">
                         <div className="flex items-center space-x-2">
                           <span className="text-sm font-medium text-gray-900">{dh.name}</span>

@@ -9,7 +9,7 @@ import type { CreateDigitalHumanRequest, UpdateDigitalHumanRequest } from '@/typ
 import { Button } from '@/components/ui/button';
 import { Plus, ArrowLeft, Bot, Users, Zap, Activity } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { normalizeAvatarUrl } from '@/utils/avatarUrl';
+import { AvatarCircle } from '@/components/ui/AvatarCircle';
 
 export default function DigitalHumanManagementPanel() {
   const [activeView, setActiveView] = useState<'overview' | 'list' | 'create' | 'edit' | 'agents'>('overview');
@@ -275,21 +275,12 @@ export default function DigitalHumanManagementPanel() {
                     >
                       <CardContent className="flex h-40 flex-col justify-center">
                         <div className="mb-3 pt-6 flex items-center gap-3">
-                          <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-orange-400 to-orange-600 text-sm font-semibold text-white shadow-sm">
-                            <span className="absolute inset-0 flex items-center justify-center">
-                              {digitalHuman.name.charAt(0).toUpperCase()}
-                            </span>
-                            {normalizeAvatarUrl(digitalHuman.avatar) && (
-                              <img
-                                src={normalizeAvatarUrl(digitalHuman.avatar)}
-                                alt={digitalHuman.name}
-                                className="h-full w-full rounded-full object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              />
-                            )}
-                          </div>
+                          <AvatarCircle
+                            name={digitalHuman.name}
+                            avatar={digitalHuman.avatar}
+                            sizeClassName="w-11 h-11"
+                            className="shadow-sm text-sm"
+                          />
                           <div className="min-w-0 flex-1">
                             <h4 className="truncate text-sm font-semibold text-gray-900">
                               {digitalHuman.name}

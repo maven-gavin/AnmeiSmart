@@ -6,7 +6,7 @@ import { EnhancedPagination } from '@/components/ui/pagination';
 import { Shield, Bot, User, Building, Zap } from 'lucide-react';
 
 import type { DigitalHuman } from '@/types/digital-human';
-import { normalizeAvatarUrl } from '@/utils/avatarUrl';
+import { AvatarCircle } from '@/components/ui/AvatarCircle';
 
 interface DigitalHumanListProps {
   digitalHumans: DigitalHuman[];
@@ -111,21 +111,12 @@ export default function DigitalHumanList({
               <tr key={dh.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4">
                   <div className="flex items-center space-x-3">
-                    <div className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-orange-400 to-orange-600 text-sm font-semibold text-white">
-                      <span className="absolute inset-0 flex items-center justify-center">
-                        {dh.name.charAt(0).toUpperCase()}
-                      </span>
-                      {normalizeAvatarUrl(dh.avatar) && (
-                        <img
-                          src={normalizeAvatarUrl(dh.avatar)}
-                          alt={dh.name}
-                          className="h-full w-full rounded-full object-cover"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                          }}
-                        />
-                      )}
-                    </div>
+                    <AvatarCircle
+                      name={dh.name}
+                      avatar={dh.avatar}
+                      sizeClassName="w-10 h-10"
+                      className="flex-shrink-0 text-sm"
+                    />
                     <div className="min-w-0">
                       <div className="flex items-center space-x-2">
                         <span className="text-sm font-medium text-gray-900">
