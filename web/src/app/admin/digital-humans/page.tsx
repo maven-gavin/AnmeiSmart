@@ -34,14 +34,14 @@ import type { DigitalHuman, CreateDigitalHumanRequest, UpdateDigitalHumanRequest
 import DigitalHumanForm from '@/components/profile/DigitalHumanForm';
 import AgentConfigPanel from '@/components/profile/AgentConfigPanel';
 import { UserCombobox } from '@/components/ui/user-combobox';
-import { 
-  User, 
-  Building, 
-  Zap,
-  Shield,
-  Bot
-} from 'lucide-react';
+import { Shield } from 'lucide-react';
 import { AvatarCircle } from '@/components/ui/AvatarCircle';
+import {
+  getDigitalHumanTypeStyle,
+  getDigitalHumanTypeLabel,
+  getDigitalHumanTypeIcon,
+  formatDigitalHumanDate,
+} from '@/utils/digitalHumanUtils';
 
 type DigitalHumanItem = {
   id: string;
@@ -441,56 +441,45 @@ export default function DigitalHumansPage() {
     );
   }
 
-  // 类型样式映射
-  const getTypeStyle = (type: string) => {
-    const styles: Record<string, string> = {
-      personal: 'bg-blue-100 text-blue-800',
-      business: 'bg-purple-100 text-purple-800',
-      specialized: 'bg-green-100 text-green-800',
-      system: 'bg-orange-100 text-orange-800'
-    };
-    return styles[type] || 'bg-gray-100 text-gray-800';
-  };
-
-  const getTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      personal: '个人助手',
-      business: '商务助手',
-      specialized: '专业助手',
-      system: '系统助手'
-    };
-    return labels[type] || type;
-  };
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'personal':
-        return <User className="h-4 w-4" />;
-      case 'business':
-        return <Building className="h-4 w-4" />;
-      case 'specialized':
-        return <Zap className="h-4 w-4" />;
-      case 'system':
-        return <Shield className="h-4 w-4" />;
-      default:
-        return <Bot className="h-4 w-4" />;
-    }
-  };
-
   // 分页逻辑
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentDigitalHumans = digitalHumans.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(digitalHumans.length / itemsPerPage);
 
-  // 格式化日期
-  const formatDate = (dateString?: string | null) => {
-    if (!dateString) return '从未';
-    try {
-      return new Date(dateString).toLocaleString('zh-CN');
-    } catch {
-      return '无效日期';
-    }
+  // Sheet 公共配置
+  const sheetContentClassName = 'w-[94vw] sm:w-[960px] lg:w-[1100px] max-h-screen overflow-y-auto';
+
+  // UserCombobox 公共配置
+  const userComboboxProps = {
+    users,
+    onSearch: fetchUsers,
+    isLoading: userLoading,
+    placeholder: '选择所属用户...',
+    searchPlaceholder: '搜索用户名或邮箱...',
+    emptyText: '未找到匹配的用户',
+    className: 'mt-2',
+  };
+
+  // Sheet 关闭处理函数
+  const handleCloseEditSheet = () => {
+    if (editLoading) return;
+    setIsEditDialogOpen(false);
+    setEditingDigitalHumanId(null);
+    setEditingDigitalHumanDetail(null);
+    setEditError(null);
+  };
+
+  const handleCloseConfigSheet = () => {
+    setIsConfigDialogOpen(false);
+    setConfiguringDigitalHumanId(null);
+  };
+
+  const handleCloseCreateSheet = () => {
+    if (createLoading) return;
+    setIsCreateDialogOpen(false);
+    setCreateError(null);
+    setCreateUserId('');
   };
 
   return (
@@ -637,9 +626,9 @@ export default function DigitalHumansPage() {
                     <div className="text-gray-500">{dh.user?.email || '-'}</div>
                   </td>
                   <td className="px-6 py-4 text-center">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${getTypeStyle(dh.type)}`}>
-                      {getTypeIcon(dh.type)}
-                      {getTypeLabel(dh.type)}
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${getDigitalHumanTypeStyle(dh.type)}`}>
+                      {getDigitalHumanTypeIcon(dh.type)}
+                      {getDigitalHumanTypeLabel(dh.type)}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center">
@@ -661,7 +650,7 @@ export default function DigitalHumansPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-center text-sm text-gray-500">
-                    {formatDate(dh.last_active_at)}
+                    {formatDigitalHumanDate(dh.last_active_at)}
                   </td>
                   <td className="px-6 py-4 text-right text-sm">
                     <div className="flex justify-end space-x-2">
@@ -747,21 +736,8 @@ export default function DigitalHumansPage() {
       </div>
 
       {/* 编辑抽屉 */}
-      <Sheet
-        open={isEditDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            if (editLoading) return;
-            setIsEditDialogOpen(false);
-            setEditingDigitalHumanId(null);
-            setEditingDigitalHumanDetail(null);
-            setEditError(null);
-            return;
-          }
-          setIsEditDialogOpen(true);
-        }}
-      >
-        <SheetContent side="right" className="w-[94vw] sm:w-[960px] lg:w-[1100px] max-h-screen overflow-y-auto">
+      <Sheet open={isEditDialogOpen} onOpenChange={(open) => open || handleCloseEditSheet()}>
+        <SheetContent side="right" className={sheetContentClassName}>
           <SheetHeader>
             <div className="flex items-center gap-2">
               <SheetTitle>编辑数字人</SheetTitle>
@@ -779,14 +755,8 @@ export default function DigitalHumansPage() {
               <UserCombobox
                 value={editUserId}
                 onValueChange={setEditUserId}
-                users={users}
-                onSearch={fetchUsers}
-                isLoading={userLoading}
                 disabled={editLoading}
-                placeholder="选择所属用户..."
-                searchPlaceholder="搜索用户名或邮箱..."
-                emptyText="未找到匹配的用户"
-                className="mt-2"
+                {...userComboboxProps}
               />
             </div>
 
@@ -800,13 +770,7 @@ export default function DigitalHumansPage() {
               <DigitalHumanForm
                 digitalHuman={editingDigitalHumanDetail}
                 onSubmit={handleAdminUpdate}
-                onCancel={() => {
-                  if (editLoading) return;
-                  setIsEditDialogOpen(false);
-                  setEditingDigitalHumanId(null);
-                  setEditingDigitalHumanDetail(null);
-                  setEditError(null);
-                }}
+                onCancel={handleCloseEditSheet}
               />
             )}
 
@@ -820,18 +784,8 @@ export default function DigitalHumansPage() {
       </Sheet>
 
       {/* 配置抽屉 */}
-      <Sheet
-        open={isConfigDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setIsConfigDialogOpen(false);
-            setConfiguringDigitalHumanId(null);
-            return;
-          }
-          setIsConfigDialogOpen(true);
-        }}
-      >
-        <SheetContent side="right" className="w-[94vw] sm:w-[960px] lg:w-[1100px] max-h-screen overflow-y-auto">
+      <Sheet open={isConfigDialogOpen} onOpenChange={(open) => open || handleCloseConfigSheet()}>
+        <SheetContent side="right" className={sheetContentClassName}>
           <SheetHeader>
             <div className="flex items-center gap-2">
               <SheetTitle>配置数字人</SheetTitle>
@@ -842,30 +796,15 @@ export default function DigitalHumansPage() {
             <AgentConfigPanel
               digitalHumanId={configuringDigitalHumanId}
               apiBasePath="/admin/digital-humans"
-              onBack={() => {
-                setIsConfigDialogOpen(false);
-                setConfiguringDigitalHumanId(null);
-              }}
+              onBack={handleCloseConfigSheet}
             />
           )}
         </SheetContent>
       </Sheet>
 
       {/* 创建抽屉 */}
-      <Sheet
-        open={isCreateDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            if (createLoading) return;
-            setIsCreateDialogOpen(false);
-            setCreateError(null);
-            setCreateUserId('');
-            return;
-          }
-          setIsCreateDialogOpen(true);
-        }}
-      >
-        <SheetContent side="right" className="w-[94vw] sm:w-[960px] lg:w-[1100px] max-h-screen overflow-y-auto">
+      <Sheet open={isCreateDialogOpen} onOpenChange={(open) => open || handleCloseCreateSheet()}>
+        <SheetContent side="right" className={sheetContentClassName}>
           <SheetHeader>
             <div className="flex items-center gap-2">
               <SheetTitle>创建数字人</SheetTitle>
@@ -883,26 +822,15 @@ export default function DigitalHumansPage() {
               <UserCombobox
                 value={createUserId}
                 onValueChange={setCreateUserId}
-                users={users}
-                onSearch={fetchUsers}
-                isLoading={userLoading}
                 disabled={createLoading}
-                placeholder="选择所属用户..."
-                searchPlaceholder="搜索用户名或邮箱..."
-                emptyText="未找到匹配的用户"
-                className="mt-2"
+                {...userComboboxProps}
               />
             </div>
 
             <DigitalHumanForm
               allowSystemType={true}
               onSubmit={handleAdminCreate}
-              onCancel={() => {
-                if (createLoading) return;
-                setIsCreateDialogOpen(false);
-                setCreateError(null);
-                setCreateUserId('');
-              }}
+              onCancel={handleCloseCreateSheet}
             />
           </div>
         </SheetContent>
