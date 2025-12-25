@@ -24,7 +24,7 @@ interface ConversationTakeoverProps {
 
 const STATUS_CONFIG: Record<TakeoverStatus, { label: string; icon: React.ReactNode; description: string }> = {
   full_takeover: {
-    label: '人工模式',
+    label: '人工发送',
     icon: <User className="h-4 w-4" />,
     description: '人工完全接管会话',
   },
@@ -34,7 +34,7 @@ const STATUS_CONFIG: Record<TakeoverStatus, { label: string; icon: React.ReactNo
     description: 'AI起草回复，人工审核',
   },
   no_takeover: {
-    label: 'AI接管',
+    label: '自动发送',
     icon: <Zap className="h-4 w-4" />,
     description: 'AI完全接管会话',
   },
