@@ -41,7 +41,7 @@ class DigitalHumanService:
         try:
             digital_humans = (
                 self.db.query(DigitalHuman)
-                .filter(DigitalHuman.user_id == user_id)
+                .filter(or_(DigitalHuman.user_id == user_id, DigitalHuman.user_id.is_(None)))
                 .order_by(DigitalHuman.created_at.desc())
                 .all()
             )
@@ -98,7 +98,7 @@ class DigitalHumanService:
             
             # 如果指定了用户ID，则只能获取该用户的数字人
             if user_id:
-                query = query.filter(DigitalHuman.user_id == user_id)
+                query = query.filter(or_(DigitalHuman.user_id == user_id, DigitalHuman.user_id.is_(None)))
             
             digital_human = query.first()
             
@@ -127,8 +127,6 @@ class DigitalHumanService:
                 greeting_message=data.greeting_message,
                 welcome_message=data.welcome_message,
                 user_id=user_id,
-                conversation_count=0,
-                message_count=0
             )
             
             self.db.add(digital_human)
@@ -146,9 +144,10 @@ class DigitalHumanService:
     def create_digital_human_admin(self, data: AdminCreateDigitalHumanRequest) -> DigitalHumanResponse:
         """管理员创建数字人（可指定所属用户，支持创建系统助手类型）"""
         try:
-            user = self.db.query(User).filter(User.id == data.user_id).first()
-            if not user:
-                raise ValueError("所属用户不存在")
+            if data.user_id:
+                user = self.db.query(User).filter(User.id == data.user_id).first()
+                if not user:
+                    raise ValueError("所属用户不存在")
 
             is_system_created = True if data.type == "system" else False
 
@@ -164,8 +163,6 @@ class DigitalHumanService:
                 greeting_message=data.greeting_message,
                 welcome_message=data.welcome_message,
                 user_id=data.user_id,
-                conversation_count=0,
-                message_count=0,
             )
 
             self.db.add(digital_human)
@@ -228,12 +225,15 @@ class DigitalHumanService:
             update_data = data.dict(exclude_unset=True)
 
             # 调整所属用户
-            if "user_id" in update_data and update_data["user_id"]:
+            if "user_id" in update_data:
                 new_user_id = update_data["user_id"]
-                user = self.db.query(User).filter(User.id == new_user_id).first()
-                if not user:
-                    raise ValueError("所属用户不存在")
-                digital_human.user_id = new_user_id
+                if new_user_id:
+                    user = self.db.query(User).filter(User.id == new_user_id).first()
+                    if not user:
+                        raise ValueError("所属用户不存在")
+                    digital_human.user_id = new_user_id
+                else:
+                    digital_human.user_id = None
 
             # 更新其他字段（不允许在此接口修改 type / is_system_created）
             for field in ("name", "avatar", "description", "status", "personality", "greeting_message", "welcome_message"):
@@ -697,8 +697,6 @@ class DigitalHumanService:
                 greeting_message=f'您好{username}！我是您的专属数字助手，很高兴为您服务！有什么可以帮助您的吗？',
                 welcome_message=f'欢迎{username}！我会为您提供专业的医美咨询服务，请随时告诉我您的需求。',
                 user_id=user_id,
-                conversation_count=0,
-                message_count=0
             )
             
             self.db.add(digital_human)

@@ -35,6 +35,8 @@ interface UserComboboxProps {
   searchPlaceholder?: string;
   emptyText?: string;
   className?: string;
+  allowClear?: boolean;
+  clearText?: string;
 }
 
 export function UserCombobox({
@@ -48,6 +50,8 @@ export function UserCombobox({
   searchPlaceholder = '搜索用户名或邮箱...',
   emptyText = '未找到用户',
   className,
+  allowClear = false,
+  clearText = '系统范围（不绑定用户）',
 }: UserComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [searchValue, setSearchValue] = React.useState('');
@@ -133,6 +137,19 @@ export function UserCombobox({
                   </div>
                 </CommandEmpty>
                 <CommandGroup>
+                  {allowClear && value && (
+                    <CommandItem
+                      value="__clear__"
+                      onSelect={() => {
+                        onValueChange('');
+                        setOpen(false);
+                      }}
+                      className="cursor-pointer text-gray-600"
+                    >
+                      <UserIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+                      <span>{clearText}</span>
+                    </CommandItem>
+                  )}
                   {users.map((user) => (
                     <CommandItem
                       key={user.id}

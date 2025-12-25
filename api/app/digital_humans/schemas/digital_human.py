@@ -25,7 +25,7 @@ class CreateDigitalHumanRequest(DigitalHumanBase):
 
 class AdminCreateDigitalHumanRequest(CreateDigitalHumanRequest):
     """管理员创建数字人请求（可指定所属用户）"""
-    user_id: str = Field(..., description="所属用户ID")
+    user_id: Optional[str] = Field(None, description="所属用户ID（可为空，表示系统范围）")
 
 
 class UpdateDigitalHumanRequest(BaseModel):
@@ -79,8 +79,6 @@ class DigitalHumanResponse(DigitalHumanBase):
     id: str
     isSystemCreated: bool = Field(alias="is_system_created")
     userId: Optional[str] = Field(None, alias="user_id")
-    conversationCount: int = Field(alias="conversation_count")
-    messageCount: int = Field(alias="message_count")
     lastActiveAt: Optional[datetime] = Field(None, alias="last_active_at")
     createdAt: datetime = Field(alias="created_at")
     updatedAt: datetime = Field(alias="updated_at")
@@ -108,8 +106,6 @@ class DigitalHumanResponse(DigitalHumanBase):
             greeting_message=digital_human.greeting_message,
             welcome_message=digital_human.welcome_message,
             userId=digital_human.user_id,
-            conversationCount=digital_human.conversation_count,
-            messageCount=digital_human.message_count,
             lastActiveAt=digital_human.last_active_at,
             createdAt=digital_human.created_at,
             updatedAt=digital_human.updated_at,

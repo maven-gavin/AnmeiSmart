@@ -96,7 +96,7 @@ export default function DigitalHumanList({
                 状态
               </th>
               <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
-                统计数据
+                智能体
               </th>
               <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
                 最后活跃
@@ -159,11 +159,7 @@ export default function DigitalHumanList({
                   </span>
                 </td>
                 <td className="px-6 py-4 text-center text-sm text-gray-600">
-                  <div className="space-y-1">
-                    <div>会话: {dh.conversation_count}</div>
-                    <div>消息: {dh.message_count}</div>
-                    <div>智能体: {dh.agent_count || 0}</div>
-                  </div>
+                  {dh.agent_count || 0}
                 </td>
                 <td className="px-6 py-4 text-center text-sm text-gray-500">
                   {formatDate(dh.last_active_at)}

@@ -56,8 +56,6 @@ type DigitalHumanItem = {
     username: string;
     email: string;
   };
-  conversation_count: number;
-  message_count: number;
   last_active_at?: string | null;
   agent_count?: number;
   created_at: string;
@@ -121,9 +119,6 @@ const normalizeDigitalHuman = (dh: unknown): DigitalHumanItem => {
   const status = asString(obj['status']);
   const isSystemCreated = asBoolean(obj['is_system_created']) ?? asBoolean(obj['isSystemCreated']);
 
-  const conversationCount =
-    asNumber(obj['conversation_count']) ?? asNumber(obj['conversationCount']) ?? 0;
-  const messageCount = asNumber(obj['message_count']) ?? asNumber(obj['messageCount']) ?? 0;
   const agentCount = asNumber(obj['agent_count']) ?? asNumber(obj['agentCount']) ?? 0;
 
   const lastActiveAt = asString(obj['last_active_at']) ?? asString(obj['lastActiveAt']);
@@ -147,8 +142,6 @@ const normalizeDigitalHuman = (dh: unknown): DigitalHumanItem => {
       username: asString(obj['username']) ?? '',
       email: asString(obj['email']) ?? ''
     }),
-    conversation_count: conversationCount,
-    message_count: messageCount,
     last_active_at: lastActiveAt,
     agent_count: agentCount,
     created_at: createdAt ?? '',
@@ -325,16 +318,13 @@ export default function DigitalHumansPage() {
   };
 
   const handleAdminCreate = async (data: CreateDigitalHumanRequest | UpdateDigitalHumanRequest) => {
-    if (!createUserId) {
-      throw new Error('请选择所属用户');
-    }
     setCreateLoading(true);
     setCreateError(null);
     try {
       await apiClient.post(
         `/admin/digital-humans/`,
         {
-          user_id: createUserId,
+          user_id: createUserId || null,
           ...data,
         },
         { silent: true },
@@ -353,14 +343,11 @@ export default function DigitalHumansPage() {
 
   const handleAdminUpdate = async (data: CreateDigitalHumanRequest | UpdateDigitalHumanRequest) => {
     if (!editingDigitalHumanId) return;
-    if (!editUserId) {
-      throw new Error('请选择所属用户');
-    }
     setEditLoading(true);
     setEditError(null);
     try {
       const payload: Record<string, unknown> = {
-        user_id: editUserId,
+        user_id: editUserId || null,
         ...data,
       };
       // 后端管理员更新接口当前不支持修改 type，避免误导
@@ -585,7 +572,7 @@ export default function DigitalHumansPage() {
                   状态
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
-                  统计数据
+                  智能体
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
                   最后活跃
@@ -643,11 +630,7 @@ export default function DigitalHumansPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center text-sm text-gray-600">
-                    <div className="space-y-1">
-                      <div>会话: {dh.conversation_count}</div>
-                      <div>消息: {dh.message_count}</div>
-                      <div>智能体: {dh.agent_count || 0}</div>
-                    </div>
+                    {dh.agent_count || 0}
                   </td>
                   <td className="px-6 py-4 text-center text-sm text-gray-500">
                     {formatDigitalHumanDate(dh.last_active_at)}
@@ -751,11 +734,12 @@ export default function DigitalHumansPage() {
           )}
           <div className="space-y-4">
             <div>
-              <Label htmlFor="editUser">所属用户 *</Label>
+                  <Label htmlFor="editUser">所属用户</Label>
               <UserCombobox
                 value={editUserId}
                 onValueChange={setEditUserId}
                 disabled={editLoading}
+                allowClear
                 {...userComboboxProps}
               />
             </div>
@@ -818,11 +802,12 @@ export default function DigitalHumansPage() {
           )}
           <div className="space-y-4">
             <div>
-              <Label htmlFor="createUser">所属用户 *</Label>
+                  <Label htmlFor="createUser">所属用户</Label>
               <UserCombobox
                 value={createUserId}
                 onValueChange={setCreateUserId}
                 disabled={createLoading}
+                allowClear
                 {...userComboboxProps}
               />
             </div>

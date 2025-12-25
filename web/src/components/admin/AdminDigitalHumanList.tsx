@@ -43,13 +43,11 @@ interface DigitalHuman {
   type: 'personal' | 'business' | 'specialized' | 'system';
   status: 'active' | 'inactive' | 'maintenance';
   is_system_created: boolean;
-  user: {
+  user?: {
     id: string;
     username: string;
     email: string;
-  };
-  conversation_count: number;
-  message_count: number;
+  } | null;
   last_active_at?: string;
   agent_count?: number;
   created_at: string;
@@ -237,8 +235,8 @@ export default function AdminDigitalHumanList({
               {/* 所属用户 */}
               <div className="col-span-2">
                 <div className="text-sm">
-                  <div className="font-medium text-gray-900">{digitalHuman.user.username}</div>
-                  <div className="text-gray-500 truncate">{digitalHuman.user.email}</div>
+                  <div className="font-medium text-gray-900">{digitalHuman.user?.username || '-'}</div>
+                  <div className="text-gray-500 truncate">{digitalHuman.user?.email || '-'}</div>
                 </div>
               </div>
 
@@ -259,15 +257,7 @@ export default function AdminDigitalHumanList({
 
               {/* 统计数据 */}
               <div className="col-span-2">
-                <div className="text-sm space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">会话:</span>
-                    <span className="font-medium">{digitalHuman.conversation_count}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">消息:</span>
-                    <span className="font-medium">{digitalHuman.message_count}</span>
-                  </div>
+                <div className="text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-500">智能体:</span>
                     <span className="font-medium">{digitalHuman.agent_count || 0}</span>

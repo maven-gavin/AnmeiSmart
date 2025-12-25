@@ -292,8 +292,6 @@ export default function DigitalHumanManagementPanel() {
                         </div>
 
                         <div className="flex justify-between text-xs text-gray-500">
-                          <span>会话 {digitalHuman.conversation_count}</span>
-                          <span>消息 {digitalHuman.message_count}</span>
                           <span>智能体 {digitalHuman.agent_count || 0}</span>
                         </div>
 

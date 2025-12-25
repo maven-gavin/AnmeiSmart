@@ -36,8 +36,6 @@ class DigitalHuman(BaseModel):
     user_id = Column(String(36), ForeignKey("users.id"), nullable=True, comment="所属用户ID（可为空）")
     
     # 统计信息
-    conversation_count = Column(Integer, default=0, comment="会话总数")
-    message_count = Column(Integer, default=0, comment="消息总数")
     last_active_at = Column(DateTime(timezone=True), nullable=True, comment="最后活跃时间")
     
     # 关联关系

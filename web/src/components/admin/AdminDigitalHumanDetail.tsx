@@ -45,8 +45,6 @@ interface DigitalHuman {
   };
   greetingMessage?: string;
   welcomeMessage?: string;
-  conversationCount: number;
-  messageCount: number;
   lastActiveAt?: string;
   agentConfigs?: Array<{
     id: string;
@@ -382,14 +380,6 @@ export default function AdminDigitalHumanDetail({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-500">会话总数</span>
-                <span className="font-semibold">{digitalHuman.conversationCount}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-500">消息总数</span>
-                <span className="font-semibold">{digitalHuman.messageCount}</span>
-              </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-500">智能体数量</span>
                 <span className="font-semibold">{digitalHuman.agentConfigs?.length || 0}</span>
