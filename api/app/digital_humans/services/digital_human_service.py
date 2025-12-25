@@ -517,6 +517,153 @@ class DigitalHumanService:
             self.db.rollback()
             logger.error(f"更新数字人智能体配置失败: {e}")
             raise
+
+    # -------------------------
+    # 管理员专用：数字人智能体配置（不做所属用户校验）
+    # -------------------------
+
+    def add_agent_to_digital_human_admin(
+        self, digital_human_id: str, data: AddAgentConfigRequest
+    ) -> DigitalHumanAgentConfigInfo:
+        """管理员为数字人添加智能体配置（不校验归属用户）"""
+        try:
+            digital_human = self.db.query(DigitalHuman).filter(DigitalHuman.id == digital_human_id).first()
+            if not digital_human:
+                raise ValueError("数字人不存在")
+
+            agent_config = self.db.query(AgentConfig).filter(AgentConfig.id == data.agent_config_id).first()
+            if not agent_config:
+                raise ValueError("智能体配置不存在")
+
+            existing = (
+                self.db.query(DigitalHumanAgentConfig)
+                .filter(
+                    and_(
+                        DigitalHumanAgentConfig.digital_human_id == digital_human_id,
+                        DigitalHumanAgentConfig.agent_config_id == data.agent_config_id,
+                    )
+                )
+                .first()
+            )
+            if existing:
+                raise ValueError("该智能体已经配置过了")
+
+            dh_agent_config = DigitalHumanAgentConfig(
+                digital_human_id=digital_human_id,
+                agent_config_id=data.agent_config_id,
+                priority=data.priority,
+                is_active=data.is_active,
+                scenarios=data.scenarios,
+                context_prompt=data.context_prompt,
+            )
+
+            self.db.add(dh_agent_config)
+            self.db.commit()
+            self.db.refresh(dh_agent_config)
+
+            return DigitalHumanAgentConfigInfo(
+                id=dh_agent_config.id,
+                priority=dh_agent_config.priority,
+                is_active=dh_agent_config.is_active,
+                scenarios=dh_agent_config.scenarios,
+                context_prompt=dh_agent_config.context_prompt,
+                agent_config=AgentConfigInfo(
+                    id=agent_config.id,
+                    app_name=agent_config.app_name,
+                    app_id=agent_config.app_id,
+                    environment=agent_config.environment,
+                    description=agent_config.description,
+                    enabled=agent_config.enabled,
+                    agent_type=agent_config.agent_type,
+                    capabilities=agent_config.capabilities,
+                ),
+            )
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"管理员添加智能体配置失败: {e}")
+            raise
+
+    def remove_agent_from_digital_human_admin(self, digital_human_id: str, config_id: str) -> bool:
+        """管理员从数字人移除智能体配置（不校验归属用户）"""
+        try:
+            config = (
+                self.db.query(DigitalHumanAgentConfig)
+                .filter(
+                    and_(
+                        DigitalHumanAgentConfig.id == config_id,
+                        DigitalHumanAgentConfig.digital_human_id == digital_human_id,
+                    )
+                )
+                .first()
+            )
+            if not config:
+                return False
+
+            self.db.delete(config)
+            self.db.commit()
+            return True
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"管理员移除智能体配置失败: {e}")
+            raise
+
+    def update_digital_human_agent_admin(
+        self,
+        digital_human_id: str,
+        config_id: str,
+        data: UpdateAgentConfigRequest,
+    ) -> Optional[DigitalHumanAgentConfigInfo]:
+        """管理员更新数字人的智能体配置（不校验归属用户）"""
+        try:
+            config = (
+                self.db.query(DigitalHumanAgentConfig)
+                .filter(
+                    and_(
+                        DigitalHumanAgentConfig.id == config_id,
+                        DigitalHumanAgentConfig.digital_human_id == digital_human_id,
+                    )
+                )
+                .first()
+            )
+            if not config:
+                return None
+
+            update_data = data.model_dump(exclude_unset=True)
+            if "priority" in update_data:
+                config.priority = update_data["priority"]
+            if "is_active" in update_data:
+                config.is_active = update_data["is_active"]
+            if "scenarios" in update_data:
+                config.scenarios = update_data["scenarios"]
+            if "context_prompt" in update_data:
+                config.context_prompt = update_data["context_prompt"]
+
+            self.db.commit()
+            self.db.refresh(config)
+
+            agent_config = config.agent_config
+
+            return DigitalHumanAgentConfigInfo(
+                id=config.id,
+                priority=config.priority,
+                is_active=config.is_active,
+                scenarios=config.scenarios,
+                context_prompt=config.context_prompt,
+                agent_config=AgentConfigInfo(
+                    id=agent_config.id,
+                    app_name=agent_config.app_name,
+                    app_id=agent_config.app_id,
+                    environment=agent_config.environment,
+                    description=agent_config.description,
+                    enabled=agent_config.enabled,
+                    agent_type=agent_config.agent_type,
+                    capabilities=agent_config.capabilities,
+                ),
+            )
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"管理员更新数字人智能体配置失败: {e}")
+            raise
     
     def create_system_digital_human(self, user_id: str, username: str) -> DigitalHumanResponse:
         """为新注册用户创建系统默认数字人"""

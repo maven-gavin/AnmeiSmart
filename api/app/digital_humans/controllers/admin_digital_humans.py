@@ -17,7 +17,10 @@ from app.digital_humans.schemas.digital_human import (
     AdminDigitalHumanResponse,
     AdminCreateDigitalHumanRequest,
     AdminUpdateDigitalHumanRequest,
+    AddAgentConfigRequest,
+    DigitalHumanAgentConfigInfo,
     UpdateDigitalHumanStatusRequest,
+    UpdateAgentConfigRequest,
 )
 from app.identity_access.deps import get_current_admin
 from app.identity_access.models.user import User
@@ -253,3 +256,102 @@ async def batch_update_digital_humans(
         raise
     except Exception as e:
         raise _handle_unexpected_error("批量操作数字人失败", e)
+
+
+@router.get(
+    "/{digital_human_id}/agents",
+    response_model=ApiResponse[List[DigitalHumanAgentConfigInfo]],
+)
+async def get_digital_human_agents_admin(
+    digital_human_id: str,
+    current_user: User = Depends(get_current_admin),
+    service: DigitalHumanService = Depends(get_digital_human_service),
+) -> ApiResponse[List[DigitalHumanAgentConfigInfo]]:
+    """获取数字人的智能体配置列表（管理员专用）"""
+    try:
+        agent_configs = service.get_digital_human_agents(digital_human_id)
+        return ApiResponse.success(agent_configs, message="获取智能体配置成功")
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise _handle_unexpected_error("管理员获取数字人智能体配置失败", e)
+
+
+@router.post(
+    "/{digital_human_id}/agents",
+    response_model=ApiResponse[DigitalHumanAgentConfigInfo],
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_agent_to_digital_human_admin(
+    digital_human_id: str,
+    data: AddAgentConfigRequest,
+    current_user: User = Depends(get_current_admin),
+    service: DigitalHumanService = Depends(get_digital_human_service),
+) -> ApiResponse[DigitalHumanAgentConfigInfo]:
+    """为数字人添加智能体配置（管理员专用）"""
+    try:
+        agent_config = service.add_agent_to_digital_human_admin(digital_human_id, data)
+        return ApiResponse.success(agent_config, message="添加智能体配置成功")
+    except ValueError as e:
+        raise BusinessException(str(e), code=ErrorCode.VALIDATION_ERROR, status_code=status.HTTP_400_BAD_REQUEST)
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise _handle_unexpected_error("管理员添加智能体配置失败", e)
+
+
+@router.delete(
+    "/{digital_human_id}/agents/{config_id}",
+    response_model=ApiResponse[None],
+)
+async def remove_agent_from_digital_human_admin(
+    digital_human_id: str,
+    config_id: str,
+    current_user: User = Depends(get_current_admin),
+    service: DigitalHumanService = Depends(get_digital_human_service),
+) -> ApiResponse[None]:
+    """从数字人移除智能体配置（管理员专用）"""
+    try:
+        success = service.remove_agent_from_digital_human_admin(digital_human_id, config_id)
+        if not success:
+            raise BusinessException(
+                "智能体配置不存在",
+                code=ErrorCode.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        return ApiResponse.success(message="移除智能体配置成功")
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise _handle_unexpected_error("管理员移除智能体配置失败", e)
+
+
+@router.put(
+    "/{digital_human_id}/agents/{config_id}",
+    response_model=ApiResponse[DigitalHumanAgentConfigInfo],
+)
+async def update_digital_human_agent_admin(
+    digital_human_id: str,
+    config_id: str,
+    data: UpdateAgentConfigRequest,
+    current_user: User = Depends(get_current_admin),
+    service: DigitalHumanService = Depends(get_digital_human_service),
+) -> ApiResponse[DigitalHumanAgentConfigInfo]:
+    """更新数字人的智能体配置（管理员专用）"""
+    try:
+        updated_config = service.update_digital_human_agent_admin(
+            digital_human_id=digital_human_id,
+            config_id=config_id,
+            data=data,
+        )
+        if not updated_config:
+            raise BusinessException(
+                "智能体配置不存在",
+                code=ErrorCode.NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        return ApiResponse.success(updated_config, message="更新智能体配置成功")
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise _handle_unexpected_error("管理员更新数字人智能体配置失败", e)

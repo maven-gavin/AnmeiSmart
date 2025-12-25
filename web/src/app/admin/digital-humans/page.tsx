@@ -32,15 +32,14 @@ import { userService } from '@/service/userService';
 import type { User as AppUser } from '@/types/auth';
 import type { DigitalHuman, CreateDigitalHumanRequest, UpdateDigitalHumanRequest } from '@/types/digital-human';
 import DigitalHumanForm from '@/components/profile/DigitalHumanForm';
+import AgentConfigPanel from '@/components/profile/AgentConfigPanel';
 import { UserCombobox } from '@/components/ui/user-combobox';
 import { 
   User, 
   Building, 
   Zap,
   Shield,
-  Bot,
-  RefreshCw,
-  Info
+  Bot
 } from 'lucide-react';
 import { AvatarCircle } from '@/components/ui/AvatarCircle';
 
@@ -67,7 +66,7 @@ type DigitalHumanItem = {
 
 const parseFastApiDetailMessage = (detail: unknown): string | null => {
   if (!Array.isArray(detail) || detail.length === 0) return null;
-  const first = detail[0] as any;
+  const first = detail[0] as { msg?: unknown } | undefined;
   const msg = typeof first?.msg === 'string' ? first.msg : null;
   return msg;
 };
@@ -79,9 +78,9 @@ const getReadableErrorMessage = async (err: unknown, fallback: string): Promise<
 
   if (err instanceof Response) {
     try {
-      const data = await err.json();
+      const data = (await err.json()) as { message?: unknown; detail?: unknown };
       if (typeof data?.message === 'string' && data.message) return data.message;
-      const detailMsg = parseFastApiDetailMessage((data as any)?.detail);
+      const detailMsg = parseFastApiDetailMessage(data?.detail);
       if (detailMsg) return detailMsg;
     } catch {
       // ignore
@@ -93,26 +92,67 @@ const getReadableErrorMessage = async (err: unknown, fallback: string): Promise<
   return fallback;
 };
 
-const normalizeDigitalHuman = (dh: any): DigitalHumanItem => {
+const asRecord = (value: unknown): Record<string, unknown> => {
+  if (typeof value === 'object' && value !== null) return value as Record<string, unknown>;
+  return {};
+};
+
+const asString = (value: unknown): string | null => {
+  return typeof value === 'string' ? value : null;
+};
+
+const asNumber = (value: unknown): number | null => {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+};
+
+const asBoolean = (value: unknown): boolean | null => {
+  return typeof value === 'boolean' ? value : null;
+};
+
+const normalizeDigitalHuman = (dh: unknown): DigitalHumanItem => {
+  const obj = asRecord(dh);
+  const userObj = asRecord(obj['user']);
+
+  const id = asString(obj['id']);
+  const name = asString(obj['name']);
+  const avatar = asString(obj['avatar']);
+  const description = asString(obj['description']);
+  const type = asString(obj['type']);
+  const status = asString(obj['status']);
+  const isSystemCreated = asBoolean(obj['is_system_created']) ?? asBoolean(obj['isSystemCreated']);
+
+  const conversationCount =
+    asNumber(obj['conversation_count']) ?? asNumber(obj['conversationCount']) ?? 0;
+  const messageCount = asNumber(obj['message_count']) ?? asNumber(obj['messageCount']) ?? 0;
+  const agentCount = asNumber(obj['agent_count']) ?? asNumber(obj['agentCount']) ?? 0;
+
+  const lastActiveAt = asString(obj['last_active_at']) ?? asString(obj['lastActiveAt']);
+  const createdAt = asString(obj['created_at']) ?? asString(obj['createdAt']);
+  const updatedAt = asString(obj['updated_at']) ?? asString(obj['updatedAt']);
+
   return {
-    id: dh?.id ? String(dh.id) : '',
-    name: dh?.name ?? '',
-    avatar: dh?.avatar ?? undefined,
-    description: dh?.description ?? null,
-    type: dh?.type ?? 'personal',
-    status: dh?.status ?? 'inactive',
-    is_system_created: dh?.is_system_created ?? dh?.isSystemCreated ?? false,
-    user: dh?.user ?? {
-      id: dh?.user_id ?? '',
-      username: dh?.username ?? '',
-      email: dh?.email ?? ''
-    },
-    conversation_count: dh?.conversation_count ?? dh?.conversationCount ?? 0,
-    message_count: dh?.message_count ?? dh?.messageCount ?? 0,
-    last_active_at: dh?.last_active_at ?? dh?.lastActiveAt ?? null,
-    agent_count: dh?.agent_count ?? dh?.agentCount ?? 0,
-    created_at: dh?.created_at ?? dh?.createdAt ?? '',
-    updated_at: dh?.updated_at ?? dh?.updatedAt ?? ''
+    id: id ?? '',
+    name: name ?? '',
+    avatar: avatar ?? undefined,
+    description,
+    type: (type as DigitalHumanItem['type']) ?? 'personal',
+    status: (status as DigitalHumanItem['status']) ?? 'inactive',
+    is_system_created: isSystemCreated ?? false,
+    user: (Object.keys(userObj).length > 0 ? {
+      id: asString(userObj['id']) ?? '',
+      username: asString(userObj['username']) ?? '',
+      email: asString(userObj['email']) ?? ''
+    } : {
+      id: asString(obj['user_id']) ?? '',
+      username: asString(obj['username']) ?? '',
+      email: asString(obj['email']) ?? ''
+    }),
+    conversation_count: conversationCount,
+    message_count: messageCount,
+    last_active_at: lastActiveAt,
+    agent_count: agentCount,
+    created_at: createdAt ?? '',
+    updated_at: updatedAt ?? ''
   };
 };
 
@@ -144,6 +184,10 @@ export default function DigitalHumansPage() {
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  // 配置状态（抽屉内配置智能体）
+  const [configuringDigitalHumanId, setConfiguringDigitalHumanId] = useState<string | null>(null);
+  const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
 
   // 创建状态（复用个人中心数字人设定表单）
   const [createUserId, setCreateUserId] = useState('');
@@ -177,7 +221,7 @@ export default function DigitalHumansPage() {
       // apiClient 内部会将后端 ApiResponse<T> 解包为 T（见其他 hooks 的用法）
       const query = params.toString();
       const url = query ? `/admin/digital-humans/?${query}` : '/admin/digital-humans/';
-      const response = await apiClient.get<any[]>(url);
+      const response = await apiClient.get<unknown[]>(url);
 
       const list = Array.isArray(response.data) ? response.data : [];
       const normalized = list.map(normalizeDigitalHuman);
@@ -212,6 +256,11 @@ export default function DigitalHumansPage() {
   useEffect(() => {
     fetchDigitalHumans();
   }, []);
+
+  const handleOpenConfig = (dh: DigitalHumanItem) => {
+    setConfiguringDigitalHumanId(dh.id);
+    setIsConfigDialogOpen(true);
+  };
 
   const fetchUsers = async (search?: string) => {
     setUserLoading(true);
@@ -584,8 +633,8 @@ export default function DigitalHumansPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-sm">
-                    <div className="text-gray-900">{dh.user.username}</div>
-                    <div className="text-gray-500">{dh.user.email}</div>
+                    <div className="text-gray-900">{dh.user?.username || '-'}</div>
+                    <div className="text-gray-500">{dh.user?.email || '-'}</div>
                   </td>
                   <td className="px-6 py-4 text-center">
                     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${getTypeStyle(dh.type)}`}>
@@ -624,6 +673,14 @@ export default function DigitalHumansPage() {
                       >
                         编辑
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenConfig(dh)}
+                        className="text-gray-600 hover:text-gray-800"
+                      >
+                        配置
+                      </Button>
                       {dh.status !== 'active' && (
                         <Button
                           variant="ghost"
@@ -642,16 +699,6 @@ export default function DigitalHumansPage() {
                           className="text-gray-600 hover:text-gray-800"
                         >
                           停用
-                        </Button>
-                      )}
-                      {dh.status !== 'maintenance' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleToggleStatus(dh, 'maintenance')}
-                          className="text-yellow-600 hover:text-yellow-800"
-                        >
-                          维护
                         </Button>
                       )}
                       <Button
@@ -769,6 +816,38 @@ export default function DigitalHumansPage() {
               </div>
             )}
           </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* 配置抽屉 */}
+      <Sheet
+        open={isConfigDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsConfigDialogOpen(false);
+            setConfiguringDigitalHumanId(null);
+            return;
+          }
+          setIsConfigDialogOpen(true);
+        }}
+      >
+        <SheetContent side="right" className="w-[94vw] sm:w-[960px] lg:w-[1100px] max-h-screen overflow-y-auto">
+          <SheetHeader>
+            <div className="flex items-center gap-2">
+              <SheetTitle>配置数字人</SheetTitle>
+              <InfoTooltip content="配置该数字人的智能体能力与优先级" />
+            </div>
+          </SheetHeader>
+          {configuringDigitalHumanId && (
+            <AgentConfigPanel
+              digitalHumanId={configuringDigitalHumanId}
+              apiBasePath="/admin/digital-humans"
+              onBack={() => {
+                setIsConfigDialogOpen(false);
+                setConfiguringDigitalHumanId(null);
+              }}
+            />
+          )}
         </SheetContent>
       </Sheet>
 

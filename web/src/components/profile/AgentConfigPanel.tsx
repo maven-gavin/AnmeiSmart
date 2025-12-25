@@ -39,12 +39,15 @@ import type { DigitalHumanAgentConfig, AddAgentConfigRequest, UpdateAgentConfigR
 interface AgentConfigPanelProps {
   digitalHumanId: string;
   onBack: () => void;
+  apiBasePath?: string;
 }
 
 export default function AgentConfigPanel({
   digitalHumanId,
-  onBack
+  onBack,
+  apiBasePath
 }: AgentConfigPanelProps) {
+  const basePath = apiBasePath ?? '/digital-humans';
   const [digitalHumanAgents, setDigitalHumanAgents] = useState<DigitalHumanAgentConfig[]>([]);
   const [availableAgents, setAvailableAgents] = useState<AvailableAgentConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -67,7 +70,7 @@ export default function AgentConfigPanel({
     try {
       // 加载数字人的智能体配置（直接使用后端 /digital-humans/{id}/agents 接口）
       const dhAgentsResponse = await apiClient.get<DigitalHumanAgentConfig[]>(
-        `/digital-humans/${digitalHumanId}/agents`
+        `${basePath}/${digitalHumanId}/agents`
       );
       setDigitalHumanAgents(dhAgentsResponse.data || []);
 
@@ -98,7 +101,7 @@ export default function AgentConfigPanel({
       };
 
       await apiClient.post<DigitalHumanAgentConfig>(
-        `/digital-humans/${digitalHumanId}/agents`,
+        `${basePath}/${digitalHumanId}/agents`,
         payload
       );
 
@@ -122,7 +125,7 @@ export default function AgentConfigPanel({
       };
 
       await apiClient.put<DigitalHumanAgentConfig>(
-        `/digital-humans/${digitalHumanId}/agents/${agentConfig.id}`,
+        `${basePath}/${digitalHumanId}/agents/${agentConfig.id}`,
         payload
       );
 
@@ -137,7 +140,7 @@ export default function AgentConfigPanel({
   const handleRemoveAgent = async (agentId: string) => {
     try {
       await apiClient.delete<void>(
-        `/digital-humans/${digitalHumanId}/agents/${agentId}`
+        `${basePath}/${digitalHumanId}/agents/${agentId}`
       );
 
       toast.success('智能体移除成功');

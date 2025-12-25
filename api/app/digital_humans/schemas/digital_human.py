@@ -78,7 +78,7 @@ class DigitalHumanResponse(DigitalHumanBase):
     """数字人响应模型"""
     id: str
     isSystemCreated: bool = Field(alias="is_system_created")
-    userId: str = Field(alias="user_id")
+    userId: Optional[str] = Field(None, alias="user_id")
     conversationCount: int = Field(alias="conversation_count")
     messageCount: int = Field(alias="message_count")
     lastActiveAt: Optional[datetime] = Field(None, alias="last_active_at")

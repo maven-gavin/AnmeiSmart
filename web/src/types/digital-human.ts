@@ -17,7 +17,7 @@ export interface DigitalHuman {
   };
   greeting_message?: string;
   welcome_message?: string;
-  user_id: string;
+  user_id: string | null;
   conversation_count: number;
   message_count: number;
   last_active_at?: string;

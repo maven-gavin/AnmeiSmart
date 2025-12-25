@@ -33,7 +33,7 @@ class DigitalHuman(BaseModel):
     welcome_message = Column(Text, nullable=True, comment="欢迎消息模板")
     
     # 关联用户（数字人属于哪个用户）
-    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, comment="所属用户ID")
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=True, comment="所属用户ID（可为空）")
     
     # 统计信息
     conversation_count = Column(Integer, default=0, comment="会话总数")
