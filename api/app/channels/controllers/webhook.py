@@ -103,7 +103,13 @@ async def wechat_work_webhook(
         # 加密回调：解密 Encrypt 字段
         if isinstance(adapter, WeChatWorkAdapter):
             encrypt = adapter.parse_xml_message(xml_content).get("Encrypt")
-            if encrypt and getattr(adapter, "crypto", None):
+            if encrypt:
+                # 如果消息是加密的但没有配置加解密工具，记录警告并返回success
+                if not getattr(adapter, "crypto", None):
+                    logger.warning("收到加密消息但未配置加解密工具（EncodingAESKey配置错误），无法处理消息")
+                    # 返回success避免企业微信重复推送
+                    return PlainTextResponse("success")
+                
                 # POST 回调验签：value 用 Encrypt
                 if not adapter.crypto.verify_signature(msg_signature, timestamp, nonce, encrypt):
                     raise HTTPException(status_code=403, detail="验证失败")

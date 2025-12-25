@@ -64,6 +64,12 @@ class WeChatWorkAdapter(ChannelAdapter):
         msg_id = raw_message.get("MsgId", "")
         create_time = raw_message.get("CreateTime", 0)
         
+        # 如果MsgType为空，可能是消息未正确解密或格式异常
+        if not msg_type:
+            logger.error(f"消息类型为空，可能是解密失败或消息格式异常。原始消息字段: {list(raw_message.keys())}")
+            logger.debug(f"原始消息内容: {raw_message}")
+            raise ValueError(f"消息类型为空，无法处理消息。请检查EncodingAESKey配置是否正确。消息字段: {list(raw_message.keys())}")
+        
         if msg_type == "text":
             content = raw_message.get("Content", "")
             return ChannelMessage(

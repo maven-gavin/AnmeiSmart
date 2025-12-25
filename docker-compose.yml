@@ -15,6 +15,7 @@ services:
       - PORT=8000
     networks:
       - app-network
+      - docker_default
 
   web:
     build:
@@ -42,4 +43,9 @@ services:
 networks:
   app-network:
     driver: bridge
+  # 让 anmei-smart-api 能通过 docker 内网直连 Dify 的 nginx（容器名 docker-nginx-1）
+  # 前提：你已启动 Dify 的 docker compose（会创建名为 docker_default 的 network）
+  docker_default:
+    external: true
+    name: docker_default
 

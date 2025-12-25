@@ -54,20 +54,74 @@ class DifyClient:
         
         Returns:
             HTTP 响应对象
+        
+        Raises:
+            httpx.ConnectError: 连接失败
+            httpx.TimeoutException: 请求超时
+            httpx.HTTPStatusError: HTTP 状态错误
         """
         url = f"{self.base_url}{endpoint}"
-        timeout = 300.0 if stream else 30.0
         
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.request(
-                method,
-                url,
-                headers=self.headers,
-                json=json_data,
-                params=params
+        # 分离连接超时和读取超时
+        # 注意：httpx.Timeout 必须提供 default，或显式传入 connect/read/write/pool 四项
+        # 连接超时：5秒（快速失败，避免长时间等待）
+        # 读取超时：根据是否流式设置不同值
+        connect_timeout = 5.0
+        read_timeout = 300.0 if stream else 30.0
+        timeout = httpx.Timeout(
+            timeout=read_timeout,
+            connect=connect_timeout,
+            read=read_timeout,
+            write=read_timeout,
+            pool=connect_timeout,
+        )
+        
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                logger.debug(f"发送请求到 Dify: {method} {url}, params={params}")
+                response = await client.request(
+                    method,
+                    url,
+                    headers=self.headers,
+                    json=json_data,
+                    params=params
+                )
+                response.raise_for_status()
+                return response
+        except httpx.ConnectError as e:
+            # 连接错误：记录详细信息
+            logger.error(
+                f"Dify 服务连接失败: base_url={self.base_url}, endpoint={endpoint}, "
+                f"url={url}, error={str(e)}"
             )
-            response.raise_for_status()
-            return response
+            raise
+        except httpx.TimeoutException as e:
+            # 超时错误：记录详细信息
+            logger.error(
+                f"Dify 服务请求超时: base_url={self.base_url}, endpoint={endpoint}, "
+                f"url={url}, timeout={timeout}, error={str(e)}"
+            )
+            raise
+        except httpx.HTTPStatusError as e:
+            # HTTP 状态错误：记录详细信息
+            error_body = ""
+            try:
+                error_body = e.response.text
+            except:
+                pass
+            logger.error(
+                f"Dify API 返回错误状态: base_url={self.base_url}, endpoint={endpoint}, "
+                f"url={url}, status={e.response.status_code}, body={error_body}"
+            )
+            raise
+        except Exception as e:
+            # 其他错误：记录详细信息
+            logger.error(
+                f"Dify 请求发生未知错误: base_url={self.base_url}, endpoint={endpoint}, "
+                f"url={url}, error={str(e)}",
+                exc_info=True
+            )
+            raise
     
     async def _send_request_with_files(
         self,

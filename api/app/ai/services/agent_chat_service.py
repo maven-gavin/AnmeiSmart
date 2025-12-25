@@ -8,6 +8,7 @@ import json
 from typing import Optional, Dict, Any, List, AsyncIterator
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+import httpx
 
 from app.ai.adapters.dify_agent_client import DifyAgentClientFactory, DifyAgentClient
 from app.ai.schemas.agent_chat import (
@@ -300,17 +301,41 @@ class AgentChatService:
         
         直接从 Dify API 获取，不再从业务库查询
         """
-        # 创建 Dify 客户端
-        dify_client = self.dify_client_factory.create_client_from_db(
-            agent_config_id, self.db
-        )
+        # 先获取配置信息，用于错误日志
+        from app.ai.models.agent_config import AgentConfig as AgentConfigModel
+        agent_config = self.db.query(AgentConfigModel).filter(
+            AgentConfigModel.id == agent_config_id
+        ).first()
+        base_url = agent_config.base_url if agent_config else "unknown"
         
-        # 调用 Dify API 获取会话列表
-        user_identifier = f"user_{user_id}"
-        dify_response = await dify_client.get_conversations(
-            user=user_identifier,
-            limit=100
-        )
+        try:
+            # 创建 Dify 客户端
+            dify_client = self.dify_client_factory.create_client_from_db(
+                agent_config_id, self.db
+            )
+            
+            # 调用 Dify API 获取会话列表
+            user_identifier = f"user_{user_id}"
+            dify_response = await dify_client.get_conversations(
+                user=user_identifier,
+                limit=100
+            )
+        except httpx.ConnectError as e:
+            # 连接错误：Dify 服务不可用
+            logger.error(f"无法连接到 Dify 服务: agent_config_id={agent_config_id}, base_url={base_url}, error={str(e)}")
+            raise ValueError(f"无法连接到 Dify 服务，请检查网络连接和服务配置。base_url: {base_url}")
+        except httpx.TimeoutException as e:
+            # 超时错误
+            logger.error(f"Dify 服务请求超时: agent_config_id={agent_config_id}, base_url={base_url}, error={str(e)}")
+            raise ValueError(f"Dify 服务响应超时，请稍后重试")
+        except ValueError as e:
+            # 配置错误（如缺少 API Key）
+            logger.error(f"Agent 配置错误: agent_config_id={agent_config_id}, error={str(e)}")
+            raise
+        except Exception as e:
+            # 其他错误
+            logger.error(f"获取会话列表失败: agent_config_id={agent_config_id}, base_url={base_url}, error={str(e)}", exc_info=True)
+            raise ValueError(f"获取会话列表失败: {str(e)}")
         
         # 转换 Dify 响应为业务 Schema
         conversations_data = dify_response.get('data', [])
@@ -797,16 +822,40 @@ class AgentChatService:
         """
         logger.info(f"获取应用参数: agent_config_id={agent_config_id}, user_id={user_id}")
         
-        # 创建 Dify 客户端
-        dify_client = self.dify_client_factory.create_client_from_db(
-            agent_config_id, self.db
-        )
+        # 先获取配置信息，用于错误日志
+        from app.ai.models.agent_config import AgentConfig as AgentConfigModel
+        agent_config = self.db.query(AgentConfigModel).filter(
+            AgentConfigModel.id == agent_config_id
+        ).first()
+        base_url = agent_config.base_url if agent_config else "unknown"
         
-        # 调用 Dify API
-        user_identifier = f"user_{user_id}"
-        result = await dify_client.get_application_parameters(
-            user=user_identifier
-        )
+        try:
+            # 创建 Dify 客户端
+            dify_client = self.dify_client_factory.create_client_from_db(
+                agent_config_id, self.db
+            )
+            
+            # 调用 Dify API
+            user_identifier = f"user_{user_id}"
+            result = await dify_client.get_application_parameters(
+                user=user_identifier
+            )
+        except httpx.ConnectError as e:
+            # 连接错误：Dify 服务不可用
+            logger.error(f"无法连接到 Dify 服务: agent_config_id={agent_config_id}, base_url={base_url}, error={str(e)}")
+            raise ValueError(f"无法连接到 Dify 服务，请检查网络连接和服务配置。base_url: {base_url}")
+        except httpx.TimeoutException as e:
+            # 超时错误
+            logger.error(f"Dify 服务请求超时: agent_config_id={agent_config_id}, base_url={base_url}, error={str(e)}")
+            raise ValueError(f"Dify 服务响应超时，请稍后重试")
+        except ValueError as e:
+            # 配置错误（如缺少 API Key）
+            logger.error(f"Agent 配置错误: agent_config_id={agent_config_id}, error={str(e)}")
+            raise
+        except Exception as e:
+            # 其他错误
+            logger.error(f"获取应用参数失败: agent_config_id={agent_config_id}, base_url={base_url}, error={str(e)}", exc_info=True)
+            raise ValueError(f"获取应用参数失败: {str(e)}")
         
         # 转换 user_input_form 结构
         # Dify 原生格式: [{"text-input": {...}}, {"number": {...}}]

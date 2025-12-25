@@ -189,10 +189,14 @@ class AgentConfigService:
             
             # 统一使用 Dify 的 /info 接口测试连接
             # 该接口适用于所有类型的智能体，只需获取应用基本信息即可验证配置正确性
-            test_url = f"{base_url}/info"
+            # 确保 base_url 以 / 结尾，然后拼接 info
+            base_url_normalized = base_url.rstrip('/')
+            test_url = f"{base_url_normalized}/info"
             logger.info(f"使用 Dify /info 接口测试连接")
+            logger.info(f"base_url: {base_url}")
             logger.info(f"测试URL: {test_url}")
             logger.info(f"appId: {app_id}")
+            logger.info(f"timeout: {timeout_seconds}秒")
 
             # 发送测试请求（GET 请求）
             headers = {
@@ -211,11 +215,19 @@ class AgentConfigService:
                     app_info = response.json()
                     app_name_from_api = app_info.get("name", "未知")
                     app_mode = app_info.get("mode", "未知")
-                    logger.info(f"成功获取应用信息: name={app_name_from_api}, mode={app_mode}")
+                    logger.info(
+                        f"✅ 连接测试成功: base_url={base_url}, test_url={test_url}, "
+                        f"app_name={app_name_from_api}, mode={app_mode}, "
+                        f"response_time={response.elapsed.total_seconds():.2f}s"
+                    )
                 except Exception as e:
                     logger.warning(f"解析应用信息失败: {e}")
                     app_name_from_api = "未知"
                     app_mode = "未知"
+                    logger.info(
+                        f"✅ 连接测试成功（但解析响应失败）: base_url={base_url}, "
+                        f"test_url={test_url}, response_time={response.elapsed.total_seconds():.2f}s"
+                    )
                 
                 return {
                     "success": True,
@@ -226,34 +238,72 @@ class AgentConfigService:
                         "app_name_from_api": app_name_from_api,
                         "app_mode": app_mode,
                         "environment": config.environment,
+                        "base_url": base_url,
+                        "test_url": test_url,
                         "response_time": f"{response.elapsed.total_seconds():.2f}s"
                     }
                 }
             else:
+                # 处理非 200 状态码
                 error_detail = ""
+                error_json = {}
                 try:
                     error_response = response.json()
                     error_detail = error_response.get("message", response.text[:200])
+                    error_json = error_response
                 except:
-                    error_detail = response.text[:200]
+                    error_detail = response.text[:200] if response.text else "无响应内容"
+                
+                # 根据状态码提供更详细的错误信息
+                status_code = response.status_code
+                if status_code == 502:
+                    error_message = f"网关错误 (HTTP 502): Dify 服务可能不可用或网络配置有问题"
+                    logger.error(
+                        f"连接测试失败 - HTTP 502: base_url={base_url}, test_url={test_url}, "
+                        f"error_detail={error_detail}, headers={dict(response.headers)}"
+                    )
+                elif status_code == 503:
+                    error_message = f"服务不可用 (HTTP 503): Dify 服务暂时不可用"
+                elif status_code == 404:
+                    error_message = f"接口不存在 (HTTP 404): 请检查 base_url 是否正确，应为 http://host:port/v1"
+                elif status_code == 401:
+                    error_message = f"认证失败 (HTTP 401): API Key 可能无效或已过期"
+                elif status_code == 403:
+                    error_message = f"访问被拒绝 (HTTP 403): API Key 可能没有访问权限"
+                else:
+                    error_message = f"连接测试失败: HTTP {status_code}"
+                
+                logger.error(
+                    f"连接测试失败: status_code={status_code}, base_url={base_url}, "
+                    f"test_url={test_url}, error_detail={error_detail}"
+                )
                 
                 return {
                     "success": False,
-                    "message": f"连接测试失败: HTTP {response.status_code}",
+                    "message": error_message,
                     "details": {
-                        "status_code": response.status_code,
-                        "error_detail": error_detail
+                        "status_code": status_code,
+                        "error_detail": error_detail,
+                        "error_json": error_json,
+                        "test_url": test_url,
+                        "base_url": base_url
                     }
                 }
-        except requests.exceptions.Timeout:
-            timeout_msg = f"连接超时（{timeout_seconds}秒内未完成），请检查基础URL是否正确"
+        except requests.exceptions.Timeout as e:
+            timeout_msg = f"连接超时（{timeout_seconds}秒内未完成），请检查基础URL是否正确或服务是否响应"
+            logger.error(
+                f"连接超时: base_url={base_url}, test_url={test_url}, "
+                f"timeout_seconds={timeout_seconds}, error={str(e)}"
+            )
             return {
                 "success": False,
                 "message": timeout_msg,
                 "details": {
                     "error_type": "timeout",
                     "url": base_url,
-                    "timeout_seconds": timeout_seconds
+                    "test_url": test_url,
+                    "timeout_seconds": timeout_seconds,
+                    "error": str(e)
                 }
             }
         except requests.exceptions.ConnectionError as e:
@@ -262,16 +312,38 @@ class AgentConfigService:
                 error_msg += "，URL格式错误：请使用 http://localhost/v1 而不是 http://localhost:v1"
             elif "localhost" in base_url and "/v1" not in base_url:
                 error_msg += "，URL可能缺少 /v1 路径"
+            elif "host.docker.internal" in base_url:
+                error_msg += f"，无法连接到 host.docker.internal，请检查：1) Docker 网络配置 2) Dify 服务是否运行 3) 端口是否正确"
+            
+            logger.error(
+                f"连接错误: base_url={base_url}, test_url={test_url}, error={str(e)}",
+                exc_info=True
+            )
+            
             return {
                 "success": False,
                 "message": error_msg,
-                "details": {"error_type": "connection_error", "url": base_url, "error": str(e)}
+                "details": {
+                    "error_type": "connection_error",
+                    "url": base_url,
+                    "test_url": test_url,
+                    "error": str(e)
+                }
             }
         except Exception as e:
+            logger.error(
+                f"连接测试发生未知异常: base_url={base_url}, test_url={test_url}, error={str(e)}",
+                exc_info=True
+            )
             return {
                 "success": False,
                 "message": f"连接测试异常: {str(e)}",
-                "details": {"error_type": "unknown", "error": str(e)}
+                "details": {
+                    "error_type": "unknown",
+                    "url": base_url,
+                    "test_url": test_url,
+                    "error": str(e)
+                }
             }
     
     def reload_ai_gateway(self):

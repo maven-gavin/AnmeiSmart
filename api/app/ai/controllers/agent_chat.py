@@ -91,6 +91,23 @@ async def get_agent_conversations(
             agent_config_id=agent_config_id,
             user_id=str(current_user.id)
         )
+    except ValueError as e:
+        # 配置错误或连接错误（service 层已转换为 ValueError）
+        error_msg = str(e)
+        if "无法连接到 Dify 服务" in error_msg or "响应超时" in error_msg:
+            # 服务不可用，返回 503
+            logger.error(f"获取会话列表失败: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=error_msg
+            )
+        else:
+            # 配置错误，返回 400
+            logger.error(f"获取会话列表错误: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_msg
+            )
     except Exception as e:
         logger.error(f"获取会话列表失败: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="获取会话列表失败")
@@ -417,8 +434,22 @@ async def get_application_parameters(
         # 转换为响应模型
         return ApplicationParametersResponse(**result)
     except ValueError as e:
-        logger.error(f"获取应用参数错误: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        # 配置错误或连接错误（service 层已转换为 ValueError）
+        error_msg = str(e)
+        if "无法连接到 Dify 服务" in error_msg or "响应超时" in error_msg:
+            # 服务不可用，返回 503
+            logger.error(f"获取应用参数失败: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=error_msg
+            )
+        else:
+            # 配置错误，返回 400
+            logger.error(f"获取应用参数错误: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_msg
+            )
     except Exception as e:
         logger.error(f"获取应用参数失败: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="获取应用参数失败")
