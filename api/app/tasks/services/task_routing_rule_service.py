@@ -137,4 +137,34 @@ class TaskRoutingRuleService:
                     return r
         return None
 
+    def list_distinct_scene_keys(self) -> List[str]:
+        rows = (
+            self.db.query(TaskRoutingRule.scene_key)
+            .filter(TaskRoutingRule.enabled.is_(True))
+            .distinct()
+            .order_by(TaskRoutingRule.scene_key.asc())
+            .all()
+        )
+        return [r[0] for r in rows if r and r[0]]
+
+    def match_rule_any_scene(self, text: str) -> Optional[TaskRoutingRule]:
+        """不指定 scene_key：在所有启用规则里匹配，返回命中的第一个（按 priority 升序）"""
+        rules = (
+            self.db.query(TaskRoutingRule)
+            .filter(TaskRoutingRule.enabled.is_(True))
+            .order_by(TaskRoutingRule.priority.asc(), TaskRoutingRule.created_at.desc())
+            .all()
+        )
+        for r in rules:
+            if r.match_type == "regex":
+                try:
+                    if re.search(r.keyword, text):
+                        return r
+                except re.error:
+                    continue
+            else:
+                if r.keyword in text:
+                    return r
+        return None
+
 

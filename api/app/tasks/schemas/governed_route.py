@@ -12,7 +12,8 @@ from app.tasks.schemas.task import TaskResponse
 class RouteTaskRequest(BaseModel):
     """路由执行请求：输入场景与文本，输出创建的任务（或敏感拦截）"""
 
-    scene_key: str = Field(..., min_length=1, max_length=100, description="场景Key")
+    # Copilot 模式：scene_key 可为空，由路由器自动识别意图并选择 scene_key
+    scene_key: Optional[str] = Field(None, min_length=1, max_length=100, description="场景Key（可选，留空=自动识别）")
     text: str = Field(..., min_length=1, max_length=5000, description="触发文本")
 
     digital_human_id: Optional[str] = Field(None, description="数字人ID（可选）")

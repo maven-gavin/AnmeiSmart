@@ -3,9 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import RoleSelector from '@/components/ui/RoleSelector';
-import { UserRole } from '@/types/auth';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { authService } from '@/service/authService';
 
 export default function LoginForm() {
   const router = useRouter();
@@ -14,18 +13,25 @@ export default function LoginForm() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [logoError, setLogoError] = useState(false);
+  const [logoSrc, setLogoSrc] = useState('/logo.ico');
+  const [mounted, setMounted] = useState(false);
 
-  // 从URL参数中获取错误信息和跳转URL
+  // 标记组件已挂载（仅在客户端）
   useEffect(() => {
-    // 获取当前URL参数
+    setMounted(true);
+  }, []);
+
+  // 从URL参数中获取错误信息（仅在客户端挂载后）
+  useEffect(() => {
+    if (!mounted) return;
+    
     const params = new URLSearchParams(window.location.search);
     const errorMsg = params.get('error');
-    
-    // 如果有错误信息，设置错误状态
     if (errorMsg) {
       setError(decodeURIComponent(errorMsg));
     }
-  }, []);
+  }, [mounted]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,8 +48,8 @@ export default function LoginForm() {
       // 使用AuthContext的login方法
       await login(username, password);
       
-      // 获取当前用户信息
-      const user = JSON.parse(localStorage.getItem('auth_user') || '{}');
+      // 获取当前用户信息（使用 authService 而不是直接访问 localStorage）
+      const user = authService.getCurrentUser();
       
       // 获取跳转URL（如果有）
       const params = new URLSearchParams(window.location.search);
@@ -53,17 +59,15 @@ export default function LoginForm() {
         router.push(decodeURIComponent(returnUrl));
       } else {
         //如果用户设置了首选角色，就进入首选角色，反之进入默认角色
-        console.log("===============",JSON.stringify(user))
-        var role = user.roles[0];
-        if(user.currentRole != undefined){
-          role = user.currentRole;
+        if (user) {
+          console.log("===============", JSON.stringify(user));
+          // const role = user.currentRole || (user.roles && user.roles[0]);
+          // const path = role === 'consultant' ? '/consultant' : 
+          //             role === 'doctor' ? '/doctor' : 
+          //             role === 'admin' ? '/admin' :
+          //             role === 'operator' ? '/operator' : 
+          //             role === 'customer' ? '/customer' : '/other';
         }
-
-        // const path = role === 'consultant' ? '/consultant' : 
-        //             role === 'doctor' ? '/doctor' : 
-        //             role === 'admin' ? '/admin' :
-        //             role === 'operator' ? '/operator' : 
-        //             role === 'customer' ? '/customer' : '/other';
         router.push('/home');
       }
     } catch (err) {
@@ -80,29 +84,26 @@ export default function LoginForm() {
     <div className="mx-auto max-w-md rounded-xl bg-white p-8 shadow-md">
       <div className="mb-8 text-center">
         <div className="mx-auto mb-4 h-16 w-16 flex items-center justify-center">
-          <img 
-            src="/logo.ico" 
-            alt="安美智享" 
-            className="h-16 w-16" 
-            onError={(e) => {
-              // 如果SVG加载失败，尝试使用PNG，最后使用文本替代
-              const target = e.target as HTMLImageElement;
-              if (target.src.endsWith('logo.svg')) {
-                target.src = '/logo.png';
-              } else if (target.src.endsWith('logo.png')) {
-                target.onerror = null; // 防止循环错误
-                // 创建一个圆形的替代图标
-                const parent = target.parentElement as HTMLElement;
-                parent.innerHTML = '';
-                parent.style.backgroundColor = '#FF9800';
-                parent.style.borderRadius = '50%';
-                parent.style.color = '#FFFFFF';
-                parent.style.fontSize = '32px';
-                parent.style.fontWeight = 'bold';
-                parent.innerText = '@';
-              }
-            }}
-          />
+          {logoError ? (
+            <div className="h-16 w-16 rounded-full bg-orange-500 flex items-center justify-center text-white text-3xl font-bold">
+              @
+            </div>
+          ) : (
+            <img 
+              src={logoSrc} 
+              alt="安美智享" 
+              className="h-16 w-16" 
+              onError={() => {
+                // 如果当前是 .ico，尝试 .png
+                if (logoSrc === '/logo.ico') {
+                  setLogoSrc('/logo.png');
+                } else {
+                  // 如果 .png 也失败，显示替代图标
+                  setLogoError(true);
+                }
+              }}
+            />
+          )}
         </div>
         <h1 className="text-2xl font-bold text-gray-800">安美智享</h1>
         <p className="text-gray-500">医美智能服务平台</p>

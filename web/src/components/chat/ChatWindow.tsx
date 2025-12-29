@@ -15,6 +15,7 @@ import { getDisplayTitle, groupMessagesByDate } from '@/utils/conversationUtils'
 import toast from 'react-hot-toast'
 import { taskGovernanceService } from '@/service/taskGovernanceService'
 import { MessageUtils } from '@/utils/messageUtils'
+import { useWebSocket } from '@/contexts/WebSocketContext'
 
 interface ChatWindowProps {
   conversation: Conversation;
@@ -22,7 +23,6 @@ interface ChatWindowProps {
   loadingMessages: boolean;
   isConsultant?: boolean;
   hasCustomerProfile?: boolean;
-  sceneKey?: string;
   digitalHumanId?: string;
   onAction: (action: string, conversationId: string) => void;
   onLoadMessages: (forceRefresh?: boolean) => Promise<void>;
@@ -42,7 +42,6 @@ export default function ChatWindow({
   loadingMessages,
   isConsultant = false,
   hasCustomerProfile = false,
-  sceneKey,
   digitalHumanId,
   onAction,
   onLoadMessages,
@@ -57,6 +56,7 @@ export default function ChatWindow({
 }: ChatWindowProps) {
   const { user } = useAuthContext();
   const router = useRouter()
+  const websocketState = useWebSocket()
 
   // 聊天容器引用
   const chatContainerRef = useRef<HTMLDivElement>(null)
@@ -147,56 +147,19 @@ export default function ChatWindow({
           onMessageAdded(message);
         }
 
-        // M3：可治理任务中枢路由（最小侵入式）
-        // - 仅在提供 sceneKey 且有可提取文本时触发
+        // M3：Copilot 静默监听（无 scene_key）
+        // - 每条可提取文本都尝试路由
         // - 不阻断现有发送流程：路由失败仅记录，不影响发送
         try {
           const routeText = MessageUtils.getTextContent(message)?.trim()
-          if (sceneKey && routeText) {
-            const result = await taskGovernanceService.route({
-              scene_key: sceneKey,
+          if (routeText) {
+            await taskGovernanceService.route({
               text: routeText,
               digital_human_id: digitalHumanId || undefined,
               conversation_id: conversation.id,
               message_id: savedMessage.id,
-              create_fallback_task: true,
+              create_fallback_task: false,
             })
-
-            if (result.created_tasks?.length) {
-              const firstSuggestionText = result.suggestions?.find((s) => typeof s?.text === 'string')?.text as string | undefined
-              toast((t) => (
-                <div className="flex items-center gap-3">
-                  <div className="text-sm text-gray-800">
-                    {result.route_type === 'sensitive' ? '命中敏感拦截' : '已生成任务'}：{result.created_tasks.length} 条
-                  </div>
-                  {result.route_type === 'sensitive' && firstSuggestionText && (
-                    <button
-                      className="text-sm text-gray-600 hover:text-gray-800"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(firstSuggestionText)
-                          toast.dismiss(t.id)
-                          toast.success('已复制安全改写')
-                        } catch {
-                          toast.error('复制失败，请手动复制')
-                        }
-                      }}
-                    >
-                      复制安全改写
-                    </button>
-                  )}
-                  <button
-                    className="text-sm text-orange-600 hover:text-orange-700"
-                    onClick={() => {
-                      toast.dismiss(t.id)
-                      router.push('/tasks')
-                    }}
-                  >
-                    去处理
-                  </button>
-                </div>
-              ))
-            }
           }
         } catch (routeError) {
           // 路由失败不影响发送
@@ -218,7 +181,35 @@ export default function ChatWindow({
         onMessageAdded(message);
       }
     }
-  }, [conversation.id, digitalHumanId, onMessageAdded, router, sceneKey, scrollToBottom, user])
+  }, [conversation.id, digitalHumanId, onMessageAdded, scrollToBottom])
+
+  // Copilot 提示：通过 WebSocket system_notification 触发 toast（避免默默生成任务）
+  useEffect(() => {
+    const msg = websocketState.lastMessage
+    if (!msg || msg.action !== 'system_notification') return
+
+    const data = msg.data as any
+    const title = typeof data?.title === 'string' ? data.title : 'AI 副驾驶'
+    const messageText = typeof data?.message === 'string' ? data.message : ''
+
+    toast((t) => (
+      <div className="flex items-center gap-3">
+        <div className="text-sm text-gray-800">
+          <span className="font-medium">{title}</span>
+          {messageText ? `：${messageText}` : ''}
+        </div>
+        <button
+          className="text-sm text-orange-600 hover:text-orange-700"
+          onClick={() => {
+            toast.dismiss(t.id)
+            router.push('/tasks')
+          }}
+        >
+          去处理
+        </button>
+      </div>
+    ))
+  }, [router, websocketState.lastMessage])
 
   // 消息操作回调函数
   const handleToggleImportant = useCallback(async (messageId: string) => {

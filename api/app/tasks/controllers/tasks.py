@@ -44,6 +44,9 @@ from app.tasks.services.task_sensitive_rule_service import TaskSensitiveRuleServ
 from app.tasks.services.task_event_service import TaskEventService
 from app.tasks.services.governed_task_center_service import GovernedTaskCenterService
 from app.tasks.services.task_metrics_service import TaskMetricsService
+from app.websocket.broadcasting_factory import get_broadcasting_service_dependency
+from app.websocket.broadcasting_service import BroadcastingService
+from app.tasks.services.task_intent_router_service import TaskIntentRouterService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -277,9 +280,69 @@ async def route_task_and_create(
     body: RouteTaskRequest,
     current_user: User = Depends(get_current_user),
     service: GovernedTaskCenterService = Depends(get_governed_task_center_service),
+    routing_rule_service: TaskRoutingRuleService = Depends(get_task_routing_rule_service),
+    broadcasting_service: BroadcastingService = Depends(get_broadcasting_service_dependency),
 ) -> ApiResponse[RouteTaskResponse]:
     """M1：路由执行（场景+文本 → 敏感拦截 or 任务生成）"""
-    data = service.route_and_create_tasks(user_id=str(current_user.id), request=body)
+    # Copilot 模式：scene_key 可缺省，由 LLM 意图路由补全（失败则降级为关键词跨场景匹配）
+    effective_body = body
+    routed_intent: Optional[str] = None
+    routed_confidence: Optional[float] = None
+    if not (body.scene_key or "").strip():
+        candidate_scenes = routing_rule_service.list_distinct_scene_keys()
+        router_service = TaskIntentRouterService(db=service.db)
+        scene_key, intent, confidence = await router_service.route_scene(
+            text=body.text,
+            user_id=str(current_user.id),
+            candidate_scenes=candidate_scenes,
+        )
+        routed_intent = intent
+        routed_confidence = confidence
+
+        # 如果 LLM 未返回 scene_key，则降级：跨场景关键词匹配
+        if not scene_key:
+            hit = routing_rule_service.match_rule_any_scene(body.text.strip())
+            scene_key = hit.scene_key if hit else None
+
+        # 未识别到场景时：避免创建“需要配置”任务（Copilot 不打扰）
+        if not scene_key:
+            effective_body = body.model_copy(update={"create_fallback_task": False})
+        else:
+            effective_body = body.model_copy(update={"scene_key": scene_key, "create_fallback_task": False})
+
+    data = service.route_and_create_tasks(user_id=str(current_user.id), request=effective_body)
+
+    # 命中后主动提示（系统通知）
+    try:
+        if effective_body.conversation_id and data.route_type in {"routing", "sensitive"}:
+            if data.route_type == "sensitive":
+                title = "AI 副驾驶：风险提示"
+                message = "监测到敏感表达风险，已给出安全改写建议"
+                notify_type = "warning"
+            else:
+                title = "AI 副驾驶：建议处理"
+                message = f"监测到业务意图，已生成 {len(data.created_tasks)} 条任务草稿"
+                notify_type = "info"
+
+            await broadcasting_service.broadcast_system_notification(
+                conversation_id=effective_body.conversation_id,
+                notification_data={
+                    "title": title,
+                    "message": message,
+                    "type": notify_type,
+                    "extra": {
+                        "route_type": data.route_type,
+                        "matched_rule_id": data.matched_rule_id,
+                        "matched_sensitive_rule_id": data.matched_sensitive_rule_id,
+                        "intent": routed_intent,
+                        "confidence": routed_confidence,
+                        "task_ids": [t.id for t in data.created_tasks],
+                    },
+                },
+            )
+    except Exception as e:
+        logger.warning(f"路由系统通知广播失败（已忽略）: {e}", exc_info=True)
+
     return ApiResponse.success(data, message="路由执行成功")
 
 

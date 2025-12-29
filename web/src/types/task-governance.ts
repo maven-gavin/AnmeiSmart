@@ -46,7 +46,7 @@ export interface TaskSensitiveRule {
 }
 
 export interface RouteTaskRequest {
-  scene_key: string
+  scene_key?: string
   text: string
   digital_human_id?: string
   conversation_id?: string

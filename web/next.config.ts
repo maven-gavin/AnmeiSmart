@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: 'standalone',
   /* config options here */
+  // 允许开发模式下的跨域请求
+  allowedDevOrigins: ['anmei.jibu.club'],
   env: {
     NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_URL 
       ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1` 
