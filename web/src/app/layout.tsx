@@ -5,6 +5,7 @@ import './styles/markdown.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { WebSocketProvider } from '@/contexts/WebSocketContext';
 import { Toaster } from 'react-hot-toast';
+import { ChunkErrorHandler } from '@/components/error/ChunkErrorHandler';
 // Removed Stagewise old toolbar integration
 
 const inter = Inter({ subsets: ["latin"] });
@@ -22,6 +23,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className={inter.className}>
+        <ChunkErrorHandler />
         <AuthProvider>
           <WebSocketProvider>
             <main className="min-h-screen bg-gray-50">
