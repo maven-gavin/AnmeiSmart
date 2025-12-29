@@ -172,11 +172,44 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
                       </Badge>
                     )}
                   </div>
-                  {digitalHuman && (
-                    <span className="text-xs text-gray-400 mt-1 flex items-center">
-                      <BrainCircuit className="h-3 w-3 mr-1" />
-                      当前能力: {selectedAgent.appName}
-                    </span>
+                  {digitalHuman && digitalHuman.agent_configs && (
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                      {digitalHuman.agent_configs
+                        .filter(c => c.is_active)
+                        .sort((a, b) => a.priority - b.priority)
+                        .map((config) => {
+                          const isActive = selectedAgent?.id === config.agent_config.id;
+                          const agentConfig: AgentConfig = {
+                            id: config.agent_config.id,
+                            appName: config.agent_config.app_name,
+                            appId: config.agent_config.app_id,
+                            environment: config.agent_config.environment,
+                            description: config.agent_config.description,
+                            enabled: config.agent_config.enabled,
+                            baseUrl: '',
+                            timeoutSeconds: 30,
+                            maxRetries: 3,
+                            createdAt: '',
+                            updatedAt: ''
+                          };
+                          return (
+                            <button
+                              key={config.id}
+                              onClick={() => handleSelectAgent(agentConfig)}
+                              className={`
+                                px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200
+                                ${isActive 
+                                  ? 'bg-orange-500 text-white shadow-sm hover:bg-orange-600' 
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'
+                                }
+                              `}
+                              title={config.agent_config.description || config.agent_config.app_name}
+                            >
+                              {config.agent_config.app_name}
+                            </button>
+                          );
+                        })}
+                    </div>
                   )}
                 </div>
               </div>

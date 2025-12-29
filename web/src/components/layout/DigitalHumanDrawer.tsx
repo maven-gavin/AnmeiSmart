@@ -102,6 +102,7 @@ export function DigitalHumanDrawer({
               agents={[]} // 不再需要左侧侧边栏
               selectedAgent={activeAgent}
               digitalHuman={digitalHuman}
+              onSelectAgent={setActiveAgent}
               hideSidebar={true}
               className="!h-full"
             />
