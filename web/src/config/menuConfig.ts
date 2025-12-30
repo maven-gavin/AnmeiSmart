@@ -2,14 +2,6 @@ import { MenuConfig } from '@/types/menu';
 
 export const menuConfig: MenuConfig = {
   items: [
-    // 所有角色共享
-    {
-      id: 'home',
-      label: '首页  ',
-      path: '/home',
-      icon: 'home-icon',
-      roles: ['doctor','consultant', 'customer', 'admin', 'operator']
-    },
     // 任务管理 - 不同角色看到不同任务
     {
       id: 'tasks-admin',

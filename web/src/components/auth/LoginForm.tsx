@@ -58,17 +58,7 @@ export default function LoginForm() {
       if (returnUrl) {
         router.push(decodeURIComponent(returnUrl));
       } else {
-        //如果用户设置了首选角色，就进入首选角色，反之进入默认角色
-        if (user) {
-          console.log("===============", JSON.stringify(user));
-          // const role = user.currentRole || (user.roles && user.roles[0]);
-          // const path = role === 'consultant' ? '/consultant' : 
-          //             role === 'doctor' ? '/doctor' : 
-          //             role === 'admin' ? '/admin' :
-          //             role === 'operator' ? '/operator' : 
-          //             role === 'customer' ? '/customer' : '/other';
-        }
-        router.push('/home');
+        router.push('/tasks');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '登录失败，请重试');

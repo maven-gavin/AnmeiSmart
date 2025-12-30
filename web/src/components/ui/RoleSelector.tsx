@@ -42,7 +42,7 @@ export default function RoleSelector({ onRoleSelect, className = '' }: RoleSelec
     return {
       name: dynamicRole?.displayName || staticOption?.name || roleId,
       description: dynamicRole?.description || '暂无描述',
-      path: staticOption?.path || '/home'
+      path: staticOption?.path || '/tasks'
     };
   };
 
@@ -68,8 +68,8 @@ export default function RoleSelector({ onRoleSelect, className = '' }: RoleSelec
         onRoleSelect(role);
       }
       
-      // 导航到统一首页
-      router.push('/home');
+      // 导航到任务管理
+      router.push('/tasks');
     } catch (error) {
       console.error('角色切换失败', error);
       setError('角色切换失败，请重试');

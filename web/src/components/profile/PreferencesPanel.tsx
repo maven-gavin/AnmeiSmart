@@ -15,15 +15,12 @@ export function PreferencesPanel() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  
-  // 表单状态
   const [formData, setFormData] = useState({
     notification_enabled: true,
     email_notification: true,
     push_notification: true
   });
 
-  // 获取用户偏好设置
   const fetchPreferences = async () => {
     try {
       setLoading(true);
@@ -31,7 +28,6 @@ export function PreferencesPanel() {
       const prefs = await profileService.getMyPreferences();
       setPreferences(prefs);
       
-      // 更新表单数据
       setFormData({
         notification_enabled: prefs.notification_enabled,
         email_notification: prefs.email_notification,
@@ -45,12 +41,10 @@ export function PreferencesPanel() {
     }
   };
 
-  // 组件挂载时获取数据
   useEffect(() => {
     fetchPreferences();
   }, []);
 
-  // 处理开关变化
   const handleSwitchChange = (field: keyof typeof formData, value: boolean) => {
     setFormData(prev => ({
       ...prev,
@@ -58,14 +52,12 @@ export function PreferencesPanel() {
     }));
   };
 
-  // 保存偏好设置
   const handleSave = async () => {
     try {
       setSaving(true);
       setError(null);
       setSuccessMessage(null);
 
-      // 检查是否有变化
       if (preferences &&
           formData.notification_enabled === preferences.notification_enabled &&
           formData.email_notification === preferences.email_notification &&
@@ -74,19 +66,15 @@ export function PreferencesPanel() {
         return;
       }
 
-      // 准备更新数据
       const updateData: UserPreferencesUpdate = {
         notification_enabled: formData.notification_enabled,
         email_notification: formData.email_notification,
         push_notification: formData.push_notification
       };
 
-      // 更新偏好设置
       const updatedPrefs = await profileService.updateMyPreferences(updateData);
       setPreferences(updatedPrefs);
       setSuccessMessage('偏好设置更新成功');
-
-      // 3秒后清除成功消息
       setTimeout(() => setSuccessMessage(null), 3000);
 
     } catch (err) {
@@ -97,7 +85,6 @@ export function PreferencesPanel() {
     }
   };
 
-  // 重置设置
   const handleReset = () => {
     if (preferences) {
       setFormData({
@@ -119,7 +106,6 @@ export function PreferencesPanel() {
   }
 
   return (
-    <>
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -131,6 +117,7 @@ export function PreferencesPanel() {
           </div>
           <div className="flex gap-2">
             <Button 
+              type="button"
               variant="outline" 
               onClick={handleReset}
               disabled={saving}
@@ -138,6 +125,7 @@ export function PreferencesPanel() {
               重置
             </Button>
             <Button 
+              type="button"
               onClick={handleSave}
               disabled={saving}
             >
@@ -148,33 +136,29 @@ export function PreferencesPanel() {
       </CardHeader>
       
       <CardContent className="space-y-6">
-        {/* 错误消息 */}
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        {/* 成功消息 */}
         {successMessage && (
           <Alert>
             <AlertDescription>{successMessage}</AlertDescription>
           </Alert>
         )}
 
-        {/* 通知设置 */}
         <div className="space-y-4">
           <h3 className="text-lg font-medium">通知设置</h3>
           
-          {/* 总开关 */}
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div className="space-y-1">
               <Label htmlFor="notification_enabled" className="text-base font-medium">
                 启用通知
-                <span className="text-sm text-gray-500">
-                  接收系统通知和重要提醒
-                </span>
-              </Label>              
+              </Label>
+              <p className="text-sm text-gray-500">
+                接收系统通知和重要提醒
+              </p>
             </div>
             <Switch
               id="notification_enabled"
@@ -184,15 +168,14 @@ export function PreferencesPanel() {
             />
           </div>
 
-          {/* 邮件通知 */}
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div className="space-y-1">
               <Label htmlFor="email_notification" className="text-base font-medium">
                 邮件通知
-                <span className="text-sm text-gray-500">
-                  通过邮件接收重要通知和提醒
-                </span>
               </Label>
+              <p className="text-sm text-gray-500">
+                通过邮件接收重要通知和提醒
+              </p>
             </div>
             <Switch
               id="email_notification"
@@ -202,15 +185,14 @@ export function PreferencesPanel() {
             />
           </div>
 
-          {/* 推送通知 */}
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div className="space-y-1">
               <Label htmlFor="push_notification" className="text-base font-medium">
                 推送通知
-                <span className="text-sm text-gray-500">
-                  在浏览器中显示即时通知
-                </span>
               </Label>
+              <p className="text-sm text-gray-500">
+                在浏览器中显示即时通知
+              </p>
             </div>
             <Switch
               id="push_notification"
@@ -222,40 +204,5 @@ export function PreferencesPanel() {
         </div>
       </CardContent>
     </Card>
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>画像设置</CardTitle>
-            <CardDescription>
-              管理您的画像设置
-            </CardDescription>
-          </div>
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              onClick={handleReset}
-              disabled={saving}
-            >
-              重置
-            </Button>
-            <Button 
-              onClick={handleSave}
-              disabled={saving}
-            >
-              {saving ? '保存中...' : '保存设置'}
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <h3 className="text-lg font-medium">基本画像</h3>
-          <h3 className="text-lg font-medium">偏好画像</h3>
-          <h3 className="text-lg font-medium">基本画像</h3>
-        </div>
-      </CardContent>
-    </Card>
-    </>
   );
 } 

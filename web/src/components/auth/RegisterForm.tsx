@@ -95,8 +95,8 @@ export default function RegisterForm() {
         password: formData.password
       });
       
-      // 注册成功，跳转到首页
-      router.push('/home');
+      // 注册成功，跳转到任务管理
+      router.push('/tasks');
     } catch (err) {
       setError(err instanceof Error ? err.message : '注册失败，请重试');
     } finally {

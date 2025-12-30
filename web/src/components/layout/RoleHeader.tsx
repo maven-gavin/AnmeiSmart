@@ -63,8 +63,7 @@ export default function RoleHeader() {
     
     return {
       name: dynamicRole?.displayName || staticOption?.name || roleName,
-      // 暂时保留静态路径映射，如果是未知角色则默认为 /home
-      path: staticOption?.path || '/home'
+      path: staticOption?.path || '/tasks'
     };
   };
 
@@ -81,12 +80,7 @@ export default function RoleHeader() {
       await authService.switchRole(role);
       setDropdownOpen(false);
       
-      // 使用替代方式进行导航，避免直接刷新导致加载问题
-      // const targetRole = roleOptions.find(r => r.id === role);
-      // if (targetRole) {
-      //   window.location.href = targetRole.path;
-      // }
-      window.location.href = '/home';
+      window.location.href = '/tasks';
     } catch (error) {
       console.error('角色切换失败', error);
     }

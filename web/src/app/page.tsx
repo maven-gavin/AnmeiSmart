@@ -17,7 +17,7 @@ export default function Home() {
       // const currentRole = currentUser.currentRole;
       // const path = currentRole === 'consultant' ? '/consultant' :
       //             currentRole === 'doctor' ? '/doctor' : '/operator';
-      router.push('/home');
+      router.push('/tasks');
     } else {
       // 未登录，重定向到登录页
       router.push('/login');
