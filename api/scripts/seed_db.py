@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-安美智享智能医美服务系统 - 数据扩展初始化脚本
+安美智享智能服务系统 - 数据扩展初始化脚本
 用于初始化测试和示例数据
 """
 
@@ -124,7 +124,7 @@ MOCK_USERS = [
 def print_banner():
     """打印脚本横幅"""
     print("=" * 60)
-    print("安美智享智能医美服务系统 - 测试数据初始化工具")
+    print("安美智享智能服务系统 - 测试数据初始化工具")
     print("=" * 60)
     print("\n此工具将初始化系统需要的测试和示例数据。")
     print("请确保已运行 init_db.py 初始化了基础数据和表结构。")
@@ -483,7 +483,7 @@ async def create_test_conversations(db: Session) -> None:
         risk_notes = [
             {
                 "type": "高血压",
-                "description": "客户有高血压病史，当前处于药物控制状态，医美操作时需注意血压监测",
+                "description": "客户有高血压病史，当前处于药物控制状态，操作时需注意血压监测",
                 "level": "medium"
             }
         ]

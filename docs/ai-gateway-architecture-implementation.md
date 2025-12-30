@@ -104,13 +104,13 @@ from app.services.ai.ai_gateway_service import get_ai_gateway_service
 
 # 通用聊天
 response = await ai_gateway.chat(
-    message="你好，我想了解医美服务",
+    message="你好，我想了解服务",
     user_id="user_123",
     session_id="session_456",
     user_profile={"age": 25, "skin_type": "mixed"}
 )
 
-# 医美方案生成
+# 方案生成
 plan = await ai_gateway.generate_beauty_plan(
     requirements="面部抗衰老，预算2万元",
     user_id="user_123",
@@ -175,7 +175,7 @@ python test_ai_gateway.py
 
 - ✅ 健康检查
 - ✅ 通用聊天
-- ✅ 医美方案生成
+- ✅ 方案生成
 - ✅ 情感分析
 - ✅ 咨询总结
 - ✅ 性能和并发测试
@@ -244,4 +244,4 @@ gateway.register_service(AIProvider.CLAUDE, claude_adapter)
 3. **性能优异**：缓存、熔断、监控，企业级可靠性
 4. **易于扩展**：新服务商接入简单，支持业务快速发展
 
-现在AnmeiSmart具备了真正的企业级AI能力，为未来的医美智能化奠定了坚实基础！ 🚀
+现在AnmeiSmart具备了真正的企业级AI能力，为未来的智能化奠定了坚实基础！ 🚀

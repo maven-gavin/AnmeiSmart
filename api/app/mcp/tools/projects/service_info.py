@@ -7,7 +7,7 @@ from app.mcp.registry import mcp_tool
 
 @mcp_tool(
     name="get_service_info",
-    description="获取医美服务项目信息和价格",
+    description="获取服务项目信息和价格",
     category="projects"
 )
 async def get_service_info(service_type: str = "all") -> dict:

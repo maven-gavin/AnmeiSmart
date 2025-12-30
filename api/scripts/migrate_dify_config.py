@@ -67,7 +67,7 @@ def migrate_env_to_db():
         if beauty_api_key:
             new_config.beauty_app_id = "agent-beauty-agent"
             new_config.beauty_api_key = beauty_api_key
-            print(f"✅ 迁移医美方案专家配置")
+            print(f"✅ 迁移方案专家配置")
         
         if summary_api_key:
             new_config.summary_app_id = "agent-summary-workflow"

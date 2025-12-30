@@ -543,7 +543,7 @@ export default function PlanGenerationPanel({
           AI辅助方案生成
         </DialogTitle>
         <DialogDescription>
-          智能分析对话内容，生成个性化医美方案
+          智能分析对话内容，生成个性化方案
         </DialogDescription>
       </DialogHeader>
       

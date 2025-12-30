@@ -3,7 +3,7 @@
 ## 1. 项目概述
 
 ### 1.1 项目背景
-基于医美智能咨询系统，构建数字人智能助手系统，为用户提供个性化的AI助手服务。系统采用领域驱动设计(DDD)理念，支持多角色数字人创建和管理，实现智能对话、任务处理和业务流程自动化。
+基于智能咨询系统，构建数字人智能助手系统，为用户提供个性化的AI助手服务。系统采用领域驱动设计(DDD)理念，支持多角色数字人创建和管理，实现智能对话、任务处理和业务流程自动化。
 
 ### 1.2 业务价值
 - **提升用户体验**：24/7智能助手服务，即时响应用户需求
@@ -757,7 +757,7 @@ async def initialize_system_agents():
     """初始化系统默认智能体配置"""
     default_agents = [
         {
-            "app_name": "医美咨询助手",
+            "app_name": "咨询助手",
             "app_id": "medical_beauty_consultant",
             "agent_type": "consultant",
             "capabilities": ["consultation", "appointment", "recommendation"]

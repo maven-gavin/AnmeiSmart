@@ -11,8 +11,8 @@ import { ErrorHandler } from '@/components/error/ErrorHandler';
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "安美智享 - 医美智能服务平台",
-  description: "安美智享 - 专为医美机构定制的AI智能服务平台",
+  title: "安美智享 - 智能服务平台",
+  description: "安美智享 - 专为机构定制的AI智能服务平台",
 };
 
 export default function RootLayout({

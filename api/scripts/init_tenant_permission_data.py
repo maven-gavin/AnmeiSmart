@@ -442,7 +442,7 @@ class TenantPermissionDataInitializer:
                 "id": "role-consultant",
                 "name": "consultant",
                 "display_name": "顾问",
-                "description": "医美顾问，负责客户咨询",
+                "description": "顾问，负责客户咨询",
                 "is_system": False,
                 "is_admin": False,
                 "priority": 200,

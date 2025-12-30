@@ -398,7 +398,7 @@ export default function DigitalHumanForm({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="general">通用助手</SelectItem>
-                  <SelectItem value="medical_beauty">医美咨询</SelectItem>
+                  <SelectItem value="medical_beauty">咨询</SelectItem>
                   <SelectItem value="customer_service">客户服务</SelectItem>
                   <SelectItem value="sales">销售支持</SelectItem>
                   <SelectItem value="education">教育培训</SelectItem>

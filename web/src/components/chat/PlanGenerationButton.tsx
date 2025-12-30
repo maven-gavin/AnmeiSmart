@@ -99,7 +99,7 @@ export default function PlanGenerationButton({
               </div>
             </DialogTitle>
             <DialogDescription className="sr-only">
-              AI辅助方案生成工具，智能分析对话内容并生成个性化医美方案
+              AI辅助方案生成工具，智能分析对话内容并生成个性化方案
             </DialogDescription>
           </DialogHeader>
           

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-安美智享智能医美服务系统 - 安装指南
+安美智享智能服务系统 - 安装指南
 此脚本指导用户完成安装和配置步骤
 """
 import os
@@ -10,7 +10,7 @@ import platform
 
 def print_header():
     print("\n" + "=" * 60)
-    print("安美智享智能医美服务系统 - 安装指南")
+    print("安美智享智能服务系统 - 安装指南")
     print("=" * 60)
 
 def print_step(step_num, description):
@@ -151,7 +151,7 @@ def run_installation_guide():
     """运行完整的安装指南"""
     print_header()
     
-    print("\n欢迎使用安美智享智能医美服务系统安装指南！")
+    print("\n欢迎使用安美智享智能服务系统安装指南！")
     print("此脚本将指导您完成系统的安装和配置过程。")
     
     steps = [

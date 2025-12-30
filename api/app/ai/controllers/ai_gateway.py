@@ -29,7 +29,7 @@ class ChatRequest(BaseModel):
 
 
 class BeautyPlanRequest(BaseModel):
-    """医美方案请求"""
+    """方案请求"""
     requirements: str = Field(..., description="方案需求")
     user_profile: Dict[str, Any] = Field(..., description="用户档案")
     budget_range: Optional[str] = Field(None, description="预算范围")
@@ -106,16 +106,16 @@ async def ai_chat(
         )
 
 
-@router.post("/beauty-plan", summary="生成医美方案")
+@router.post("/beauty-plan", summary="生成方案")
 async def generate_beauty_plan(
     request: BeautyPlanRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    生成个性化医美方案
+    生成个性化方案
     
-    根据用户需求和档案信息，生成详细的医美方案。
+    根据用户需求和档案信息，生成详细的方案。
     """
     try:
         ai_gateway = get_ai_gateway_service(db)
@@ -148,7 +148,7 @@ async def generate_beauty_plan(
         }
         
     except Exception as e:
-        logger.error(f"医美方案生成失败: {e}")
+        logger.error(f"方案生成失败: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"方案生成服务暂时不可用: {str(e)}"
@@ -286,7 +286,7 @@ def _get_scenario_description(scenario: AIScenario) -> str:
     """获取场景描述"""
     descriptions = {
         AIScenario.GENERAL_CHAT: "通用聊天对话",
-        AIScenario.BEAUTY_PLAN: "个性化医美方案生成",
+        AIScenario.BEAUTY_PLAN: "个性化方案生成",
         AIScenario.SENTIMENT_ANALYSIS: "文本情感倾向分析",
         AIScenario.CUSTOMER_SERVICE: "智能客服支持",
         AIScenario.MEDICAL_ADVICE: "医疗建议咨询"

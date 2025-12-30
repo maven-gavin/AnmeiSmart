@@ -76,7 +76,7 @@ def create_database():
 def main():
     """主函数"""
     print("-" * 50)
-    print("安美智享智能医美服务系统 - 数据库初始化")
+    print("安美智享智能服务系统 - 数据库初始化")
     print("-" * 50)
     
     print("\n开始设置数据库...\n")

@@ -103,7 +103,7 @@ def create_admin_user():
 def main():
     """主函数"""
     print("=" * 60)
-    print("安美智享智能医美服务系统 - 创建管理员账号")
+    print("安美智享智能服务系统 - 创建管理员账号")
     print("=" * 60)
     print()
     

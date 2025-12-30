@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-本项目采用双系统架构设计，通过分工协作实现完整的AI驱动医美售后服务解决方案：
+本项目采用双系统架构设计，通过分工协作实现完整的AI驱动售后服务解决方案：
 
 ## 技术栈
 
@@ -41,7 +41,7 @@ npm create tauri-app@latest . --template vanilla-ts
   "app": {
     "windows": [
       {
-        "title": "AnmeiSmart 医美智能系统",
+        "title": "AnmeiSmart 智能系统",
         "width": 1200,
         "height": 800,
         "minWidth": 800,

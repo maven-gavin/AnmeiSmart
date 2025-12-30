@@ -106,7 +106,7 @@ export default function LoginForm() {
           )}
         </div>
         <h1 className="text-2xl font-bold text-gray-800">安美智享</h1>
-        <p className="text-gray-500">医美智能服务平台</p>
+        <p className="text-gray-500">智能服务平台</p>
       </div>
       
       <form onSubmit={handleSubmit} className="space-y-4">

@@ -695,7 +695,7 @@ class DigitalHumanService:
                     'specialization': 'medical_beauty'
                 },
                 greeting_message=f'您好{username}！我是您的专属数字助手，很高兴为您服务！有什么可以帮助您的吗？',
-                welcome_message=f'欢迎{username}！我会为您提供专业的医美咨询服务，请随时告诉我您的需求。',
+                welcome_message=f'欢迎{username}！我会为您提供专业的咨询服务，请随时告诉我您的需求。',
                 user_id=user_id,
             )
             
@@ -719,7 +719,7 @@ class DigitalHumanService:
                     priority=1,
                     is_active=True,
                     scenarios=['greeting', 'general_qa'],
-                    context_prompt=f'你是{username}的专属数字助手，请提供专业、友好的医美咨询服务。'
+                    context_prompt=f'你是{username}的专属数字助手，请提供专业、友好的咨询服务。'
                 )
                 self.db.add(dh_agent_config)
             

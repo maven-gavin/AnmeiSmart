@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-安美智享智能医美服务系统 - 依赖安装脚本
+安美智享智能服务系统 - 依赖安装脚本
 此脚本帮助用户手动安装关键依赖
 """
 import sys
@@ -10,7 +10,7 @@ import os
 
 def print_header():
     print("\n" + "=" * 60)
-    print("安美智享智能医美服务系统 - 依赖安装助手")
+    print("安美智享智能服务系统 - 依赖安装助手")
     print("=" * 60)
 
 def run_command(command):

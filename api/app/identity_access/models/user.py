@@ -194,9 +194,9 @@ class Doctor(BaseModel):
     user = relationship("User", foreign_keys=[user_id], backref=backref("doctor", uselist=False, cascade="all, delete-orphan"))
 
 class Consultant(BaseModel):
-    """医美顾问特有信息表，存储顾问扩展信息"""
+    """顾问特有信息表，存储顾问扩展信息"""
     __tablename__ = "consultants"
-    __table_args__ = {"comment": "医美顾问表，存储顾问扩展信息"}
+    __table_args__ = {"comment": "顾问表，存储顾问扩展信息"}
     
     user_id = Column(String(36), ForeignKey("users.id"), unique=True, nullable=False, comment="用户ID")
     expertise = Column(String(255), nullable=True, comment="专长领域")

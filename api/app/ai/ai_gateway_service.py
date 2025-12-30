@@ -131,7 +131,7 @@ class AIGatewayService:
                     beauty_config = agent_settings["apps"]["beauty"]
                     apps["beauty_agent"] = AgentAppConfig(
                         app_id=beauty_config.get("app_id", "agent-beauty-agent"), 
-                        app_name="医美方案专家",
+                        app_name="方案专家",
                         app_mode="workflow",
                         api_key=beauty_config["api_key"],
                         base_url=base_url,
@@ -191,7 +191,7 @@ class AIGatewayService:
     
     async def generate_beauty_plan(self, user_profile: Dict[str, Any], 
                                  requirements: List[str], user_id: str) -> PlanResponse:
-        """生成医美方案"""
+        """生成方案"""
         if not self.gateway:
             raise Exception("AI Gateway not initialized")
         

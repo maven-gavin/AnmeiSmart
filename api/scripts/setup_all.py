@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-安美智享智能医美服务系统 - 全套数据初始化脚本
+安美智享智能服务系统 - 全套数据初始化脚本
 用于一次性执行所有数据初始化步骤
 """
 import os
@@ -15,7 +15,7 @@ SCRIPT_DIR = Path(__file__).parent.absolute()
 def print_banner():
     """打印脚本横幅"""
     print("=" * 60)
-    print("安美智享智能医美服务系统 - 全套数据初始化工具")
+    print("安美智享智能服务系统 - 全套数据初始化工具")
     print("=" * 60)
     print("\n此工具将按顺序执行所有数据初始化步骤。")
     print("\n执行过程:")

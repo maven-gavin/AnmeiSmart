@@ -265,7 +265,7 @@ class AgentAdapter(AIServiceInterface):
             raise
     
     async def generate_plan(self, request: AIRequest) -> PlanResponse:
-        """生成医美方案"""
+        """生成方案"""
         try:
             app_config = self._select_app_for_scenario(AIScenario.PLAN_GENERATION)
             

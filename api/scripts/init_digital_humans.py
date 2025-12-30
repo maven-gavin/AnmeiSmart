@@ -31,13 +31,13 @@ def create_default_agent_configs(session):
             'id': generate_agent_id(),
             'environment': 'production',
             'app_id': 'medical_beauty_consultant',
-            'app_name': '医美咨询助手',
+            'app_name': '咨询助手',
             'api_key': 'default_encrypted_key_1',  # 需要实际的加密密钥
             'base_url': 'http://localhost:5001/v1',
             'timeout_seconds': 30,
             'max_retries': 3,
             'enabled': True,
-            'description': '专业的医美咨询智能助手，提供个性化咨询服务',
+            'description': '专业的咨询智能助手，提供个性化咨询服务',
 
         },
         {
@@ -114,7 +114,7 @@ def create_digital_humans_for_users(session, default_agent):
                 'specialization': 'medical_beauty'
             },
             greeting_message=f'您好{user.username}！我是您的专属数字助手，很高兴为您服务！有什么可以帮助您的吗？',
-            welcome_message=f'欢迎{user.username}！我会为您提供专业的医美咨询服务，请随时告诉我您的需求。',
+            welcome_message=f'欢迎{user.username}！我会为您提供专业的咨询服务，请随时告诉我您的需求。',
             user_id=user.id,
             conversation_count=0,
             message_count=0
@@ -131,7 +131,7 @@ def create_digital_humans_for_users(session, default_agent):
                 priority=1,
                 is_active=True,
                 scenarios=['consultation', 'greeting', 'general_qa'],
-                context_prompt=f'你是{user.username}的专属数字助手，请提供专业、友好的医美咨询服务。'
+                context_prompt=f'你是{user.username}的专属数字助手，请提供专业、友好的咨询服务。'
             )
             session.add(agent_config)
         
