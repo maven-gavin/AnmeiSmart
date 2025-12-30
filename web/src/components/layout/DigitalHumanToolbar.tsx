@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Search, ChevronLeft, ChevronRight, User } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, User, X } from 'lucide-react';
 import digitalHumanService from '@/service/digitalHumanService';
 import { DigitalHuman } from '@/types/digital-human';
 import { cn } from '@/lib/utils';
@@ -11,12 +11,16 @@ interface DigitalHumanToolbarProps {
   selectedId?: string;
   onSelect: (digitalHuman: DigitalHuman) => void;
   onLoaded?: (items: DigitalHuman[]) => void;
+  searchVariant?: 'always' | 'collapsible';
+  className?: string;
 }
 
 export function DigitalHumanToolbar({ 
   selectedId, 
   onSelect,
-  onLoaded 
+  onLoaded,
+  searchVariant = 'always',
+  className
 }: DigitalHumanToolbarProps) {
   const [digitalHumans, setDigitalHumans] = useState<DigitalHuman[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -24,6 +28,7 @@ export function DigitalHumanToolbar({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(searchVariant === 'always');
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -76,17 +81,56 @@ export function DigitalHumanToolbar({
   };
 
   return (
-    <div className="flex flex-1 items-center mx-6 overflow-hidden h-12 bg-gray-50/50 rounded-xl border border-gray-100 p-1">
+    <div
+      className={cn(
+        "flex flex-1 items-center overflow-hidden h-12 bg-gray-50/50 rounded-xl border border-gray-100 p-1",
+        "mx-6",
+        className
+      )}
+    >
       {/* Search Component */}
-      <div className="relative flex items-center w-56 flex-shrink-0 border-r border-gray-200 pr-3 mr-3 ml-1">
-        <Search className="absolute left-2 h-4 w-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder="搜索数字人..."
-          className="h-9 w-full rounded-lg bg-transparent pl-9 pr-2 text-sm outline-none placeholder:text-gray-400 focus:bg-white focus:ring-1 focus:ring-orange-100 transition-all"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
+      <div className={cn(
+        "flex items-center flex-shrink-0 mr-3 ml-1",
+        isSearchOpen ? "border-r border-gray-200 pr-3" : "pr-1"
+      )}>
+        {searchVariant === 'collapsible' && !isSearchOpen ? (
+          <button
+            type="button"
+            onClick={() => setIsSearchOpen(true)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-white hover:text-gray-900 hover:shadow-sm transition-all"
+            title="搜索数字人"
+          >
+            <Search className="h-4 w-4" />
+          </button>
+        ) : (
+          <div className="relative flex items-center w-56">
+            <Search className="absolute left-2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="搜索数字人..."
+              className={cn(
+                "h-9 w-full rounded-lg bg-transparent pl-9 pr-9 text-sm outline-none",
+                "placeholder:text-gray-400 focus:bg-white focus:ring-1 focus:ring-orange-100 transition-all"
+              )}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              autoFocus={searchVariant === 'collapsible'}
+            />
+            {searchVariant === 'collapsible' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setIsSearchOpen(false);
+                }}
+                className="absolute right-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-400 hover:bg-gray-50 hover:text-gray-700 transition-colors"
+                title="收起搜索"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Scrollable Container */}

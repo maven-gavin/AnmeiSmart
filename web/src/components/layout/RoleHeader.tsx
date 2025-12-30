@@ -106,7 +106,21 @@ export default function RoleHeader() {
   // 始终返回相同的HTML结构，无论是否有用户信息
   return (
     <header className="sticky top-0 z-10 border-b border-gray-200 bg-white shadow-sm">
-      <div className="flex h-16 items-center justify-between px-4">
+      {/* 移动端：只显示数字人工具栏 */}
+      <div className="flex h-14 items-center px-3 md:hidden">
+        {isClient && (
+          <DigitalHumanToolbar 
+            selectedId={expandedDigitalHuman?.id}
+            onSelect={handleDigitalHumanSelect}
+            onLoaded={setAllDigitalHumans}
+            searchVariant="collapsible"
+            className="mx-0"
+          />
+        )}
+      </div>
+
+      {/* 桌面端：完整头部 */}
+      <div className="hidden h-16 items-center justify-between px-4 md:flex">
         <div className="flex items-center">
           <img 
             src="/logo.ico" 
