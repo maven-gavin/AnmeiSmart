@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Message, TextMessageContent } from '@/types/chat';
+import { escapeRegExp } from '@/utils/regex';
 
 interface TextMessageProps {
   message: Message;
@@ -16,11 +17,12 @@ const TextMessage: React.FC<TextMessageProps> = ({ message, searchTerm }) => {
   const highlightText = (text: string, searchTerm?: string) => {
     if (!searchTerm || !text) return text;
     
-    const regex = new RegExp(`(${searchTerm})`, 'gi');
+    const escaped = escapeRegExp(searchTerm);
+    const regex = new RegExp(`(${escaped})`, 'gi');
     const parts = text.split(regex);
     
     return parts.map((part, index) => 
-      regex.test(part) ? (
+      part.toLowerCase() === searchTerm.toLowerCase() ? (
         <mark key={index} className="bg-yellow-200 px-1 rounded">
           {part}
         </mark>

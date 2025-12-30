@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import type { MessageContentProps } from './ChatMessage';
 import { FileService } from '@/service/fileService';
 import { MediaMessageContent } from '@/types/chat';
+import { escapeRegExp } from '@/utils/regex';
 
 // 图片缓存 - 避免重复请求
 const imageCache = new Map<string, string>();
@@ -429,7 +430,7 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
         {mediaContent.text && (
           <div className={`mt-3 ${compact ? 'text-xs' : 'text-sm'} text-gray-800 break-words`}>
             {searchTerm ? (
-              mediaContent.text.split(new RegExp(`(${searchTerm})`, 'gi')).map((part, index) => 
+              mediaContent.text.split(new RegExp(`(${escapeRegExp(searchTerm)})`, 'gi')).map((part, index) => 
                 part.toLowerCase() === searchTerm.toLowerCase() ? (
                   <mark key={index} className="bg-yellow-200 text-yellow-800 px-1 rounded">
                     {part}
@@ -540,7 +541,7 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
               <div className="p-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
                 <div className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
                   {searchTerm ? (
-                    mediaContent.text.split(new RegExp(`(${searchTerm})`, 'gi')).map((part, index) => 
+                    mediaContent.text.split(new RegExp(`(${escapeRegExp(searchTerm)})`, 'gi')).map((part, index) => 
                       part.toLowerCase() === searchTerm.toLowerCase() ? (
                         <mark key={index} className="bg-yellow-200 text-yellow-800 px-1 rounded">
                           {part}

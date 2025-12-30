@@ -15,6 +15,7 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { MessageUtils } from '@/utils/messageUtils';
+import { escapeRegExp } from '@/utils/regex';
 
 interface ChatSearchPanelProps {
   messages: Message[];
@@ -196,11 +197,12 @@ export function ChatSearchPanel({
   const highlightSearchTerm = (text: string, term: string) => {
     if (!term.trim()) return text;
     
-    const regex = new RegExp(`(${term})`, 'gi');
+    const escaped = escapeRegExp(term);
+    const regex = new RegExp(`(${escaped})`, 'gi');
     const parts = text.split(regex);
     
     return parts.map((part, index) => 
-      regex.test(part) ? (
+      part.toLowerCase() === term.toLowerCase() ? (
         <mark key={index} className="bg-yellow-200 text-yellow-900">
           {part}
         </mark>

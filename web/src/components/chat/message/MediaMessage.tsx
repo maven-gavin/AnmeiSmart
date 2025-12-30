@@ -7,6 +7,7 @@ import ImageMessage from './ImageMessage';
 import FileMessage from './FileMessage';
 import VideoMessage from './VideoMessage';
 import VoiceMessage from './VoiceMessage';
+import { escapeRegExp } from '@/utils/regex';
 
 export default function MediaMessage({ message, searchTerm, compact, onRetry }: MessageContentProps) {
   // 确保是媒体消息
@@ -79,7 +80,8 @@ export default function MediaMessage({ message, searchTerm, compact, onRetry }: 
   const highlightText = (text: string, searchTerm?: string) => {
     if (!searchTerm) return text;
     
-    const regex = new RegExp(`(${searchTerm})`, 'gi');
+    const escaped = escapeRegExp(searchTerm);
+    const regex = new RegExp(`(${escaped})`, 'gi');
     const parts = text.split(regex);
     
     return parts.map((part, index) => {

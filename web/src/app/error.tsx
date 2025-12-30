@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ErrorDisplay } from '@/components/ui/ErrorDisplay';
 
 export default function Error({
   error,
@@ -11,19 +10,22 @@ export default function Error({
   reset: () => void;
 }) {
   const [isChunkError, setIsChunkError] = useState(false);
+  const [errorDetails, setErrorDetails] = useState<string>('');
+  const [recentLogs, setRecentLogs] = useState<string>('');
 
   useEffect(() => {
-    // 记录错误到控制台
-    console.error('应用错误:', error);
+    // 记录错误详情到页面
+    const errorStr = String(error.message || error);
+    const fullErrorInfo = `错误: ${errorStr}${error.stack ? `\n\n堆栈信息:\n${error.stack}` : ''}`;
+    setErrorDetails(fullErrorInfo);
 
     // 检查是否是 chunk 加载错误
-    const errorStr = String(error.message || error);
     const chunkErrorPatterns = [
       'Loading chunk',
       'Loading CSS chunk',
       'Failed to fetch dynamically imported module',
-      'Failed to fetch',
       'missing:',
+      'ChunkLoadError',
     ];
 
     const isChunkLoadingError = chunkErrorPatterns.some(pattern =>
@@ -32,34 +34,23 @@ export default function Error({
 
     if (isChunkLoadingError) {
       setIsChunkError(true);
-      console.warn('检测到 chunk 加载错误，将尝试自动刷新页面');
+    }
 
-      // 检查是否已经尝试过刷新（避免无限循环）
-      const hasRetried = sessionStorage.getItem('chunk-error-retry');
-      const retryCount = parseInt(hasRetried || '0', 10);
-
-      if (retryCount < 2) {
-        // 标记已重试
-        sessionStorage.setItem('chunk-error-retry', String(retryCount + 1));
-
-        // 延迟刷新，给用户一点反馈时间
-        setTimeout(() => {
-          // 清除可能的缓存问题
-          if ('caches' in window) {
-            caches.keys().then((names) => {
-              names.forEach((name) => {
-                caches.delete(name);
-              });
-            });
-          }
-
-          // 强制刷新页面（不使用缓存）
-          window.location.reload();
-        }, 1500);
-      } else {
-        // 重试次数过多，清除标记
-        sessionStorage.removeItem('chunk-error-retry');
+    // 读取 ChunkErrorHandler 写入的最近日志（便于企业微信查看）
+    try {
+      const raw = sessionStorage.getItem('__anmei_client_error_logs__');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const text = parsed
+            .slice(-20)
+            .map((x: any) => `[${x?.time ?? ''}] ${x?.message ?? ''}`)
+            .join('\n');
+          setRecentLogs(text);
+        }
       }
+    } catch {
+      // ignore
     }
   }, [error]);
 
@@ -126,6 +117,24 @@ export default function Error({
                 返回首页
               </button>
             </div>
+
+            {(errorDetails || recentLogs) && (
+              <details className="mt-4">
+                <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700">
+                  查看错误详情与日志
+                </summary>
+                {errorDetails && (
+                  <pre className="mt-2 overflow-auto rounded bg-gray-100 p-3 text-xs text-gray-800 whitespace-pre-wrap break-words max-h-48">
+                    {errorDetails}
+                  </pre>
+                )}
+                {recentLogs && (
+                  <pre className="mt-2 overflow-auto rounded bg-gray-100 p-3 text-xs text-gray-800 whitespace-pre-wrap break-words max-h-48">
+                    {recentLogs}
+                  </pre>
+                )}
+              </details>
+            )}
           </div>
         </div>
       </div>
@@ -162,9 +171,19 @@ export default function Error({
               {error.message || '发生了一个未知错误'}
             </p>
             {error.digest && (
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 mb-2">
                 错误ID: {error.digest}
               </p>
+            )}
+            {errorDetails && (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700 mb-2">
+                  查看详细错误信息
+                </summary>
+                <pre className="mt-2 overflow-auto rounded bg-gray-100 p-3 text-xs text-gray-800 whitespace-pre-wrap break-words max-h-48">
+                  {errorDetails}
+                </pre>
+              </details>
             )}
           </div>
 

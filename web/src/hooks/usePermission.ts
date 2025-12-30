@@ -6,6 +6,7 @@
 
 import { useMemo } from 'react';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { escapeRegExp } from '@/utils/regex';
 
 export interface UsePermissionReturn {
   /**
@@ -164,9 +165,33 @@ export function usePermission(): UsePermissionReturn {
       
       // 支持通配符匹配（如 menu:* 匹配所有菜单资源）
       if (permission.includes('*')) {
-        const pattern = permission.replace(/\*/g, '.*');
-        const regex = new RegExp(`^${pattern}$`);
-        return regex.test(resourceName);
+        // 先整体转义，再把 \* 恢复成通配符 .*
+        // 这样即使 permission 里包含正则特殊字符（包括 (?< ）也不会导致企业微信 WebKit 报错
+        const escaped = escapeRegExp(permission);
+        const pattern = escaped.replace(/\\\*/g, '.*');
+        try {
+          const regex = new RegExp(`^${pattern}$`);
+          return regex.test(resourceName);
+        } catch (e) {
+          // 写到页面日志（ChunkErrorHandler 会读取并展示）
+          try {
+            const key = '__anmei_client_error_logs__';
+            const raw = sessionStorage.getItem(key);
+            const prev = raw ? (JSON.parse(raw) as any[]) : [];
+            const next = [
+              ...(Array.isArray(prev) ? prev : []),
+              {
+                id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                time: new Date().toLocaleTimeString('zh-CN'),
+                message: `权限正则构造失败: permission=${permission} pattern=${pattern} error=${String(e)}`,
+              },
+            ].slice(-20);
+            sessionStorage.setItem(key, JSON.stringify(next));
+          } catch {
+            // ignore
+          }
+          return false;
+        }
       }
       
       return false;

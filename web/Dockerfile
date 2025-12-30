@@ -52,7 +52,9 @@ RUN mkdir .next && chown nextjs:nodejs .next
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
+# 注意：standalone 目录不包含 .next/static，需要单独复制
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+# 复制静态文件到 .next/static，确保路径正确
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 USER nextjs

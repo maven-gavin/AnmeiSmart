@@ -1,8 +1,21 @@
 'use client';
 
-import { Streamdown } from 'streamdown';
 import 'katex/dist/katex.min.css';
-import { useState, useEffect, useRef } from 'react';
+import dynamic from 'next/dynamic';
+import { useEffect, useMemo, useRef, useState } from 'react';
+
+const Streamdown = dynamic(
+  async () => {
+    const mod = await import('streamdown');
+    return mod.Streamdown;
+  },
+  {
+    ssr: false,
+    loading: () => (
+      <div className="text-sm text-gray-500">Markdown 渲染器加载中...</div>
+    ),
+  }
+);
 
 interface StreamMarkdownProps {
   content?: string;  // 正常内容（可选，向后兼容）
@@ -76,6 +89,43 @@ export function StreamMarkdown({
 }: StreamMarkdownProps) {
   const [expandedThinks, setExpandedThinks] = useState<Set<number>>(new Set());
   const prevThinkSectionsLengthRef = useRef<number>(0);
+
+  const supportsAdvancedRegex = useMemo(() => {
+    // 企业微信桌面端（WebKit 605）可能不支持 lookbehind / Unicode property escapes
+    // streamdown 依赖中包含 (?<=...) 和 \p{...}，不支持会直接在加载 chunk 时 SyntaxError
+    try {
+      // lookbehind
+      // eslint-disable-next-line no-new
+      new RegExp('(?<=a)b');
+      // Unicode property escapes
+      // eslint-disable-next-line no-new
+      new RegExp('\\p{P}', 'u');
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (supportsAdvancedRegex) return;
+    // 写入页面日志，便于企业微信定位（ChunkErrorHandler 会展示）
+    try {
+      const key = '__anmei_client_error_logs__';
+      const raw = sessionStorage.getItem(key);
+      const prev = raw ? (JSON.parse(raw) as any[]) : [];
+      const next = [
+        ...(Array.isArray(prev) ? prev : []),
+        {
+          id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          time: new Date().toLocaleTimeString('zh-CN'),
+          message: '检测到浏览器不支持 lookbehind/Unicode 正则特性，已禁用 streamdown，Markdown 改为纯文本渲染',
+        },
+      ].slice(-20);
+      sessionStorage.setItem(key, JSON.stringify(next));
+    } catch {
+      // ignore
+    }
+  }, [supportsAdvancedRegex]);
   
   // 如果提供了分离的内容，直接使用；否则从 content 中解析（向后兼容）
   let processedContent: string;
@@ -155,7 +205,16 @@ export function StreamMarkdown({
       {/* 主要内容 */}
       {processedContent && (
         <div className={`streamdown-markdown prose prose-sm max-w-none ${className}`}>
-          <Streamdown>{processedContent}</Streamdown>
+          {supportsAdvancedRegex ? (
+            <Streamdown>{processedContent}</Streamdown>
+          ) : (
+            <div className="rounded-md border border-orange-200 bg-orange-50 p-3 text-sm text-gray-800">
+              <div className="mb-2 text-xs text-orange-700">
+                当前浏览器不支持部分 Markdown 渲染能力，已降级为纯文本显示。
+              </div>
+              <pre className="whitespace-pre-wrap break-words">{processedContent}</pre>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   /* config options here */
   // 允许开发模式下的跨域请求
   allowedDevOrigins: ['anmei.jibu.club'],
+  // 转译 ESM 包，确保构建时正确处理
+  transpilePackages: ['streamdown', 'shiki'],
   env: {
     NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_URL 
       ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1` 
@@ -21,11 +23,12 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   // 优化静态资源缓存策略，减少 chunk 加载失败问题
+  // 注意：规则按顺序匹配，更具体的规则应该放在前面
   async headers() {
     return [
+      // 1. 静态资源：长期缓存（因为文件名包含哈希，资源更新时文件名会变）
       {
-        // 对静态 chunk 文件使用长期缓存，但支持重新验证
-        source: '/_next/static/chunks/:path*',
+        source: '/_next/static/:path*',
         headers: [
           {
             key: 'Cache-Control',
@@ -33,23 +36,13 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // 2. API 路由：禁用缓存
       {
-        // 对 HTML 文件禁用缓存，确保始终获取最新版本
-        source: '/:path*.html',
+        source: '/api/:path*',
         headers: [
           {
             key: 'Cache-Control',
-            value: 'no-cache, no-store, must-revalidate',
-          },
-        ],
-      },
-      {
-        // 对主页面禁用缓存
-        source: '/',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'no-cache, no-store, must-revalidate',
+            value: 'no-store',
           },
         ],
       },
