@@ -173,7 +173,7 @@ export function usePermission(): UsePermissionReturn {
           const regex = new RegExp(`^${pattern}$`);
           return regex.test(resourceName);
         } catch (e) {
-          // 写到页面日志（ChunkErrorHandler 会读取并展示）
+          // 写到页面日志（ErrorHandler 会读取并展示）
           try {
             const key = '__anmei_client_error_logs__';
             const raw = sessionStorage.getItem(key);

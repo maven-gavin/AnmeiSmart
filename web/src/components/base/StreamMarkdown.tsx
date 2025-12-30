@@ -108,7 +108,7 @@ export function StreamMarkdown({
 
   useEffect(() => {
     if (supportsAdvancedRegex) return;
-    // 写入页面日志，便于企业微信定位（ChunkErrorHandler 会展示）
+    // 写入页面日志，便于企业微信定位（ErrorHandler 会展示）
     try {
       const key = '__anmei_client_error_logs__';
       const raw = sessionStorage.getItem(key);
