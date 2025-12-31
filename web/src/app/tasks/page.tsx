@@ -263,15 +263,6 @@ export default function TasksPage() {
           <h1 className="text-2xl font-bold text-gray-800">任务管理</h1>
           <div className="flex items-center gap-2">
             <Button
-              variant="outline"
-              size="sm"
-              onClick={refreshTasks}
-              className="flex items-center gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              <span>刷新</span>
-            </Button>
-            <Button
               className="bg-orange-500 hover:bg-orange-600"
               size="sm"
               onClick={() => setIsCreateOpen(true)}
@@ -283,7 +274,7 @@ export default function TasksPage() {
         </div>
 
         {/* 统计卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="hidden md:grid md:grid-cols-4 gap-4 mb-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">待处理</CardTitle>
@@ -398,8 +389,106 @@ export default function TasksPage() {
           </div>
         </div>
 
-        {/* 任务列表表格 */}
-        <div className="overflow-hidden rounded-lg border border-gray-200 shadow">
+        {/* 移动端卡片式布局 */}
+        <div className="md:hidden space-y-3">
+          {currentTasks.map((task) => (
+            <Card 
+              key={task.id} 
+              className={`overflow-hidden transition-shadow hover:shadow-md ${
+                isOverdue(task.due_date) ? 'border-l-4 border-l-red-500' : ''
+              }`}
+            >
+              <CardContent className="p-4">
+                {/* 任务标题和状态 */}
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-semibold text-gray-900 mb-1 line-clamp-2">
+                      {task.title}
+                    </h3>
+                    {task.description && (
+                      <p className="text-sm text-gray-600 line-clamp-2 mb-2">
+                        {task.description}
+                      </p>
+                    )}
+                  </div>
+                  <span className={`flex-shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusStyle(task.status)}`}>
+                    {TASK_STATUS_LABELS[task.status] || task.status}
+                  </span>
+                </div>
+
+                {/* 任务元信息 */}
+                <div className="space-y-2 mb-4">
+                  {/* 类型和优先级 */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="text-xs">
+                      {TASK_TYPE_LABELS[task.task_type] || task.task_type}
+                    </Badge>
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getPriorityStyle(task.priority)}`}>
+                      {TASK_PRIORITY_LABELS[task.priority] || task.priority}
+                    </span>
+                  </div>
+
+                  {/* 负责人 */}
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <User className="h-4 w-4 text-gray-400" />
+                    <span>{task.assigned_to ? task.assigned_to.username : '未分配'}</span>
+                  </div>
+
+                  {/* 截止时间 */}
+                  {task.due_date && (
+                    <div className={`flex items-center gap-2 text-xs ${isOverdue(task.due_date) ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                      <Clock className={`h-3.5 w-3.5 ${isOverdue(task.due_date) ? 'text-red-600' : 'text-gray-400'}`} />
+                      <span>截止: {formatDateSafely(task.due_date)}</span>
+                      {isOverdue(task.due_date) && <AlertCircle className="h-3.5 w-3.5 text-red-600" />}
+                    </div>
+                  )}
+
+                  {/* 创建时间 */}
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <Calendar className="h-3.5 w-3.5 text-gray-400" />
+                    <span>{formatDateSafely(task.created_at)}</span>
+                  </div>
+                </div>
+
+                {/* 操作按钮 */}
+                <div className="flex gap-2 pt-3 border-t border-gray-100">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleOpenDetail(task)}
+                    className="flex-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+                  >
+                    <ArrowRight className="h-4 w-4 mr-1.5" />
+                    查看详情
+                  </Button>
+                  {canClaim(task) && (
+                    <Button
+                      size="sm"
+                      onClick={() => handleClaimTask(task.id)}
+                      className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                    >
+                      <User className="h-4 w-4 mr-1.5" />
+                      认领任务
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+
+          {tasks.length === 0 && (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <CheckCircle className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">暂无任务</h3>
+                <p className="text-gray-500">所有任务都已处理完成</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* 桌面端表格布局 */}
+        <div className="hidden md:block overflow-hidden rounded-lg border border-gray-200 shadow">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
