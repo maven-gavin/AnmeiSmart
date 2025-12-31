@@ -1,20 +1,34 @@
 'use client';
 
 import { useState } from 'react';
-import DigitalHumanList from './DigitalHumanList';
 import DigitalHumanForm from './DigitalHumanForm';
 import AgentConfigPanel from './AgentConfigPanel';
 import { useDigitalHumans } from '@/hooks/useDigitalHumans';
-import type { CreateDigitalHumanRequest, UpdateDigitalHumanRequest } from '@/types/digital-human';
+import type { CreateDigitalHumanRequest, UpdateDigitalHumanRequest, DigitalHuman } from '@/types/digital-human';
 import { Button } from '@/components/ui/button';
-import { Plus, ArrowLeft, Bot, Users, Zap, Activity } from 'lucide-react';
+import { Plus, ArrowLeft, Bot, Users, Zap, Activity, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AvatarCircle } from '@/components/ui/AvatarCircle';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useAuthContext } from '@/contexts/AuthContext';
 
 export default function DigitalHumanManagementPanel() {
-  const [activeView, setActiveView] = useState<'overview' | 'list' | 'create' | 'edit' | 'agents'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'create' | 'edit' | 'agents'>('overview');
   const [selectedDigitalHuman, setSelectedDigitalHuman] = useState<string | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletingDigitalHuman, setDeletingDigitalHuman] = useState<DigitalHuman | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
+  const { user } = useAuthContext();
   const {
     digitalHumans,
     isLoading,
@@ -30,7 +44,7 @@ export default function DigitalHumanManagementPanel() {
   ) => {
     try {
       await createDigitalHuman(data as CreateDigitalHumanRequest);
-      setActiveView('list');
+      setActiveView('overview');
     } catch (error) {
       console.error('创建数字人失败:', error);
     }
@@ -53,12 +67,31 @@ export default function DigitalHumanManagementPanel() {
     }
   };
 
-  const handleDeleteDigitalHuman = async (id: string) => {
+  // 打开删除确认对话框
+  const handleDeleteClick = (digitalHuman: DigitalHuman) => {
+    setDeletingDigitalHuman(digitalHuman);
+    setIsDeleteDialogOpen(true);
+  };
+
+  // 确认删除
+  const handleConfirmDelete = async () => {
+    if (!deletingDigitalHuman) return;
+    
+    setIsDeleting(true);
     try {
-      await deleteDigitalHuman(id);
+      await deleteDigitalHuman(deletingDigitalHuman.id);
+      setIsDeleteDialogOpen(false);
+      setDeletingDigitalHuman(null);
     } catch (error) {
       console.error('删除数字人失败:', error);
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  // 判断是否是当前用户创建的数字人
+  const isOwner = (digitalHuman: DigitalHuman) => {
+    return user && digitalHuman.user_id === user.id && !digitalHuman.is_system_created;
   };
 
   const handleEditDigitalHuman = (id: string) => {
@@ -69,11 +102,6 @@ export default function DigitalHumanManagementPanel() {
   const handleConfigureAgents = (id: string) => {
     setSelectedDigitalHuman(id);
     setActiveView('agents');
-  };
-
-  const handleBackToList = () => {
-    setActiveView('list');
-    setSelectedDigitalHuman(null);
   };
 
   const handleBackToOverview = () => {
@@ -106,7 +134,7 @@ export default function DigitalHumanManagementPanel() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={activeView === 'list' ? handleBackToOverview : handleBackToList}
+              onClick={handleBackToOverview}
               className="mr-1 h-8 w-8 rounded-full text-gray-500 hover:bg-orange-50 hover:text-orange-600"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -116,7 +144,6 @@ export default function DigitalHumanManagementPanel() {
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-semibold text-gray-900">
                 {activeView === 'overview' && '数字人管理'}
-                {activeView === 'list' && '数字人列表'}
                 {activeView === 'create' && '创建数字人'}
                 {activeView === 'edit' && '编辑数字人'}
                 {activeView === 'agents' && '智能体配置'}
@@ -124,7 +151,6 @@ export default function DigitalHumanManagementPanel() {
             </div>
             <p className="mt-1 text-sm text-gray-500">
               {activeView === 'overview' && '统一管理数字人助手、统计指标与智能体配置'}
-              {activeView === 'list' && '查看、编辑和管理您创建的数字人'}
               {activeView === 'create' && '为你的业务快速创建一个新的数字人助手'}
               {activeView === 'edit' && '调整数字人的基础信息和个性配置'}
               {activeView === 'agents' && '为数字人编排可复用的智能体能力'}
@@ -133,7 +159,7 @@ export default function DigitalHumanManagementPanel() {
         </div>
 
         <div className="flex items-center gap-2">
-          {(activeView === 'overview' || activeView === 'list') && (
+          {(activeView === 'overview') && (
             <>
               <Button
                 onClick={() => setActiveView('create')}
@@ -228,25 +254,17 @@ export default function DigitalHumanManagementPanel() {
               </Card>
             </div>
 
-            {/* 最近的数字人 */}
+            {/* 我的数字人 */}
             <div>
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h3 className="text-base font-semibold text-gray-900">
-                    最近的数字人
+                    我的数字人
                   </h3>
                   <p className="mt-1 text-xs text-gray-500">
-                    快速进入最近创建或修改的数字人进行配置
+                    显示我创建的/系统授权的数字人助手
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setActiveView('list')}
-                  className="border-gray-200 text-gray-700 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
-                >
-                  查看全部
-                </Button>
               </div>
 
               {digitalHumans.length === 0 ? (
@@ -268,11 +286,24 @@ export default function DigitalHumanManagementPanel() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {digitalHumans.slice(0, 3).map((digitalHuman) => (
+                  {digitalHumans.map((digitalHuman) => (
                     <Card
                       key={digitalHuman.id}
-                      className="group cursor-pointer border-gray-100 bg-gradient-to-br from-white to-orange-50/40 transition-all hover:border-orange-200 hover:shadow-md"
+                      className="group relative cursor-pointer border-gray-100 bg-gradient-to-br from-white to-orange-50/40 transition-all hover:border-orange-200 hover:shadow-md"
                     >
+                      {/* 删除按钮 - 只有自己创建的数字人才显示 */}
+                      {isOwner(digitalHuman) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClick(digitalHuman);
+                          }}
+                          className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gray-100/80 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600"
+                          title="删除数字人"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                       <CardContent className="flex h-40 flex-col justify-center">
                         <div className="mb-3 pt-6 flex items-center gap-3">
                           <AvatarCircle
@@ -322,19 +353,10 @@ export default function DigitalHumanManagementPanel() {
           </div>
         )}
 
-        {activeView === 'list' && (
-          <DigitalHumanList
-            digitalHumans={digitalHumans}
-            onEdit={handleEditDigitalHuman}
-            onDelete={handleDeleteDigitalHuman}
-            onConfigureAgents={handleConfigureAgents}
-          />
-        )}
-
         {activeView === 'create' && (
           <DigitalHumanForm
             onSubmit={handleCreateDigitalHuman}
-            onCancel={handleBackToList}
+            onCancel={handleBackToOverview}
           />
         )}
 
@@ -342,17 +364,64 @@ export default function DigitalHumanManagementPanel() {
           <DigitalHumanForm
             digitalHuman={digitalHumans.find(dh => dh.id === selectedDigitalHuman)}
             onSubmit={handleUpdateDigitalHuman}
-            onCancel={handleBackToList}
+            onCancel={handleBackToOverview}
           />
         )}
 
         {activeView === 'agents' && selectedDigitalHuman && (
           <AgentConfigPanel
             digitalHumanId={selectedDigitalHuman}
-            onBack={handleBackToList}
+            onBack={handleBackToOverview}
           />
         )}
       </div>
+
+      {/* 删除确认对话框 */}
+      <AlertDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setIsDeleteDialogOpen(true);
+          } else {
+            // 如果正在删除，不允许关闭
+            if (isDeleting) return;
+            setIsDeleteDialogOpen(false);
+            setDeletingDigitalHuman(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除数字人</AlertDialogTitle>
+            <AlertDialogDescription>
+              删除后无法恢复，确定要删除数字人
+              <span className="font-semibold text-gray-900">
+                {deletingDigitalHuman?.name}
+              </span>
+              吗？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={() => {
+                if (isDeleting) return;
+                setIsDeleteDialogOpen(false);
+                setDeletingDigitalHuman(null);
+              }}
+              disabled={isDeleting}
+            >
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={isDeleting}
+            >
+              {isDeleting ? '删除中...' : '确认删除'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
