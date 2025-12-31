@@ -30,6 +30,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { EnhancedPagination } from '@/components/ui/pagination';
+import { cn } from '@/service/utils';
 
 interface ContactBookManagementPanelProps {
   // 可以添加额外的props
@@ -43,9 +44,11 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
-  const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
   const [sortBy, setSortBy] = useState<'name' | 'recent' | 'added' | 'interaction'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  
+  // 移动端侧边栏显示/隐藏状态（默认隐藏，显示主内容区）
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // 数据状态
   const [friends, setFriends] = useState<Friendship[]>([]);
@@ -184,6 +187,8 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
   const handleViewChange = (view: string) => {
     setSelectedView(view);
     setCurrentPage(1); // 重置到第一页
+    // 移动端：选择视图后隐藏侧边栏，显示主内容区
+    setIsSidebarOpen(false);
   };
   
   const handleSearchChange = (query: string) => {
@@ -329,19 +334,34 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
   }
   
   return (
-    <div className="flex h-full bg-gray-50">
-      {/* 左侧导航栏 */}
-      <ContactSidebar
-        selectedView={selectedView}
-        onViewChange={handleViewChange}
-        tags={tags}
-        groups={groups}
-        friendsCount={total}
-        loading={loading}
-      />
+    <div className="flex h-full bg-gray-50 relative">
+      {/* 左侧导航栏 - 移动端通过绝对定位控制显示/隐藏 */}
+      <div className={cn(
+        "absolute inset-y-0 left-0 z-50 transition-transform duration-300 ease-in-out",
+        "md:relative md:z-auto",
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+      )}>
+        <ContactSidebar
+          selectedView={selectedView}
+          onViewChange={handleViewChange}
+          onClose={() => setIsSidebarOpen(false)}
+          tags={tags}
+          groups={groups}
+          friendsCount={total}
+          loading={loading}
+        />
+      </div>
+      
+      {/* 移动端侧边栏打开时的遮罩层 */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
       
       {/* 主内容区 */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col w-full md:w-auto">
         <ContactToolbar
           searchQuery={searchQuery}
           onSearchChange={handleSearchChange}
@@ -349,14 +369,13 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
           onTagsChange={handleTagsChange}
           selectedGroups={selectedGroups}
           onGroupsChange={handleGroupsChange}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
           sortBy={sortBy}
           sortOrder={sortOrder}
           onSortChange={handleSortChange}
           onAddFriend={() => setShowAddFriendModal(true)}
           tags={tags}
           groups={groups}
+          onToggleSidebar={() => setIsSidebarOpen(true)}
         />
         
         {/* 根据选择的视图显示不同内容 */}
@@ -385,7 +404,7 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
         ) : (
           <ContactList
             friends={friends}
-            viewMode={viewMode}
+            viewMode="list"
             loading={loading}
             total={total}
             currentPage={currentPage}

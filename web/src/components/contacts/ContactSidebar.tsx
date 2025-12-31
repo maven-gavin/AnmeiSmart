@@ -1,12 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/service/utils';
 import type { ContactTag, ContactGroup } from '@/types/contacts';
 
 interface ContactSidebarProps {
   selectedView: string;
   onViewChange: (view: string) => void;
+  onClose?: () => void;
   tags: ContactTag[];
   groups: ContactGroup[];
   friendsCount: number;
@@ -73,6 +76,7 @@ function useViewCounts() {
 export function ContactSidebar({
   selectedView,
   onViewChange,
+  onClose,
   tags,
   groups,
   friendsCount,
@@ -89,9 +93,23 @@ export function ContactSidebar({
   ];
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+    <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-full shadow-lg md:shadow-none">
       <div className="p-4">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">通讯录</h2>
+        {/* 标题行：通讯录 + 关闭按钮 */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">通讯录</h2>
+          {/* 移动端：关闭侧边栏按钮（淡黄色） */}
+          {onClose && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="md:hidden text-yellow-400 hover:text-yellow-500 hover:bg-yellow-50/50 p-2"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          )}
+        </div>
         
         {/* 快速视图 */}
         <div className="space-y-1 mb-6">

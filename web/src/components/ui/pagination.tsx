@@ -208,13 +208,13 @@ const EnhancedPagination = ({
 
   return (
     <div className={cn("flex flex-wrap items-center justify-between gap-4", className)}>
-      {/* 左侧：总记录数 */}
-      <span className="text-sm text-muted-foreground whitespace-nowrap">
+      {/* 左侧：总记录数 - 移动端隐藏 */}
+      <span className="hidden md:block text-sm text-muted-foreground whitespace-nowrap">
         显示 {startItem} - {endItem} 条，共 {totalItems} 条记录
       </span>
 
-      {/* 中间：分页按钮 */}
-      <div className="flex-1 flex justify-center">
+      {/* 中间：分页按钮 - 始终显示 */}
+      <div className="flex-1 flex justify-center md:flex-1">
         <Pagination className="!mx-0 !w-auto">
         <PaginationContent>
           <PaginationItem>
@@ -249,8 +249,8 @@ const EnhancedPagination = ({
       </Pagination>
       </div>
 
-      {/* 右侧：每页显示、跳转 */}
-      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+      {/* 右侧：每页显示、跳转 - 移动端隐藏 */}
+      <div className="hidden md:flex items-center gap-4 text-sm text-muted-foreground">
         {onItemsPerPageChange && (
           <div className="flex items-center gap-2">
             <Label htmlFor="items-per-page" className="whitespace-nowrap">

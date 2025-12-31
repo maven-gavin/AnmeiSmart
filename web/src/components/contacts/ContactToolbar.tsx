@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, X, Tag, Users, List, Grid3X3, UserPlus } from 'lucide-react';
+import { Search, X, Tag, Users, UserPlus, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -13,14 +13,13 @@ interface ContactToolbarProps {
   onTagsChange: (tags: string[]) => void;
   selectedGroups: string[];
   onGroupsChange: (groups: string[]) => void;
-  viewMode: 'list' | 'card';
-  onViewModeChange: (mode: 'list' | 'card') => void;
   sortBy: 'name' | 'recent' | 'added' | 'interaction';
   sortOrder: 'asc' | 'desc';
   onSortChange: (field: 'name' | 'recent' | 'added' | 'interaction') => void;
   onAddFriend: () => void;
   tags: ContactTag[];
   groups: ContactGroup[];
+  onToggleSidebar?: () => void;
 }
 
 export function ContactToolbar({
@@ -30,20 +29,31 @@ export function ContactToolbar({
   onTagsChange,
   selectedGroups,
   onGroupsChange,
-  viewMode,
-  onViewModeChange,
   sortBy,
   sortOrder,
   onSortChange,
   onAddFriend,
   tags,
-  groups
+  groups,
+  onToggleSidebar
 }: ContactToolbarProps) {
   return (
     <div className="bg-white border-b border-gray-200 p-4 space-y-4">
       {/* 第一行：搜索和主要操作 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4 flex-1">
+          {/* 移动端：显示侧边栏按钮（淡黄色） */}
+          {onToggleSidebar && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggleSidebar}
+              className="md:hidden text-yellow-400 hover:text-yellow-500 hover:bg-yellow-50/50 p-2"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+          )}
+          
           {/* 搜索框 */}
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -64,53 +74,10 @@ export function ContactToolbar({
               </Button>
             )}
           </div>
-          
-          {/* 筛选器占位符 */}
-          <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm">
-              <Tag className="w-4 h-4 mr-2" />
-              标签
-              {selectedTags.length > 0 && (
-                <Badge variant="secondary" className="ml-2">
-                  {selectedTags.length}
-                </Badge>
-              )}
-            </Button>
-            
-            <Button variant="outline" size="sm">
-              <Users className="w-4 h-4 mr-2" />
-              分组
-              {selectedGroups.length > 0 && (
-                <Badge variant="secondary" className="ml-2">
-                  {selectedGroups.length}
-                </Badge>
-              )}
-            </Button>
-          </div>
         </div>
         
         {/* 右侧操作 */}
         <div className="flex items-center space-x-2">
-          {/* 视图切换 */}
-          <div className="flex items-center bg-gray-100 rounded-md p-1">
-            <Button
-              variant={viewMode === 'list' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => onViewModeChange('list')}
-              className="h-7"
-            >
-              <List className="w-4 h-4" />
-            </Button>
-            <Button
-              variant={viewMode === 'card' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => onViewModeChange('card')}
-              className="h-7"
-            >
-              <Grid3X3 className="w-4 h-4" />
-            </Button>
-          </div>
-          
           {/* 添加好友 */}
           <Button onClick={onAddFriend}>
             <UserPlus className="w-4 h-4 mr-2" />
