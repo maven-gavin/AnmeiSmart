@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { Plus, MessageSquare, Calendar, Edit2, Check, X, MoreVertical, Trash2 } from 'lucide-react';
+import { Plus, MessageSquare, Calendar, Edit2, Check, X, MoreVertical, Trash2, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -43,6 +43,7 @@ interface ConversationHistoryPanelProps {
   onConversationUpdate?: (conversationId: string, title: string) => void;
   onDeleteConversation?: (conversationId: string) => void;
   isLoading?: boolean;
+  onSwitchToChat?: () => void;  // 移动端：切换到 chat 视图的回调
 }
 
 export function ConversationHistoryPanel({
@@ -55,6 +56,7 @@ export function ConversationHistoryPanel({
   onConversationUpdate,
   onDeleteConversation,
   isLoading = false,
+  onSwitchToChat,
 }: ConversationHistoryPanelProps) {
   // 标题编辑状态
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
@@ -139,13 +141,28 @@ export function ConversationHistoryPanel({
       setIsDeleting(false);
     }
   };
+  // 移动端：当有 onSwitchToChat 回调时，使用全宽；否则使用固定宽度 w-80
+  const isMobile = !!onSwitchToChat;
+  
   return (
-    <div className="flex h-full w-80 flex-col border-r border-gray-200 bg-white">
+    <div className={`flex h-full flex-col border-r border-gray-200 bg-white ${isMobile ? 'w-full' : 'w-80'}`}>
       {/* Header with Agent Name */}
       <div className="border-b border-gray-200 p-4">
-        <div className="mb-3 flex items-center space-x-2">
-          <MessageSquare className="h-5 w-5 text-gray-600" />
-          <h2 className="text-lg font-semibold text-gray-900">{agentName}</h2>
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <MessageSquare className="h-5 w-5 text-gray-600" />
+            <h2 className="text-lg font-semibold text-gray-900">{agentName}</h2>
+          </div>
+          {/* 移动端：切换到 chat 视图的按钮 */}
+          {onSwitchToChat && (
+            <button
+              onClick={onSwitchToChat}
+              className="flex-shrink-0 p-1.5 rounded-md hover:bg-yellow-50 transition-colors"
+              title="进入聊天"
+            >
+              <ChevronRight className="h-5 w-5 text-yellow-400" />
+            </button>
+          )}
         </div>
 
         {/* Start New Chat Button */}
