@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { ChevronLeft } from 'lucide-react'
 import { Conversation, type Message } from '@/types/chat'
 import ChatMessage from '@/components/chat/message/ChatMessage'
 import MessageInput from '@/components/chat/MessageInput'
@@ -34,6 +35,8 @@ interface ChatWindowProps {
   toggleMessageImportant?: (messageId: string, currentStatus: boolean) => Promise<void>;
   onMessageAdded?: (message: Message) => void;
   onInputFocus?: () => void; // 新增
+  isHistoryListCollapsed?: boolean;
+  onToggleHistoryList?: () => void;
 }
 
 export default function ChatWindow({ 
@@ -52,7 +55,9 @@ export default function ChatWindow({
   onSettingsToggle,
   toggleMessageImportant,
   onMessageAdded,
-  onInputFocus
+  onInputFocus,
+  isHistoryListCollapsed = false,
+  onToggleHistoryList
 }: ChatWindowProps) {
   const { user } = useAuthContext();
   const router = useRouter()
@@ -263,7 +268,7 @@ export default function ChatWindow({
 
   // 渲染标题编辑区域
   const renderTitleSection = () => (
-    <div className="flex items-center justify-between mb-1">
+    <div className="flex items-center">
       {editingTitleId === conversation.id ? (
         <input
           ref={editInputRef}
@@ -272,7 +277,7 @@ export default function ChatWindow({
           onChange={(e) => setEditingTitle(e.target.value)}
           onBlur={() => saveTitle(conversation.id)}
           onKeyDown={(e) => handleKeyDown(e, conversation.id)}
-          className="flex-1 text-sm font-medium bg-white border border-orange-300 rounded px-2 py-1 focus:outline-none focus:border-orange-500"
+          className="text-sm font-medium bg-white border border-orange-300 rounded px-2 py-1 focus:outline-none focus:border-orange-500"
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
@@ -338,8 +343,20 @@ export default function ChatWindow({
     return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* 消息列表顶部按钮 */}
-      <div className="flex-shrink-0 border-b border-gray-200 bg-white p-2 shadow-sm flex justify-between">
-        {renderTitleSection()}
+      <div className="flex-shrink-0 border-b border-gray-200 bg-white p-2 shadow-sm flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          {/* 展开会话历史图标 - 仅在收起时显示 */}
+          {isHistoryListCollapsed && onToggleHistoryList && (
+            <button
+              onClick={onToggleHistoryList}
+              className="flex-shrink-0 p-1.5 rounded-md hover:bg-orange-50 transition-colors"
+              title="展开会话历史"
+            >
+              <ChevronLeft className="h-4 w-4 text-orange-500" />
+            </button>
+          )}
+          {renderTitleSection()}
+        </div>
         {/* 更多操作菜单 */}
         <ChatActionsMenu
           conversationId={conversation.id}

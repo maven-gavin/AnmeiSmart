@@ -20,6 +20,10 @@ import {
   type ConversationParticipantRole,
 } from './chat';
 
+// 复用进行中的请求，避免 StrictMode/重复触发导致“直接返回空缓存”并且后续不再更新
+const INFLIGHT_MESSAGES_REQUESTS = new Map<string, Promise<Message[]>>();
+const INFLIGHT_CONVERSATIONS_REQUESTS = new Map<string, Promise<Conversation[]>>();
+
 /**
  * 保存消息
  * @param message 消息
@@ -94,9 +98,10 @@ export async function getConversationMessages(conversationId: string, forceRefre
   // 获取缓存的消息
   const cachedMessages = chatState.getChatMessages(conversationId);
   
-  // 检查是否有未完成的请求
-  if (chatState.isRequestingMessagesForConversation(conversationId)) {
-    return cachedMessages;
+  // 如果已有进行中的请求，复用同一个 Promise
+  const inflight = INFLIGHT_MESSAGES_REQUESTS.get(conversationId);
+  if (inflight) {
+    return await inflight;
   }
   
   // 检查缓存是否有效
@@ -104,47 +109,62 @@ export async function getConversationMessages(conversationId: string, forceRefre
     return cachedMessages;
   }
   
-  try {
-    // 设置请求标志
-    chatState.setRequestingMessages(conversationId, true);
-    
-    // 使用API服务获取消息
-    const messages = await ChatApiService.getConversationMessages(conversationId);
-    
-    // 如果返回的消息为空，且缓存有数据，使用缓存
-    if (messages.length === 0 && cachedMessages.length > 0) {
+  const requestPromise = (async (): Promise<Message[]> => {
+    try {
+      // 设置请求标志
+      chatState.setRequestingMessages(conversationId, true);
+
+      // 使用API服务获取消息
+      const messages = await ChatApiService.getConversationMessages(conversationId);
+
+      // 如果返回的消息为空，且缓存有数据，使用缓存
+      if (messages.length === 0 && cachedMessages.length > 0) {
+        return cachedMessages;
+      }
+
+      // 更新本地缓存
+      if (messages.length > 0) {
+        chatState.setChatMessages(conversationId, messages);
+        chatState.updateMessagesRequestTime(conversationId);
+      }
+
+      return messages;
+    } catch (error) {
+      console.error('获取会话消息出错:', error);
+
+      // 如果是认证错误，抛出异常
+      if (error instanceof ApiClientError && error.type === ErrorType.AUTHENTICATION) {
+        throw error;
+      }
+
+      // 其他错误时返回缓存数据
       return cachedMessages;
+    } finally {
+      // 重置请求标志 + 清理 in-flight
+      chatState.setRequestingMessages(conversationId, false);
+      INFLIGHT_MESSAGES_REQUESTS.delete(conversationId);
     }
-    
-    // 更新本地缓存
-    if (messages.length > 0) {
-      chatState.setChatMessages(conversationId, messages);
-      chatState.updateMessagesRequestTime(conversationId);
-    }
-    
-    return messages;
-  } catch (error) {
-    console.error('获取会话消息出错:', error);
-    
-    // 如果是认证错误，抛出异常
-    if (error instanceof ApiClientError && error.type === ErrorType.AUTHENTICATION) {
-      throw error;
-    }
-    
-    // 其他错误时返回缓存数据
-    return cachedMessages;
-  } finally {
-    // 重置请求标志
-    chatState.setRequestingMessages(conversationId, false);
-  }
+  })();
+
+  INFLIGHT_MESSAGES_REQUESTS.set(conversationId, requestPromise);
+  return await requestPromise;
 }
 
 /**
  * 获取所有会话
  */
 export async function getConversations(unassignedOnly: boolean = false): Promise<Conversation[]> {
+  const inflightKey = unassignedOnly ? 'unassigned' : 'all';
+
+  // 如果已有进行中的请求，复用同一个 Promise
+  const inflight = INFLIGHT_CONVERSATIONS_REQUESTS.get(inflightKey);
+  if (inflight) {
+    return await inflight;
+  }
+
   // 检查是否已有请求正在进行
   if (chatState.isRequestingConversationsState()) {
+    // 兜底：如果状态上标记“正在请求”，但没有 in-flight promise，则返回缓存
     return chatState.getConversations();
   }
   
@@ -156,34 +176,40 @@ export async function getConversations(unassignedOnly: boolean = false): Promise
     }
   }
   
-  try {
-    // 设置请求标志
-    chatState.setRequestingConversations(true);
-    
-    // 使用API服务获取会话列表
-    const formattedConversations = await ChatApiService.getConversations(unassignedOnly);
-    
-    // 只有在非未分配过滤时才更新本地通用缓存
-    if (!unassignedOnly) {
-      chatState.setConversations(formattedConversations);
-      chatState.updateConversationsRequestTime();
+  const requestPromise = (async (): Promise<Conversation[]> => {
+    try {
+      // 设置请求标志
+      chatState.setRequestingConversations(true);
+
+      // 使用API服务获取会话列表
+      const formattedConversations = await ChatApiService.getConversations(unassignedOnly);
+
+      // 只有在非未分配过滤时才更新本地通用缓存
+      if (!unassignedOnly) {
+        chatState.setConversations(formattedConversations);
+        chatState.updateConversationsRequestTime();
+      }
+
+      return formattedConversations;
+    } catch (error) {
+      console.error('获取会话列表出错:', error);
+
+      // 如果是认证错误，抛出异常
+      if (error instanceof ApiClientError && error.type === ErrorType.AUTHENTICATION) {
+        throw error;
+      }
+
+      // 其他错误返回缓存数据
+      return chatState.getConversations();
+    } finally {
+      // 重置请求标志 + 清理 in-flight
+      chatState.setRequestingConversations(false);
+      INFLIGHT_CONVERSATIONS_REQUESTS.delete(inflightKey);
     }
-    
-    return formattedConversations;
-  } catch (error) {
-    console.error('获取会话列表出错:', error);
-    
-    // 如果是认证错误，抛出异常
-    if (error instanceof ApiClientError && error.type === ErrorType.AUTHENTICATION) {
-      throw error;
-    }
-    
-    // 其他错误返回缓存数据
-    return chatState.getConversations();
-  } finally {
-    // 重置请求标志
-    chatState.setRequestingConversations(false);
-  }
+  })();
+
+  INFLIGHT_CONVERSATIONS_REQUESTS.set(inflightKey, requestPromise);
+  return await requestPromise;
 }
 
 /**

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { ChevronLeft } from 'lucide-react';
 import { cn } from '@/service/utils';
 import { Conversation } from '@/types/chat';
 import { getDisplayTitle, formatMessageContent } from '@/utils/conversationUtils';
@@ -11,6 +12,7 @@ interface ConversationHistoryListProps {
   selectedConversationId?: string | null;
   onConversationSelect?: (conversationId: string) => void;
   onFilterChange?: (unassignedOnly: boolean) => void;
+  onToggleCollapse?: () => void;
 }
 
 export default function ConversationHistoryList({ 
@@ -18,7 +20,8 @@ export default function ConversationHistoryList({
   isLoading,
   selectedConversationId,
   onConversationSelect,
-  onFilterChange
+  onFilterChange,
+  onToggleCollapse
 }: ConversationHistoryListProps) {
   const [filterMode, setFilterMode] = React.useState<'all' | 'unassigned'>('all');
 
@@ -198,6 +201,15 @@ export default function ConversationHistoryList({
             未分配的
           </button>
         </div>
+        {onToggleCollapse && (
+          <button
+            onClick={onToggleCollapse}
+            className="flex-shrink-0 ml-2 p-1.5 rounded-md hover:bg-orange-50 transition-colors"
+            title="收起会话历史"
+          >
+            <ChevronLeft className="h-4 w-4 text-orange-500" />
+          </button>
+        )}
       </div>
 
       {/* 动态内容区域 */}

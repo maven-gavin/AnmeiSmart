@@ -25,6 +25,12 @@ const nextConfig: NextConfig = {
   // 优化静态资源缓存策略，减少 chunk 加载失败问题
   // 注意：规则按顺序匹配，更具体的规则应该放在前面
   async headers() {
+    // 开发环境不要对 /_next/static 施加强缓存，否则浏览器可能长期使用旧的 client chunk，
+    // 造成“服务端日志/渲染已更新，但浏览器控制台/行为仍是旧代码”的错觉。
+    if (process.env.NODE_ENV !== 'production') {
+      return [];
+    }
+
     return [
       // 1. 静态资源：长期缓存（因为文件名包含哈希，资源更新时文件名会变）
       {
