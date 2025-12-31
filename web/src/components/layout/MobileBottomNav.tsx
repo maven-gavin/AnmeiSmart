@@ -15,6 +15,7 @@ import {
 import { cn } from '@/lib/utils';
 
 const MOBILE_PRIMARY_PATHS = ['/tasks', '/chat', '/contacts', '/profile'] as const;
+const MOBILE_MORE_PATHS = ['/statistics'] as const;
 
 export function MobileBottomNav() {
   const pathname = usePathname();
@@ -27,8 +28,10 @@ export function MobileBottomNav() {
       return found ? [found] : [];
     });
 
-    const primaryIds = new Set(primaryItems.map(i => i.id));
-    const moreItems = items.filter(i => !primaryIds.has(i.id));
+    const moreItems = MOBILE_MORE_PATHS.flatMap(p => {
+      const found = items.find(i => i.path === p);
+      return found ? [found] : [];
+    });
 
     return {
       primary: primaryItems,

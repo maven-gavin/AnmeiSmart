@@ -110,21 +110,21 @@ export default function StatisticsPage() {
 
   return (
     <AppLayout requiredRole={user?.currentRole}>
-      <div className="container mx-auto px-4 py-6">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">数据统计</h1>
-            <p className="text-gray-600 mt-1">任务治理指标（M4）：用数据证明“提效 + 风控”</p>
+      <div className="h-full overflow-y-auto">
+        <div className="container mx-auto px-4 py-4 md:py-6">
+          <div className="mb-4 md:mb-6 flex items-center justify-between">
+            <div>
+              <h1 className="text-xl md:text-2xl font-bold text-gray-800">数据统计</h1>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={loadAll} disabled={loading} className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4" />
+                刷新
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={loadAll} disabled={loading} className="flex items-center gap-2">
-              <RefreshCw className="h-4 w-4" />
-              刷新
-            </Button>
-          </div>
-        </div>
 
-        <Card className="mb-6">
+        <Card className="mb-4 md:mb-6">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">筛选</CardTitle>
           </CardHeader>
@@ -171,7 +171,7 @@ export default function StatisticsPage() {
           </CardContent>
         </Card>
 
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div className="mb-4 md:mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">期间创建任务</CardTitle>
@@ -210,7 +210,7 @@ export default function StatisticsPage() {
           </Card>
         </div>
 
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="mb-4 md:mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">完成中位耗时（分钟）</CardTitle>
@@ -240,12 +240,13 @@ export default function StatisticsPage() {
           </Card>
         </div>
 
-        <Card>
+        <Card className="mb-4 md:mb-6">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">按场景明细</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
+            <div className="overflow-x-auto">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>scene_key</TableHead>
@@ -282,8 +283,10 @@ export default function StatisticsPage() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
+        </div>
       </div>
     </AppLayout>
   )
