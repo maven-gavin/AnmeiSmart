@@ -6,7 +6,7 @@ import { MediaMessageContent } from '@/types/chat';
 import { FileService } from '@/service/fileService';
 import { getMediaLoadKey, isDirectPreviewUrl, revokeBlobUrl } from './mediaUtils';
 
-export default function VoiceMessage({ message }: MessageContentProps) {
+export default function VoiceMessage({ message, onRetry }: MessageContentProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   // 初始化时尝试从metadata获取时长作为fallback
   const getInitialDuration = (): number => {
