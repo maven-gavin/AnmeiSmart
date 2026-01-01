@@ -4,6 +4,7 @@
 """
 import json
 import logging
+import urllib.parse
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, Request
@@ -27,6 +28,29 @@ logger = logging.getLogger(__name__)
 # 移除本地定义的函数，使用公共方法 get_user_primary_role
 
 router = APIRouter()
+
+
+def format_content_disposition(filename: str) -> str:
+    """
+    格式化Content-Disposition头，正确处理包含非ASCII字符的文件名
+    
+    Args:
+        filename: 原始文件名
+        
+    Returns:
+        格式化的Content-Disposition头值
+    """
+    # 检查文件名是否包含非ASCII字符
+    try:
+        filename.encode('ascii')
+        # 纯ASCII字符，直接使用
+        return f'attachment; filename="{filename}"'
+    except UnicodeEncodeError:
+        # 包含非ASCII字符，使用RFC 5987格式
+        # 先对文件名进行URL编码
+        encoded_filename = urllib.parse.quote(filename, safe='')
+        # 使用RFC 5987格式：filename*=UTF-8''encoded_name
+        return f"attachment; filename*=UTF-8''{encoded_filename}"
 
 
 @router.post("/upload", response_model=FileUploadResponse)
@@ -252,7 +276,7 @@ async def download_file_by_id(
             file_stream,
             media_type=content_type,
             headers={
-                "Content-Disposition": f"attachment; filename={file_name}",
+                "Content-Disposition": format_content_disposition(file_name),
                 "Cache-Control": "private, max-age=3600"
             }
         )
@@ -335,7 +359,7 @@ async def download_file(
             file_stream,
             media_type=content_type,
             headers={
-                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Disposition": format_content_disposition(filename),
                 "Cache-Control": "private, max-age=3600"
             }
         )
