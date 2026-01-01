@@ -3,6 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { tokenManager } from '@/service/tokenManager';
+import { useAuthedImageSrc } from '@/hooks/useAuthedImageSrc';
 import { MessageContentProps } from './ChatMessage';
 import { MediaMessageContent } from '@/types/chat';
 
@@ -22,6 +23,12 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo, on
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+
+  const safePreviewFileId =
+    fileInfo?.file_id ||
+    (message.type === 'media' ? ((message.content as MediaMessageContent)?.media_info?.file_id || null) : null);
+
+  const authedPreviewSrc = useAuthedImageSrc(safePreviewFileId);
 
   // 从新消息结构中获取文件信息
   const getFileInfo = (): FileInfo => {
@@ -304,7 +311,7 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo, on
               
               {/* 图片 */}
               <img
-                src={getPreviewUrl(currentFileInfo)}
+                src={authedPreviewSrc}
                 alt={currentFileInfo.file_name}
                 className="max-w-full max-h-full object-contain"
                 onClick={() => setIsPreviewOpen(false)}

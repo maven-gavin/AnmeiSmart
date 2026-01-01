@@ -18,6 +18,7 @@ from .auth_deps import (
     
     # 核心认证
     get_current_user,
+    get_current_user_optional,
     get_current_admin,
     
     # 权限检查依赖
@@ -56,6 +57,7 @@ __all__ = [
     
     # 核心认证
     "get_current_user",
+    "get_current_user_optional",
     "get_current_admin",
     
     # 权限检查依赖

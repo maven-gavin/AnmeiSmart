@@ -15,6 +15,10 @@ from app.identity_access.deps.user_deps import get_user_service
 
 settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(
+    tokenUrl=f"{settings.API_V1_STR}/auth/login",
+    auto_error=False,
+)
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -50,6 +54,47 @@ async def get_current_user(
         # 将活跃角色存储为用户对象的临时属性
         user._active_role = active_role
         
+    return user
+
+
+async def get_current_user_optional(
+    token: str | None = Depends(oauth2_scheme_optional),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """
+    可选的当前用户依赖：
+    - 没有携带 token：返回 None（用于 public/avatar 等可匿名访问资源）
+    - 携带了 token：按正常逻辑校验；无效则抛 401
+    """
+    if not token:
+        return None
+
+    jwt_service = JWTService()
+    payload = jwt_service.verify_token(token)
+
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="无法验证凭据",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id: str | None = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="无法验证凭据",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    active_role = payload.get("role")
+    if active_role:
+        user._active_role = active_role
+
     return user
 
 async def get_current_admin(

@@ -1,5 +1,8 @@
+/* eslint-disable @next/next/no-img-element */
+'use client'
+
 import { cn } from '@/lib/utils'
-import { normalizeAvatarUrl } from '@/utils/avatarUrl'
+import { useAuthedImageSrc } from '@/hooks/useAuthedImageSrc'
 
 export interface AvatarCircleProps {
   name: string
@@ -23,7 +26,7 @@ export function AvatarCircle({
   className,
   imgClassName,
 }: AvatarCircleProps) {
-  const avatarUrl = normalizeAvatarUrl(avatar)
+  const avatarUrl = useAuthedImageSrc(avatar)
   const fallbackChar = (name?.trim()?.charAt(0) || '?').toUpperCase()
 
   return (

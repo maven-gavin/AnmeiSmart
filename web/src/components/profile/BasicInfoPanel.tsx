@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Upload } from 'lucide-react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { normalizeAvatarUrl } from '@/utils/avatarUrl';
+import { useAuthedImageSrc } from '@/hooks/useAuthedImageSrc';
 import toast from 'react-hot-toast';
 
 export function BasicInfoPanel() {
@@ -33,6 +33,8 @@ export function BasicInfoPanel() {
     active_role: ''
   });
 
+  const authedAvatarSrc = useAuthedImageSrc(avatarPreview || userInfo?.avatar || null);
+
   const fetchUserInfo = async () => {
     try {
       setLoading(true);
@@ -48,9 +50,7 @@ export function BasicInfoPanel() {
         active_role: info.active_role || (info.roles && info.roles.length > 0 ? info.roles[0] : '')
       });
 
-      if (info.avatar) {
-        setAvatarPreview(normalizeAvatarUrl(info.avatar) ?? null);
-      }
+      setAvatarPreview(info.avatar ?? null);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '获取用户信息失败';
       setError(errorMessage);
@@ -107,11 +107,7 @@ export function BasicInfoPanel() {
         active_role: userInfo.active_role || (userInfo.roles && userInfo.roles.length > 0 ? userInfo.roles[0] : '')
       });
 
-      if (userInfo.avatar) {
-        setAvatarPreview(normalizeAvatarUrl(userInfo.avatar) ?? null);
-      } else {
-        setAvatarPreview(null);
-      }
+      setAvatarPreview(userInfo.avatar ?? null);
     }
   };
 
@@ -162,9 +158,7 @@ export function BasicInfoPanel() {
       if (Object.keys(updateData).length > 0) {
         const updatedInfo = await profileService.updateMyBasicInfo(updateData);
         setUserInfo(updatedInfo);
-        if (updatedInfo.avatar) {
-          setAvatarPreview(normalizeAvatarUrl(updatedInfo.avatar) ?? null);
-        }
+        setAvatarPreview(updatedInfo.avatar ?? null);
         setAvatarFile(null);
       }
 
@@ -258,7 +252,7 @@ export function BasicInfoPanel() {
         <div className="flex items-center space-x-4">
           <div className="flex flex-col items-center space-y-3">
             <Avatar className="w-16 h-16 shadow-sm">
-              <AvatarImage src={avatarPreview || normalizeAvatarUrl(userInfo?.avatar) || undefined} />
+              <AvatarImage src={authedAvatarSrc} />
               <AvatarFallback className="text-lg bg-gradient-to-br from-orange-400 to-orange-600 text-white">
                 {userInfo?.username?.charAt(0)?.toUpperCase() || '?'}
               </AvatarFallback>

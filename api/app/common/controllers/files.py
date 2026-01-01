@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Q
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.identity_access.deps import get_current_user, get_user_primary_role
+from app.identity_access.deps import get_current_user, get_current_user_optional, get_user_primary_role
 from app.common.deps import get_db
 from app.identity_access.models.user import User
 from app.common.services.file_service import FileService
@@ -122,11 +122,11 @@ async def upload_avatar(
         raise HTTPException(status_code=500, detail=f"头像上传失败: {str(e)}")
 
 
-@router.get("/files/{file_id}/preview", name="file_preview")
+@router.get("/{file_id}/preview", name="file_preview")
 async def preview_file_by_id(
     file_id: str,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
     通过文件ID预览文件（用于图片、PDF等）
@@ -153,7 +153,9 @@ async def preview_file_by_id(
                 raise HTTPException(status_code=403, detail="无权限访问此文件")
         else:
             # 如果没有用户，只允许访问公共文件（头像）
-            if file_record.get("business_type") != "avatar":
+            is_public = file_record.get("is_public", False)
+            business_type = file_record.get("business_type")
+            if not (is_public or business_type == "avatar"):
                 raise HTTPException(status_code=403, detail="需要登录才能访问此文件")
         
         object_name = file_record["object_name"]
@@ -209,7 +211,7 @@ async def preview_file_by_id(
         raise HTTPException(status_code=500, detail=f"文件预览失败: {str(e)}")
 
 
-@router.get("/files/{file_id}/download", name="file_download")
+@router.get("/{file_id}/download", name="file_download")
 async def download_file_by_id(
     file_id: str,
     db: Session = Depends(get_db),
@@ -261,7 +263,7 @@ async def download_file_by_id(
         raise HTTPException(status_code=500, detail=f"文件下载失败: {str(e)}")
 
 
-@router.get("/files/{file_id}/info", name="file_info")
+@router.get("/{file_id}/info", name="file_info")
 async def get_file_info_by_id(
     file_id: str,
     db: Session = Depends(get_db),

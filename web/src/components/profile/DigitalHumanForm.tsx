@@ -28,7 +28,7 @@ import toast from 'react-hot-toast';
 
 import { apiClient } from '@/service/apiClient';
 import type { DigitalHuman, CreateDigitalHumanRequest, UpdateDigitalHumanRequest } from '@/types/digital-human';
-import { normalizeAvatarUrl } from '@/utils/avatarUrl';
+import { useAuthedImageSrc } from '@/hooks/useAuthedImageSrc';
 
 interface DigitalHumanFormProps {
   digitalHuman?: DigitalHuman;
@@ -91,6 +91,7 @@ export default function DigitalHumanForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const authedAvatarSrc = useAuthedImageSrc(avatarPreview || digitalHuman?.avatar || null);
 
   const {
     register,
@@ -119,7 +120,7 @@ export default function DigitalHumanForm({
 
   useEffect(() => {
     if (digitalHuman?.avatar) {
-      setAvatarPreview(normalizeAvatarUrl(digitalHuman.avatar) ?? null);
+      setAvatarPreview(digitalHuman.avatar ?? null);
     }
   }, [digitalHuman]);
 
@@ -223,7 +224,7 @@ export default function DigitalHumanForm({
             {/* 头像区域 */}
             <div className="flex flex-col items-center space-y-3 md:items-start">
               <Avatar className="w-20 h-20 md:w-24 md:h-24 shadow-sm">
-                <AvatarImage src={avatarPreview || undefined} />
+                <AvatarImage src={authedAvatarSrc} />
                 <AvatarFallback className="text-xl md:text-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white">
                   {watch('name')?.charAt(0)?.toUpperCase() || '?'}
                 </AvatarFallback>

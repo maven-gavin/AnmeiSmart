@@ -15,7 +15,7 @@ import {
   MoreVertical,
   AlertTriangle
 } from 'lucide-react';
-import { normalizeAvatarUrl } from '@/utils/avatarUrl';
+import { AvatarCircle } from '@/components/ui/AvatarCircle';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -199,23 +199,11 @@ export default function AdminDigitalHumanList({
               {/* 数字人信息 */}
               <div className="col-span-3">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white font-semibold relative overflow-hidden">
-                    {(() => {
-                      const avatarUrl = normalizeAvatarUrl(digitalHuman.avatar);
-                      // 业务规则：只看 avatarUrl 是否为空
-                      // - 有 avatarUrl：只显示图片（即使加载失败出现碎图也接受）
-                      // - 无 avatarUrl：显示名字首字母
-                      return avatarUrl ? (
-                        <img
-                          src={avatarUrl}
-                          alt={digitalHuman.name}
-                          className="w-full h-full rounded-full object-cover"
-                        />
-                      ) : (
-                        digitalHuman.name.charAt(0).toUpperCase()
-                      );
-                    })()}
-                  </div>
+                  <AvatarCircle
+                    name={digitalHuman.name}
+                    avatar={digitalHuman.avatar}
+                    sizeClassName="w-10 h-10"
+                  />
                   <div className="min-w-0">
                     <div className="flex items-center space-x-2">
                       <h3 className="font-semibold text-gray-900 truncate">
