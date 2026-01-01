@@ -233,22 +233,14 @@ export class ChatApiService {
     const content = message.content as any;
     const mediaInfo = content.media_info;
     
-    if (!mediaInfo || !mediaInfo.url) {
-      throw new Error('媒体消息缺少媒体信息');
+    if (!mediaInfo || !mediaInfo.file_id) {
+      throw new Error('媒体消息缺少文件ID');
     }
     
     // 确保文件名和大小不为空
-    // 如果文件名为空或"unknown"，尝试从URL中提取
     let fileName = mediaInfo.name;
     if (!fileName || fileName === 'unknown') {
-      const urlPath = mediaInfo.url.split('?')[0];
-      const pathParts = urlPath.split('/');
-      const extractedName = pathParts[pathParts.length - 1];
-      if (extractedName && extractedName.includes('.')) {
-        fileName = decodeURIComponent(extractedName);
-      } else {
-        fileName = 'unknown';
-      }
+      fileName = 'unknown';
     }
     
     // 确保文件大小不为0，如果为0则尝试从metadata中获取
@@ -262,7 +254,7 @@ export class ChatApiService {
     }
     
     const requestData = {
-      media_url: mediaInfo.url,
+      media_file_id: mediaInfo.file_id,  // 使用file_id
       media_name: fileName,  // 使用处理后的文件名
       mime_type: mediaInfo.mime_type || 'application/octet-stream',
       size_bytes: fileSize,  // 使用处理后的文件大小

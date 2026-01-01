@@ -5,12 +5,10 @@
 """
 
 from .chat import Conversation, Message, ConversationParticipant
-from .message_attachment import MessageAttachment
 
 __all__ = [
     "Conversation",
     "Message",
     "ConversationParticipant",
-    "MessageAttachment",
 ]
 

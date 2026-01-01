@@ -9,12 +9,12 @@ from pydantic import BaseModel
 
 class FileInfo(BaseModel):
     """文件信息模型"""
-    file_url: str
+    file_id: str
     file_name: str
     file_size: int
     file_type: str  # image, document, audio, video, archive
     mime_type: str
-    object_name: Optional[str] = None
+    url: Optional[str] = None  # 派生字段，便于前端直接使用
 
 
 class FileUploadResponse(BaseModel):

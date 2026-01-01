@@ -25,19 +25,19 @@ export type SenderType = 'user' | 'ai' | 'system';
 // 消息发送状态
 export type MessageStatus = 'pending' | 'sent' | 'failed';
 
-// 文件信息接口（保持向后兼容）
+// 文件信息接口
 export interface FileInfo {
-  file_url: string;
+  file_id: string; // 文件ID（必需）
   file_name: string;
   file_size: number;
   file_type: string; // image, document, audio, video, archive
   mime_type: string;
-  object_name?: string;
+  url?: string; // 派生字段，便于前端直接使用
 }
 
 // 新的媒体信息接口（统一消息模型）
 export interface MediaInfo {
-  url: string; // 媒体文件的访问URL地址
+  file_id: string; // 文件ID（必需）
   name: string; // 媒体文件的原始文件名
   mime_type: string; // 媒体文件的MIME类型（如：image/jpeg, audio/mp3, video/mp4等）
   size_bytes: number; // 媒体文件的大小（字节）
@@ -147,7 +147,7 @@ export interface CreateTextMessageData {
 }
 
 export interface CreateMediaMessageData {
-  media_url: string;
+  media_file_id: string; // 文件ID（必填）
   media_name: string;
   mime_type: string;
   size_bytes: number;

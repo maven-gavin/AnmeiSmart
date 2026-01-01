@@ -4,26 +4,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import FileMessage from './message/FileMessage';
 import toast from 'react-hot-toast';
+import type { FileInfo } from '@/types/chat';
 
-interface FileInfo {
-  file_url: string;
-  file_name: string;
-  file_size: number;
-  file_type: string;
-  mime_type: string;
-  object_name?: string;
-}
-
-interface ConversationFile {
-  message_id: string;
-  file_info: FileInfo;
-  sender: {
-    id: string;
-    type: string;
-    name: string;
-  };
-  timestamp: string;
-}
+type ConversationFile = FileInfo;
 
 interface FileManagerProps {
   conversationId: string;
@@ -96,13 +79,13 @@ export default function FileManager({ conversationId, isOpen, onClose }: FileMan
 
     // 按文件类型过滤
     if (selectedFileType !== 'all') {
-      filtered = filtered.filter(file => file.file_info.file_type === selectedFileType);
+      filtered = filtered.filter(file => file.file_type === selectedFileType);
     }
 
     // 按文件名搜索
     if (searchTerm.trim()) {
       filtered = filtered.filter(file => 
-        file.file_info.file_name.toLowerCase().includes(searchTerm.toLowerCase())
+        file.file_name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -128,18 +111,13 @@ export default function FileManager({ conversationId, isOpen, onClose }: FileMan
 
   // 删除文件
   const handleDeleteFile = useCallback(async (file: ConversationFile) => {
-    if (!file.file_info.object_name) {
-      toast.error('无法删除此文件：缺少文件标识');
-      return;
-    }
-
-    if (!confirm(`确定要删除文件 "${file.file_info.file_name}" 吗？`)) {
+    if (!confirm(`确定要删除文件 "${file.file_name}" 吗？`)) {
       return;
     }
 
     try {
       const response = await fetch(
-        `/api/v1/files/delete/${file.file_info.object_name}`,
+        `/api/v1/files/${file.file_id}`,
         {
           method: 'DELETE',
           credentials: 'include'
@@ -152,7 +130,7 @@ export default function FileManager({ conversationId, isOpen, onClose }: FileMan
       }
 
       // 从列表中移除文件
-      setFiles(prev => prev.filter(f => f.message_id !== file.message_id));
+      setFiles(prev => prev.filter(f => f.file_id !== file.file_id));
       toast.success('文件删除成功');
     } catch (error) {
       console.error('删除文件失败:', error);
@@ -162,7 +140,7 @@ export default function FileManager({ conversationId, isOpen, onClose }: FileMan
 
   // 格式化文件大小统计
   const getFileStats = useCallback(() => {
-    const totalSize = filteredFiles.reduce((sum, file) => sum + file.file_info.file_size, 0);
+    const totalSize = filteredFiles.reduce((sum, file) => sum + file.file_size, 0);
     const formatSize = (bytes: number) => {
       if (bytes === 0) return '0 Bytes';
       const k = 1024;
@@ -262,21 +240,21 @@ export default function FileManager({ conversationId, isOpen, onClose }: FileMan
           ) : (
             <div className="space-y-4">
               {filteredFiles.map((file) => (
-                <div key={file.message_id} className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg">
+                <div key={file.file_id} className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg">
                   {/* 文件展示 */}
                   <div className="flex-1">
                     <FileMessage 
-                      fileInfo={file.file_info} 
+                      fileInfo={{
+                        file_id: file.file_id,
+                        file_name: file.file_name,
+                        file_size: file.file_size,
+                        file_type: file.file_type,
+                        mime_type: file.mime_type,
+                      }}
                       message={{} as any}
                       searchTerm=""
                       compact={false}
                     />
-                  </div>
-
-                  {/* 文件信息 */}
-                  <div className="flex-shrink-0 text-sm text-gray-500">
-                    <div>发送者: {file.sender.name}</div>
-                    <div>时间: {new Date(file.timestamp).toLocaleString()}</div>
                   </div>
 
                   {/* 操作按钮 */}

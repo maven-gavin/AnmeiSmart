@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.identity_access.models.user import User
-    from app.chat.models.message_attachment import MessageAttachment
 
 
 class UploadSession(BaseModel):
@@ -60,7 +59,7 @@ class UploadSession(BaseModel):
                        foreign_keys=[user_id], 
                        backref=backref("upload_sessions", cascade="all, delete-orphan"))
     chunks = relationship("UploadChunk", back_populates="upload_session", cascade="all, delete-orphan")
-    message_attachments = relationship("MessageAttachment", back_populates="upload_session", cascade="all, delete-orphan")
+    # message_attachments 已按新文件架构移除（文件统一落 files 表）
 
 
 class UploadChunk(BaseModel):

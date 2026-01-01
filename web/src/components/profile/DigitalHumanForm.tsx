@@ -172,12 +172,12 @@ export default function DigitalHumanForm({
           throw new Error(result?.message || '头像上传失败');
         }
 
-        const avatarUrl = result?.file_info?.file_url as string | undefined;
-        if (!avatarUrl) {
-          throw new Error('服务器返回的头像地址为空');
+        const fileId = result?.file_info?.file_id as string | undefined;
+        if (!fileId) {
+          throw new Error('服务器返回的文件ID为空');
         }
 
-        submitData.avatar = avatarUrl;
+        submitData.avatar = fileId;
       }
 
       await onSubmit(submitData);

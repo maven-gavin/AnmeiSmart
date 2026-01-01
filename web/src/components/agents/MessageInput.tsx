@@ -75,7 +75,7 @@ export function MessageInput({
       // 注意：imagePreview 是 data URL，不需要通过 getTempFile 获取
       // 如果需要发送图片文件，应该从 imagePreview data URL 重新创建 File 对象
       if (filePreview) {
-        const file = getTempFile(filePreview.file_url);
+        const file = getTempFile(filePreview.temp_id);
         if (file) files.push(file);
       }
       

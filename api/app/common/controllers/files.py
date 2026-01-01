@@ -31,6 +31,7 @@ router = APIRouter()
 
 @router.post("/upload", response_model=FileUploadResponse)
 async def upload_file(
+    request: Request,
     file: UploadFile = File(...),
     conversation_id: str = Form(...),
     text: Optional[str] = Form(None),
@@ -71,6 +72,11 @@ async def upload_file(
             user_id=current_user.id
         )
         
+        # 添加派生字段url，便于前端直接使用
+        file_id = file_info_dict.get("file_id")
+        if file_id:
+            file_info_dict["url"] = str(request.url_for("file_preview", file_id=file_id))
+        
         return FileUploadResponse(
             success=True,
             message="文件上传成功",
@@ -94,16 +100,16 @@ async def upload_avatar(
     上传头像/配置类图片（不依赖会话）
 
     Returns:
-        文件上传响应（file_info.file_url 可直接用于前端展示）
+        文件上传响应（file_info.file_id 和 file_info.url）
     """
     try:
         file_service = FileService(db)
         file_info_dict = await file_service.upload_avatar(file=file, user_id=current_user.id)
 
-        # 返回浏览器可访问的公共URL（避免直接暴露/依赖 Minio 内网地址）
-        object_name = file_info_dict.get("object_name")
-        if object_name:
-            file_info_dict["file_url"] = str(request.url_for("public_file", object_name=object_name))
+        # 添加派生字段url，便于前端直接使用
+        file_id = file_info_dict.get("file_id")
+        if file_id:
+            file_info_dict["url"] = str(request.url_for("file_preview", file_id=file_id))
 
         return FileUploadResponse(
             success=True,
@@ -116,38 +122,178 @@ async def upload_avatar(
         raise HTTPException(status_code=500, detail=f"头像上传失败: {str(e)}")
 
 
-@router.get("/public/{object_name:path}", name="public_file")
-async def public_file(object_name: str, db: Session = Depends(get_db)):
+@router.get("/files/{file_id}/preview", name="file_preview")
+async def preview_file_by_id(
+    file_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user)
+):
     """
-    公共文件访问端点（用于头像等无需鉴权展示的资源）
-
-    安全策略：
-    - 仅允许访问 avatars 目录下的对象，避免公开所有聊天文件
+    通过文件ID预览文件（用于图片、PDF等）
+    
+    Args:
+        file_id: 文件ID
+        current_user: 当前用户（可选，公共文件可能不需要）
+        
+    Returns:
+        文件流响应或完整文件响应
     """
     try:
-        if "/avatars/" not in object_name:
-            raise HTTPException(status_code=403, detail="禁止访问此资源")
-
         file_service = FileService(db)
+        
+        # 获取文件信息
+        file_record = file_service.get_file_by_id(file_id, db)
+        if not file_record:
+            raise HTTPException(status_code=404, detail="文件不存在")
+        
+        # 验证权限（如果是私有文件）
+        # 头像等公共文件可能不需要验证，但为了安全，我们仍然验证
+        if current_user:
+            if not file_service.can_access_file_by_id(file_id, current_user.id, db):
+                raise HTTPException(status_code=403, detail="无权限访问此文件")
+        else:
+            # 如果没有用户，只允许访问公共文件（头像）
+            if file_record.get("business_type") != "avatar":
+                raise HTTPException(status_code=403, detail="需要登录才能访问此文件")
+        
+        object_name = file_record["object_name"]
+        content_type = file_record["mime_type"]
+        file_size = file_record["file_size"]
+        
+        # 只允许安全的预览类型
+        safe_preview_types = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+            'application/pdf', 'text/plain',
+            'audio/webm', 'audio/webm;codecs=opus', 'audio/mpeg', 'audio/mp3',
+            'audio/mp4', 'audio/wav', 'audio/ogg', 'audio/aac',
+            'video/webm', 'video/mp4', 'video/avi', 'video/mov'
+        ]
+        
+        if content_type not in safe_preview_types:
+            raise HTTPException(status_code=400, detail="此文件类型不支持预览")
+        
+        # 根据文件大小和类型选择传输方式
+        if file_service.should_use_streaming(object_name):
+            file_stream = file_service.get_file_stream(object_name)
+            if not file_stream:
+                raise HTTPException(status_code=404, detail="文件不存在")
+            
+            return StreamingResponse(
+                file_stream,
+                media_type=content_type,
+                headers={
+                    "Cache-Control": "private, max-age=3600",
+                    "X-Content-Type-Options": "nosniff",
+                    "Content-Length": str(file_size)
+                }
+            )
+        else:
+            file_data = file_service.get_file_data(object_name)
+            if not file_data:
+                raise HTTPException(status_code=404, detail="文件不存在")
+            
+            from fastapi.responses import Response
+            return Response(
+                content=file_data,
+                media_type=content_type,
+                headers={
+                    "Cache-Control": "private, max-age=3600",
+                    "X-Content-Type-Options": "nosniff",
+                    "Content-Length": str(len(file_data))
+                }
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"文件预览失败: {str(e)}")
+
+
+@router.get("/files/{file_id}/download", name="file_download")
+async def download_file_by_id(
+    file_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    通过文件ID下载文件
+    
+    Args:
+        file_id: 文件ID
+        current_user: 当前用户
+        
+    Returns:
+        文件流响应
+    """
+    try:
+        file_service = FileService(db)
+        
+        # 验证权限
+        if not file_service.can_access_file_by_id(file_id, current_user.id, db):
+            raise HTTPException(status_code=403, detail="无权限访问此文件")
+        
+        # 获取文件信息
+        file_record = file_service.get_file_by_id(file_id, db)
+        if not file_record:
+            raise HTTPException(status_code=404, detail="文件不存在")
+        
+        object_name = file_record["object_name"]
+        file_name = file_record["file_name"]
+        content_type = file_record["mime_type"]
+        
+        # 获取文件流
         file_stream = file_service.get_file_stream(object_name)
         if not file_stream:
             raise HTTPException(status_code=404, detail="文件不存在")
-
-        meta = file_service.get_file_metadata(object_name) or {}
-        content_type = meta.get("content_type", "application/octet-stream")
-
+        
         return StreamingResponse(
             file_stream,
             media_type=content_type,
             headers={
-                # 头像可缓存，URL 每次上传都会变化（uuid文件名）
-                "Cache-Control": "public, max-age=31536000, immutable",
-            },
+                "Content-Disposition": f"attachment; filename={file_name}",
+                "Cache-Control": "private, max-age=3600"
+            }
         )
+        
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"文件访问失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"文件下载失败: {str(e)}")
+
+
+@router.get("/files/{file_id}/info", name="file_info")
+async def get_file_info_by_id(
+    file_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    通过文件ID获取文件信息
+    
+    Args:
+        file_id: 文件ID
+        current_user: 当前用户
+        
+    Returns:
+        文件信息
+    """
+    try:
+        file_service = FileService(db)
+        
+        # 验证权限
+        if not file_service.can_access_file_by_id(file_id, current_user.id, db):
+            raise HTTPException(status_code=403, detail="无权限访问此文件")
+        
+        file_record = file_service.get_file_by_id(file_id, db)
+        if not file_record:
+            raise HTTPException(status_code=404, detail="文件不存在")
+        
+        return file_record
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取文件信息失败: {str(e)}")
 
 
 @router.get("/download/{object_name:path}")
@@ -344,9 +490,9 @@ async def get_conversation_files(
         raise HTTPException(status_code=500, detail=f"获取文件列表失败: {str(e)}")
 
 
-@router.delete("/delete/{object_name:path}")
+@router.delete("/{file_id}")
 async def delete_file(
-    object_name: str,
+    file_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -363,11 +509,7 @@ async def delete_file(
     try:
         file_service = FileService(db)
         
-        # 验证删除权限
-        if not file_service.can_delete_file(object_name, current_user.id):
-            raise HTTPException(status_code=403, detail="无权限删除此文件")
-        
-        success = file_service.delete_file(object_name)
+        success = file_service.delete_file_by_id(file_id=file_id, user_id=current_user.id)
         
         if success:
             return {"success": True, "message": "文件删除成功"}
@@ -523,7 +665,8 @@ async def upload_chunk(
 
 @router.post("/complete-upload", response_model=FileUploadResponse)
 async def complete_upload(
-    request: CompleteUploadRequest,
+    request: Request,
+    complete_request: CompleteUploadRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -539,33 +682,39 @@ async def complete_upload(
         文件上传响应
     """
     try:
-        file_service = FileService()
+        file_service = FileService(db)
         chat_service = ChatService(db=db, broadcasting_service=None)
         
         # 验证用户对会话的访问权限
-        if not await chat_service.can_access_conversation(request.conversation_id, current_user.id):
+        if not await chat_service.can_access_conversation(complete_request.conversation_id, current_user.id):
             raise HTTPException(status_code=403, detail="无权限访问此会话")
         
         # 完成上传并合并分片
         file_info_dict = file_service.complete_upload(
-            upload_id=request.upload_id,
-            conversation_id=request.conversation_id,
+            upload_id=complete_request.upload_id,
+            conversation_id=complete_request.conversation_id,
             user_id=current_user.id
         )
         
-        # 创建媒体消息
-        message_info = chat_service.create_media_message_with_details(
-            conversation_id=request.conversation_id,
-            sender_id=current_user.id,
-            media_url=file_info_dict["file_url"],
-            media_name=file_info_dict["file_name"],
-            mime_type=file_info_dict["mime_type"],
-            size_bytes=file_info_dict["file_size"],
-            text=None,  # 分片上传没有附带文字
-            metadata={"file_type": file_info_dict["file_type"]},
-            is_important=False,
-            upload_method="chunked_upload"
-        )
+        # 添加派生字段url，便于前端直接使用
+        file_id = file_info_dict.get("file_id")
+        if file_id:
+            file_info_dict["url"] = str(request.url_for("file_preview", file_id=file_id))
+        
+        # 创建媒体消息（使用file_id而非URL）
+        if file_id:
+            message_info = chat_service.create_media_message_with_details(
+                conversation_id=complete_request.conversation_id,
+                sender_id=current_user.id,
+                media_file_id=file_id,  # 使用file_id
+                media_name=file_info_dict["file_name"],
+                mime_type=file_info_dict["mime_type"],
+                size_bytes=file_info_dict["file_size"],
+                text=None,  # 分片上传没有附带文字
+                metadata={"file_type": file_info_dict["file_type"]},
+                is_important=False,
+                upload_method="chunked_upload"
+            )
         
         return FileUploadResponse(
             success=True,

@@ -96,7 +96,7 @@ class Message(BaseModel):
     # sender_digital_human = relationship("DigitalHuman", foreign_keys=[sender_digital_human_id])
     confirmed_by_user = relationship("app.identity_access.models.user.User", foreign_keys=[confirmed_by])
     reply_to_message = relationship("app.chat.models.chat.Message", remote_side=[id], backref="replies")
-    attachments = relationship("app.chat.models.message_attachment.MessageAttachment", back_populates="message", cascade="all, delete-orphan")
+    # message_attachments 已按新文件架构移除（消息仅保存 media_info.file_id）
 
 
 class ConversationParticipant(BaseModel):

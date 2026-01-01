@@ -8,8 +8,8 @@ import { MediaPreview } from '@/components/chat/MediaPreview';
 import FAQSection from '@/components/chat/FAQSection';
 import ConversationTakeover from '@/components/chat/ConversationTakeover';
 import { useRecording } from '@/hooks/useRecording';
-import { useMediaUpload } from '@/hooks/useMediaUpload';
-import { type Message, type FileInfo, type MediaMessageContent, type TextMessageContent } from '@/types/chat';
+import { useMediaUpload, type LocalFilePreview } from '@/hooks/useMediaUpload';
+import { type Message, type MediaMessageContent, type TextMessageContent } from '@/types/chat';
 import { v4 as uuidv4 } from 'uuid';
 import { authService } from "@/service/authService";
 import { ApiClientError, ErrorType } from '@/service/apiClient';
@@ -199,23 +199,6 @@ export default function MessageInput({
       // 创建 blob URL
       const blobUrl = URL.createObjectURL(blob);
       
-      // 创建文件对象
-      const file = new File([blob], `screenshot_${Date.now()}.png`, {
-        type: 'image/png'
-      });
-      
-      // 创建 FileInfo
-      const fileInfo: FileInfo = {
-        file_url: blobUrl,
-        file_name: file.name,
-        file_type: 'image',
-        mime_type: 'image/png',
-        file_size: blob.size,
-      };
-      
-      // 添加到临时文件管理（如果需要）
-      // addTempFile(fileInfo.file_url, file);
-      
       // 使用现有的图片发送逻辑
       await sendImageMessage(blobUrl);
     } catch (error) {
@@ -247,7 +230,7 @@ export default function MessageInput({
         content: {
           text: text,
           media_info: {
-            url: imageUrl, // 临时使用blob URL，上传后会更新
+            file_id: `temp_${localId}`, // 本地临时标识，上传完成后替换为真实 file_id
             name: '上传中...',
             mime_type: 'image/png',
             size_bytes: 0,
@@ -304,13 +287,13 @@ export default function MessageInput({
         throw new Error('服务器返回的文件信息为空');
       }
 
-      // 更新消息内容，使用上传后的文件路径
+      // 更新消息内容，使用上传后的文件ID
       const mediaMessage: Message = {
         ...pendingMessage,
         content: {
           text: text,
           media_info: {
-            url: fileInfo.file_url,
+            file_id: fileInfo.file_id,
             name: fileInfo.file_name,
             mime_type: fileInfo.mime_type,
             size_bytes: fileInfo.file_size,
@@ -343,22 +326,14 @@ export default function MessageInput({
   };
 
   // 发送文件消息
-  const sendFileMessage = async (fileInfo: FileInfo, text?: string) => {
-    let previewUrl: string | null = null; // 用于存储临时创建的blob URL
-    
+  const sendFileMessage = async (filePreview: LocalFilePreview, text?: string) => {
     try {
-      // 获取原始文件对象
-      const originalFile = getTempFile(fileInfo.file_url);
+      const originalFile = getTempFile(filePreview.temp_id);
       if (!originalFile) {
         throw new Error('文件已丢失，请重新选择');
       }
 
-      // 对于图片文件，创建blob URL用于预览
-      if (fileInfo.file_type === 'image' && fileInfo.file_url.startsWith('temp_')) {
-        previewUrl = URL.createObjectURL(originalFile);
-      }
-
-      // 先创建pending消息，用户能立即看到
+      // 先创建pending消息（不落库，仅用于本地展示）
       const localId = `local_${Date.now()}`;
       const pendingMessage: Message = {
         id: localId,
@@ -367,16 +342,16 @@ export default function MessageInput({
         content: {
           text: text,
           media_info: {
-            url: previewUrl || fileInfo.file_url, // 使用blob URL（图片）或临时ID（其他文件）
-            name: fileInfo.file_name || '上传中...',
-            mime_type: fileInfo.mime_type || 'application/octet-stream',
-            size_bytes: fileInfo.file_size || 0,
+            file_id: `temp_${localId}`,
+            name: filePreview.file_name || '上传中...',
+            mime_type: filePreview.mime_type || 'application/octet-stream',
+            size_bytes: filePreview.file_size || 0,
           }
         },
         type: 'media',
         sender: {
           id: user?.id || '',
-          type: 'user', // 所有用户发送的聊天消息都使用 'user'
+          type: 'user',
           name: user?.name || '',
           avatar: user?.avatar || '',
         },
@@ -384,7 +359,6 @@ export default function MessageInput({
         status: 'pending'
       };
 
-      // 立即添加到本地状态，用户能立即看到
       if (onMessageAdded) {
         onMessageAdded(pendingMessage);
       } else {
@@ -395,12 +369,9 @@ export default function MessageInput({
       const formData = new FormData();
       formData.append('file', originalFile);
       formData.append('conversation_id', conversationId);
-      // 注意：不再传递text参数，因为文件上传API不再创建消息
-
       const { data: result } = await apiClient.upload<any>('/files/upload', formData);
 
       if (!result.success) {
-        // 上传失败，更新消息状态为failed
         const failedMessage: Message = {
           ...pendingMessage,
           status: 'failed',
@@ -416,47 +387,34 @@ export default function MessageInput({
       if (!uploadedFileInfo) {
         throw new Error('服务器返回的文件信息为空');
       }
-      
-      // 更新消息内容，使用上传后的文件路径
+
       const mediaMessage: Message = {
         ...pendingMessage,
         content: {
           text: text,
           media_info: {
-            url: uploadedFileInfo.file_url,
+            file_id: uploadedFileInfo.file_id,
             name: uploadedFileInfo.file_name,
             mime_type: uploadedFileInfo.mime_type,
             size_bytes: uploadedFileInfo.file_size,
           }
         },
-        status: 'pending' // 保持pending状态，等待发送
+        status: 'pending'
       };
 
-      // 调用媒体消息API发送消息
       const savedMessage = await saveMessage(mediaMessage);
-      
-      // 更新消息状态为sent，替换pending消息
+
       const finalMessage: Message = {
         ...savedMessage,
         localId: pendingMessage.localId,
         status: 'sent'
       };
-      
-      // 更新本地消息（替换pending消息）
+
       if (onMessageAdded) {
         onMessageAdded(finalMessage);
       }
-
-      // 清理之前创建的blob URL（如果是图片文件）
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
     } catch (error) {
       console.error('发送文件消息失败:', error);
-      // 出错时也要清理blob URL
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
       throw error;
     }
   };
@@ -473,7 +431,7 @@ export default function MessageInput({
         content: {
           text: text,
           media_info: {
-            url: audioUrl, // 临时使用blob URL
+            file_id: `temp_${localId}`, // 本地临时标识，上传完成后替换为真实 file_id
             name: '上传中...',
             mime_type: 'audio/webm',
             size_bytes: 0,
@@ -539,17 +497,16 @@ export default function MessageInput({
         throw new Error('服务器返回的文件信息为空');
       }
       
-      // 更新消息内容，使用上传后的文件路径
+      // 更新消息内容，使用上传后的文件ID
       const mediaMessage: Message = {
         ...pendingMessage,
         content: {
           text: text,
           media_info: {
-            url: fileInfo.file_url,
+            file_id: fileInfo.file_id,
             name: fileInfo.file_name,
             mime_type: fileInfo.mime_type,
             size_bytes: fileInfo.file_size,
-            metadata: fileInfo.metadata // 传递元数据
           }
         },
         status: 'pending' // 保持pending状态，等待发送

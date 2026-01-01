@@ -93,14 +93,88 @@ export class FileService {
   }
 
   /**
-   * 获取文件预览URL
+   * 根据文件ID获取文件
+   */
+  async getFileById(fileId: string): Promise<Blob> {
+    const response = await apiClient.get<Blob>(
+      `/files/${fileId}/preview`,
+      {
+        headers: {
+          'Accept': 'image/*,application/pdf,text/plain,audio/*,video/*'
+        },
+        skipContentType: true
+      }
+    );
+
+    if (!response.data) {
+      throw new Error('获取文件失败');
+    }
+
+    return response.data;
+  }
+
+  /**
+   * 根据文件ID获取文件信息
+   */
+  async getFileInfoById(fileId: string): Promise<FileInfo | null> {
+    try {
+      const response = await apiClient.get<FileInfo>(
+        `/files/${fileId}/info`
+      );
+      return response.data || null;
+    } catch (error: any) {
+      if (error.status === 404) {
+        return null;
+      }
+      console.error('获取文件信息失败:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 根据文件ID获取文件预览流（用于音频/视频等）
+   */
+  async getFilePreviewStreamById(fileId: string): Promise<Blob> {
+    const response = await apiClient.get<Blob>(
+      `/files/${fileId}/preview`,
+      {
+        headers: {
+          'Accept': 'image/*,application/pdf,text/plain,audio/*,video/*'
+        },
+        skipContentType: true
+      }
+    );
+
+    if (!response.data) {
+      throw new Error('获取文件失败');
+    }
+
+    return response.data;
+  }
+
+  /**
+   * 获取文件预览URL（通过文件ID）
+   */
+  static getPreviewUrlByFileId(fileId: string): string {
+    return `/api/v1/files/${fileId}/preview`;
+  }
+
+  /**
+   * 获取文件下载URL（通过文件ID）
+   */
+  static getDownloadUrlByFileId(fileId: string): string {
+    return `/api/v1/files/${fileId}/download`;
+  }
+
+  /**
+   * 获取文件预览URL（向后兼容，使用objectName）
    */
   static getPreviewUrl(objectName: string): string {
     return `${FILE_CONFIG.API_ENDPOINTS.preview}/${objectName}`;
   }
 
   /**
-   * 获取文件下载URL
+   * 获取文件下载URL（向后兼容，使用objectName）
    */
   static getDownloadUrl(objectName: string): string {
     return `${FILE_CONFIG.API_ENDPOINTS.download}/${objectName}`;
@@ -152,7 +226,14 @@ export class FileService {
   }
 
   /**
-   * 获取认证的文件预览流
+   * 根据文件ID获取文件预览流
+   */
+  async getFilePreviewStreamByFileId(fileId: string): Promise<Blob> {
+    return this.getFileById(fileId);
+  }
+
+  /**
+   * 获取认证的文件预览流（向后兼容，使用objectName）
    */
   async getFilePreviewStream(objectName: string): Promise<Blob> {
     const response = await apiClient.get<Blob>(

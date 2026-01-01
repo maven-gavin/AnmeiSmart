@@ -17,7 +17,7 @@ class DigitalHuman(BaseModel):
 
     id = Column(String(36), primary_key=True, default=digital_human_id, comment="数字人ID")
     name = Column(String(255), nullable=False, comment="数字人名称")
-    avatar = Column(String(1024), nullable=True, comment="数字人头像URL")
+    avatar = Column(String(1024), nullable=True, comment="数字人头像文件ID（file_id）")
     description = Column(Text, nullable=True, comment="数字人描述")
     
     # 数字人类型和状态

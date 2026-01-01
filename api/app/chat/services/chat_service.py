@@ -740,7 +740,7 @@ class ChatService:
         conversation_id: str,
         sender_id: Optional[str],
         media_type: str,
-        media_url: str,
+        media_file_id: str,
         text: Optional[str] = None,
         sender_type: str = "chat",
         extra_metadata: Optional[Dict[str, Any]] = None
@@ -763,7 +763,7 @@ class ChatService:
             "type": "media",
             "text": text,
             "media_info": {
-                "url": media_url,
+                "file_id": media_file_id,
                 "name": "unknown",  # 简单创建模式下可能没有文件名
                 "mime_type": f"{media_type}/*",  # 简单推断
                 "size_bytes": 0,
@@ -988,14 +988,16 @@ class ChatService:
         elif request.type == "media":
             # 从 content 中提取媒体信息
             if isinstance(request.content, dict):
-                media_url = request.content.get("media_url", "")
                 media_type = request.content.get("media_type", "image")
+                media_file_id = request.content.get("media_file_id") or request.content.get("file_id")
+                if not media_file_id:
+                    raise BusinessException("媒体消息缺少 media_file_id", code=ErrorCode.INVALID_INPUT)
                 text = request.content.get("text")
                 return self.create_media_message(
                     conversation_id=conversation_id,
                     sender_id=str(sender.id),
                     media_type=media_type,
-                    media_url=media_url,
+                    media_file_id=media_file_id,
                     text=text,
                     sender_type="chat",  # 智能聊天消息统一使用chat
                     extra_metadata=channel_extra
@@ -1031,7 +1033,7 @@ class ChatService:
         return self.create_media_message_with_details(
             conversation_id=conversation_id,
             sender_id=str(sender.id),
-            media_url=request.media_url,
+            media_file_id=request.media_file_id,
             media_name=request.media_name,  # 使用请求中的文件名
             mime_type=request.mime_type,  # 使用请求中的mime_type
             size_bytes=request.size_bytes,  # 使用请求中的文件大小
@@ -1186,8 +1188,8 @@ class ChatService:
     def create_media_message_with_details(
         self,
         conversation_id: str,
-        sender_id: str,
-        media_url: str,
+        sender_id: Optional[str],
+        media_file_id: str,
         media_name: Optional[str] = None,
         mime_type: Optional[str] = None,
         size_bytes: Optional[int] = None,
@@ -1196,7 +1198,11 @@ class ChatService:
         is_important: bool = False,
         upload_method: Optional[str] = None
     ) -> MessageInfo:
-        """创建媒体消息（支持更多参数）"""
+        """创建媒体消息（支持更多参数）
+        
+        Args:
+            media_file_id: 文件ID（必填）
+        """
         # 根据 mime_type 推断 media_type
         media_type = "file"  # 默认
         if mime_type:
@@ -1213,7 +1219,7 @@ class ChatService:
         #   media_info: MediaInfo;
         # }
         media_info = {
-            "url": media_url,
+            "file_id": media_file_id,
             "name": media_name or "unknown",
             "mime_type": mime_type or "application/octet-stream",
             "size_bytes": size_bytes or 0,

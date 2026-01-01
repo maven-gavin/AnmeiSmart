@@ -7,12 +7,11 @@ import { MessageContentProps } from './ChatMessage';
 import { MediaMessageContent } from '@/types/chat';
 
 interface FileInfo {
-  file_url: string;
+  file_id: string;
   file_name: string;
   file_size: number;
   file_type: string; // image, document, audio, video, archive
   mime_type: string;
-  object_name?: string;
 }
 
 interface FileMessageProps extends MessageContentProps {
@@ -24,27 +23,6 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo, on
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // 从URL中提取文件名
-  const extractFileNameFromUrl = (url: string): string => {
-    try {
-      // 从URL路径中提取文件名
-      const urlPath = url.split('?')[0]; // 移除查询参数
-      const pathParts = urlPath.split('/');
-      const fileName = pathParts[pathParts.length - 1];
-      
-      // 如果文件名包含扩展名，返回文件名
-      if (fileName && fileName.includes('.')) {
-        // 解码URL编码的文件名
-        return decodeURIComponent(fileName);
-      }
-      
-      return fileName || 'unknown';
-    } catch (error) {
-      console.error('提取文件名失败:', error);
-      return 'unknown';
-    }
-  };
-
   // 从新消息结构中获取文件信息
   const getFileInfo = (): FileInfo => {
     if (fileInfo) return fileInfo;
@@ -55,25 +33,24 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo, on
       const mediaInfo = mediaContent.media_info;
       
       if (mediaInfo) {
-        // 如果文件名为"unknown"或为空，从URL中提取
-        let fileName = mediaInfo.name;
-        if (!fileName || fileName === 'unknown') {
-          fileName = extractFileNameFromUrl(mediaInfo.url);
+        const fileId = mediaInfo.file_id;
+        if (!fileId) {
+          throw new Error('缺少文件ID');
         }
+        const fileName = mediaInfo.name || 'unknown';
         
-        // 如果文件大小为0，尝试从URL或metadata中获取
+        // 如果文件大小为0，尝试从metadata中获取
         let fileSize = mediaInfo.size_bytes;
         if (fileSize === 0 && mediaInfo.metadata && mediaInfo.metadata.size_bytes) {
           fileSize = mediaInfo.metadata.size_bytes;
         }
         
         return {
-          file_url: mediaInfo.url,
+          file_id: fileId,
           file_name: fileName,
           file_size: fileSize,
-          file_type: getFileTypeFromMimeType(mediaInfo.mime_type, mediaInfo.url, fileName),
+          file_type: getFileTypeFromMimeType(mediaInfo.mime_type, fileName),
           mime_type: mediaInfo.mime_type,
-          object_name: extractObjectName(mediaInfo.url)
         };
       }
     }
@@ -81,15 +58,15 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo, on
     throw new Error('缺少文件信息');
   };
 
-  // 从MIME类型和URL推断文件类型
-  const getFileTypeFromMimeType = (mimeType: string, url?: string, fileName?: string): string => {
-    // 优先从URL或文件名中提取扩展名
+  // 从MIME类型和文件名推断文件类型
+  const getFileTypeFromMimeType = (mimeType: string, fileName?: string): string => {
+    // 优先从文件名中提取扩展名
     const getExtension = (urlOrName: string): string => {
       const match = urlOrName.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
       return match ? match[1].toLowerCase() : '';
     };
     
-    const extension = getExtension(url || fileName || '');
+    const extension = getExtension(fileName || '');
     
     // 根据扩展名判断（优先级高于mime_type）
     if (['pdf'].includes(extension)) return 'document';
@@ -106,14 +83,6 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo, on
     if (mimeType.includes('zip') || mimeType.includes('compressed')) return 'archive';
     
     return 'document';
-  };
-
-  // 从URL中提取对象名称
-  const extractObjectName = (url: string): string | undefined => {
-    if (url.includes('/chat-files/')) {
-      return url.split('/chat-files/')[1];
-    }
-    return undefined;
   };
 
   // 格式化文件大小
@@ -178,18 +147,12 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo, on
 
   // 获取安全的下载URL
   const getDownloadUrl = useCallback((fileInfo: FileInfo) => {
-    if (fileInfo.object_name) {
-      return `/api/v1/files/download/${fileInfo.object_name}`;
-    }
-    return fileInfo.file_url;
+    return `/api/v1/files/${fileInfo.file_id}/download`;
   }, []);
 
   // 获取安全的预览URL
   const getPreviewUrl = useCallback((fileInfo: FileInfo) => {
-    if (fileInfo.object_name) {
-      return `/api/v1/files/preview/${fileInfo.object_name}`;
-    }
-    return fileInfo.file_url;
+    return `/api/v1/files/${fileInfo.file_id}/preview`;
   }, []);
 
   // 处理文件下载
@@ -364,7 +327,7 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo, on
                       下载
                     </button>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         const previewUrl = getPreviewUrl(currentFileInfo);
                         navigator.clipboard.writeText(previewUrl).then(() => {
                           toast.success('图片链接已复制到剪贴板');

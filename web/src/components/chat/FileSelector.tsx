@@ -3,15 +3,7 @@
 import React, { useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { tokenManager } from '@/service/tokenManager';
-
-interface FileInfo {
-  file_url: string;
-  file_name: string;
-  file_size: number;
-  file_type: string;
-  mime_type: string;
-  object_name?: string;
-}
+import type { FileInfo } from '@/types/chat';
 
 interface FileSelectorProps {
   conversationId?: string | null;
@@ -189,9 +181,9 @@ export default function FileSelector({
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          uploadId,
-          fileName,
-          conversationId,
+          upload_id: uploadId,
+          file_name: fileName,
+          conversation_id: conversationId,
         }),
       });
 

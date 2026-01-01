@@ -34,7 +34,7 @@ class TextMessageContent(BaseModel):
 
 class MediaInfo(BaseModel):
     """媒体信息结构"""
-    url: str
+    file_id: str
     name: str
     mime_type: str
     size_bytes: int
@@ -124,7 +124,7 @@ class CreateTextMessageRequest(BaseModel):
 
 class CreateMediaMessageRequest(BaseModel):
     """创建媒体消息请求"""
-    media_url: str
+    media_file_id: str  # 文件ID（必填）
     media_name: str
     mime_type: str
     size_bytes: int
@@ -350,7 +350,7 @@ def create_text_message_content(text: str) -> Dict[str, Any]:
 
 
 def create_media_message_content(
-    media_url: str,
+    media_file_id: str,
     media_name: str,
     mime_type: str,
     size_bytes: int,
@@ -361,7 +361,7 @@ def create_media_message_content(
     return {
         "text": text,
         "media_info": {
-            "url": media_url,
+            "file_id": media_file_id,
             "name": media_name,
             "mime_type": mime_type,
             "size_bytes": size_bytes,

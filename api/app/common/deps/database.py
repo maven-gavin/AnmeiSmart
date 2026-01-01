@@ -66,6 +66,7 @@ def init_db():
     import app.system.models
     import app.customer.models
     import app.common.models.upload
+    import app.common.models.file
     import app.channels.models  # 渠道模型
     
     # 创建所有表

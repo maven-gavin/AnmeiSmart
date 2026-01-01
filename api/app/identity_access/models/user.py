@@ -153,7 +153,7 @@ class User(BaseModel):
     username = Column(String(255), index=True, nullable=False, comment="用户名")
     hashed_password = Column(String(255), nullable=False, comment="加密密码")
     phone = Column(String(50), index=True, nullable=True, comment="手机号")
-    avatar = Column(String(255), nullable=True, comment="头像URL")
+    avatar = Column(String(255), nullable=True, comment="头像文件ID（file_id）")
     status = Column(Enum(UserStatus, values_callable=lambda obj: [e.value for e in obj]), default=UserStatus.PENDING, comment="用户状态")
     
     # 租户关联（明确指定使用 User.tenant_id 作为外键）

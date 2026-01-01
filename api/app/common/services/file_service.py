@@ -54,6 +54,207 @@ class FileService:
         self.db = db
         self.minio_client = get_minio_client()
     
+    def create_file_record(
+        self,
+        object_name: str,
+        file_name: str,
+        file_size: int,
+        mime_type: str,
+        file_type: str,
+        user_id: str,
+        business_type: Optional[str] = None,
+        business_id: Optional[str] = None,
+        md5: Optional[str] = None,
+        is_public: bool = False,
+        db: Optional[Session] = None
+    ) -> str:
+        """
+        创建文件记录
+        
+        Args:
+            object_name: MinIO对象名
+            file_name: 原始文件名
+            file_size: 文件大小
+            mime_type: MIME类型
+            file_type: 文件类型
+            user_id: 上传用户ID
+            business_type: 业务类型
+            business_id: 关联业务对象ID
+            md5: MD5校验值
+            db: 数据库会话
+            
+        Returns:
+            文件ID
+        """
+        db = db or self.db
+        if not db:
+            raise HTTPException(status_code=500, detail="数据库会话未初始化")
+        
+        try:
+            from app.common.models.file import File
+            
+            # 检查是否已存在相同object_name的记录
+            existing_file = db.query(File).filter(File.object_name == object_name).first()
+            if existing_file:
+                logger.info(f"文件记录已存在: {existing_file.id}, object_name={object_name}")
+                return existing_file.id
+            
+            # 创建新文件记录
+            file_record = File(
+                object_name=object_name,
+                file_name=file_name,
+                file_size=file_size,
+                mime_type=mime_type,
+                file_type=file_type,
+                user_id=user_id,
+                business_type=business_type,
+                business_id=business_id,
+                md5=md5,
+                is_public=is_public,
+            )
+            
+            db.add(file_record)
+            db.commit()
+            db.refresh(file_record)
+            
+            logger.info(f"文件记录创建成功: file_id={file_record.id}, object_name={object_name}")
+            return file_record.id
+            
+        except Exception as e:
+            logger.error(f"创建文件记录失败: {str(e)}")
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"创建文件记录失败: {str(e)}")
+    
+    def get_file_by_id(self, file_id: str, db: Optional[Session] = None) -> Optional[Dict[str, Any]]:
+        """
+        根据文件ID获取文件信息
+        
+        Args:
+            file_id: 文件ID
+            db: 数据库会话
+            
+        Returns:
+            文件信息字典或None
+        """
+        db = db or self.db
+        if not db:
+            return None
+        
+        try:
+            from app.common.models.file import File
+            
+            file_record = db.query(File).filter(File.id == file_id).first()
+            if not file_record:
+                return None
+            
+            return {
+                "id": file_record.id,
+                "object_name": file_record.object_name,
+                "file_name": file_record.file_name,
+                "file_size": file_record.file_size,
+                "mime_type": file_record.mime_type,
+                "file_type": file_record.file_type,
+                "user_id": file_record.user_id,
+                "business_type": file_record.business_type,
+                "business_id": file_record.business_id,
+                "md5": file_record.md5,
+                "is_public": getattr(file_record, "is_public", False),
+                "created_at": file_record.created_at
+            }
+        except Exception as e:
+            logger.error(f"获取文件信息失败: {str(e)}")
+            return None
+    
+    def get_file_stream_by_id(self, file_id: str, db: Optional[Session] = None) -> Optional[Iterator[bytes]]:
+        """
+        根据文件ID获取文件流
+        
+        Args:
+            file_id: 文件ID
+            db: 数据库会话
+            
+        Returns:
+            文件流迭代器或None
+        """
+        file_record = self.get_file_by_id(file_id, db)
+        if file_record:
+            return self.get_file_stream(file_record['object_name'])
+        return None
+    
+    def can_access_file_by_id(self, file_id: str, user_id: str, db: Optional[Session] = None) -> bool:
+        """
+        检查用户是否有权限访问文件（通过文件ID）
+        
+        Args:
+            file_id: 文件ID
+            user_id: 用户ID
+            db: 数据库会话
+            
+        Returns:
+            是否有权限
+        """
+        db = db or self.db
+        file_record = self.get_file_by_id(file_id, db)
+        if not file_record:
+            return False
+
+        # 公开文件（例如头像）直接允许访问
+        if file_record.get("is_public"):
+            return True
+
+        # 文件所有者可以访问
+        if file_record.get("user_id") == user_id:
+            return True
+
+        # 消息文件：需要有会话访问权限
+        if file_record.get("business_type") == "message" and file_record.get("business_id") and db:
+            return self.can_access_conversation(str(file_record["business_id"]), user_id, db)
+
+        return False
+
+    def can_delete_file_by_id(self, file_id: str, user_id: str, db: Optional[Session] = None) -> bool:
+        """检查用户是否有权限删除文件（通过文件ID）"""
+        db = db or self.db
+        file_record = self.get_file_by_id(file_id, db)
+        if not file_record:
+            return False
+
+        # 管理员可以删除任何文件
+        if db and self._is_admin(user_id, db):
+            return True
+
+        return file_record.get("user_id") == user_id
+
+    def delete_file_by_id(self, file_id: str, user_id: str, db: Optional[Session] = None) -> bool:
+        """删除文件（通过文件ID）"""
+        db = db or self.db
+        if not db:
+            raise HTTPException(status_code=500, detail="数据库会话未初始化")
+
+        file_record = self.get_file_by_id(file_id, db)
+        if not file_record:
+            return False
+
+        if not self.can_delete_file_by_id(file_id=file_id, user_id=user_id, db=db):
+            raise HTTPException(status_code=403, detail="无权限删除此文件")
+
+        try:
+            from app.common.models.file import File
+
+            # 先删对象存储
+            self.minio_client.delete_file(file_record["object_name"])
+
+            # 再删DB记录
+            db.query(File).filter(File.id == file_id).delete()
+            db.commit()
+            return True
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"文件删除失败: {str(e)}", exc_info=True)
+            db.rollback()
+            raise HTTPException(status_code=500, detail="文件删除失败")
+    
     def get_file_category(self, mime_type: str) -> str:
         """根据MIME类型获取文件分类"""
         if mime_type.startswith("image/"):
@@ -419,46 +620,32 @@ class FileService:
         if not db:
             return []
         try:
-            from app.chat.models.chat import Message
-            import json
-            
-            # 查询文件类型的消息
-            query = db.query(Message).filter(
+            from app.common.models.file import File
+
+            query = db.query(File).filter(
                 and_(
-                    Message.conversation_id == conversation_id,
-                    Message.type == 'file'
+                    File.business_type == "message",
+                    File.business_id == conversation_id,
                 )
-            ).order_by(Message.timestamp.desc())
-            
-            messages = query.offset(offset).limit(limit).all()
-            
-            files = []
-            for message in messages:
-                try:
-                    # 解析消息内容中的文件信息
-                    if message.content:
-                        file_data = json.loads(message.content)
-                        
-                        # 如果指定了文件类型筛选
-                        if file_type and file_data.get('file_type') != file_type:
-                            continue
-                        
-                        files.append({
-                            "message_id": message.id,
-                            "file_info": file_data,
-                            "sender": {
-                                "id": message.sender_id,
-                                "type": message.sender_type,
-                                "name": getattr(message.sender, 'username', '未知用户') if message.sender else '未知用户'
-                            },
-                            "timestamp": message.timestamp
-                        })
-                except json.JSONDecodeError:
-                    continue
-            
-            return files
+            ).order_by(File.created_at.desc())
+
+            if file_type:
+                query = query.filter(File.file_type == file_type)
+
+            records = query.offset(offset).limit(limit).all()
+
+            return [
+                {
+                    "file_id": r.id,
+                    "file_name": r.file_name,
+                    "file_size": r.file_size,
+                    "file_type": r.file_type,
+                    "mime_type": r.mime_type,
+                }
+                for r in records
+            ]
         except Exception as e:
-            logger.error(f"获取会话文件列表失败: {str(e)}")
+            logger.error(f"获取会话文件列表失败: {str(e)}", exc_info=True)
             return []
     
     def cleanup_orphaned_files(self, db: Optional[Session] = None) -> int:
@@ -616,14 +803,26 @@ class FileService:
             
             logger.info(f"文件上传成功: {file_info['filename']} -> {file_url}")
             
+            # 创建文件记录
+            file_id = self.create_file_record(
+                object_name=object_name,
+                file_name=file_info["filename"],
+                file_size=file_info["size"],
+                mime_type=file_info["content_type"],
+                file_type=file_info["category"],
+                user_id=user_id,
+                business_type="message",
+                business_id=conversation_id,
+                is_public=False,
+            )
+            
             # 返回文件信息（用于存储在消息content中）
             return {
-                "file_url": file_url,
+                "file_id": file_id,
                 "file_name": file_info["filename"],
                 "file_size": file_info["size"],
                 "file_type": file_info["category"],
                 "mime_type": file_info["content_type"],
-                "object_name": object_name,
                 "metadata": metadata
             }
             
@@ -662,14 +861,26 @@ class FileService:
             )
 
             logger.info(f"头像上传成功: {file_info['filename']} -> {file_url}")
+            
+            # 创建文件记录
+            file_id = self.create_file_record(
+                object_name=object_name,
+                file_name=file_info["filename"],
+                file_size=file_info["size"],
+                mime_type=file_info["content_type"],
+                file_type=file_info["category"],
+                user_id=user_id,
+                business_type="avatar",
+                business_id=user_id,
+                is_public=True,
+            )
 
             return {
-                "file_url": file_url,
+                "file_id": file_id,
                 "file_name": file_info["filename"],
                 "file_size": file_info["size"],
                 "file_type": file_info["category"],
                 "mime_type": file_info["content_type"],
-                "object_name": object_name,
                 "metadata": {},
             }
         except HTTPException:
@@ -705,22 +916,34 @@ class FileService:
             object_name = f"{user_id}/{conversation_id}/{unique_filename}"
             
             # 上传到MinIO
-            file_url = self.minio_client.upload_file_data(
+            self.minio_client.upload_file_data(
                 object_name=object_name,
                 file_data=data,
                 content_type=mime_type
             )
-            
-            logger.info(f"二进制数据上传成功: {filename} -> {file_url}")
-            
+
+            logger.info(f"二进制数据上传成功: {filename} -> object_name={object_name}")
+
+            # 创建文件记录（渠道入站也按 message 文件处理）
+            file_id = self.create_file_record(
+                object_name=object_name,
+                file_name=filename,
+                file_size=len(data),
+                mime_type=mime_type,
+                file_type=file_category,
+                user_id=user_id,
+                business_type="message",
+                business_id=conversation_id,
+                is_public=False,
+            )
+
             return {
-                "file_url": file_url,
+                "file_id": file_id,
                 "file_name": filename,
                 "file_size": len(data),
                 "file_type": file_category,
                 "mime_type": mime_type,
-                "object_name": object_name,
-                "metadata": {}
+                "metadata": {},
             }
         except Exception as e:
             logger.error(f"二进制数据上传失败: {str(e)}")
@@ -1067,7 +1290,7 @@ class FileService:
                 if not mime_type:
                     mime_type = "application/octet-stream"
                 
-                file_url = self.minio_client.upload_file_data(
+                self.minio_client.upload_file_data(
                     object_name=final_object_name,
                     file_data=file_data,
                     content_type=mime_type
@@ -1082,17 +1305,29 @@ class FileService:
                 upload_session.updated_at = datetime.now()
                 db.commit()
                 
-                logger.info(f"文件合并完成: {upload_session.file_name} -> {file_url}")
+                logger.info(f"文件合并完成: {upload_session.file_name} -> object_name={final_object_name}")
+                
+                # 创建文件记录
+                file_category = self.get_file_category(mime_type)
+                file_id = self.create_file_record(
+                    object_name=final_object_name,
+                    file_name=upload_session.file_name,
+                    file_size=upload_session.file_size,
+                    mime_type=mime_type,
+                    file_type=file_category,
+                    user_id=user_id,
+                    business_type="message",
+                    business_id=conversation_id,
+                    is_public=False,
+                )
                 
                 # 返回文件信息
-                file_category = self.get_file_category(mime_type)
                 return {
-                    "file_url": file_url,
+                    "file_id": file_id,
                     "file_name": upload_session.file_name,
                     "file_size": upload_session.file_size,
                     "file_type": file_category,
-                    "mime_type": mime_type,
-                    "object_name": final_object_name
+                    "mime_type": mime_type
                 }
                 
             finally:

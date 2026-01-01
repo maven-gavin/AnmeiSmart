@@ -1,5 +1,12 @@
 import { useState, useRef, useCallback } from 'react'
-import { type FileInfo } from '@/types/chat'
+
+export interface LocalFilePreview {
+  temp_id: string;
+  file_name: string;
+  file_size: number;
+  file_type: string;
+  mime_type: string;
+}
 
 export function useMediaUpload() {
   // 图片上传状态
@@ -11,7 +18,7 @@ export function useMediaUpload() {
   const [audioPreview, setAudioPreview] = useState<string | null>(null)
 
   // 文件预览状态
-  const [filePreview, setFilePreview] = useState<FileInfo | null>(null)
+  const [filePreview, setFilePreview] = useState<LocalFilePreview | null>(null)
   const fileInputForFileRef = useRef<HTMLInputElement>(null)
   // 存储原始文件对象的Map
   const [tempFileMap, setTempFileMap] = useState<Map<string, File>>(new Map())
@@ -49,13 +56,12 @@ export function useMediaUpload() {
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
     // 创建文件预览信息
-    const fileInfo: FileInfo = {
-      file_url: tempId, // 使用临时ID作为标识
+    const fileInfo: LocalFilePreview = {
+      temp_id: tempId, // 使用临时ID作为标识
       file_name: file.name,
       file_size: file.size,
       file_type: getFileTypeFromFile(file),
       mime_type: file.type,
-      object_name: undefined
     }
 
     // 存储原始文件对象
@@ -110,7 +116,7 @@ export function useMediaUpload() {
       // 清理临时文件存储
       setTempFileMap(prev => {
         const newMap = new Map(prev)
-        newMap.delete(filePreview.file_url)
+        newMap.delete(filePreview.temp_id)
         return newMap
       })
     }

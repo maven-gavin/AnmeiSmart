@@ -1,15 +1,14 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { FileService } from '@/service/fileService';
-import { type FileInfo } from '@/types/chat';
 import toast from 'react-hot-toast';
+import type { LocalFilePreview } from '@/hooks/useMediaUpload';
 
 interface MediaPreviewProps {
   conversationId?: string | null;
   imagePreview?: string | null;
   audioPreview?: string | null;
-  filePreview?: FileInfo | null;
+  filePreview?: LocalFilePreview | null;
   onCancelImage?: () => void;
   onCancelAudio?: () => void;
   onCancelFile?: () => void;

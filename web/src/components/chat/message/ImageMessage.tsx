@@ -39,65 +39,73 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
   // 重试延迟（毫秒）
   const RETRY_DELAYS = [1000, 2000, 3000];
 
-  // 提取图片URL，确保依赖稳定性
+  // 提取文件ID
   const mediaContent = message.content as MediaMessageContent;
-  const mediaUrl = mediaContent?.media_info?.url;
-
-  // 提取图片对象名称 - 使用useMemo优化
+  const fileId = mediaContent?.media_info?.file_id;
+  
+  // 向后兼容：如果没有file_id但有url，尝试从url中提取（用于迁移期间）
+  const legacyUrl = mediaContent?.media_info?.url;
   const objectName = useMemo(() => {
-    try {
-      if (mediaUrl) {
+    // 优先使用file_id
+    if (fileId) {
+      return null; // 使用file_id，不需要objectName
+    }
+    
+    // 向后兼容：从url中提取objectName
+    if (legacyUrl) {
+      try {
         // 如果已经是object_name格式（不包含协议和域名），直接返回
-        // 格式：{user_id}/{conversation_id}/{filename}
-        if (!mediaUrl.includes('://') && !mediaUrl.startsWith('/')) {
-          return mediaUrl;
+        if (!legacyUrl.includes('://') && !legacyUrl.startsWith('/')) {
+          return legacyUrl;
         }
         
         // 如果是完整的MinIO URL，提取对象名称
-        // 格式：http://localhost:9000/chat-files/{user_id}/{conversation_id}/{filename}
-        if (mediaUrl.includes('/chat-files/')) {
-          const parts = mediaUrl.split('/chat-files/');
+        if (legacyUrl.includes('/chat-files/')) {
+          const parts = legacyUrl.split('/chat-files/');
           if (parts.length >= 2) {
             const extracted = parts[1];
-            // 移除可能的查询参数和锚点
             return extracted.split('?')[0].split('#')[0];
           }
         }
         
-        // 如果是相对路径格式：/chat-files/{user_id}/{conversation_id}/{filename}
-        if (mediaUrl.startsWith('/chat-files/')) {
-          return mediaUrl.substring('/chat-files/'.length).split('?')[0].split('#')[0];
+        // 如果是相对路径格式
+        if (legacyUrl.startsWith('/chat-files/')) {
+          return legacyUrl.substring('/chat-files/'.length).split('?')[0].split('#')[0];
         }
         
         // 外部URL直接返回
-        return mediaUrl;
+        return legacyUrl;
+      } catch (error) {
+        console.error('解析图片URL失败:', error);
+        return null;
       }
-      return null;
-    } catch (error) {
-      console.error('解析图片URL失败:', error);
-      return null;
     }
-  }, [mediaUrl]);
+    return null;
+  }, [fileId, legacyUrl]);
 
   // 创建认证图片URL - 使用useCallback优化
-  const createAuthenticatedImageUrl = useCallback(async (objectName: string, attempt: number = 1): Promise<string> => {
+  const createAuthenticatedImageUrl = useCallback(async (fileIdOrObjectName: string | null, attempt: number = 1): Promise<string> => {
+    if (!fileIdOrObjectName) {
+      throw new Error('文件ID或对象名不能为空');
+    }
+
     // 检查缓存
-    if (imageCache.has(objectName)) {
-      return imageCache.get(objectName)!;
+    if (imageCache.has(fileIdOrObjectName)) {
+      return imageCache.get(fileIdOrObjectName)!;
     }
 
     // 临时文件ID不应该出现在已保存的消息中，直接抛出错误
-    if (objectName.startsWith('temp_')) {
+    if (fileIdOrObjectName.startsWith('temp_')) {
       throw new Error('临时文件ID无效，文件可能尚未上传');
     }
 
     // 外部URL、data URL（base64）、blob URL直接返回
-    if (objectName.startsWith('http://') || 
-        objectName.startsWith('https://') || 
-        objectName.startsWith('data:') || 
-        objectName.startsWith('blob:')) {
-      imageCache.set(objectName, objectName);
-      return objectName;
+    if (fileIdOrObjectName.startsWith('http://') || 
+        fileIdOrObjectName.startsWith('https://') || 
+        fileIdOrObjectName.startsWith('data:') || 
+        fileIdOrObjectName.startsWith('blob:')) {
+      imageCache.set(fileIdOrObjectName, fileIdOrObjectName);
+      return fileIdOrObjectName;
     }
 
     try {
@@ -108,7 +116,16 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
       
       // 使用统一的文件服务获取图片
       const fileService = new FileService();
-      const blob = await fileService.getFilePreviewStream(objectName);
+      let blob: Blob;
+      
+      // 优先使用file_id，否则使用objectName（向后兼容）
+      if (fileIdOrObjectName.length === 36 || fileIdOrObjectName.includes('-')) {
+        // 看起来像UUID格式，使用file_id方式
+        blob = await fileService.getFilePreviewStreamByFileId(fileIdOrObjectName);
+      } else {
+        // 使用objectName方式（向后兼容）
+        blob = await fileService.getFilePreviewStream(fileIdOrObjectName);
+      }
       
       if (blob.size === 0) {
         throw new Error('接收到空的图片数据');
@@ -117,7 +134,7 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
       const blobUrl = URL.createObjectURL(blob);
       
       // 缓存blob URL
-      imageCache.set(objectName, blobUrl);
+      imageCache.set(fileIdOrObjectName, blobUrl);
       
       return blobUrl;
     } catch (error) {
@@ -129,7 +146,7 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
         console.log(`${delay}ms 后重试...`);
         
         await new Promise(resolve => setTimeout(resolve, delay));
-        return createAuthenticatedImageUrl(objectName, attempt + 1);
+        return createAuthenticatedImageUrl(fileIdOrObjectName, attempt + 1);
       }
       
       throw error;
@@ -138,7 +155,10 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
 
   // 加载图片 - 使用useCallback优化
   const loadImage = useCallback(async (isManualRetry: boolean = false) => {
-    if (!objectName) {
+    // 优先使用file_id，否则使用objectName（向后兼容）
+    const fileIdOrObjectName = fileId || objectName;
+    
+    if (!fileIdOrObjectName) {
       setImageError(true);
       setIsLoading(false);
       return;
@@ -150,7 +170,7 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
       setShowImageError(false);
       
       // 对于手动重试，不在这里设置retryCount，因为createAuthenticatedImageUrl会处理
-      const authUrl = await createAuthenticatedImageUrl(objectName);
+      const authUrl = await createAuthenticatedImageUrl(fileIdOrObjectName);
       setAuthenticatedImageUrl(authUrl);
       
       // 成功后重置重试计数
@@ -167,23 +187,24 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
     } finally {
       setIsLoading(false);
     }
-  }, [objectName, createAuthenticatedImageUrl]);
+  }, [fileId, objectName, createAuthenticatedImageUrl]);
 
   // 手动重试
   const retryLoad = useCallback(() => {
-    if (objectName && imageCache.has(objectName)) {
+    const fileIdOrObjectName = fileId || objectName;
+    if (fileIdOrObjectName && imageCache.has(fileIdOrObjectName)) {
       // 清除缓存的错误结果
-      const cachedUrl = imageCache.get(objectName);
+      const cachedUrl = imageCache.get(fileIdOrObjectName);
       if (cachedUrl && cachedUrl.startsWith('blob:')) {
         URL.revokeObjectURL(cachedUrl);
       }
-      imageCache.delete(objectName);
+      imageCache.delete(fileIdOrObjectName);
     }
     
     // 重置自动重试计数，手动重试单独计算
     setRetryCount(0);
     loadImage(true);
-  }, [objectName, loadImage]);
+  }, [fileId, objectName, loadImage]);
 
   // 处理图片元素的错误事件
   const handleImageError = useCallback(() => {
@@ -198,14 +219,15 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
     setAuthenticatedImageUrl(null);
     
     // 清除缓存
-    if (objectName && imageCache.has(objectName)) {
-      const cachedUrl = imageCache.get(objectName);
+    const fileIdOrObjectName = fileId || objectName;
+    if (fileIdOrObjectName && imageCache.has(fileIdOrObjectName)) {
+      const cachedUrl = imageCache.get(fileIdOrObjectName);
       if (cachedUrl && cachedUrl.startsWith('blob:')) {
         URL.revokeObjectURL(cachedUrl);
       }
-      imageCache.delete(objectName);
+      imageCache.delete(fileIdOrObjectName);
     }
-  }, [authenticatedImageUrl, objectName]);
+  }, [authenticatedImageUrl, fileId, objectName]);
 
   // 处理图片加载成功
   const handleImageLoad = useCallback(() => {

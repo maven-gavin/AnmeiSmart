@@ -111,18 +111,23 @@ class ChannelService:
                             )
                             
                             # 更新 media_info 使用我们的存储信息
-                            media_info["url"] = upload_result["file_url"]
+                            media_info["file_id"] = upload_result["file_id"]
                             media_info["name"] = upload_result["file_name"]
                             media_info["size_bytes"] = upload_result["file_size"]
                             media_info["mime_type"] = upload_result["mime_type"]
-                            logger.info(f"企业微信媒体转存成功: {media_info['url']}")
+                            logger.info(f"企业微信媒体转存成功: file_id={media_info['file_id']}")
                         else:
                             logger.warning(f"下载企业微信媒体失败: media_id={media_id}")
+
+                media_file_id = media_info.get("file_id")
+                if not media_file_id:
+                    logger.warning("渠道媒体消息缺少 file_id，无法创建媒体消息")
+                    return None
 
                 message_info = self.chat_service.create_media_message_with_details(
                     conversation_id=conversation.id,
                     sender_id=None,
-                    media_url=media_info.get("url", ""),
+                    media_file_id=media_file_id,
                     media_name=media_info.get("name"),
                     mime_type=media_info.get("mime_type"),
                     size_bytes=media_info.get("size_bytes"),

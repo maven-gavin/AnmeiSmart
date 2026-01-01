@@ -25,6 +25,7 @@ import app.ai.models
 import app.system.models
 import app.customer.models
 import app.common.models.upload
+import app.common.models.file
 import app.channels.models  # 渠道模型
 
 # this is the Alembic Config object, which provides

@@ -14,57 +14,21 @@ export default function VideoMessage({ message, searchTerm, compact, onRetry }: 
   const [authenticatedVideoUrl, setAuthenticatedVideoUrl] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // 获取对象名称
-  const getObjectName = (): string | null => {
+  // 获取文件ID
+  const getFileId = (): string | null => {
     if (message.type === 'media') {
       const mediaContent = message.content as MediaMessageContent;
-      const mediaInfo = mediaContent.media_info;
-      
-      if (mediaInfo?.url) {
-        const url = mediaInfo.url;
-        
-        // 如果已经是object_name格式（不包含协议和域名），直接返回
-        if (!url.includes('://') && !url.startsWith('/')) {
-          return url;
-        }
-        
-        // 如果是完整的MinIO URL，提取对象名称
-        if (url.includes('/chat-files/')) {
-          const parts = url.split('/chat-files/');
-          if (parts.length >= 2) {
-            const extracted = parts[1];
-            const objectName = extracted.split('?')[0].split('#')[0];
-            return objectName;
-          }
-        }
-        
-        // 如果是相对路径格式
-        if (url.startsWith('/chat-files/')) {
-          const objectName = url.substring('/chat-files/'.length).split('?')[0].split('#')[0];
-          return objectName;
-        }
-        
-        // 外部URL，返回完整URL
-        return url;
-      }
+      return mediaContent.media_info?.file_id || null;
     }
-    
     return null;
   };
 
   // 创建认证的视频URL
-  const createAuthenticatedVideoUrl = useCallback(async (objectName: string): Promise<string> => {
+  const createAuthenticatedVideoUrl = useCallback(async (fileId: string): Promise<string> => {
     try {
-      // 如果是外部URL、data URL或blob URL，直接返回
-      if (objectName.startsWith('http') || 
-          objectName.startsWith('data:') || 
-          objectName.startsWith('blob:')) {
-        return objectName;
-      }
-      
       // 使用FileService获取认证的视频流
       const fileService = new FileService();
-      const response = await fileService.getFilePreviewStream(objectName);
+      const response = await fileService.getFilePreviewStreamById(fileId);
       
       if (!response || !(response instanceof Blob)) {
         throw new Error(`API返回的不是Blob对象: ${typeof response}`);
@@ -84,8 +48,8 @@ export default function VideoMessage({ message, searchTerm, compact, onRetry }: 
 
   // 加载视频
   const loadVideo = useCallback(async () => {
-    const objectName = getObjectName();
-    if (!objectName) {
+    const fileId = getFileId();
+    if (!fileId) {
       setVideoError(true);
       setIsLoading(false);
       return;
@@ -95,7 +59,7 @@ export default function VideoMessage({ message, searchTerm, compact, onRetry }: 
       setIsLoading(true);
       setVideoError(false);
       
-      const authUrl = await createAuthenticatedVideoUrl(objectName);
+      const authUrl = await createAuthenticatedVideoUrl(fileId);
       setAuthenticatedVideoUrl(authUrl);
     } catch (error) {
       console.error('加载视频失败:', error);
@@ -141,21 +105,9 @@ export default function VideoMessage({ message, searchTerm, compact, onRetry }: 
   // 下载视频
   const handleDownload = async () => {
     try {
-      const objectName = getObjectName();
-      if (!objectName) {
+      const fileId = getFileId();
+      if (!fileId) {
         toast.error('无效的视频数据');
-        return;
-      }
-
-      // 如果是外部URL，直接下载
-      if (objectName.startsWith('http')) {
-        const a = document.createElement('a');
-        a.href = objectName;
-        a.download = getFileName();
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        toast.success('视频下载成功');
         return;
       }
 
@@ -165,8 +117,8 @@ export default function VideoMessage({ message, searchTerm, compact, onRetry }: 
         return;
       }
       
-      const previewUrl = `/api/v1/files/preview/${objectName}`;
-      const response = await fetch(previewUrl, {
+      const downloadUrl = `/api/v1/files/${fileId}/download`;
+      const response = await fetch(downloadUrl, {
         method: 'GET',
         credentials: 'include',
         headers: {

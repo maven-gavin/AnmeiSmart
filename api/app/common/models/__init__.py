@@ -4,10 +4,12 @@
 
 from .base_model import BaseModel
 from .upload import UploadSession, UploadChunk
+from .file import File
 
 __all__ = [
     "BaseModel",
     "UploadSession",
-    "UploadChunk"
+    "UploadChunk",
+    "File"
 ]
 

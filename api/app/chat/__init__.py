@@ -6,7 +6,7 @@
 from .controllers import chat_router
 
 # 导出模型
-from .models import Conversation, Message, ConversationParticipant, MessageAttachment
+from .models import Conversation, Message, ConversationParticipant
 
 # 导出服务
 from .services import ChatService
@@ -16,6 +16,5 @@ __all__ = [
     "Conversation",
     "Message", 
     "ConversationParticipant",
-    "MessageAttachment",
     "ChatService",
 ]

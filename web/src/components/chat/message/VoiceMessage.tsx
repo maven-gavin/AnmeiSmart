@@ -29,101 +29,36 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
   //   messageId: message.id
   // });
 
-  // 获取对象名称
-  const getObjectName = (): string | null => {
+  // 获取文件ID
+  const getFileId = (): string | null => {
     if (message.type === 'media') {
       const mediaContent = message.content as MediaMessageContent;
       const mediaInfo = mediaContent.media_info;
       
-      console.log('解析语音URL:', { mediaInfo });
-      
-      if (mediaInfo?.url) {
-        const url = mediaInfo.url;
-        
-        // 如果已经是object_name格式（不包含协议和域名），直接返回
-        // 格式：{user_id}/{conversation_id}/{filename}
-        if (!url.includes('://') && !url.startsWith('/')) {
-          return url;
-        }
-        
-        // 如果是完整的MinIO URL，提取对象名称
-        // 格式：http://localhost:9000/chat-files/{user_id}/{conversation_id}/{filename}
-        if (url.includes('/chat-files/')) {
-          const parts = url.split('/chat-files/');
-          if (parts.length >= 2) {
-            const extracted = parts[1];
-            // 移除可能的查询参数和锚点
-            const objectName = extracted.split('?')[0].split('#')[0];
-            console.log('提取对象名称:', { originalUrl: url, objectName });
-            return objectName;
-          }
-        }
-        
-        // 如果是相对路径格式：/chat-files/{user_id}/{conversation_id}/{filename}
-        if (url.startsWith('/chat-files/')) {
-          const objectName = url.substring('/chat-files/'.length).split('?')[0].split('#')[0];
-          console.log('提取对象名称（相对路径）:', { originalUrl: url, objectName });
-          return objectName;
-        }
-        
-        // 外部URL，返回完整URL
-        console.log('使用外部URL:', url);
-        return url;
+      if (mediaInfo?.file_id) {
+        return mediaInfo.file_id;
       }
     }
     
-    console.error('语音数据无效:', { messageType: message.type, content: message.content });
     return null;
   };
 
   // 创建认证的音频URL
-  const createAuthenticatedAudioUrl = useCallback(async (objectName: string): Promise<string> => {
+  const createAuthenticatedAudioUrl = useCallback(async (fileId: string): Promise<string> => {
     try {
-      console.log('开始获取认证音频URL:', objectName);
-      
-      // 临时文件ID不应该出现在已保存的消息中，直接抛出错误
-      if (objectName.startsWith('temp_')) {
-        throw new Error('临时文件ID无效，文件可能尚未上传');
-      }
-      
-      // 如果是外部URL、data URL或blob URL，直接返回
-      if (objectName.startsWith('http') || 
-          objectName.startsWith('data:') || 
-          objectName.startsWith('blob:')) {
-        return objectName;
-      }
-      
-      // 使用FileService获取认证的音频流
+      console.log('开始获取认证音频URL (file_id):', fileId);
       const fileService = new FileService();
-      const response = await fileService.getFilePreviewStream(objectName);
-      
-      // 详细检查返回的数据
-      console.log('API响应详情:', {
-        responseType: typeof response,
-        responseConstructor: response?.constructor?.name,
-        isBlob: response instanceof Blob,
-        blobSize: response instanceof Blob ? response.size : 'N/A',
-        blobType: response instanceof Blob ? response.type : 'N/A',
-        response: response
-      });
-      
-      // 确保返回的是Blob对象
+      const response = await fileService.getFilePreviewStreamById(fileId);
+
       if (!response || !(response instanceof Blob)) {
-        throw new Error(`API返回的不是Blob对象: ${typeof response}, ${(response as any)?.constructor?.name || 'unknown'}`);
+        throw new Error(`API返回的不是Blob对象: ${typeof response}`);
       }
-      
       if (response.size === 0) {
         throw new Error('接收到空的音频数据');
       }
-      
-      console.log('准备创建blob URL，blob信息:', {
-        size: response.size,
-        type: response.type
-      });
-      
+
       const blobUrl = URL.createObjectURL(response);
-      console.log('创建认证音频URL成功:', { objectName, blobUrl });
-      
+      console.log('创建认证音频URL成功:', { fileId, blobUrl });
       return blobUrl;
     } catch (error) {
       console.error('创建认证音频URL失败:', error);
@@ -133,8 +68,9 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
 
   // 加载音频
   const loadAudio = useCallback(async () => {
-    const objectName = getObjectName();
-    if (!objectName) {
+    const fileId = getFileId();
+
+    if (!fileId) {
       setHasError(true);
       setIsLoading(false);
       return;
@@ -144,7 +80,7 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
       setIsLoading(true);
       setHasError(false);
       
-      const authUrl = await createAuthenticatedAudioUrl(objectName);
+      const authUrl = await createAuthenticatedAudioUrl(fileId);
       setAuthenticatedAudioUrl(authUrl);
       
       console.log('音频URL设置成功:', authUrl);
@@ -155,7 +91,7 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
     } finally {
       setIsLoading(false);
     }
-  }, [createAuthenticatedAudioUrl]);
+  }, [createAuthenticatedAudioUrl, message]);
 
   // 获取音频时长
   const getAudioDuration = (): number => {
