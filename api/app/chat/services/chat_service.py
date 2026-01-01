@@ -860,7 +860,7 @@ class ChatService:
         ).first()
         
         if participant:
-            participant.unread_count = max(0, (participant.unread_count or 0) - count)
+            participant.unread_count = 0
             participant.last_read_at = datetime.now()
         
         self.db.commit()
@@ -884,7 +884,7 @@ class ChatService:
             ).first()
             
             if participant:
-                participant.unread_count = max(0, (participant.unread_count or 0) - 1)
+                participant.unread_count = 0
                 participant.last_read_at = datetime.now()
         
         self.db.commit()
