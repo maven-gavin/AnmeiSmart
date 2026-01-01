@@ -5,6 +5,10 @@ import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { Message } from '@/types/chat';
 import { useAuthContext } from '@/contexts/AuthContext';
+import TextMessage from './TextMessage';
+import MediaMessage from './MediaMessage';
+import SystemMessage from './SystemMessage';
+import StructuredMessage from './StructuredMessage';
 
 export interface MessageContentProps {
   message: Message;
@@ -12,11 +16,6 @@ export interface MessageContentProps {
   compact?: boolean;
   onRetry?: (message: Message) => void;
 }
-
-import TextMessage from './TextMessage';
-import MediaMessage from './MediaMessage';
-import SystemMessage from './SystemMessage';
-import StructuredMessage from './StructuredMessage';
 
 interface ChatMessageProps {
   message: Message;

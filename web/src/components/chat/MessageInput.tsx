@@ -209,6 +209,8 @@ export default function MessageInput({
 
   // 发送图片消息
   const sendImageMessage = async (imageUrl: string, text?: string) => {
+    const shouldRevokeImageUrl = imageUrl.startsWith('blob:');
+    let imageUrlRevoked = false;
     try {
       // 从 blob URL 获取文件数据
       const urlToFile = async (objectUrl: string, filename: string): Promise<File> => {
@@ -231,6 +233,8 @@ export default function MessageInput({
           text: text,
           media_info: {
             file_id: `temp_${localId}`, // 本地临时标识，上传完成后替换为真实 file_id
+            // 本地预览用：仅用于前端渲染，不应被后端落库（后端创建媒体消息只看 file_id 等字段）
+            url: imageUrl,
             name: '上传中...',
             mime_type: 'image/png',
             size_bytes: 0,
@@ -318,20 +322,34 @@ export default function MessageInput({
       }
       
       // 清理 blob URL 以释放内存
-      URL.revokeObjectURL(imageUrl);
+      if (shouldRevokeImageUrl) {
+        URL.revokeObjectURL(imageUrl);
+        imageUrlRevoked = true;
+      }
     } catch (error) {
       console.error('发送图片消息失败:', error);
       throw error;
+    } finally {
+      // 失败/异常也释放，避免开发阶段频繁操作导致内存上涨
+      if (shouldRevokeImageUrl && !imageUrlRevoked) {
+        URL.revokeObjectURL(imageUrl);
+      }
     }
   };
 
   // 发送文件消息
   const sendFileMessage = async (filePreview: LocalFilePreview, text?: string) => {
+    let localPreviewUrl: string | null = null;
+    let localPreviewUrlRevokeScheduled = false;
     try {
       const originalFile = getTempFile(filePreview.temp_id);
       if (!originalFile) {
         throw new Error('文件已丢失，请重新选择');
       }
+
+      // 本地预览 URL：用于 pending 阶段展示（避免依赖域名/MinIO/外链）
+      // 注意：仅用于前端展示，不应落库；成功替换为真实消息后会释放内存
+      localPreviewUrl = URL.createObjectURL(originalFile);
 
       // 先创建pending消息（不落库，仅用于本地展示）
       const localId = `local_${Date.now()}`;
@@ -343,6 +361,7 @@ export default function MessageInput({
           text: text,
           media_info: {
             file_id: `temp_${localId}`,
+            url: localPreviewUrl,
             name: filePreview.file_name || '上传中...',
             mime_type: filePreview.mime_type || 'application/octet-stream',
             size_bytes: filePreview.file_size || 0,
@@ -413,14 +432,30 @@ export default function MessageInput({
       if (onMessageAdded) {
         onMessageAdded(finalMessage);
       }
+
+      // 替换为真实消息后释放本地预览 blob URL
+      //（延迟一个 tick，避免极端情况下 UI 仍在读取旧 URL）
+      localPreviewUrlRevokeScheduled = true;
+      setTimeout(() => {
+        if (localPreviewUrl) {
+          URL.revokeObjectURL(localPreviewUrl);
+        }
+      }, 0);
     } catch (error) {
       console.error('发送文件消息失败:', error);
       throw error;
+    } finally {
+      // 上传失败/异常：立刻释放本地预览（失败消息不再依赖预览）
+      if (localPreviewUrl && !localPreviewUrlRevokeScheduled) {
+        URL.revokeObjectURL(localPreviewUrl);
+      }
     }
   };
 
   // 发送语音消息
   const sendAudioMessage = async (audioUrl: string, text?: string) => {
+    const shouldRevokeAudioUrl = audioUrl.startsWith('blob:');
+    let audioUrlRevoked = false;
     try {
       // 先创建pending消息，用户能立即看到
       const localId = `local_${Date.now()}`;
@@ -432,6 +467,8 @@ export default function MessageInput({
           text: text,
           media_info: {
             file_id: `temp_${localId}`, // 本地临时标识，上传完成后替换为真实 file_id
+            // 本地预览用：仅用于前端渲染
+            url: audioUrl,
             name: '上传中...',
             mime_type: 'audio/webm',
             size_bytes: 0,
@@ -528,10 +565,18 @@ export default function MessageInput({
       }
       
       // 清理 Object URL 以释放内存
-      URL.revokeObjectURL(audioUrl);
+      if (shouldRevokeAudioUrl) {
+        URL.revokeObjectURL(audioUrl);
+        audioUrlRevoked = true;
+      }
     } catch (error) {
       console.error('发送语音消息失败:', error);
       throw error;
+    } finally {
+      // 失败/异常也释放，避免开发阶段频繁操作导致内存上涨
+      if (shouldRevokeAudioUrl && !audioUrlRevoked) {
+        URL.revokeObjectURL(audioUrl);
+      }
     }
   };
 

@@ -19,16 +19,28 @@ interface FileMessageProps extends MessageContentProps {
   fileInfo?: FileInfo;
 }
 
-export default function FileMessage({ message, searchTerm, compact, fileInfo, onRetry }: FileMessageProps) {
+export default function FileMessage({ message, compact, fileInfo }: FileMessageProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  const safePreviewFileId =
-    fileInfo?.file_id ||
-    (message.type === 'media' ? ((message.content as MediaMessageContent)?.media_info?.file_id || null) : null);
+  const mediaInfo = message.type === 'media' ? ((message.content as MediaMessageContent)?.media_info || null) : null;
+  const safePreviewSrcInput = (() => {
+    // 优先使用外部传入的 file_id
+    if (fileInfo?.file_id) return fileInfo.file_id;
 
-  const authedPreviewSrc = useAuthedImageSrc(safePreviewFileId);
+    // media_info.url（blob/data/http）可直接预览：用于本地 pending 或派生字段
+    const url = mediaInfo?.url;
+    const fileId = mediaInfo?.file_id;
+
+    if (fileId && fileId.startsWith('temp_')) {
+      return url || null;
+    }
+
+    return fileId || url || null;
+  })();
+
+  const authedPreviewSrc = useAuthedImageSrc(safePreviewSrcInput);
 
   // 从新消息结构中获取文件信息
   const getFileInfo = (): FileInfo => {
@@ -223,17 +235,22 @@ export default function FileMessage({ message, searchTerm, compact, fileInfo, on
   const handlePreview = useCallback(async (fileInfo: FileInfo) => {
     // 只有图片文件才支持预览
     if (fileInfo.file_type === 'image') {
+      // 没有可用预览源时不打开（避免 temp_xxx 被当作 src）
+      if (!authedPreviewSrc) {
+        toast.error('文件仍在上传中，请稍后再试');
+        return;
+      }
       setIsPreviewOpen(true);
     } else {
       // 其他文件类型直接下载
       handleDownload(fileInfo);
     }
-  }, [handleDownload]);
+  }, [authedPreviewSrc, handleDownload]);
 
   // 判断是否可以预览（仅图片）
   const canPreview = useCallback((fileInfo: FileInfo) => {
     // 只有图片文件才显示预览按钮
-    return fileInfo.file_type === 'image';
+    return fileInfo.file_type === 'image' && !!authedPreviewSrc;
   }, []);
 
   try {

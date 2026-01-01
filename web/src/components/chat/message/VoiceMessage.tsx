@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { MessageContentProps } from './ChatMessage';
 import { MediaMessageContent } from '@/types/chat';
 import { FileService } from '@/service/fileService';
+import { getMediaLoadKey, isDirectPreviewUrl, revokeBlobUrl } from './mediaUtils';
 
-export default function VoiceMessage({ message, searchTerm, compact, onRetry }: MessageContentProps) {
+export default function VoiceMessage({ message }: MessageContentProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   // 初始化时尝试从metadata获取时长作为fallback
   const getInitialDuration = (): number => {
@@ -21,34 +22,25 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
   const [hasError, setHasError] = useState(false);
   const [authenticatedAudioUrl, setAuthenticatedAudioUrl] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const lastLoadKeyRef = useRef<string | null>(null);
 
-  // 调试：输出消息信息（可选）
-  // console.log('VoiceMessage 渲染:', {
-  //   messageType: message.type,
-  //   messageContent: message.content,
-  //   messageId: message.id
-  // });
+  const mediaInfo = message.type === 'media' ? (message.content as MediaMessageContent)?.media_info : null;
 
-  // 获取文件ID
-  const getFileId = (): string | null => {
-    if (message.type === 'media') {
-      const mediaContent = message.content as MediaMessageContent;
-      const mediaInfo = mediaContent.media_info;
-      
-      if (mediaInfo?.file_id) {
-        return mediaInfo.file_id;
-      }
-    }
-    
-    return null;
-  };
+  // 加载 key：避免依赖域名/MinIO URL；temp_ 优先用本地预览 url
+  const loadKey = useMemo(() => {
+    return getMediaLoadKey(mediaInfo);
+  }, [mediaInfo]);
 
   // 创建认证的音频URL
-  const createAuthenticatedAudioUrl = useCallback(async (fileId: string): Promise<string> => {
+  const createAuthenticatedAudioUrl = useCallback(async (key: string): Promise<string> => {
     try {
-      console.log('开始获取认证音频URL (file_id):', fileId);
+      // 本地/外部预览 URL 直接用（blob/data/http），避免域名变化导致不可用
+      if (isDirectPreviewUrl(key)) {
+        return key;
+      }
+
       const fileService = new FileService();
-      const response = await fileService.getFilePreviewStreamById(fileId);
+      const response = await fileService.getFilePreviewStreamById(key);
 
       if (!response || !(response instanceof Blob)) {
         throw new Error(`API返回的不是Blob对象: ${typeof response}`);
@@ -58,7 +50,6 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
       }
 
       const blobUrl = URL.createObjectURL(response);
-      console.log('创建认证音频URL成功:', { fileId, blobUrl });
       return blobUrl;
     } catch (error) {
       console.error('创建认证音频URL失败:', error);
@@ -68,11 +59,9 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
 
   // 加载音频
   const loadAudio = useCallback(async () => {
-    const fileId = getFileId();
-
-    if (!fileId) {
-      setHasError(true);
-      setIsLoading(false);
+    if (!loadKey) {
+      // pending 且还没可用的 url：保持 loading，等待消息回写真实 file_id / url
+      setIsLoading(true);
       return;
     }
 
@@ -80,10 +69,8 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
       setIsLoading(true);
       setHasError(false);
       
-      const authUrl = await createAuthenticatedAudioUrl(fileId);
+      const authUrl = await createAuthenticatedAudioUrl(loadKey);
       setAuthenticatedAudioUrl(authUrl);
-      
-      console.log('音频URL设置成功:', authUrl);
     } catch (error) {
       console.error('加载音频失败:', error);
       setHasError(true);
@@ -91,7 +78,19 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
     } finally {
       setIsLoading(false);
     }
-  }, [createAuthenticatedAudioUrl, message]);
+  }, [createAuthenticatedAudioUrl, loadKey]);
+
+  // 资源变化（temp_ -> 真实 file_id）时允许重新加载，并清理旧 blob
+  useEffect(() => {
+    if (lastLoadKeyRef.current === loadKey) return;
+    lastLoadKeyRef.current = loadKey;
+    setHasError(false);
+    setIsLoading(true);
+    setAuthenticatedAudioUrl((prev) => {
+      revokeBlobUrl(prev);
+      return null;
+    });
+  }, [loadKey]);
 
   // 获取音频时长
   const getAudioDuration = (): number => {
@@ -134,9 +133,7 @@ export default function VoiceMessage({ message, searchTerm, compact, onRetry }: 
   // 组件卸载时清理资源
   useEffect(() => {
     return () => {
-      if (authenticatedAudioUrl && authenticatedAudioUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(authenticatedAudioUrl);
-      }
+      revokeBlobUrl(authenticatedAudioUrl);
     };
   }, [authenticatedAudioUrl]);
 

@@ -7,7 +7,6 @@ import ImageMessage from './ImageMessage';
 import FileMessage from './FileMessage';
 import VideoMessage from './VideoMessage';
 import VoiceMessage from './VoiceMessage';
-import { escapeRegExp } from '@/utils/regex';
 
 export default function MediaMessage({ message, searchTerm, compact, onRetry }: MessageContentProps) {
   // 确保是媒体消息
@@ -74,26 +73,6 @@ export default function MediaMessage({ message, searchTerm, compact, onRetry }: 
 
     // PDF和其他文件类型使用通用文件组件
     return <FileMessage message={message} searchTerm={searchTerm} compact={compact} onRetry={onRetry} />;
-  };
-
-  // 高亮搜索文本的函数
-  const highlightText = (text: string, searchTerm?: string) => {
-    if (!searchTerm) return text;
-    
-    const escaped = escapeRegExp(searchTerm);
-    const regex = new RegExp(`(${escaped})`, 'gi');
-    const parts = text.split(regex);
-    
-    return parts.map((part, index) => {
-      if (part.toLowerCase() === searchTerm.toLowerCase()) {
-        return (
-          <span key={index} className="bg-yellow-200">
-            {part}
-          </span>
-        );
-      }
-      return part;
-    });
   };
 
   return (

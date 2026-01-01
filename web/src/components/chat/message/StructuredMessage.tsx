@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { Message, StructuredMessageContent } from '@/types/chat';
-import { MessageUtils } from '@/utils/messageUtils';
 
 interface StructuredMessageProps {
   message: Message;

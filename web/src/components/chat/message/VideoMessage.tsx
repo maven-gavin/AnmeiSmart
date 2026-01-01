@@ -1,34 +1,40 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { tokenManager } from '@/service/tokenManager';
 import { MessageContentProps } from './ChatMessage';
 import { MediaMessageContent } from '@/types/chat';
 import { FileService } from '@/service/fileService';
+import { getMediaLoadKey, isDirectPreviewUrl, revokeBlobUrl } from './mediaUtils';
 
-export default function VideoMessage({ message, searchTerm, compact, onRetry }: MessageContentProps) {
-  const [isFullscreen, setIsFullscreen] = useState(false);
+export default function VideoMessage({ message, onRetry }: MessageContentProps) {
   const [videoError, setVideoError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [authenticatedVideoUrl, setAuthenticatedVideoUrl] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const lastLoadKeyRef = useRef<string | null>(null);
 
-  // 获取文件ID
-  const getFileId = (): string | null => {
-    if (message.type === 'media') {
-      const mediaContent = message.content as MediaMessageContent;
-      return mediaContent.media_info?.file_id || null;
-    }
-    return null;
-  };
+  const mediaInfo = message.type === 'media' ? (message.content as MediaMessageContent)?.media_info : null;
+  const fileId = mediaInfo?.file_id || null;
+  const previewUrl = mediaInfo?.url || null;
+
+  // temp_ 时优先用本地预览 url；否则 file_id 优先
+  const loadKey = useMemo(() => {
+    return getMediaLoadKey(mediaInfo);
+  }, [mediaInfo]);
 
   // 创建认证的视频URL
-  const createAuthenticatedVideoUrl = useCallback(async (fileId: string): Promise<string> => {
+  const createAuthenticatedVideoUrl = useCallback(async (key: string): Promise<string> => {
     try {
+      // 本地/外部预览 URL 直接用（blob/data/http），避免域名变化导致不可用
+      if (isDirectPreviewUrl(key)) {
+        return key;
+      }
+
       // 使用FileService获取认证的视频流
       const fileService = new FileService();
-      const response = await fileService.getFilePreviewStreamById(fileId);
+      const response = await fileService.getFilePreviewStreamById(key);
       
       if (!response || !(response instanceof Blob)) {
         throw new Error(`API返回的不是Blob对象: ${typeof response}`);
@@ -48,10 +54,8 @@ export default function VideoMessage({ message, searchTerm, compact, onRetry }: 
 
   // 加载视频
   const loadVideo = useCallback(async () => {
-    const fileId = getFileId();
-    if (!fileId) {
-      setVideoError(true);
-      setIsLoading(false);
+    if (!loadKey) {
+      setIsLoading(true);
       return;
     }
 
@@ -59,7 +63,7 @@ export default function VideoMessage({ message, searchTerm, compact, onRetry }: 
       setIsLoading(true);
       setVideoError(false);
       
-      const authUrl = await createAuthenticatedVideoUrl(fileId);
+      const authUrl = await createAuthenticatedVideoUrl(loadKey);
       setAuthenticatedVideoUrl(authUrl);
     } catch (error) {
       console.error('加载视频失败:', error);
@@ -68,7 +72,19 @@ export default function VideoMessage({ message, searchTerm, compact, onRetry }: 
     } finally {
       setIsLoading(false);
     }
-  }, [createAuthenticatedVideoUrl]);
+  }, [createAuthenticatedVideoUrl, loadKey]);
+
+  // 资源变化（temp_ -> 真实 file_id）时允许重新加载，并清理旧 blob
+  useEffect(() => {
+    if (lastLoadKeyRef.current === loadKey) return;
+    lastLoadKeyRef.current = loadKey;
+    setVideoError(false);
+    setIsLoading(true);
+    setAuthenticatedVideoUrl((prev) => {
+      revokeBlobUrl(prev);
+      return null;
+    });
+  }, [loadKey]);
 
   // 组件挂载时加载视频
   useEffect(() => {
@@ -78,9 +94,7 @@ export default function VideoMessage({ message, searchTerm, compact, onRetry }: 
   // 组件卸载时清理资源
   useEffect(() => {
     return () => {
-      if (authenticatedVideoUrl && authenticatedVideoUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(authenticatedVideoUrl);
-      }
+      revokeBlobUrl(authenticatedVideoUrl);
     };
   }, [authenticatedVideoUrl]);
 
@@ -105,8 +119,8 @@ export default function VideoMessage({ message, searchTerm, compact, onRetry }: 
   // 下载视频
   const handleDownload = async () => {
     try {
-      const fileId = getFileId();
-      if (!fileId) {
+      const currentFileId = fileId;
+      if (!currentFileId) {
         toast.error('无效的视频数据');
         return;
       }
@@ -117,7 +131,7 @@ export default function VideoMessage({ message, searchTerm, compact, onRetry }: 
         return;
       }
       
-      const downloadUrl = `/api/v1/files/${fileId}/download`;
+      const downloadUrl = `/api/v1/files/${currentFileId}/download`;
       const response = await fetch(downloadUrl, {
         method: 'GET',
         credentials: 'include',

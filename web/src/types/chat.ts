@@ -41,6 +41,7 @@ export interface MediaInfo {
   name: string; // 媒体文件的原始文件名
   mime_type: string; // 媒体文件的MIME类型（如：image/jpeg, audio/mp3, video/mp4等）
   size_bytes: number; // 媒体文件的大小（字节）
+  url?: string; // 可选：派生/本地预览字段（如 blob/data/http）。业务侧仍以 file_id 为准
   metadata?: { // 媒体文件的元数据信息
     width?: number; // 图片/视频的宽度（像素）
     height?: number; // 图片/视频的高度（像素）

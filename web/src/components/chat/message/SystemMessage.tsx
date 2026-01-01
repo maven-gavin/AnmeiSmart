@@ -4,7 +4,7 @@ import React from 'react';
 import type { MessageContentProps } from './ChatMessage';
 import { SystemEventContent } from '@/types/chat';
 
-export default function SystemMessage({ message, searchTerm, compact }: MessageContentProps) {
+export default function SystemMessage({ message }: MessageContentProps) {
   // 确保是系统消息
   if (message.type !== 'system') {
     return <div className="text-red-500">错误：非系统消息类型</div>;

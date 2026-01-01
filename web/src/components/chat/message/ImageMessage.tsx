@@ -6,24 +6,10 @@ import type { MessageContentProps } from './ChatMessage';
 import { FileService } from '@/service/fileService';
 import { MediaMessageContent } from '@/types/chat';
 import { escapeRegExp } from '@/utils/regex';
+import { getMediaLoadKey, isDirectPreviewUrl, revokeBlobUrl } from './mediaUtils';
 
 // 图片缓存 - 避免重复请求
 const imageCache = new Map<string, string>();
-
-// 清理过期的blob URLs
-const cleanupBlobUrls = () => {
-  imageCache.forEach((blobUrl) => {
-    if (blobUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(blobUrl);
-    }
-  });
-  imageCache.clear();
-};
-
-// 页面卸载时清理资源
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', cleanupBlobUrls);
-}
 
 const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentProps) => {
   const [imageExpanded, setImageExpanded] = useState(false);
@@ -41,47 +27,12 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
 
   // 提取文件ID
   const mediaContent = message.content as MediaMessageContent;
-  const fileId = mediaContent?.media_info?.file_id;
-  
-  // 向后兼容：如果没有file_id但有url，尝试从url中提取（用于迁移期间）
-  const legacyUrl = mediaContent?.media_info?.url;
-  const objectName = useMemo(() => {
-    // 优先使用file_id
-    if (fileId) {
-      return null; // 使用file_id，不需要objectName
-    }
-    
-    // 向后兼容：从url中提取objectName
-    if (legacyUrl) {
-      try {
-        // 如果已经是object_name格式（不包含协议和域名），直接返回
-        if (!legacyUrl.includes('://') && !legacyUrl.startsWith('/')) {
-          return legacyUrl;
-        }
-        
-        // 如果是完整的MinIO URL，提取对象名称
-        if (legacyUrl.includes('/chat-files/')) {
-          const parts = legacyUrl.split('/chat-files/');
-          if (parts.length >= 2) {
-            const extracted = parts[1];
-            return extracted.split('?')[0].split('#')[0];
-          }
-        }
-        
-        // 如果是相对路径格式
-        if (legacyUrl.startsWith('/chat-files/')) {
-          return legacyUrl.substring('/chat-files/'.length).split('?')[0].split('#')[0];
-        }
-        
-        // 外部URL直接返回
-        return legacyUrl;
-      } catch (error) {
-        console.error('解析图片URL失败:', error);
-        return null;
-      }
-    }
-    return null;
-  }, [fileId, legacyUrl]);
+  const mediaInfo = mediaContent?.media_info;
+
+  // 计算本次应该用哪个 key 来加载图片
+  const loadKey = useMemo(() => {
+    return getMediaLoadKey(mediaInfo);
+  }, [mediaInfo]);
 
   // 创建认证图片URL - 使用useCallback优化
   const createAuthenticatedImageUrl = useCallback(async (fileIdOrObjectName: string | null, attempt: number = 1): Promise<string> => {
@@ -89,23 +40,19 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
       throw new Error('文件ID或对象名不能为空');
     }
 
-    // 检查缓存
-    if (imageCache.has(fileIdOrObjectName)) {
-      return imageCache.get(fileIdOrObjectName)!;
-    }
-
-    // 临时文件ID不应该出现在已保存的消息中，直接抛出错误
+    // 临时文件ID不应该用于拉取文件流；本地 pending 消息应走 url 预览
     if (fileIdOrObjectName.startsWith('temp_')) {
       throw new Error('临时文件ID无效，文件可能尚未上传');
     }
 
-    // 外部URL、data URL（base64）、blob URL直接返回
-    if (fileIdOrObjectName.startsWith('http://') || 
-        fileIdOrObjectName.startsWith('https://') || 
-        fileIdOrObjectName.startsWith('data:') || 
-        fileIdOrObjectName.startsWith('blob:')) {
-      imageCache.set(fileIdOrObjectName, fileIdOrObjectName);
+    // 本地预览/外链（blob/data/http）直接返回
+    if (isDirectPreviewUrl(fileIdOrObjectName)) {
       return fileIdOrObjectName;
+    }
+
+    // 检查缓存（仅缓存通过 API 拉取的 blob URL；不要缓存 direct URL）
+    if (imageCache.has(fileIdOrObjectName)) {
+      return imageCache.get(fileIdOrObjectName)!;
     }
 
     try {
@@ -118,14 +65,8 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
       const fileService = new FileService();
       let blob: Blob;
       
-      // 优先使用file_id，否则使用objectName（向后兼容）
-      if (fileIdOrObjectName.length === 36 || fileIdOrObjectName.includes('-')) {
-        // 看起来像UUID格式，使用file_id方式
-        blob = await fileService.getFilePreviewStreamByFileId(fileIdOrObjectName);
-      } else {
-        // 使用objectName方式（向后兼容）
-        blob = await fileService.getFilePreviewStream(fileIdOrObjectName);
-      }
+      // 开发阶段：业务只存 file_id；非 direct url 的 key 视为 file_id
+      blob = await fileService.getFilePreviewStreamByFileId(fileIdOrObjectName);
       
       if (blob.size === 0) {
         throw new Error('接收到空的图片数据');
@@ -135,6 +76,17 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
       
       // 缓存blob URL
       imageCache.set(fileIdOrObjectName, blobUrl);
+
+      // 简单上限，避免大量图片导致内存持续增长（按插入顺序淘汰最旧的一条）
+      const MAX_CACHE_SIZE = 80;
+      if (imageCache.size > MAX_CACHE_SIZE) {
+        const firstKey = imageCache.keys().next().value as string | undefined;
+        if (firstKey) {
+          const oldUrl = imageCache.get(firstKey);
+          revokeBlobUrl(oldUrl);
+          imageCache.delete(firstKey);
+        }
+      }
       
       return blobUrl;
     } catch (error) {
@@ -143,8 +95,6 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
       // 如果还有重试次数，延迟后重试
       if (attempt < MAX_RETRY_COUNT) {
         const delay = RETRY_DELAYS[attempt - 1] || 1000;
-        console.log(`${delay}ms 后重试...`);
-        
         await new Promise(resolve => setTimeout(resolve, delay));
         return createAuthenticatedImageUrl(fileIdOrObjectName, attempt + 1);
       }
@@ -154,13 +104,12 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
   }, []);
 
   // 加载图片 - 使用useCallback优化
-  const loadImage = useCallback(async (isManualRetry: boolean = false) => {
-    // 优先使用file_id，否则使用objectName（向后兼容）
-    const fileIdOrObjectName = fileId || objectName;
+  const loadImage = useCallback(async () => {
+    const fileIdOrObjectName = loadKey;
     
     if (!fileIdOrObjectName) {
-      setImageError(true);
-      setIsLoading(false);
+      // 这里通常是本地 pending 且还没有可用的 url；保持加载态，等待消息被后端回写为真实 file_id
+      setIsLoading(true);
       return;
     }
 
@@ -187,24 +136,22 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
     } finally {
       setIsLoading(false);
     }
-  }, [fileId, objectName, createAuthenticatedImageUrl]);
+  }, [loadKey, createAuthenticatedImageUrl]);
 
   // 手动重试
   const retryLoad = useCallback(() => {
-    const fileIdOrObjectName = fileId || objectName;
+    const fileIdOrObjectName = loadKey;
     if (fileIdOrObjectName && imageCache.has(fileIdOrObjectName)) {
       // 清除缓存的错误结果
       const cachedUrl = imageCache.get(fileIdOrObjectName);
-      if (cachedUrl && cachedUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(cachedUrl);
-      }
+      revokeBlobUrl(cachedUrl);
       imageCache.delete(fileIdOrObjectName);
     }
     
     // 重置自动重试计数，手动重试单独计算
     setRetryCount(0);
-    loadImage(true);
-  }, [fileId, objectName, loadImage]);
+    loadImage();
+  }, [loadKey, loadImage]);
 
   // 处理图片元素的错误事件
   const handleImageError = useCallback(() => {
@@ -212,22 +159,16 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
     setImageError(true);
     setShowImageError(true);
     
-    // 清除当前的认证URL
-    if (authenticatedImageUrl && authenticatedImageUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(authenticatedImageUrl);
-    }
     setAuthenticatedImageUrl(null);
     
     // 清除缓存
-    const fileIdOrObjectName = fileId || objectName;
+    const fileIdOrObjectName = loadKey;
     if (fileIdOrObjectName && imageCache.has(fileIdOrObjectName)) {
       const cachedUrl = imageCache.get(fileIdOrObjectName);
-      if (cachedUrl && cachedUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(cachedUrl);
-      }
+      revokeBlobUrl(cachedUrl);
       imageCache.delete(fileIdOrObjectName);
     }
-  }, [authenticatedImageUrl, fileId, objectName]);
+  }, [authenticatedImageUrl, loadKey]);
 
   // 处理图片加载成功
   const handleImageLoad = useCallback(() => {
@@ -238,6 +179,24 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
   // 使用 Intersection Observer 实现懒加载，避免批量加载时的并发问题
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const hasStartedLoadingRef = useRef(false);
+  const lastLoadKeyRef = useRef<string | null>(null);
+  
+  // 当 file_id 从 temp_ -> 真实值（或 url/对象名变化）时，允许重新加载
+  useEffect(() => {
+    if (lastLoadKeyRef.current === loadKey) return;
+    lastLoadKeyRef.current = loadKey;
+    hasStartedLoadingRef.current = false;
+    
+    // 不要在组件级 revoke blob URL：
+    // - authenticatedImageUrl 往往来自全局 imageCache
+    // - revoke 会导致同一缓存 key/URL 被复用时“轮流坏”
+    // blob URL 的生命周期由 imageCache 负责（淘汰时 revoke）
+    setAuthenticatedImageUrl(null);
+    setImageError(false);
+    setShowImageError(false);
+    setIsLoading(true);
+    setRetryCount(0);
+  }, [loadKey]);
   
   useEffect(() => {
     const container = imageContainerRef.current;
@@ -279,9 +238,7 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
   // 组件卸载时清理资源
   useEffect(() => {
     return () => {
-      if (authenticatedImageUrl && authenticatedImageUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(authenticatedImageUrl);
-      }
+      // 不要在这里 revoke：authenticatedImageUrl 可能来自全局 cache
     };
   }, [authenticatedImageUrl]);
 

@@ -217,15 +217,20 @@ export function ErrorHandler() {
       setIsExpanded(true);
     }
 
-    // 监听运行时错误
-    const handleError = (event: ErrorEvent) => {
-      const error = event.error || new Error(event.message);
-      addErrorLog(
-        error,
-        event.filename || undefined,
-        event.lineno || undefined,
-        event.colno || undefined
-      );
+    const isResourceElement = (target: EventTarget | null): target is HTMLElement => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      return tag === 'IMG' || tag === 'SCRIPT' || tag === 'LINK' || tag === 'VIDEO' || tag === 'AUDIO' || tag === 'SOURCE';
+    };
+
+    // 监听运行时错误（仅处理真正的 ErrorEvent，避免把资源 error 当成 runtime）
+    const handleError = (event: Event) => {
+      // 资源加载失败会走 error 事件，但不是 ErrorEvent，且 target 是具体元素
+      if (isResourceElement(event.target)) return;
+      if (!(event instanceof ErrorEvent)) return;
+
+      const error = event.error || new Error(event.message || 'Unknown error');
+      addErrorLog(error, event.filename || undefined, event.lineno || undefined, event.colno || undefined);
     };
 
     // 监听未处理的 Promise 拒绝
@@ -235,18 +240,23 @@ export function ErrorHandler() {
       addErrorLog(error);
     };
 
-    // 监听资源加载失败
+    // 监听资源加载失败（过滤 blob:/data:，避免本地预览/快速切换导致“假失败”污染日志与打断体验）
     const handleResourceError = (event: Event) => {
-      const target = event.target as HTMLElement;
-      if (!target) return;
-      
-      const tagName = target.tagName;
-      if (tagName === 'IMG' || tagName === 'SCRIPT' || tagName === 'LINK') {
-        const src = (target as HTMLImageElement).src || target.getAttribute('href') || '';
-        if (src) {
-          addErrorLog(new Error(`资源加载失败: ${src}`), src);
-        }
-      }
+      const target = event.target;
+      if (!isResourceElement(target)) return;
+
+      const anyTarget = target as any;
+      const src: string =
+        (typeof anyTarget.currentSrc === 'string' && anyTarget.currentSrc) ||
+        (typeof anyTarget.src === 'string' && anyTarget.src) ||
+        target.getAttribute('src') ||
+        target.getAttribute('href') ||
+        '';
+
+      if (!src) return;
+      if (src.startsWith('blob:') || src.startsWith('data:')) return;
+
+      addErrorLog(new Error(`资源加载失败: ${src}`), src);
     };
 
     window.addEventListener('error', handleError, true);
