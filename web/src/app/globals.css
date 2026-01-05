@@ -98,6 +98,64 @@
   }
   body {
     @apply bg-white text-gray-900;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial,
+      sans-serif;
+  }
+}
+
+@layer components {
+  .am-page {
+    @apply h-full w-full overflow-auto bg-white;
+  }
+
+  .am-container {
+    @apply container mx-auto px-4 py-6;
+  }
+
+  .am-page-title {
+    @apply text-2xl font-bold text-gray-800;
+  }
+
+  .am-card {
+    @apply bg-white border border-gray-200 shadow-sm;
+  }
+
+  .am-filter-bar {
+    @apply mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-sm;
+  }
+
+  .am-btn-primary {
+    @apply bg-brand-primary hover:bg-brand-primaryHover text-white border-0 shadow-sm;
+  }
+
+  .am-btn-outline {
+    @apply border border-brand-primary text-brand-primary hover:bg-brand-soft bg-white;
+  }
+
+  .am-btn-reset {
+    @apply border border-gray-300 text-gray-700 hover:bg-gray-100 bg-white;
+  }
+
+  .am-btn-ghost-brand {
+    @apply text-brand-primary hover:text-brand-primaryHover hover:bg-brand-soft;
+  }
+
+  .am-field {
+    @apply border-gray-300 focus:border-brand-primary focus:ring-brand-primary/20 focus-visible:border-brand-primary focus-visible:ring-brand-primary/20;
+  }
+
+  .am-spinner {
+    @apply h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-brand-primary;
+  }
+
+  .am-badge-neutral {
+    @apply bg-gray-100 text-gray-700 border-gray-300;
+  }
+
+  .am-mono {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+      "Liberation Mono", monospace;
   }
 }
 

@@ -44,5 +44,6 @@ alwaysApply: true
 - [git.mdc](mdc:.cursor/rules/common/git.mdc)：Git提交规范
 - [python.mdc](mdc:.cursor/rules/languages/python.mdc)：Python语言开发规范
 - [typescript.mdc](mdc:.cursor/rules/languages/typescript.mdc): Typescript语言开发规范
+- [ui-design-system.mdc](mdc:.cursor/rules/ui/ui-design-system.mdc)：全站UI设计系统规范
 
 

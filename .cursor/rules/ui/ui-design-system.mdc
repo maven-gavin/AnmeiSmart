@@ -1,0 +1,300 @@
+---
+description: 全站UI设计系统规范 - 基于任务管理页面优化经验总结
+globs: **/*.tsx,**/*.jsx,**/*.ts,**/*.js
+alwaysApply: true
+---
+
+# 全站UI设计系统规范
+
+## 设计原则
+
+### 1. 视觉一致性
+- **主色调**: 使用 `#FFA500` (橙色) 作为品牌主色
+- **背景色**: 白色 `#FFFFFF` 作为主要背景
+- **简洁大气**: 注重留白与层次感，避免过度装饰
+- **视觉焦点明确**: 重要操作和关键信息突出显示
+
+### 2. 字体规范
+- **无衬线字体**: 统一使用系统无衬线字体栈
+  ```css
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", 
+               "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", 
+               Helvetica, Arial, sans-serif
+  ```
+- **代码字体**: 等宽字体用于代码和ID显示
+  ```css
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, 
+               "Liberation Mono", monospace
+  ```
+
+## 颜色系统
+
+### 主色调
+- **主色**: `#FFA500` (Orange) - 用于主要按钮、链接、强调元素
+- **主色悬停**: `#FF8C00` (DarkOrange) - 按钮hover状态
+- **主色浅色**: `#FFF5E6` - 用于浅色背景标签（待认领状态）
+- **主色中等**: `#FFE5CC` - 用于中等背景标签（进行中状态）
+- **主色深色**: `#FF6600` - 用于深色文字（优先级高）
+
+### Tailwind 色板（推荐）
+- 为了减少页面硬编码颜色，项目已在 `web/tailwind.config.js` 中提供 `brand.*` 色板：
+  - `brand.primary / brand.primaryHover / brand.soft / brand.mid / brand.deep`
+- 页面/组件优先使用：
+  - `bg-brand-primary`、`hover:bg-brand-primaryHover`、`bg-brand-soft` 等
+  - 或直接使用下方 `am-*` 公共类（更推荐）
+
+### 功能色
+- **成功**: `bg-green-100 text-green-800` - 完成状态
+- **警告**: `bg-yellow-100 text-yellow-800` - 待处理状态
+- **错误**: `text-red-600` - 过期、错误状态
+- **信息**: `bg-blue-100 text-blue-800` - 已分配状态
+
+### 中性色
+- **背景灰**: `bg-gray-50` - 搜索筛选区域、卡片背景
+- **边框灰**: `border-gray-200` / `border-gray-300` - 卡片、输入框边框
+- **文字灰**: 
+  - `text-gray-900` - 主要文字
+  - `text-gray-700` - 次要文字
+  - `text-gray-500` - 辅助文字
+  - `text-gray-400` - 禁用/占位文字
+
+## 组件样式规范
+
+### 按钮 (Button)
+
+#### 主要按钮（Primary）
+```tsx
+className="bg-[#FFA500] hover:bg-[#FF8C00] text-white border-0 shadow-sm"
+```
+- 用于：新增、提交、确认等主要操作
+- 颜色：橙色背景，白色文字
+- 悬停：深橙色背景
+更推荐：使用全局类 `am-btn-primary`（统一维护）
+
+#### 次要按钮（Secondary/Outline）
+```tsx
+className="border-[#FFA500] text-[#FFA500] hover:bg-[#FFF5E6] bg-white"
+```
+- 用于：查看详情、次要操作
+- 颜色：橙色边框和文字，白色背景
+- 悬停：浅橙色背景
+更推荐：使用全局类 `am-btn-outline`
+
+#### 重置按钮（Reset）
+```tsx
+className="border-gray-300 text-gray-700 hover:bg-gray-100"
+```
+- 用于：重置、取消等中性操作
+- 颜色：灰色边框和文字
+更推荐：使用全局类 `am-btn-reset`
+
+#### 危险按钮（Danger）
+```tsx
+className="text-red-600 hover:text-red-700 border-red-300 hover:bg-red-50"
+```
+- 用于：删除、取消任务等危险操作
+
+### 输入框 (Input/Textarea/Select)
+
+#### 基础样式
+```tsx
+className="border-gray-300 focus:border-[#FFA500] focus:ring-[#FFA500]/20"
+```
+- **默认边框**: `border-gray-300`
+- **焦点边框**: `border-[#FFA500]` (橙色)
+- **焦点环**: `ring-[#FFA500]/20` (20%透明度的橙色环)
+- **重要**: 边框色指的是获得焦点时的颜色
+更推荐：使用全局类 `am-field`
+
+#### 搜索筛选区域
+```tsx
+className="rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-sm"
+```
+- 背景：浅灰色 `bg-gray-50`
+- 边框：`border-gray-200`
+- 阴影：轻微阴影 `shadow-sm`
+
+### 卡片 (Card)
+
+#### 基础卡片
+```tsx
+className="bg-white border border-gray-200 shadow-sm"
+```
+- 背景：白色
+- 边框：浅灰色
+- 阴影：轻微阴影
+更推荐：使用全局类 `am-card`
+
+#### 任务卡片（移动端）
+```tsx
+className="overflow-hidden transition-shadow hover:shadow-md bg-white border border-gray-200"
+```
+- 悬停效果：阴影加深
+- 过渡动画：`transition-shadow`
+
+### 标签 (Badge)
+
+#### 类型标签
+```tsx
+className="bg-gray-100 text-gray-700 border-gray-300"
+```
+- 用于：任务类型等中性标签
+
+#### 状态标签
+- **待认领**: `bg-[#FFF5E6] text-[#FF8C00]`
+- **进行中**: `bg-[#FFE5CC] text-[#FF6600]`
+- **已完成**: `bg-green-100 text-green-800`
+- **已取消**: `bg-gray-100 text-gray-800`
+
+#### 优先级标签
+- **紧急**: `bg-red-100 text-red-800`
+- **高**: `bg-[#FFE5CC] text-[#FF6600]`
+- **中**: `bg-[#FFF5E6] text-[#FF8C00]`
+- **低**: `bg-green-100 text-green-800`
+
+### 表格 (Table)
+
+#### 表头
+```tsx
+className="bg-gray-50"
+```
+- 背景：浅灰色
+
+#### 表格行
+```tsx
+className="hover:bg-gray-50"
+```
+- 悬停：浅灰色背景
+
+#### 表格容器
+```tsx
+className="overflow-hidden rounded-lg border border-gray-200 shadow-sm bg-white"
+```
+
+## 间距与布局
+
+### 容器间距
+- **页面容器**: `container mx-auto px-4 py-6`
+- **卡片间距**: `space-y-3` (移动端) / `gap-4` (桌面端)
+- **元素间距**: `gap-2` (小间距) / `gap-4` (中间距) / `gap-6` (大间距)
+
+### 内边距
+- **卡片内容**: `p-4`
+- **表单区域**: `p-4` 或 `space-y-4`
+- **按钮组**: `gap-2` 或 `space-x-2`
+
+## 响应式设计
+
+### 断点使用
+- **移动端优先**: 默认移动端样式，使用 `md:` 前缀定义桌面端样式
+- **隐藏/显示**: 
+  - 移动端: `md:hidden`
+  - 桌面端: `hidden md:block`
+
+### 布局切换
+- **移动端**: 卡片式布局 (`space-y-3`)
+- **桌面端**: 表格布局 (`hidden md:block`)
+
+## 交互反馈
+
+### 加载状态
+```tsx
+<div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-[#FFA500]"></div>
+```
+更推荐：使用全局类 `am-spinner`
+
+### 空状态
+- 图标：灰色图标 `text-gray-400`
+- 标题：`text-lg font-medium text-gray-900`
+- 描述：`text-gray-500`
+
+### 悬停效果
+- 按钮：颜色加深或背景变化
+- 卡片：阴影加深 `hover:shadow-md`
+- 链接：颜色变化
+
+## 特殊状态
+
+### 过期任务
+```tsx
+className="border-l-4 border-l-red-500"
+```
+- 左侧红色边框标识
+
+### 禁用状态
+```tsx
+className="disabled:opacity-50 disabled:cursor-not-allowed"
+```
+
+## 实现检查清单
+
+优化页面时，确保以下项目都已应用：
+
+- [ ] 所有按钮使用规范的颜色和样式
+- [ ] 所有输入框焦点时边框为橙色 `#FFA500`
+- [ ] 所有文本使用无衬线字体
+- [ ] 卡片使用白色背景和浅灰色边框
+- [ ] 搜索筛选区域使用浅灰色背景 `bg-gray-50`
+- [ ] 状态和优先级标签使用规范颜色
+- [ ] 间距和留白符合规范
+- [ ] 响应式布局正确实现
+- [ ] 悬停和交互效果已添加
+- [ ] 空状态和加载状态样式统一
+
+## 代码示例
+
+### 完整页面结构模板
+```tsx
+export default function ExamplePage() {
+  return (
+    <AppLayout requiredRole={user?.currentRole}>
+      <div className="am-page">
+        <div className="am-container">
+          {/* 页面头部 */}
+          <div className="mb-6 flex items-center justify-between">
+            <h1 className="am-page-title">
+              页面标题
+            </h1>
+            <Button
+              className="am-btn-primary"
+              onClick={handleAction}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              操作按钮
+            </Button>
+          </div>
+
+          {/* 搜索筛选栏 */}
+          <div className="am-filter-bar">
+            {/* 筛选内容 */}
+          </div>
+
+          {/* 内容区域 */}
+          <div className="space-y-3">
+            {/* 卡片或表格 */}
+          </div>
+        </div>
+      </div>
+    </AppLayout>
+  );
+}
+```
+
+## 注意事项
+
+1. **字体应用**: 字体应在 `web/src/app/globals.css` 的 `body` 全局设置；页面/组件默认继承，避免重复写 `style={{ fontFamily: ... }}`。等宽字体用 `am-mono`。
+2. **颜色一致性**: 严格使用规范中的颜色值，避免随意使用其他颜色
+3. **焦点状态**: 表单元素焦点时必须有橙色边框和环效果
+4. **响应式**: 确保移动端和桌面端都有良好的显示效果
+5. **可访问性**: 保持足够的对比度，确保文字清晰可读
+
+## 全局可复用类（am-*）
+
+为保证“全站一致 + 页面代码最小化”，项目提供了以下全局类（定义于 `web/src/app/globals.css`）：  
+- **布局**: `am-page`、`am-container`、`am-page-title`  
+- **卡片/筛选区**: `am-card`、`am-filter-bar`  
+- **按钮**: `am-btn-primary`、`am-btn-outline`、`am-btn-reset`、`am-btn-ghost-brand`  
+- **表单**: `am-field`  
+- **其他**: `am-spinner`、`am-badge-neutral`、`am-mono`
+
+页面优化要求：优先使用 `am-*` + `brand.*`，避免在页面里散落硬编码颜色与重复样式。

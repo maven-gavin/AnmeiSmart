@@ -8,6 +8,13 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        brand: {
+          primary: '#FFA500',
+          primaryHover: '#FF8C00',
+          soft: '#FFF5E6',
+          mid: '#FFE5CC',
+          deep: '#FF6600',
+        },
         // 添加 gray 色系以兼容现有代码
         gray: {
           50: '#f9fafb',
