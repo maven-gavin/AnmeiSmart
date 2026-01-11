@@ -195,8 +195,6 @@ class MCPToolExecutionService:
             return await self._execute_user_tool(tool, arguments)
         elif tool_name.startswith("customer_"):
             return await self._execute_customer_tool(tool, arguments)
-        elif tool_name.startswith("treatment_"):
-            return await self._execute_treatment_tool(tool, arguments)
         elif tool_name.startswith("project_"):
             return await self._execute_project_tool(tool, arguments)
         else:

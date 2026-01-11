@@ -5,7 +5,7 @@ import httpx
 import logging
 
 from app.common.deps import get_db
-from app.mcp.mcp_group_service import MCPGroupService
+from app.mcp.services.mcp_group_service import MCPGroupService
 from app.mcp.schemas.mcp import (
     MCPGroupCreate,
     MCPGroupUpdate,

@@ -65,7 +65,7 @@ def transaction_handler(func):
 
 
 class MCPGroupService:
-    """MCP工具分组服务 - 遵循DDD原则，所有方法返回Schema"""
+    """MCP工具分组服务 - 所有方法返回Schema"""
 
     @staticmethod
     def _generate_api_key() -> str:

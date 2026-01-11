@@ -173,36 +173,7 @@ class MCPToolExecutionService:
         return result
 ```
 
-- `ai_gateway.py`：AI Gateway管理API，包含聊天、方案生成、健康检查等功能
-- `ai.py`：面向用户的AI功能接口
-- `chat.py`：聊天相关API
-- `plan_generation.py`：AI辅助方案生成专用API
-- `dify_config.py`：Dify配置管理API（已支持动态配置和热重载）
-
 ### 3.3 核心组件设计
-
-#### 3.3.1 注册自动化服务 (RegistrationAutomationService)
-
-```python
-class RegistrationAutomationService:
-    """用户注册自动化服务"""
-  
-    async def handle_user_registration(self, user_id: str, user_info: dict):
-        """处理用户注册后的自动化流程"""
-        pass
-  
-    async def create_default_conversation(self, user_id: str) -> ConversationInfo:
-        """创建默认会话"""
-        pass
-  
-    async def trigger_dify_welcome(self, user_id: str, conversation_id: str):
-        """触发Dify Agent生成个性化欢迎消息"""
-        pass
-  
-    async def notify_consultants(self, user_id: str, conversation_id: str):
-        """通知顾问有新客户"""
-        pass
-```
 
 #### 3.3.3 智能体配置管理
 
@@ -211,93 +182,16 @@ class RegistrationAutomationService:
 - **版本管理**：支持Agent的版本控制和A/B测试
 - **故障转移**：Agent不可用时的自动降级和回退机制
 
-#### 3.3.4 顾问通知系统
-
-- **在线通知**：通过WebSocket实时推送
-- **离线通知**：通过NotificationService发送推送
-- **通知内容**：新客户基本信息、会话链接、预期响应时间
-
-### 3.4 数据流设计
-
-#### 3.4.1 注册流程数据流（基于官方MCP库）
-
-```
-用户注册 → 用户信息验证 → 创建用户记录 → 触发异步任务
-                                        ↓
-                            创建会话 → 查询智能体配置（appId→API Key）
-                                        ↓
-            AI Gateway调用智能体 → 智能体调用MCP服务器（官方库处理协议）
-                                        ↓
-                      @mcp_server.tool()装饰器自动处理工具调用和类型验证
-                                        ↓
-            欢迎消息生成 ← 智能体返回欢迎语 ← 官方库标准格式返回用户信息
-                                        ↓
-                            保存消息 → 广播顾问通知 → 更新管理员面板指标
-```
-
-#### 3.4.2 重试机制数据流
-
-```
-任务执行失败 → 记录错误日志 → 计算重试延迟 → 重新入队 → 重新执行
-                    ↓（达到最大重试次数）
-              发送管理员告警 → 手动处理
-```
-
 ## 4. 技术实现方案
 
 ### 4.1 代码架构
 
 #### 4.1.1 实际目录结构
 
-基于实际代码的目录结构：
+基于实际代码的目录结构： （待更新）
 
 ```
-api/app/
-├── api/v1/                        # API服务层
-│   ├── endpoints/
-│   │   ├── auth.py               # 用户认证API（已集成注册自动化）
-│   │   ├── chat.py
-│   │   ├── plan_generation.py
-│   │   ├── dify_config.py        # Dify配置管理（已实现）
-│   │   └── mcp_config.py         # MCP配置管理API（已实现）
-│   └── api.py
-├── mcp/                          # MCP服务层（自研实现）
-│   ├── __init__.py
-│   ├── services.py               # MCP服务核心实现
-│   ├── oauth.py                  # OAuth2认证管理
-│   ├── types.py                  # MCP类型定义
-│   ├── utils.py                  # 工具函数
-│   ├── registry/                 # 工具注册中心
-│   │   ├── __init__.py
-│   │   └── tool_registry.py      # @mcp_tool装饰器和工具管理
-│   └── tools/                    # MCP工具定义
-│       ├── __init__.py
-│       ├── user/
-│       │   ├── __init__.py
-│       │   ├── profile.py        # @mcp_tool 用户信息工具
-│       │   └── search.py
-│       ├── customer/
-│       │   ├── __init__.py
-│       │   ├── analysis.py       # @mcp_tool 客户分析工具
-│       │   └── preferences.py
-│       ├── consultation/
-│       │   ├── __init__.py
-│       │   ├── history.py
-│       │   └── summary.py
-│       ├── treatment/
-│       │   ├── __init__.py
-│       │   ├── optimization.py
-│       │   └── plan_generation.py
-│       └── projects/
-│           ├── __init__.py
-│           └── service_info.py
-└── services/
-    ├── mcp_group_service.py      # MCP工具分组服务（已实现）
-    ├── registration_automation_service.py  # 简化版注册自动化服务
-    └── registration/
-        ├── __init__.py
-        ├── automation_service.py    # 完整版注册自动化服务（已实现）
-        └── consultant_notifier.py   # 顾问通知服务
+
 ```
 
 #### 4.1.2 实际MCP工具注册实现
@@ -383,98 +277,6 @@ def mcp_tool(name: str = None, description: str = "", category: str = "general")
         return func
   
     return decorator
-```
-
-#### 4.1.3 实际注册自动化集成
-
-基于实际代码的注册自动化集成：
-
-```python
-# api/app/api/v1/endpoints/auth.py - 实际的注册端点（已集成自动化）
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(
-    *,
-    db: Session = Depends(get_db),
-    user_in: UserCreate = Body(...),
-    background_tasks: BackgroundTasks,  # 已集成
-) -> Any:
-    """用户注册 - 创建新用户，并返回用户信息"""
-    userResponse = await user_service.get_by_email(db, email=user_in.email)
-    if userResponse:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="此邮箱已注册",
-        )
-  
-    # 确保公开注册的用户至少有客户角色
-    if not user_in.roles or len(user_in.roles) == 0:
-        user_in.roles = ["customer"]
-  
-    userResponse = await user_service.create(db, obj_in=user_in)
-
-    # 用户注册自动化流程（已实现）：
-    # 1、创建默认的会话，启用AI功能
-    # 2、通过AI Gateway触发Dify Agent，调用MCP查询用户信息，生成定制的欢迎语
-    # 3、顾问端收到新客户通知，可以认领客户提供专业咨询服务
-    user_info = {
-        "username": userResponse.username,
-        "email": userResponse.email,
-        "roles": userResponse.roles,
-        "phone": userResponse.phone,
-        "avatar": userResponse.avatar
-    }
-  
-    # 异步处理注册自动化流程，避免阻塞注册接口
-    background_tasks.add_task(handle_registration_automation, str(userResponse.id), user_info)
-  
-    return userResponse
-
-# api/app/services/registration_automation_service.py - 实际的自动化服务函数
-async def handle_registration_automation(user_id: str, user_info: dict) -> bool:
-    """注册自动化主任务函数"""
-    db = next(get_db())
-    try:
-        automation_service = RegistrationAutomationService(db)
-        return await automation_service.handle_user_registration(user_id, user_info)
-    except Exception as e:
-        logger.error(f"注册自动化任务失败: user_id={user_id}, error={e}")
-        return False
-    finally:
-        db.close()
-```
-
-### 4.2 异步任务设计
-
-#### 4.2.1 主任务函数
-
-```python
-async def handle_registration_automation(user_id: str, user_info: dict):
-    """注册自动化主任务"""
-    try:
-        automation_service = RegistrationAutomationService()
-        await automation_service.handle_user_registration(user_id, user_info)
-    except Exception as e:
-        logger.error(f"注册自动化失败: user_id={user_id}, error={e}")
-        # 触发重试机制
-        await schedule_retry_task(user_id, user_info, attempt=1)
-```
-
-#### 4.2.2 重试机制
-
-```python
-async def schedule_retry_task(user_id: str, user_info: dict, attempt: int):
-    """安排重试任务"""
-    max_retries = 3
-    retry_delays = [5, 15, 60]  # 秒
-  
-    if attempt <= max_retries:
-        delay = retry_delays[attempt - 1]
-        # 使用Redis或Celery实现延迟任务
-        await asyncio.sleep(delay)
-        await handle_registration_automation(user_id, user_info)
-    else:
-        # 发送管理员告警
-        await send_admin_alert(f"用户注册自动化最终失败: {user_id}")
 ```
 
 ### 4.3 实际MCP工具定义
@@ -573,139 +375,13 @@ async def analyze_customer(user_id: str, analysis_type: str = "basic") -> dict:
     return base_analysis
 ```
 
-#### 4.3.3 实际注册自动化服务实现
-
-基于实际代码的注册自动化服务实现：
-
-```python
-# app/services/registration/automation_service.py - 实际实现
-class RegistrationAutomationService:
-    """注册自动化服务"""
-  
-    def __init__(self, db: Session):
-        self.db = db
-        self.ai_gateway = get_ai_gateway_service(db)
-  
-    async def handle_user_registration(self, user_id: str, user_info: Dict[str, Any]):
-        """处理用户注册后的自动化流程"""
-        try:
-            logger.info(f"开始处理用户注册自动化: user_id={user_id}")
-    
-            # 第一步：创建默认会话
-            conversation = await self._create_default_conversation(user_id)
-            if not conversation:
-                logger.error(f"创建默认会话失败: user_id={user_id}")
-                return
-    
-            # 第二步：触发Dify Agent生成欢迎消息
-            welcome_message = await self._trigger_welcome_message(user_id, conversation.id, user_info)
-            if welcome_message:
-                logger.info(f"欢迎消息生成成功: user_id={user_id}")
-            else:
-                # 创建默认欢迎消息
-                await self._create_default_welcome_message(user_id, conversation.id)
-    
-            # 第三步：通知顾问团队
-            await self._notify_consultants(user_id, conversation.id, user_info)
-    
-            logger.info(f"用户注册自动化完成: user_id={user_id}")
-    
-        except Exception as e:
-            logger.error(f"用户注册自动化失败: user_id={user_id}, error={e}")
-
-    async def _trigger_welcome_message(self, user_id: str, conversation_id: str, user_info: Dict[str, Any]):
-        """触发Dify Agent生成欢迎消息"""
-        try:
-            # 构建给Dify Agent的上下文信息
-            context_prompt = self._build_welcome_context(user_info)
-    
-            # 通过AI Gateway调用Dify Agent
-            response = await self.ai_gateway.customer_service_chat(
-                message=context_prompt,
-                user_id=user_id,
-                session_id=conversation_id,
-                conversation_history=[],
-                user_profile={
-                    "is_new_user": True,
-                    "source": "registration_automation",
-                    "analysis": user_info
-                }
-            )
-    
-            if response.success and response.content:
-                return response.content
-            else:
-                return self._get_default_welcome_message(user_id)
-        
-        except Exception as e:
-            logger.error(f"生成欢迎消息失败: user_id={user_id}, error={e}")
-            return self._get_default_welcome_message(user_id)
-
-    def _get_default_welcome_message(self, user_id: str) -> str:
-        """默认欢迎消息模板"""
-        return """欢迎来到安美智享！🌟
-
-我是您的专属AI咨询助手，很高兴为您服务。我们提供专业的咨询服务，包括：
-
-• 个性化美容方案设计
-• 专业治疗建议
-• 风险评估与安全指导
-• 术后护理指导
-
-您可以随时向我咨询任何关于的问题，我会根据您的具体情况提供专业建议。
-
-有什么想了解的吗？我来为您详细介绍！😊"""
-```
-
 #### 4.3.3 MCP服务器主入口
 
 ```python
-# app/mcp/v1/server.py
-class MCPServer:
-    """MCP服务器主入口，统一处理所有MCP请求"""
-  
-    def __init__(self):
-        self.registry = MCPServiceRegistry()
-        self.middleware_stack = []
-        self._register_default_tools()
-  
-    def _register_default_tools(self):
-        """注册默认的MCP工具"""
-        from .tools.user_profile import UserProfileTool
-        from .tools.customer_analysis import CustomerAnalysisTool
-        from .tools.conversation_data import ConversationDataTool
-  
-        self.registry.register_tool("get_user_profile", UserProfileTool)
-        self.registry.register_tool("analyze_customer", CustomerAnalysisTool)
-        self.registry.register_tool("get_conversation_data", ConversationDataTool)
-  
-    async def handle_request(self, tool_name: str, params: dict) -> dict:
-        """处理MCP请求"""
-        try:
-            # 应用中间件
-            for middleware in self.middleware_stack:
-                params = await middleware.process_request(params)
-  
-            # 获取工具并执行
-            tools = self.registry.get_available_tools()
-            if tool_name not in tools:
-                return {"error": f"Tool {tool_name} not found or disabled"}
-  
-            tool_instance = tools[tool_name]["class"]()
-            result = await tool_instance.execute(**params)
-  
-            # 应用响应中间件
-            for middleware in reversed(self.middleware_stack):
-                result = await middleware.process_response(result)
-  
-            return result
-  
-        except Exception as e:
-            logger.error(f"MCP请求处理失败: {e}")
-            return {"error": str(e)}
+
 ```
 
-#### 4.3.4 管理员面板集成与监控
+#### 4.3.4 管理员面板集成与监控 (未实现)
 
 ```python
 # app/mcp/v1/middleware/monitoring.py
@@ -744,23 +420,7 @@ class MCPMonitoringMiddleware:
             "success_rate": 1 - sum(self.error_stats.values()) / max(sum(self.call_stats.values()), 1)
         }
 
-# app/api/v1/endpoints/mcp_dashboard.py
 
-@router.get("/registration-automation/metrics")
-async def get_registration_automation_metrics(
-    current_user: User = Depends(get_current_admin_user)
-):
-    """获取注册自动化指标（管理员面板）"""
-    mcp_server = get_mcp_server()
-    monitoring = mcp_server.get_middleware("monitoring")
-
-    return {
-        "mcp_metrics": monitoring.get_metrics() if monitoring else {},
-        "dify_agent_status": await check_dify_agent_status(),
-        "automation_success_rate": await get_automation_success_rate(),
-        "daily_registrations": await get_daily_registration_stats(),
-        "welcome_message_stats": await get_welcome_message_stats()
-    }
 ```
 
 #### 4.3.5 MCP分组服务与认证管理
@@ -883,283 +543,16 @@ class MCPAuthMiddleware:
 # 4. 操作审计日志，记录所有安全相关操作
 ```
 
-### 4.4 通知系统设计
-
-#### 4.4.1 顾问通知流程
-
-```python
-async def notify_consultants(self, user_id: str, conversation_id: str):
-    """通知顾问有新客户"""
-    try:
-        # 获取在线顾问列表
-        online_consultants = await self._get_online_consultants()
-  
-        # 准备通知数据
-        notification_data = {
-            "type": "new_customer",
-            "title": "新客户注册",
-            "message": f"新客户已注册并开始咨询，等待顾问认领",
-            "customer_id": user_id,
-            "conversation_id": conversation_id,
-            "timestamp": datetime.now().isoformat(),
-            "action": "claim_customer"
-        }
-  
-        # 通过广播服务发送通知
-        broadcasting_service = await get_broadcasting_service_dependency(self.db)
-  
-        for consultant_id in online_consultants:
-            await broadcasting_service.send_direct_message(
-                user_id=consultant_id,
-                message_data=notification_data
-            )
-  
-        # 如果没有在线顾问，发送推送通知给所有顾问
-        if not online_consultants:
-            all_consultants = await self._get_all_consultants()
-            for consultant_id in all_consultants:
-                await broadcasting_service._send_push_notification(
-                    user_id=consultant_id,
-                    notification_data={
-                        "title": "新客户等待服务",
-                        "body": "有新客户注册，请及时响应",
-                        "conversation_id": conversation_id
-                    }
-                )
-  
-    except Exception as e:
-        logger.error(f"通知顾问失败: {e}")
-```
-
 ## 5. 数据库设计
-
-### 5.1 现有表结构利用
-
-完全复用现有的数据库结构：
-
-- **users表**：用户基本信息，用于MCP服务的用户信息查询
-- **conversations表**：会话管理，包含AI控制状态，用于创建默认会话
-- **messages表**：消息存储，支持结构化内容，用于保存欢迎消息
-- **system_settings表**：系统配置（无需新增字段）
-- **dify_configs表**：现有Dify配置表（通过dify_config.py管理）
-
-### 5.2 新增MCP相关数据库表设计
-
-#### 5.2.1 MCP工具分组表
-
-```sql
-CREATE TABLE mcp_tool_groups (
-    id VARCHAR(36) PRIMARY KEY,
-    name VARCHAR(100) NOT NULL COMMENT '分组名称',
-    description TEXT COMMENT '分组描述',
-    api_key VARCHAR(255) NOT NULL COMMENT '分组API密钥',
-    enabled BOOLEAN DEFAULT TRUE COMMENT '是否启用',
-    created_by VARCHAR(36) COMMENT '创建者ID',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_name (name),
-    INDEX idx_enabled (enabled),
-    INDEX idx_created_by (created_by)
-);
-```
-
-#### 5.2.2 MCP工具配置表
-
-```sql
-CREATE TABLE mcp_tools (
-    id VARCHAR(36) PRIMARY KEY,
-    tool_name VARCHAR(100) NOT NULL COMMENT '工具名称',
-    group_id VARCHAR(36) NOT NULL COMMENT '所属分组ID',
-    version VARCHAR(20) DEFAULT '1.0.0' COMMENT '工具版本',
-    description TEXT COMMENT '工具描述',
-    enabled BOOLEAN DEFAULT TRUE COMMENT '是否启用',
-    timeout_seconds INT DEFAULT 30 COMMENT '超时时间（秒）',
-    config_data JSON COMMENT '工具配置数据',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_tool_name (tool_name),
-    FOREIGN KEY (group_id) REFERENCES mcp_tool_groups(id) ON DELETE CASCADE,
-    INDEX idx_group_enabled (group_id, enabled),
-    INDEX idx_tool_name (tool_name)
-);
-```
-
-#### 5.2.3 MCP调用日志表
-
-```sql
-CREATE TABLE mcp_call_logs (
-    id VARCHAR(36) PRIMARY KEY,
-    tool_name VARCHAR(100) NOT NULL COMMENT '工具名称',
-    group_id VARCHAR(36) NOT NULL COMMENT '分组ID',
-    caller_app_id VARCHAR(100) COMMENT '调用方应用ID（Dify AppID）',
-    request_data JSON COMMENT '请求数据',
-    response_data JSON COMMENT '响应数据',
-    success BOOLEAN NOT NULL COMMENT '是否成功',
-    error_message TEXT COMMENT '错误信息',
-    duration_ms INT COMMENT '执行时长（毫秒）',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_tool_success_time (tool_name, success, created_at),
-    INDEX idx_group_time (group_id, created_at),
-    INDEX idx_caller_time (caller_app_id, created_at)
-);
-```
 
 ### 5.3 MCP分组管理配置架构
 
-基于分组的MCP工具管理，支持API Key权限控制和动态配置：
+基于分组的MCP工具管理，支持 server code 权限控制和动态配置：
 
 #### 5.3.1 MCP工具分组管理API
 
 ```python
-# app/api/v1/endpoints/mcp_config.py（新文件）
 
-# MCP工具分组管理
-@router.get("/groups", response_model=MCPGroupListResponse)
-async def get_mcp_groups(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin)
-):
-    """获取MCP工具分组列表"""
-    try:
-        groups = await MCPGroupService.get_all_groups(db)
-        return MCPGroupListResponse(
-            success=True,
-            data=groups,
-            message="获取MCP分组列表成功"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取MCP分组失败: {str(e)}"
-        )
-
-@router.post("/groups", response_model=MCPGroupResponse)
-async def create_mcp_group(
-    group_create: MCPGroupCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin)
-):
-    """创建MCP工具分组"""
-    try:
-        # 创建分组并自动生成API Key
-        group = await MCPGroupService.create_group(db, group_create, str(current_user.id))
-  
-        return MCPGroupResponse(
-            success=True,
-            data=group,
-            message="MCP分组创建成功"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"创建MCP分组失败: {str(e)}"
-        )
-
-@router.get("/groups/{group_id}/api-key")
-async def get_group_api_key(
-    group_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin)
-):
-    """查看分组API Key（管理员专用）"""
-    try:
-        api_key = await MCPGroupService.get_group_api_key(db, group_id)
-        return {
-            "success": True,
-            "data": {"api_key": api_key},
-            "message": "API Key获取成功"
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"获取API Key失败: {str(e)}"
-        )
-
-@router.post("/groups/{group_id}/regenerate-key")
-async def regenerate_group_api_key(
-    group_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin)
-):
-    """重新生成分组API Key"""
-    try:
-        new_api_key = await MCPGroupService.regenerate_api_key(db, group_id, str(current_user.id))
-  
-        # 记录安全操作日志
-        logger.warning(f"管理员 {current_user.id} 重新生成了分组 {group_id} 的API Key")
-  
-        return {
-            "success": True,
-            "data": {"api_key": new_api_key},
-            "message": "API Key重新生成成功"
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"重新生成API Key失败: {str(e)}"
-        )
-
-# MCP工具配置管理
-@router.get("/tools", response_model=MCPToolListResponse)
-async def get_mcp_tools(
-    group_id: str = Query(None, description="按分组筛选"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin)
-):
-    """获取MCP工具列表"""
-    try:
-        tools = await MCPToolService.get_tools(db, group_id=group_id)
-        return MCPToolListResponse(
-            success=True,
-            data=tools,
-            message="获取MCP工具列表成功"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"获取MCP工具失败: {str(e)}"
-        )
-
-@router.put("/tools/{tool_id}")
-async def update_mcp_tool(
-    tool_id: str,
-    tool_update: MCPToolUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin)
-):
-    """更新MCP工具配置"""
-    try:
-        tool = await MCPToolService.update_tool(db, tool_id, tool_update)
-  
-        # 通知MCP注册中心配置变更
-        mcp_registry = get_mcp_registry()
-        await mcp_registry.reload_tool_config(tool.tool_name)
-  
-        logger.info(f"管理员 {current_user.id} 更新了MCP工具 {tool.tool_name}")
-  
-        return {
-            "success": True,
-            "data": tool,
-            "message": "MCP工具更新成功",
-            "effective_immediately": True
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"更新MCP工具失败: {str(e)}"
-        )
-
-# 数据模型
-class MCPGroupCreate(BaseModel):
-    name: str = Field(..., description="分组名称")
-    description: str = Field("", description="分组描述")
-
-class MCPToolUpdate(BaseModel):
-    group_id: str = Field(..., description="所属分组ID")
-    enabled: bool = Field(True, description="是否启用")
-    timeout_seconds: int = Field(30, description="超时时间")
-    description: str = Field("", description="工具描述")
-    config_data: dict = Field({}, description="工具配置")
 ```
 
 ## 6. 监控与日志
@@ -1167,177 +560,23 @@ class MCPToolUpdate(BaseModel):
 ### 6.1 关键指标监控与管理员面板
 
 ```python
-class RegistrationAutomationMetrics:
-    """注册自动化指标收集与管理"""
-  
-    def __init__(self):
-        self.daily_stats = {}
-        self.real_time_stats = {
-            "total_registrations": 0,
-            "successful_automations": 0,
-            "failed_automations": 0,
-            "mcp_calls": 0,
-            "dify_agent_calls": 0,
-            "average_response_time": 0
-        }
-  
-    async def record_automation_step(
-        self,
-        user_id: str,
-        step: str,  # 'conversation_created', 'mcp_called', 'dify_triggered', 'welcome_sent', 'consultants_notified'
-        success: bool,
-        duration_ms: int,
-        error_message: str = None
-    ):
-        """记录自动化步骤指标"""
-        # 更新实时统计
-        if step == "welcome_sent" and success:
-            self.real_time_stats["successful_automations"] += 1
-        elif step == "welcome_sent" and not success:
-            self.real_time_stats["failed_automations"] += 1
-  
-        if step == "mcp_called":
-            self.real_time_stats["mcp_calls"] += 1
-        elif step == "dify_triggered":
-            self.real_time_stats["dify_agent_calls"] += 1
-  
-        # 更新平均响应时间
-        self._update_average_response_time(duration_ms)
-  
-        # 记录日志
-        logger.info(f"注册自动化指标: user_id={user_id}, step={step}, "
-                   f"success={success}, duration={duration_ms}ms")
-  
-        if not success and error_message:
-            logger.error(f"注册自动化失败: user_id={user_id}, step={step}, "
-                        f"error={error_message}")
-  
-    def get_admin_dashboard_metrics(self) -> dict:
-        """获取管理员面板指标"""
-        success_rate = 0
-        if self.real_time_stats["successful_automations"] + self.real_time_stats["failed_automations"] > 0:
-            success_rate = self.real_time_stats["successful_automations"] / (
-                self.real_time_stats["successful_automations"] + self.real_time_stats["failed_automations"]
-            )
-  
-        return {
-            "success_rate": success_rate,
-            "total_automations": self.real_time_stats["successful_automations"] + self.real_time_stats["failed_automations"],
-            "mcp_call_count": self.real_time_stats["mcp_calls"],
-            "dify_call_count": self.real_time_stats["dify_agent_calls"],
-            "average_response_time": self.real_time_stats["average_response_time"],
-            "daily_trends": self._get_daily_trends()
-        }
 
-# 管理员面板API端点
-@router.get("/admin/registration-automation/dashboard")
-async def get_registration_automation_dashboard(
-    current_user: User = Depends(get_current_admin_user)
-):
-    """获取注册自动化管理面板数据"""
-    metrics = get_registration_metrics()
-  
-    return {
-        "automation_metrics": metrics.get_admin_dashboard_metrics(),
-        "mcp_server_status": await get_mcp_server_status(),
-        "dify_agent_status": await get_dify_agent_status(),
-        "recent_errors": await get_recent_automation_errors(),
-        "system_health": {
-            "mcp_response_time": await check_mcp_response_time(),
-            "dify_response_time": await check_dify_response_time(),
-            "database_status": await check_database_health()
-        }
-    }
 ```
 
 ### 6.2 日志标准
 
 ```python
 # 成功日志示例
-logger.info(f"用户注册自动化开始: user_id={user_id}, username={username}")
 logger.info(f"默认会话创建成功: user_id={user_id}, conversation_id={conversation_id}")
 logger.info(f"MCP服务调用成功: user_id={user_id}, 获取用户信息完成")
-logger.info(f"Dify Agent欢迎消息生成成功: user_id={user_id}, message_id={message_id}")
-logger.info(f"顾问通知发送完成: user_id={user_id}, 通知顾问数量={consultant_count}")
 
 # 错误日志示例
-logger.error(f"会话创建失败: user_id={user_id}, error={error_message}")
 logger.error(f"MCP服务调用失败: user_id={user_id}, error={error_message}")
-logger.warning(f"Dify Agent不可用，使用默认欢迎消息: user_id={user_id}")
 ```
-
-## 7. 测试策略
-
-### 7.1 单元测试
-
-```python
-class TestRegistrationAutomation(TestCase):
-  
-    async def test_create_default_conversation(self):
-        """测试创建默认会话"""
-        pass
-  
-    async def test_mcp_service_success(self):
-        """测试MCP服务调用成功场景"""
-        pass
-  
-    async def test_dify_agent_welcome_generation(self):
-        """测试Dify Agent欢迎消息生成"""
-        pass
-  
-    async def test_mcp_dify_fallback(self):
-        """测试MCP/Dify服务失败时的回退机制"""
-        pass
-  
-    async def test_notify_consultants(self):
-        """测试顾问通知功能"""
-        pass
-  
-    async def test_retry_mechanism(self):
-        """测试重试机制"""
-        pass
-```
-
-### 7.2 集成测试
-
-```python
-async def test_full_registration_flow(self):
-    """测试完整注册自动化流程"""
-    # 1. 创建测试用户
-    # 2. 触发注册自动化
-    # 3. 验证会话创建
-    # 4. 验证欢迎消息
-    # 5. 验证顾问通知
-    pass
-```
-
-### 7.3 性能测试
-
-- **并发注册测试**：模拟100个用户同时注册
-- **MCP/Dify服务压力测试**：测试MCP服务和Dify Agent在高并发下的响应能力
-- **网络故障测试**：模拟网络中断时的重试机制
 
 ## 8. 部署方案
 
 ### 8.1 实际部署配置
-
-#### 8.1.1 现有依赖和配置
-
-基于实际项目的依赖管理：
-
-```bash
-# 项目已有依赖（requirements.txt）
-fastapi>=0.68.0
-sqlalchemy>=1.4.0
-pydantic>=1.8.0
-uvicorn[standard]>=0.15.0
-python-multipart
-python-jose[cryptography]
-passlib[bcrypt]
-httpx  # 用于HTTP客户端调用
-
-# MCP相关实现基于现有技术栈，无需额外依赖
-```
 
 #### 8.1.2 实际MCP服务配置
 
@@ -1382,45 +621,7 @@ class Settings:
 #### 8.2.1 MCP服务器管理界面
 
 ```
-🖥️ MCP服务器管理面板
-├── 🚀 服务器控制
-│   ├── 启动/停止服务器
-│   ├── 切换传输模式（stdio/SSE/Streamable HTTP）
-│   ├── 端口配置管理
-│   └── 自动重启配置
-├── 🛠️ 工具管理
-│   ├── 已注册工具列表（自动发现）
-│   ├── 工具启用/禁用状态
-│   ├── 工具文档预览（自动生成）
-│   └── 工具测试调用
-├── 🔑 认证和权限
-│   ├── API Key管理（复用现有体系）
-│   ├── 权限分组配置
-│   ├── 访问日志查看
-│   └── 安全策略配置
-└── 📊 监控和诊断
-    ├── 工具调用统计
-    ├── 性能指标展示
-    ├── 错误日志分析
-    └── 连接状态监控
-```
 
-#### 8.1.2 注册自动化配置界面
-
-```
-⚙️ 注册自动化设置面板
-├── 🔄 重试机制配置
-│   ├── 最大重试次数设置
-│   ├── 重试间隔配置
-│   └── 失败处理策略
-├── 📢 通知设置
-│   ├── 顾问通知启用/禁用
-│   ├── 通知方式选择
-│   └── 通知模板管理
-└── 📋 业务规则配置
-    ├── 默认会话设置
-    ├── 欢迎消息策略
-    └── 客户分配规则
 ```
 
 ### 8.2 配置生效机制与功能开关
@@ -1480,62 +681,13 @@ class MCPServiceRegistry:
         return self.status.get(tool_name) == "enabled"
 ```
 
-### 8.3 灰度发布策略
-
-1. **阶段1**：内部测试环境验证
-2. **阶段2**：生产环境10%用户
-3. **阶段3**：生产环境50%用户
-4. **阶段4**：全量发布
-
-## 9. 风险评估与应对
-
-### 9.1 技术风险
-
-| 风险               | 影响 | 概率 | 应对策略           |
-| ------------------ | ---- | ---- | ------------------ |
-| MCP/Dify服务不可用 | 中   | 低   | 回退到默认模板消息 |
-| 数据库连接失败     | 高   | 低   | 重试机制+告警      |
-| 消息广播失败       | 中   | 中   | 异步重试+日志记录  |
-
-### 9.2 业务风险
-
-| 风险           | 影响 | 概率 | 应对策略          |
-| -------------- | ---- | ---- | ----------------- |
-| 用户体验不佳   | 中   | 低   | A/B测试+用户反馈  |
-| 顾问响应不及时 | 中   | 中   | 多级通知+升级机制 |
-| 系统负载过高   | 高   | 低   | 限流+熔断机制     |
-
 ## 10. 成功指标
-
-### 10.1 技术指标（管理员面板监控）
-
-- **自动化成功率**：≥ 99%（实时监控，异常告警）
-- **平均响应时间**：≤ 3秒（包含MCP调用+Dify处理时间）
-- **MCP服务可用性**：≥ 99.9%（响应时间<500ms）
-- **智能体调用成功率**：≥ 95%（含重试机制）
-- **顾问通知到达率**：≥ 99%（WebSocket + 推送双重保障）
-
-### 10.2 业务指标（管理员面板展示）
-
-- **新用户首次响应时间**：≤ 5分钟（含AI欢迎消息时间）
-- **注册到首次对话的转化率**：≥ 80%（7日留存率监控）
-- **用户满意度**：≥ 4.5/5.0（基于欢迎消息反馈）
-- **顾问认领新客户的响应时间**：≤ 10分钟（工作时间内）
-
-### 10.3 管理员面板监控项
-
-- **实时注册量监控**：当日注册数量和趋势图表
-- **自动化流程健康度**：各步骤成功率和响应时间
-- **MCP工具调用统计**：各工具使用频率和错误率
-- **智能体性能监控**：调用次数、成功率、平均响应时间
-- **错误日志分析**：错误类型分布和频次统计
-- **系统资源监控**：CPU、内存、网络使用情况
 
 ## 12. 架构设计总结
 
 ### 12.1 核心设计理念
 
-基于**自研MCP服务架构**的现代化实现，结合现有**AI Gateway企业级架构**，实现用户注册自动化的标准化和高效化。
+基于**自研MCP服务架构**的现代化实现，提供原生的AI调用工具的能力。
 
 ### 12.2 关键技术决策
 
@@ -1553,17 +705,7 @@ class MCPServiceRegistry:
 - **数据库集成**：工具配置存储在数据库中，支持动态管理和权限控制
 - **分组权限**：基于MCPToolGroup和MCPTool表的细粒度权限管理
 - **OAuth2支持**：内置OAuth2认证流程，支持标准化的客户端授权
-- **监控友好**：集成现有日志和监控体系，提供完整的调用追踪
 - **扩展灵活**：基于现有技术栈，便于功能扩展和维护
-
-### 12.4 部署和运维优势
-
-- **零额外依赖**：基于现有技术栈实现，无需引入新的外部依赖
-- **统一管理**：通过管理员界面统一管理MCP分组、工具和权限
-- **监控集成**：完全复用现有监控、日志和告警体系
-- **权限继承**：基于现有用户权限体系，无需重复开发认证逻辑
-- **故障恢复**：内置重试机制和错误处理，确保服务稳定性
-- **性能优化**：基于FastAPI的异步处理，支持高并发场景
 
 ### 12.5 实际实现状态
 
@@ -1578,33 +720,3 @@ class MCPServiceRegistry:
 
 **文档版本**：V4.0
 **更新时间**：2025年1月
-**主要变更**：
-
-1. **代码实现对齐**：根据实际代码实现全面更新文档内容
-2. **技术架构修正**：从官方MCP库方案调整为自研MCP服务架构
-3. **实现状态更新**：反映当前已实现的功能和服务
-
-**V4.0版本关键修正**：
-
-- **技术栈实际情况**：基于FastAPI自研MCP协议实现，而非官方库
-- **工具注册机制**：使用自定义 `@mcp_tool`装饰器和MCPToolRegistry
-- **数据库驱动配置**：基于MCPToolGroup和MCPTool表的动态配置管理
-- **权限控制实现**：MCPGroupService提供完整的分组权限管理
-- **OAuth2认证**：内置OAuth2Manager处理客户端认证和授权
-- **管理界面完整**：mcp_config.py提供完整的管理API实现
-- **注册自动化状态**：
-  - auth.py已集成BackgroundTasks触发自动化流程
-  - RegistrationAutomationService已实现完整自动化逻辑
-  - AI Gateway集成用于生成个性化欢迎消息
-  - 顾问通知系统已实现WebSocket和推送双重保障
-
-**实际技术特点**：
-
-- **自主可控**：完全基于现有技术栈的自研实现
-- **数据库集成**：配置和权限管理完全基于数据库
-- **企业级权限**：支持分组API Key和细粒度权限控制
-- **零外部依赖**：无需引入额外的MCP库依赖
-- **运维友好**：集成现有监控、日志和管理体系
-
-**负责人**：技术团队
-**审核状态**：技术架构评审完成，工具模块重构完成
