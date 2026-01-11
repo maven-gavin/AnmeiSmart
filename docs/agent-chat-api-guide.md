@@ -29,6 +29,7 @@ Authorization: Bearer YOUR_ACCESS_TOKEN
 **描述**: 与 AI Agent 进行流式对话
 
 **请求参数**:
+
 ```json
 {
   "message": "你好，我想咨询美容方案",
@@ -55,6 +56,7 @@ data: {"event": "message_end", "metadata": {...}}
 **描述**: 获取用户的所有 Agent 会话
 
 **响应**:
+
 ```json
 [
   {
@@ -74,6 +76,7 @@ data: {"event": "message_end", "metadata": {...}}
 **端点**: `POST /agent/{agent_config_id}/conversations`
 
 **请求参数**:
+
 ```json
 {
   "title": "护肤咨询"  // 可选
@@ -81,6 +84,7 @@ data: {"event": "message_end", "metadata": {...}}
 ```
 
 **响应**:
+
 ```json
 {
   "id": "conv-456",
@@ -98,9 +102,11 @@ data: {"event": "message_end", "metadata": {...}}
 **端点**: `GET /agent/{agent_config_id}/conversations/{conversation_id}/messages`
 
 **查询参数**:
+
 - `limit`: 返回数量限制（默认 50）
 
 **响应**:
+
 ```json
 [
   {
@@ -131,6 +137,7 @@ data: {"event": "message_end", "metadata": {...}}
 **端点**: `PUT /agent/{agent_config_id}/conversations/{conversation_id}`
 
 **请求参数**:
+
 ```json
 {
   "title": "新的会话标题"
@@ -156,6 +163,7 @@ data: {"event": "message_end", "metadata": {...}}
 **描述**: 对 AI 回复进行点赞或点踩
 
 **请求参数**:
+
 ```json
 {
   "message_id": "msg-124",
@@ -164,6 +172,7 @@ data: {"event": "message_end", "metadata": {...}}
 ```
 
 **响应**:
+
 ```json
 {
   "success": true,
@@ -172,6 +181,7 @@ data: {"event": "message_end", "metadata": {...}}
 ```
 
 **cURL 示例**:
+
 ```bash
 curl -X POST "http://localhost:8000/api/v1/agent/agent-1/feedback" \
   -H "Authorization: Bearer YOUR_TOKEN" \
@@ -189,6 +199,7 @@ curl -X POST "http://localhost:8000/api/v1/agent/agent-1/feedback" \
 **描述**: 基于对话上下文获取 AI 建议的后续问题
 
 **响应**:
+
 ```json
 {
   "questions": [
@@ -200,6 +211,7 @@ curl -X POST "http://localhost:8000/api/v1/agent/agent-1/feedback" \
 ```
 
 **cURL 示例**:
+
 ```bash
 curl -X GET "http://localhost:8000/api/v1/agent/agent-1/messages/msg-124/suggested" \
   -H "Authorization: Bearer YOUR_TOKEN"
@@ -212,6 +224,7 @@ curl -X GET "http://localhost:8000/api/v1/agent/agent-1/messages/msg-124/suggest
 **描述**: 中断正在进行的 AI 回复生成
 
 **请求参数**:
+
 ```json
 {
   "task_id": "task-789"
@@ -219,6 +232,7 @@ curl -X GET "http://localhost:8000/api/v1/agent/agent-1/messages/msg-124/suggest
 ```
 
 **响应**:
+
 ```json
 {
   "success": true,
@@ -227,6 +241,7 @@ curl -X GET "http://localhost:8000/api/v1/agent/agent-1/messages/msg-124/suggest
 ```
 
 **cURL 示例**:
+
 ```bash
 curl -X POST "http://localhost:8000/api/v1/agent/agent-1/stop" \
   -H "Authorization: Bearer YOUR_TOKEN" \
@@ -247,9 +262,11 @@ curl -X POST "http://localhost:8000/api/v1/agent/agent-1/stop" \
 **描述**: 上传音频文件，转换为文本
 
 **请求**: `multipart/form-data`
+
 - `file`: 音频文件（支持 mp3, wav, m4a 等格式）
 
 **响应**:
+
 ```json
 {
   "text": "这是从音频中识别出的文本内容"
@@ -257,6 +274,7 @@ curl -X POST "http://localhost:8000/api/v1/agent/agent-1/stop" \
 ```
 
 **cURL 示例**:
+
 ```bash
 curl -X POST "http://localhost:8000/api/v1/agent/agent-1/audio-to-text" \
   -H "Authorization: Bearer YOUR_TOKEN" \
@@ -264,6 +282,7 @@ curl -X POST "http://localhost:8000/api/v1/agent/agent-1/audio-to-text" \
 ```
 
 **JavaScript 示例**:
+
 ```javascript
 const formData = new FormData();
 formData.append('file', audioFile);
@@ -287,6 +306,7 @@ console.log('识别文本:', result.text);
 **描述**: 将文本转换为语音
 
 **请求参数**:
+
 ```json
 {
   "text": "要转换成语音的文本内容",
@@ -295,6 +315,7 @@ console.log('识别文本:', result.text);
 ```
 
 **响应**: 音频数据（JSON 格式）
+
 ```json
 {
   "audio_url": "http://example.com/audio/xxx.mp3",
@@ -304,6 +325,7 @@ console.log('识别文本:', result.text);
 ```
 
 **cURL 示例**:
+
 ```bash
 curl -X POST "http://localhost:8000/api/v1/agent/agent-1/text-to-audio" \
   -H "Authorization: Bearer YOUR_TOKEN" \
@@ -315,6 +337,7 @@ curl -X POST "http://localhost:8000/api/v1/agent/agent-1/text-to-audio" \
 ```
 
 **JavaScript 示例**:
+
 ```javascript
 const response = await fetch('/api/v1/agent/agent-1/text-to-audio', {
   method: 'POST',
@@ -340,9 +363,11 @@ audio.play();
 **描述**: 上传文件到 Dify，用于后续对话中引用
 
 **请求**: `multipart/form-data`
+
 - `file`: 文件（支持 pdf, docx, txt, xlsx 等格式）
 
 **响应**:
+
 ```json
 {
   "id": "file-abc123",
@@ -354,6 +379,7 @@ audio.play();
 ```
 
 **cURL 示例**:
+
 ```bash
 curl -X POST "http://localhost:8000/api/v1/agent/agent-1/upload" \
   -H "Authorization: Bearer YOUR_TOKEN" \
@@ -361,6 +387,7 @@ curl -X POST "http://localhost:8000/api/v1/agent/agent-1/upload" \
 ```
 
 **JavaScript 示例**:
+
 ```javascript
 const formData = new FormData();
 formData.append('file', fileInput.files[0]);
@@ -401,6 +428,7 @@ const chatResponse = await fetch('/api/v1/agent/agent-1/chat', {
 **描述**: 获取应用的配置参数，包括用户输入表单、文件上传配置、系统参数等
 
 **响应**:
+
 ```json
 {
   "user_input_form": [
@@ -438,12 +466,14 @@ const chatResponse = await fetch('/api/v1/agent/agent-1/chat', {
 ```
 
 **cURL 示例**:
+
 ```bash
 curl -X GET "http://localhost:8000/api/v1/agent/agent-1/parameters" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 **使用场景**:
+
 - 前端初始化时获取应用配置
 - 动态渲染用户输入表单
 - 检查文件上传限制
@@ -456,6 +486,7 @@ curl -X GET "http://localhost:8000/api/v1/agent/agent-1/parameters" \
 **描述**: 获取应用的元数据信息，如工具图标等
 
 **响应**:
+
 ```json
 {
   "tool_icons": {
@@ -476,12 +507,14 @@ curl -X GET "http://localhost:8000/api/v1/agent/agent-1/parameters" \
 ```
 
 **cURL 示例**:
+
 ```bash
 curl -X GET "http://localhost:8000/api/v1/agent/agent-1/meta" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 **使用场景**:
+
 - 在 Agent 思考过程中显示工具图标
 - 美化 UI 展示效果
 
@@ -723,7 +756,7 @@ class AgentChatClient:
         self.base_url = base_url
         self.token = token
         self.headers = {"Authorization": f"Bearer {token}"}
-    
+  
     async def chat(
         self,
         agent_id: str,
@@ -740,7 +773,7 @@ class AgentChatClient:
             response = await client.post(url, json=data, headers=self.headers)
             response.raise_for_status()
             return response.json()
-    
+  
     async def submit_feedback(
         self,
         agent_id: str,
@@ -754,7 +787,7 @@ class AgentChatClient:
             response = await client.post(url, json=data, headers=self.headers)
             response.raise_for_status()
             return response.json()
-    
+  
     async def get_suggested_questions(
         self,
         agent_id: str,
@@ -766,7 +799,7 @@ class AgentChatClient:
             response = await client.get(url, headers=self.headers)
             response.raise_for_status()
             return response.json()["questions"]
-    
+  
     async def upload_file(
         self,
         agent_id: str,
@@ -801,15 +834,11 @@ questions = await client.get_suggested_questions("agent-1", "msg-123")
 
 ## 相关文档
 
-- [Agent Chat 完整实现文档](./agent-chat-implementation-complete.md)
-- [Dify Agent 客户端实现](./dify-agent-client-implementation.md)
-- [API 认证指南](./api-authentication-guide.md)
-
 ---
 
 ## 技术支持
 
 如有问题或建议，请联系：
+
 - 邮箱: support@example.com
 - 文档更新：2025-10-03
-

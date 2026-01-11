@@ -1,6 +1,7 @@
 # Copilot 模式：任务意图路由（Dify 配置指南）
 
 ## 目标
+
 - **输入**：员工正常聊天文本（不需要填 `scene_key`）
 - **处理**：后端调用 Dify（LLM）做“意图路由”，输出 `scene_key`
 - **输出**：
@@ -27,6 +28,7 @@
 ## 二、在 Dify 创建 Router 应用
 
 ### 1) 推荐：创建一个 Chat 类型应用（最省事）
+
 - **App Type**：Chat
 - **模型**：任意你现有可用的 LLM（建议支持中文、稳定输出 JSON）
 - **System Prompt**（建议直接粘贴）：
@@ -47,6 +49,7 @@
 说明：后端会把 `候选 scene_key 列表` 与 `用户文本` 拼进 query 里，所以 Dify 不需要额外表单字段。
 
 ### 2) 获取 API Key
+
 在 Dify 应用里生成 **API Key**（每个 App 一个 Key）。
 
 ---
@@ -57,7 +60,7 @@
 
 - **app_name**：`任务意图路由器`（必须，后端按这个名称查找）
 - **app_id**：随意（例如 `task_router`）
-- **base_url**：你的 Dify 地址（例如 `http://localhost/v1` 或 `https://api.dify.ai/v1`）
+- **base_url**：你的 Dify 地址（例如 `http://localhost/v1` ）
 - **api_key**：上一步拿到的 Dify App API Key
 - **enabled**：开启
 - **agent_type**：可选
@@ -72,5 +75,3 @@
 2. 后端会自动走 `/api/v1/tasks/route`：
    - 无 `scene_key` → Dify router → 得到 scene_key → 生成任务/敏感拦截（如果命中）
 3. 命中时前端会收到 WebSocket `system_notification`，弹 toast，并可点击“去处理”跳转任务中心。
-
-

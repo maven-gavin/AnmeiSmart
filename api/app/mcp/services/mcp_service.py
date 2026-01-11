@@ -238,19 +238,6 @@ class MCPToolExecutionService:
         else:
             return {"content": [{"type": "text", "text": f"未知的客户工具: {tool_name}"}]}
     
-    async def _execute_treatment_tool(self, tool: MCPTool, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """执行治疗相关工具"""
-        from app.mcp.tools.treatment.plan_generation import generate_treatment_plan
-        from app.mcp.tools.treatment.optimization import optimize_treatment
-        
-        tool_name = tool.tool_name
-        
-        if tool_name == "treatment_plan_generation":
-            return await generate_treatment_plan(arguments)
-        elif tool_name == "treatment_optimization":
-            return await optimize_treatment(arguments)
-        else:
-            return {"content": [{"type": "text", "text": f"未知的治疗工具: {tool_name}"}]}
     
     async def _execute_project_tool(self, tool: MCPTool, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """执行项目相关工具"""

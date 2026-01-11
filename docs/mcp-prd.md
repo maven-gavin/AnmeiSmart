@@ -1,16 +1,16 @@
-# 用户注册自动化流程 PRD文档
+# MCP PRD文档
 
 ## 1. 产品概述
 
 ### 1.1 背景描述
 
-安美智享咨询系统需要实现用户注册后的自动化流程，为新用户提供无缝的初始体验。当用户完成注册后，系统应自动创建会话、发送个性化欢迎消息，并通知顾问团队有新客户需要服务。
+搭建多MCP Server，为分组分权管理MCP tool工具，为agent提供工具 。
 
 ### 1.2 核心价值
 
-- **用户体验提升**：新用户注册后立即获得专业AI响应和服务
-- **业务转化优化**：确保新客户能快速接入咨询服务
-- **运营效率提升**：自动化流程减少人工介入，提高服务响应速度
+- 为agent提供工具：提供agent访问业务系统数据的能力
+- 工具分组管理：为了减少数据访问的权限，给agent指定分组内的工具
+- 工具：提供业务系统的数据
 
 ### 1.3 技术说明
 
@@ -27,20 +27,20 @@
 
 ### 2.1 业务需求
 
-| 需求ID | 需求描述                        | 优先级 | 验收标准                                                                             |
-| ------ | ------------------------------- | ------ | ------------------------------------------------------------------------------------ |
-| R001   | 用户注册成功后自动创建默认会话  | P0     | 新用户在注册成功后2秒内自动创建会话，指定通用AI机器人                                |
-| R002   | 智能体通过MCP生成个性化欢迎消息 | P0     | 智能体通过Model Context Protocol获取用户信息，生成定制化欢迎语，AI Gateway转发给客户 |
-| R003   | 顾问端接收新客户通知            | P1     | 系统向在线顾问推送新客户消息，离线顾问接收推送通知                                   |
+| 需求ID | 需求描述              | 优先级 | 验收标准                                                                                                                               |
+| ------ | --------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| R001   | 用户信息服务          | P0     | * 可以通过用户ID/用户名查询用户基本信息                                                                                                |
+| R002   | 客户档案/客户画像服务 | P0     | * 可以通过用户ID/用户名查询用户档案/客户画像                                                                                           |
+| R003   | 会话分析服务          | P1     | * 可以通过用户ID，会话ID，消息ID查询相关指定数量的历史消息                                                                             |
+| R004   | 任务管理服务          | P1     | * 可以通过用户ID，任务ID查询任务详情<br />* 可以通过用户ID，任务消息通知业务系统创建任务记录<br />* 可以通过用户ID，任务ID更新任务状态 |
 
 ### 2.2 性能需求
 
-| 指标     | 目标值        | 说明                             |
-| -------- | ------------- | -------------------------------- |
-| 响应时间 | ≤ 3秒        | 用户注册到收到欢迎消息的总时间   |
-| 异步处理 | 100%          | 所有流程异步执行，不阻塞注册响应 |
-| 成功率   | ≥ 99%        | 包含重试机制，确保最终成功       |
-| 并发支持 | 100 用户/分钟 | 支持高并发注册场景               |
+| 指标     | 目标值        | 说明                       |
+| -------- | ------------- | -------------------------- |
+| 响应时间 | ≤ 1秒        | 请求的响应总时间           |
+| 成功率   | ≥ 99%        | 包含重试机制，确保最终成功 |
+| 并发支持 | 100 用户/分钟 | 支持高并访问场景           |
 
 ### 2.3 技术需求
 
@@ -52,53 +52,6 @@
 ## 3. 系统设计
 
 ### 3.1 技术架构
-
-基于现有的AI Gateway企业级架构，结合MCP服务体系的完整设计：
-
-```mermaid
-graph TB
-    subgraph "AnmeiSmart 系统架构"
-        A[用户注册API] --> B[注册自动化服务]
-        B --> C[AI Gateway Service]
-        B --> D[MCP Server Service]
-  
-        subgraph "API服务层 (/api/v1)"
-            C --> E[ai_gateway.py - AI Gateway管理]
-            C --> F[ai.py - AI服务接口]
-            C --> G[chat.py - 聊天接口]
-            C --> H[plan_generation.py - 方案生成]
-            C --> I[dify_config.py - Dify配置]
-        end
-  
-        subgraph "MCP服务层 (/mcp/v1)"
-            D --> J[用户信息服务]
-            D --> K[客户画像服务]
-            D --> L[会话分析服务]
-            D --> M[项目数据服务]
-        end
-  
-        I --> N[智能体配置查询]
-        N --> O[通过AI Gateway触发Dify Agent]
-    end
-  
-    subgraph "智能体系统"
-        O --> P[管家智能体]
-        P --> Q[MCP工具调用]
-        Q --> J
-        P --> R[生成个性化欢迎语]
-    end
-  
-    R --> S[返回欢迎消息]
-    S --> T[保存并广播消息]
-  
-    style B fill:#e1f5fe
-    style D fill:#f3e5f5
-    style P fill:#fff3e0
-    style T fill:#e8f5e8
-```
-
-**📋 架构说明**：
-✅ **与现有代码一致**：经过代码分析，当前系统确实有独立的API端点
 
 ### 3.2 Model Context Protocol实现规范
 
@@ -143,41 +96,6 @@ class MCPTool:
     config_data: dict      # 工具配置数据
 ```
 
-#### 3.2.3 智能体配置：分组模式
-
-```json
-{
-  "system_tools": {
-    "transport": "sse",
-    "url": "http://127.0.0.1:8000/mcp",
-    "headers": {
-      "Authorization": "Bearer mcp_key_system_xxx"
-    }
-  },
-  "medical_tools": {
-    "transport": "sse", 
-    "url": "http://127.0.0.1:8000/mcp",
-    "headers": {
-      "Authorization": "Bearer mcp_key_medical_xxx"
-    }
-  },
-  "consultation_tools": {
-    "transport": "sse",
-    "url": "http://127.0.0.1:8000/mcp", 
-    "headers": {
-      "Authorization": "Bearer mcp_key_consultation_xxx"
-    }
-  },
-  "project_tools": {
-    "transport": "sse",
-    "url": "http://127.0.0.1:8000/mcp",
-    "headers": {
-      "Authorization": "Bearer mcp_key_project_xxx"
-    }
-  }
-}
-```
-
 #### 3.2.4 实际MCP服务架构
 
 基于现有代码的实际MCP服务实现：
@@ -197,16 +115,16 @@ class MCPToolDiscoveryService:
             MCPToolGroup.server_code == server_code,
             MCPToolGroup.enabled == True
         ).first()
-    
+  
         if not group:
             return []
-    
+  
         # 查询该分组下的启用工具
         mcp_tools = self.db.query(MCPTool).filter(
             MCPTool.group_id == group.id,
             MCPTool.enabled == True
         ).all()
-    
+  
         tools = []
         for mcp_tool in mcp_tools:
             tool = Tool(
@@ -215,7 +133,7 @@ class MCPToolDiscoveryService:
                 inputSchema=self._generate_input_schema(mcp_tool)
             )
             tools.append(tool)
-    
+  
         return tools
 
 class MCPToolExecutionService:
@@ -237,19 +155,19 @@ class MCPToolExecutionService:
             MCPToolGroup.server_code == server_code,
             MCPToolGroup.enabled == True
         ).first()
-    
+  
         if not group:
             raise ValueError(f"未找到启用的工具分组: {server_code}")
-    
+  
         tool = self.db.query(MCPTool).filter(
             MCPTool.group_id == group.id,
             MCPTool.tool_name == tool_name,
             MCPTool.enabled == True
         ).first()
-    
+  
         if not tool:
             raise ValueError(f"未找到启用的工具: {tool_name}")
-    
+  
         # 执行工具逻辑
         result = await self._execute_tool_logic(tool, arguments)
         return result
@@ -409,7 +327,7 @@ class MCPToolRegistry:
     def __init__(self):
         self.tools: Dict[str, MCPToolMetadata] = {}
         self.categories: Dict[str, List[str]] = {}
-    
+  
     def register_tool(
         self, 
         name: str, 
@@ -427,9 +345,9 @@ class MCPToolRegistry:
             module=func.__module__,
             registered_at=datetime.now()
         )
-    
+  
         self.tools[name] = metadata
-    
+  
         # 更新分类
         if category not in self.categories:
             self.categories[category] = []
@@ -451,17 +369,17 @@ def mcp_tool(name: str = None, description: str = "", category: str = "general")
     def decorator(func: Callable) -> Callable:
         tool_name = name or func.__name__
         tool_description = description or func.__doc__ or f"工具: {tool_name}"
-    
+  
         # 在函数上添加元数据标记
         func._mcp_tool_metadata = {
             'name': tool_name,
             'description': tool_description,
             'category': category
         }
-    
+  
         # 立即注册到全局注册中心
         _global_registry.register_tool(tool_name, func, tool_description, category)
-    
+  
         return func
   
     return decorator
@@ -667,18 +585,18 @@ class RegistrationAutomationService:
     def __init__(self, db: Session):
         self.db = db
         self.ai_gateway = get_ai_gateway_service(db)
-    
+  
     async def handle_user_registration(self, user_id: str, user_info: Dict[str, Any]):
         """处理用户注册后的自动化流程"""
         try:
             logger.info(f"开始处理用户注册自动化: user_id={user_id}")
-        
+    
             # 第一步：创建默认会话
             conversation = await self._create_default_conversation(user_id)
             if not conversation:
                 logger.error(f"创建默认会话失败: user_id={user_id}")
                 return
-        
+    
             # 第二步：触发Dify Agent生成欢迎消息
             welcome_message = await self._trigger_welcome_message(user_id, conversation.id, user_info)
             if welcome_message:
@@ -686,12 +604,12 @@ class RegistrationAutomationService:
             else:
                 # 创建默认欢迎消息
                 await self._create_default_welcome_message(user_id, conversation.id)
-        
+    
             # 第三步：通知顾问团队
             await self._notify_consultants(user_id, conversation.id, user_info)
-        
+    
             logger.info(f"用户注册自动化完成: user_id={user_id}")
-        
+    
         except Exception as e:
             logger.error(f"用户注册自动化失败: user_id={user_id}, error={e}")
 
@@ -700,7 +618,7 @@ class RegistrationAutomationService:
         try:
             # 构建给Dify Agent的上下文信息
             context_prompt = self._build_welcome_context(user_info)
-        
+    
             # 通过AI Gateway调用Dify Agent
             response = await self.ai_gateway.customer_service_chat(
                 message=context_prompt,
@@ -713,12 +631,12 @@ class RegistrationAutomationService:
                     "analysis": user_info
                 }
             )
-        
+    
             if response.success and response.content:
                 return response.content
             else:
                 return self._get_default_welcome_message(user_id)
-            
+        
         except Exception as e:
             logger.error(f"生成欢迎消息失败: user_id={user_id}, error={e}")
             return self._get_default_welcome_message(user_id)
