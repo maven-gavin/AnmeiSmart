@@ -153,8 +153,6 @@ class MCPGroupService:
             if not group:
                 return None
 
-            # 解密API密钥用于脱敏显示
-            group.api_key = MCPGroupService._decrypt_api_key(group.api_key)
             return MCPGroupInfo.from_model(group)
 
         except Exception as e:
@@ -273,8 +271,6 @@ class MCPGroupService:
             group.updated_at = datetime.utcnow()
             db.flush()
 
-            # 解密API密钥用于脱敏显示
-            group.api_key = MCPGroupService._decrypt_api_key(group.api_key)
             result = MCPGroupInfo.from_model(group)
 
             logger.info(f"更新MCP分组成功: group_id={group_id}")

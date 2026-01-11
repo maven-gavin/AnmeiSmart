@@ -15,7 +15,6 @@ from app.mcp.schemas.mcp import (
     MCPApiKeyResponse,
     MCPServerUrlResponse,
     MCPSuccessResponse,
-    MCPErrorResponse,
     MCPServerStatusResponse,
     MCPToolListResponse,
     MCPToolSingleResponse,

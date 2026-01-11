@@ -2,17 +2,14 @@
 import asyncio
 import logging
 import time
-from tokenize import Token
 from typing import Dict, List, Optional, Any
 from sqlalchemy.orm import Session
 
 from app.mcp.models.mcp import MCPToolGroup, MCPTool, MCPCallLog
-from app.mcp.types import Tool, ServerCapabilities, ToolsCapability, Implementation, SERVER_LATEST_PROTOCOL_VERSION
+from app.mcp.types import Tool, ServerCapabilities, ToolsCapability, Implementation
 from app.mcp.utils import MCPSession, generate_token
-from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 
 class MCPToolDiscoveryService:

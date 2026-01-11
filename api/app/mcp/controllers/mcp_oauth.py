@@ -1,54 +1,14 @@
 """MCP Server端点实现"""
 import logging
-from fastapi import APIRouter, Request, Response, HTTPException, Form, Header
+from fastapi import APIRouter, Request, HTTPException, Form
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from app.mcp.oauth import oauth2_manager
-from app.mcp.services import  MCPSessionManager
 from app.mcp import types
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-# === OAuth Discovery ===
-async def oauth_metadata():
-    """OAuth发现端点"""
-    metadata = oauth2_manager.get_oauth_metadata()
-    return JSONResponse(content=metadata.model_dump(by_alias=True, exclude_none=True))
-
-
-async def oauth_metadata_options():
-    """OAuth发现端点OPTIONS处理"""
-    return Response(
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization",
-            "Access-Control-Max-Age": "86400"
-        }
-    )
-
-
-async def oauth_resource_metadata():
-    """OAuth资源服务器元数据端点"""
-    metadata = oauth2_manager.get_oauth_resource_metadata()
-    return JSONResponse(content=metadata.model_dump(by_alias=True, exclude_none=True))
-
-
-async def oauth_resource_metadata_options():
-    """OAuth资源服务器元数据端点OPTIONS处理"""
-    return Response(
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization",
-            "Access-Control-Max-Age": "86400"
-        }
-    )
 
 
 # ===== Dynamic Client Registration =====

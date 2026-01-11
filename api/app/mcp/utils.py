@@ -3,7 +3,7 @@ import hashlib
 import base64
 import secrets
 import time
-from typing import Dict, Any, Optional, Union
+from typing import Any, Dict, Optional
 from app.mcp.types import JSONRPCError, ErrorData, JSONRPCResponse
 
 
@@ -42,20 +42,6 @@ def generate_token(prefix: str = "", length: int = 24) -> str:
 def is_token_expired(created_at: int, expires_in: int) -> bool:
     """检查令牌是否已过期"""
     return int(time.time()) > (created_at + expires_in)
-
-
-def validate_redirect_uri(redirect_uri: str, registered_uris: list[str]) -> bool:
-    """验证重定向URI是否在注册列表中"""
-    if not redirect_uri or not registered_uris:
-        return False
-    return redirect_uri in registered_uris
-
-
-def mask_api_key(api_key: str, visible_chars: int = 4) -> str:
-    """掩码API密钥，只显示前几个字符"""
-    if not api_key or len(api_key) <= visible_chars:
-        return "*" * 8
-    return api_key[:visible_chars] + "*" * (len(api_key) - visible_chars)
 
 
 class MCPSession:

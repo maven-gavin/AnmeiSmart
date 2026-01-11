@@ -4,7 +4,6 @@ import logging
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Request, Response, Depends, HTTPException, status
 from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi.security import api_key
 from sqlalchemy.orm import Session
 from pydantic import ValidationError
 
@@ -21,21 +20,6 @@ router = APIRouter()
 session_manager = MCPSessionManager()
 
 MCP_SESSION_ID = "X-MCP-Session-ID"
-
-
-def should_upgrade_to_streaming(method: str, request: Request) -> bool:
-    """判断是否应该升级为流式响应"""
-    # 检查客户端是否支持SSE
-    accept_header = request.headers.get("Accept", "")
-    supports_sse = "text/event-stream" in accept_header
-    
-    # 检查是否有流式相关的头部
-    prefer_streaming = request.headers.get("X-MCP-Prefer-Streaming", "").lower() == "true"
-    
-    # 长时间运行的操作优先使用流式响应
-    streaming_methods = {"tools/call", "initialize"}
-    
-    return supports_sse and (prefer_streaming or method in streaming_methods)
 
 
 async def send_response_to_sse(session_id: str, response: JSONResponse) -> bool:
