@@ -103,3 +103,29 @@ async def token_exchange(request: Request):
             status_code=500,
             content={"error": "server_error", "error_description": "Internal server error"}
         )
+
+
+# ===== OAuth Metadata Discovery =====
+async def oauth_metadata():
+    """OAuth授权服务器元数据发现端点 (RFC 8414)"""
+    try:
+        metadata = oauth2_manager.get_oauth_metadata()
+        return JSONResponse(content=metadata.model_dump(by_alias=True, exclude_none=True))
+    except Exception as e:
+        logger.error(f"获取OAuth元数据失败: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "server_error", "error_description": "Internal server error"}
+        )
+
+
+async def oauth_metadata_options():
+    """OAuth元数据发现端点的OPTIONS方法支持"""
+    return JSONResponse(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+        }
+    )

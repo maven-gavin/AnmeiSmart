@@ -15,8 +15,7 @@ export interface Customer {
   lastMessage?: string;
   lastMessageTime?: string;
   unreadCount: number;
-  tags?: string[];
-  priority?: 'low' | 'medium' | 'high';
+  lifeCycleStage?: string;
 }
 
 // 统一的发送者类型：用户 / AI 助手 / 系统

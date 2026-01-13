@@ -192,8 +192,6 @@ class MCPToolExecutionService:
             return await self._execute_user_tool(tool, arguments)
         elif tool_name.startswith("customer_"):
             return await self._execute_customer_tool(tool, arguments)
-        elif tool_name.startswith("project_"):
-            return await self._execute_project_tool(tool, arguments)
         else:
             # 默认处理：通用工具
             return {
@@ -232,18 +230,6 @@ class MCPToolExecutionService:
             return await get_customer_preferences(arguments)
         else:
             return {"content": [{"type": "text", "text": f"未知的客户工具: {tool_name}"}]}
-    
-    
-    async def _execute_project_tool(self, tool: MCPTool, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """执行项目相关工具"""
-        from app.mcp.tools.projects.service_info import get_service_info
-        
-        tool_name = tool.tool_name
-        
-        if tool_name == "project_service_info":
-            return await get_service_info(arguments)
-        else:
-            return {"content": [{"type": "text", "text": f"未知的项目工具: {tool_name}"}]}
     
     async def _log_tool_call(
         self,

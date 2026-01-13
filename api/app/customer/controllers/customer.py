@@ -4,14 +4,14 @@
 import logging
 from typing import List, Dict, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Path
 from app.identity_access.deps import get_current_user
 from app.identity_access.models.user import User
 from app.customer.deps.customer import get_customer_service, check_customer_permission
 from app.customer.services.customer_service import CustomerService
 from app.customer.schemas.customer import (
     CustomerInfo, CustomerProfileInfo, CustomerProfileCreate, 
-    CustomerProfileUpdate
+    CustomerProfileUpdate, CustomerInsightCreate, CustomerInsightInfo
 )
 from app.core.api import BusinessException, ErrorCode
 
@@ -149,4 +149,71 @@ async def update_customer_profile(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"更新客户档案失败: {e}")
-        raise HTTPException(status_code=500, detail="更新客户档案失败") 
+        raise HTTPException(status_code=500, detail="更新客户档案失败")
+
+# --- 洞察/画像 API ---
+
+@router.post("/{customer_id}/insights", response_model=CustomerInsightInfo, status_code=status.HTTP_201_CREATED)
+async def add_customer_insight(
+    customer_id: str,
+    insight_data: CustomerInsightCreate,
+    current_user: User = Depends(get_current_user),
+    customer_service: CustomerService = Depends(get_customer_service)
+):
+    """添加客户画像/洞察"""
+    try:
+        # 检查权限
+        if not await check_customer_permission(current_user, ['consultant', 'doctor', 'admin', 'operator']):
+            raise HTTPException(status_code=403, detail="无权添加客户洞察")
+        
+        # 确保 profile_id 匹配
+        profile = customer_service.get_customer_profile(customer_id)
+        if not profile:
+             # 自动创建档案? 或者报错。这里假设必须有档案。
+             raise HTTPException(status_code=404, detail="客户档案不存在，请先创建档案")
+
+        # 构造服务层入参：避免直接修改 Pydantic 入参对象
+        payload = CustomerInsightCreate(
+            profile_id=profile.id,
+            category=insight_data.category,
+            content=insight_data.content,
+            confidence=insight_data.confidence,
+            source=insight_data.source or "human",
+            created_by_name=insight_data.created_by_name or current_user.username,
+        )
+        
+        # 调用服务
+        insight = customer_service.add_insight(payload)
+        return insight
+        
+    except HTTPException:
+        raise
+    except BusinessException as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"添加客户洞察失败: {e}")
+        raise HTTPException(status_code=500, detail=f"添加客户洞察失败: {str(e)}")
+
+@router.delete("/{customer_id}/insights/{insight_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def archive_customer_insight(
+    customer_id: str,
+    insight_id: str,
+    current_user: User = Depends(get_current_user),
+    customer_service: CustomerService = Depends(get_customer_service)
+):
+    """归档/删除客户画像洞察"""
+    try:
+        # 检查权限
+        if not await check_customer_permission(current_user, ['consultant', 'doctor', 'admin', 'operator']):
+             raise HTTPException(status_code=403, detail="无权操作")
+        
+        # 调用服务
+        result = customer_service.archive_insight(insight_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="洞察不存在")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"归档洞察失败: {e}")
+        raise HTTPException(status_code=500, detail="操作失败")

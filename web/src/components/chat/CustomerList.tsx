@@ -6,8 +6,6 @@ import { getCustomerList, getCustomerConversations } from '@/service/chatService
 import { Customer } from '@/types/chat';
 import { useAuthContext } from '@/contexts/AuthContext';
 
-// 常量定义
-const MAX_TAGS_DISPLAY = 2;
 const MAX_UNREAD_DISPLAY = 99;
 
 interface CustomerListProps {
@@ -51,38 +49,12 @@ function CustomerAvatar({ customer }: CustomerAvatarProps) {
   );
 }
 
-// 客户标签组件
-interface CustomerTagsProps {
-  tags: string[];
-}
-
-function CustomerTags({ tags }: CustomerTagsProps) {
-  if (!tags?.length) return null;
-
-  return (
-    <div className="flex flex-wrap gap-1 mt-1">
-      {tags.slice(0, MAX_TAGS_DISPLAY).map(tag => (
-        <span 
-          key={tag}
-          className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
-        >
-          {tag}
-        </span>
-      ))}
-      {tags.length > MAX_TAGS_DISPLAY && (
-        <span className="text-xs text-gray-400">+{tags.length - MAX_TAGS_DISPLAY}</span>
-      )}
-    </div>
-  );
-}
-
-// 客户状态指示器组件
 interface CustomerStatusProps {
   unreadCount: number;
-  priority?: string;
+  lifeCycleStage?: string;
 }
 
-function CustomerStatus({ unreadCount, priority }: CustomerStatusProps) {
+function CustomerStatus({ unreadCount, lifeCycleStage }: CustomerStatusProps) {
   return (
     <div className="flex-shrink-0 ml-2 flex flex-col items-end">
       {unreadCount > 0 && (
@@ -91,10 +63,10 @@ function CustomerStatus({ unreadCount, priority }: CustomerStatusProps) {
         </span>
       )}
       
-      {priority === 'high' && (
-        <svg className="h-4 w-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-        </svg>
+      {lifeCycleStage && (
+        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-700">
+          {lifeCycleStage}
+        </span>
       )}
     </div>
   );
@@ -156,13 +128,11 @@ function CustomerListItem({ customer, isSelected, onSelect }: CustomerListItemPr
             {customer.lastMessage}
           </p>
         )}
-
-        <CustomerTags tags={customer.tags || []} />
       </div>
 
       <CustomerStatus 
         unreadCount={customer.unreadCount}
-        priority={customer.priority}
+        lifeCycleStage={customer.lifeCycleStage}
       />
     </div>
   );
@@ -196,7 +166,7 @@ const mergeCustomers = (prevCustomers: Customer[], newCustomers: Customer[]): Cu
       lastMessage: newCustomer.lastMessage,
       lastMessageTime: newCustomer.lastMessageTime,
       unreadCount: newCustomer.unreadCount,
-      priority: newCustomer.priority,
+      lifeCycleStage: newCustomer.lifeCycleStage,
     };
   });
 };

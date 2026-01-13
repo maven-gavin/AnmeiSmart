@@ -4,8 +4,8 @@ import { ConsultationHistoryItem } from '@/types/chat';
 
 interface ConsultationHistoryProps {
   consultationHistory: ConsultationHistoryItem[];
-  onOpenHistoryDetail: (history: ConsultationHistoryItem) => void;
-  onViewConversation: (conversationId: string) => void;
+  onOpenHistoryDetail?: (history: ConsultationHistoryItem) => void;
+  onViewConversation?: (conversationId: string) => void;
 }
 
 export function ConsultationHistory({ 
@@ -36,7 +36,7 @@ export function ConsultationHistory({
           <div 
             key={index}
             className="rounded-lg border border-gray-200 bg-white p-4 cursor-pointer hover:border-orange-200 hover:shadow-sm transition-all"
-            onClick={() => onOpenHistoryDetail(history)}
+            onClick={() => onOpenHistoryDetail?.(history)}
           >
             <div className="mb-2 flex justify-between items-center">
               <div className="flex items-center">
@@ -52,18 +52,20 @@ export function ConsultationHistory({
             <p className="text-sm text-gray-600 line-clamp-2">{history.description}</p>
             {history.id && (
               <div className="mt-2 flex justify-end">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onViewConversation(history.id);
-                  }}
-                  className="text-xs text-orange-500 hover:text-orange-600 flex items-center"
-                >
-                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                  </svg>
-                  选为当前会话
-                </button>
+                {onViewConversation && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onViewConversation(history.id);
+                    }}
+                    className="text-xs text-orange-500 hover:text-orange-600 flex items-center"
+                  >
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    </svg>
+                    选为当前会话
+                  </button>
+                )}
               </div>
             )}
           </div>

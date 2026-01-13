@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { CustomerProfile as ICustomerProfile, ConsultationHistoryItem } from '@/types/chat';
-import { getCustomerProfile, getCustomerConsultationHistory } from '@/service/chatService';
+import { ConsultationHistoryItem } from '@/types/chat';
+import { getCustomerConsultationHistory } from '@/service/chatService';
+import { customerService, type CustomerProfile as ICustomerProfile } from '@/service/customerService';
 
 export function useCustomerProfile(customerId?: string, currentConversationId?: string) {
   const [profile, setProfile] = useState<ICustomerProfile | null>(null);
@@ -23,7 +24,7 @@ export function useCustomerProfile(customerId?: string, currentConversationId?: 
     
     try {
       console.log(`开始获取客户档案，客户ID: ${customerId}`);
-      const profileData = await getCustomerProfile(customerId);
+      const profileData = await customerService.getCustomerProfile(customerId);
       
       if (profileData) {
         console.log('获取客户档案成功:', profileData);

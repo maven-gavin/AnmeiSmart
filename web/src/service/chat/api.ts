@@ -405,8 +405,7 @@ export class ChatApiService {
         lastMessage: lastMessageText,
         lastMessageTime: customer.last_message?.created_at || customer.updated_at,
         unreadCount: customer.unread_count || 0,
-        tags: customer.tags || [],
-        priority: customer.priority || 'medium'
+        lifeCycleStage: customer.life_cycle_stage || 'lead',
       };
     }) || [];
   }

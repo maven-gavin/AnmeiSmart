@@ -4,10 +4,21 @@
 导出该模块的所有数据库模型，确保SQLAlchemy可以正确建立关系映射。
 """
 
-from .customer import Customer, CustomerProfile
+from .customer import (
+    Customer,
+    CustomerProfile,
+    CustomerInsight,
+    InsightCategory,
+    InsightSource,
+    InsightStatus,
+)
 
 __all__ = [
     "Customer",
     "CustomerProfile",
+    "CustomerInsight",
+    "InsightCategory",
+    "InsightSource",
+    "InsightStatus",
 ]
 

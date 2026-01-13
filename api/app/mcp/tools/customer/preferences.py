@@ -9,7 +9,7 @@ from app.mcp.registry import mcp_tool
 
 @mcp_tool(
     name="get_customer_preferences",
-    description="获取客户偏好设置和治疗倾向",
+    description="获取客户偏好设置",
     category="customer"
 )
 async def get_customer_preferences(user_id: str) -> dict:
@@ -24,7 +24,7 @@ async def get_customer_preferences(user_id: str) -> dict:
     """
     # TODO: 从数据库获取真实的客户偏好数据
     return {
-        "treatment_preferences": ["面部护理", "抗衰老"],
+        "treatment_preferences": [],
         "budget_range": "中等",
         "preferred_contact_time": "下午",
         "communication_style": "详细咨询",

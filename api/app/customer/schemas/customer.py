@@ -1,13 +1,12 @@
 from datetime import datetime
-from typing import Optional, List, Literal
-from pydantic import BaseModel,ConfigDict
+from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, ConfigDict, Field
 
 # 客户基础信息
 class CustomerBase(BaseModel):
     """客户信息基础模型"""
-    medical_history: Optional[str] = None
-    allergies: Optional[str] = None
-    preferences: Optional[str] = None
+    # 移除旧字段
+    pass
 
 class CustomerCreate(CustomerBase):
     """创建客户信息的请求模型"""
@@ -17,26 +16,41 @@ class CustomerUpdate(CustomerBase):
     """更新客户信息的请求模型"""
     pass
 
-# 客户档案相关模型
-class RiskNote(BaseModel):
-    """风险提示模型"""
-    type: str
-    description: str
-    level: Literal["high", "medium", "low"] = "medium"
+# --- 画像/洞察 Schema ---
 
-class CustomerBasicInfo(BaseModel):
-    """客户基本信息模型"""
-    name: str
-    age: Optional[int] = None
-    gender: Optional[str] = None
-    phone: Optional[str] = None
+class CustomerInsightBase(BaseModel):
+    """客户洞察基础模型"""
+    category: str = Field(..., description="维度分类: need, budget, authority, timeline, preference, risk, trait, background, other")
+    content: str
+    confidence: Optional[float] = 1.0
+
+class CustomerInsightCreate(CustomerInsightBase):
+    """创建客户洞察"""
+    # 由后端根据 customer_id 路径参数自动解析/校验；允许前端不传
+    profile_id: Optional[str] = None
+    source: Optional[str] = "human"
+    created_by_name: Optional[str] = None
+
+class CustomerInsightInfo(CustomerInsightBase):
+    """客户洞察完整信息"""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: str
+    source: Optional[str] = None
+    created_by_name: Optional[str] = None
+    status: Optional[str] = None
+    created_at: Optional[datetime] = None
+    created_by: Optional[str] = None
+
+# --- 客户档案 Schema ---
 
 class CustomerProfileBase(BaseModel):
     """客户档案基础模型"""
-    medical_history: Optional[str] = None
-    allergies: Optional[str] = None
-    preferences: Optional[str] = None
-    tags: Optional[str] = None
+    life_cycle_stage: Optional[str] = "lead"
+    industry: Optional[str] = None
+    company_scale: Optional[str] = None
+    ai_summary: Optional[str] = None
+    extra_data: Optional[Dict[str, Any]] = None
 
 class CustomerProfileCreate(CustomerProfileBase):
     """创建客户档案的请求模型"""
@@ -44,46 +58,24 @@ class CustomerProfileCreate(CustomerProfileBase):
 
 class CustomerProfileUpdate(CustomerProfileBase):
     """更新客户档案的请求模型"""
-    risk_notes: Optional[List[RiskNote]] = None
+    pass
 
-class CustomerProfileInfo(BaseModel):
-    """客户档案完整模型，与前端组件对应"""
+class CustomerProfileInfo(CustomerProfileBase):
+    """客户档案完整模型"""
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    basicInfo: CustomerBasicInfo
-    riskNotes: Optional[List[RiskNote]] = None
-    medical_history: Optional[str] = None
-    allergies: Optional[str] = None
-    preferences: Optional[str] = None
-    tags: Optional[List[str]] = None
+    customer_id: str
+    # 包含洞察流 (通常只返回Active的)
+    active_insights: Optional[List[CustomerInsightInfo]] = None
+    
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    @staticmethod
-    def from_model(profile) -> "CustomerProfileInfo":
-        if not profile:
-            return None
-        return CustomerProfileInfo(
-            id=profile.id,
-            basicInfo=CustomerBasicInfo(
-                name=profile.name,
-                age=profile.age,
-                gender=profile.gender,
-                phone=profile.phone
-            ),
-            riskNotes=[RiskNote(type=note.type, description=note.description, level=note.level) for note in getattr(profile, 'risk_notes', [])] if getattr(profile, 'risk_notes', None) else None,
-            medical_history=profile.medical_history,
-            allergies=profile.allergies,
-            preferences=profile.preferences,
-            tags=profile.tags.split(',') if profile.tags else None,
-            created_at=profile.created_at,
-            updated_at=profile.updated_at
-        )
+# --- 客户完整信息 ---
 
-# 客户完整信息
 class CustomerInfo(CustomerBase):
-    """客户完整信息模型，包含基本用户信息"""
+    """客户完整信息模型，包含基本用户信息和档案"""
     model_config = ConfigDict(from_attributes=True)
     
     id: str
@@ -92,22 +84,9 @@ class CustomerInfo(CustomerBase):
     email: str
     phone: Optional[str] = None
     avatar: Optional[str] = None
+    status: Optional[str] = None
+    
     created_at: datetime
     updated_at: datetime
+    
     profile: Optional[CustomerProfileInfo] = None
-
-    @staticmethod
-    def from_model(customer) -> "CustomerInfo":
-        if not customer:
-            return None
-        return CustomerInfo(
-            id=customer.id,
-            user_id=customer.user_id,
-            username=customer.username,
-            email=customer.email,
-            phone=customer.phone,
-            avatar=customer.avatar,
-            created_at=customer.created_at,
-            updated_at=customer.updated_at,
-            profile=CustomerProfileInfo.from_model(getattr(customer, 'profile', None))
-        ) 

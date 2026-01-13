@@ -77,6 +77,12 @@ def profile_id() -> str:
     return prefixed_uuid("prof")
 
 
+# 客户洞察ID前缀生成函数
+def insight_id() -> str:
+    """生成客户洞察ID"""
+    return prefixed_uuid("ins")
+
+
 # 系统设置ID前缀生成函数
 def system_id() -> str:
     """生成系统设置ID"""

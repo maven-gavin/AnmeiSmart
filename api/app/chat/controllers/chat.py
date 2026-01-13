@@ -36,9 +36,11 @@ from app.channels.services.channel_service import ChannelService
 from app.channels.deps.channel_deps import get_channel_service
 from app.chat.deps.chat import get_chat_service
 from app.chat.models.chat import Conversation, Message
+from app.customer.services.customer_insight_pipeline import enqueue_customer_insight_job
 
 # 导入事件总线
 from app.core.websocket.events import event_bus, EventTypes
+from app.identity_access.deps.permission_deps import get_user_primary_role
 
 logger = logging.getLogger(__name__)
 
@@ -216,6 +218,7 @@ async def create_message(
         )
 
         # 渠道会话：将消息转发到对应渠道（不影响现有页面，只影响发送去向）
+        conv_model = None
         try:
             conv_model = chat_service.db.query(Conversation).filter(Conversation.id == conversation_id).first()
             if conv_model and conv_model.tag == "channel":
@@ -236,6 +239,25 @@ async def create_message(
             message_info=message,
             sender_id=str(current_user.id)
         )
+
+        # 客户发送消息后：异步触发画像洞察提取（失败不影响主流程）
+        try:
+            role = get_user_primary_role(current_user)
+            if role == "customer":
+                if not conv_model:
+                    conv_model = chat_service.db.query(Conversation).filter(Conversation.id == conversation_id).first()
+                # 目前仅处理站内会话（tag != channel）
+                if conv_model and conv_model.tag != "channel":
+                    enqueue_customer_insight_job(
+                        customer_id=str(current_user.id),
+                        conversation_id=conversation_id,
+                        message_id=str(message.id),
+                    )
+        except Exception as e:
+            logger.warning(
+                f"触发客户画像洞察任务失败（已忽略）: conversation_id={conversation_id}, err={e}",
+                exc_info=True,
+            )
         
         return ApiResponse.success(message)
         
