@@ -18,6 +18,7 @@ from app.common.deps.database import create_initial_roles, create_initial_system
 from app.core.redis_client import redis_manager, get_redis_client
 from app.websocket.broadcasting_factory import cleanup_broadcasting_services
 from app.websocket.websocket_factory import cleanup_websocket_services
+from app.channels.services.wechat_work_archive_scheduler import start_archive_polling, stop_archive_polling
 
 # MessageBroadcaster会在需要时自动初始化
 
@@ -47,6 +48,9 @@ async def lifespan(app: FastAPI):
         # 初始化Redis连接
         redis_client = await get_redis_client()
         logger.info("Redis连接已建立")
+
+        # 启动会话内容存档轮询（如已配置）
+        start_archive_polling()
                 
         # 同步API资源到资源库
         try:
@@ -88,6 +92,9 @@ async def lifespan(app: FastAPI):
         # 关闭Redis连接
         await redis_manager.close()
         logger.info("Redis连接已关闭")
+
+        # 关闭会话内容存档轮询
+        await stop_archive_polling()
         
     except Exception as e:
         logger.error(f"应用关闭清理失败: {e}")

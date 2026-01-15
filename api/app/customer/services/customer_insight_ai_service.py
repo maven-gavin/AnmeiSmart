@@ -124,8 +124,16 @@ class CustomerInsightAIService:
             text = self._message_to_text(m)
             if not text:
                 continue
-            # sender_id 可能为空（渠道入站），但当前阶段我们主要处理站内 customer
-            sender_label = "客户" if str(m.sender_id or "") == str(customer_id) else "对方"
+            # sender_id 可能为空（渠道入站）。渠道入站时通过 extra_metadata.channel.direction 判断“客户侧输入”
+            sender_label = "对方"
+            if str(m.sender_id or "") == str(customer_id):
+                sender_label = "客户"
+            else:
+                ch = (m.extra_metadata or {}).get("channel") if isinstance(m.extra_metadata, dict) else None
+                if isinstance(ch, dict) and ch.get("direction") == "inbound":
+                    sender_label = "客户"
+                else:
+                    sender_label = "销售"
             message_lines.append(f"- {sender_label}: {text}")
 
         active_insights = (

@@ -2,15 +2,19 @@
 渠道服务 - 统一管理所有渠道
 """
 import logging
+import hashlib
+import secrets
 from typing import Dict, Optional, List
 from sqlalchemy.orm import Session
 
 from app.channels.interfaces import ChannelAdapter, ChannelMessage
 from app.channels.models.channel_config import ChannelConfig
+from app.channels.models.channel_identity import ChannelIdentity
 from app.chat.services.chat_service import ChatService
 from app.chat.models.chat import Message, Conversation
 from app.common.services.file_service import FileService
 from app.core.api import BusinessException, ErrorCode
+from app.customer.services.customer_insight_pipeline import enqueue_customer_insight_job
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +49,15 @@ class ChannelService:
             创建的消息对象
         """
         try:
+            # 0. 渠道身份归一：channel_type + peer_id -> customer(User)
+            customer_user_id, customer_display_name = self._resolve_or_create_customer_user(channel_message)
+
             # 1. 查找或创建会话
-            conversation = await self._get_or_create_conversation(channel_message)
+            conversation = await self._get_or_create_conversation(
+                channel_message=channel_message,
+                owner_user_id=customer_user_id,
+                owner_display_name=customer_display_name,
+            )
             
             # 2. 检查消息是否已存在（去重）
             # 使用 JSON 字段查询
@@ -60,12 +71,17 @@ class ChannelService:
                 return existing_message
             
             # 3. 准备渠道信息
+            direction = "inbound"
+            if channel_message.extra_data and isinstance(channel_message.extra_data, dict):
+                direction = channel_message.extra_data.get("direction") or direction
+
             channel_metadata = {
                 "type": channel_message.channel_type,
                 "channel_message_id": channel_message.channel_message_id,
                 "peer_id": channel_message.channel_user_id,
                 "peer_name": channel_message.extra_data.get("peer_name") if channel_message.extra_data else None,
-                "direction": "inbound",
+                "customer_user_id": customer_user_id,
+                "direction": direction,
             }
             
             # 合并 extra_metadata
@@ -153,6 +169,22 @@ class ChannelService:
                 self.db.refresh(message)
             
             logger.info(f"成功处理渠道消息: {channel_message.channel_message_id}")
+
+            # 6.1 渠道入站消息：触发客户画像洞察飞轮（失败不影响主流程）
+            try:
+                if channel_message.message_type == "text" and direction == "inbound":
+                    txt = str((channel_message.content or {}).get("text") or "").strip()
+                    if txt:
+                        enqueue_customer_insight_job(
+                            customer_id=customer_user_id,
+                            conversation_id=str(conversation.id),
+                            message_id=str(message_info.id),
+                        )
+            except Exception as e:
+                logger.warning(
+                    f"触发渠道客户画像洞察任务失败（已忽略）: conversation_id={conversation.id}, err={e}",
+                    exc_info=True,
+                )
             
             # 7. 广播新消息到 WebSocket
             if self.broadcasting_service:
@@ -206,85 +238,120 @@ class ChannelService:
             logger.error(f"发送消息到渠道异常: {e}", exc_info=True)
             return False
     
-    async def _get_or_create_conversation(self, channel_message: ChannelMessage) -> Conversation:
+    async def _get_or_create_conversation(
+        self,
+        *,
+        channel_message: ChannelMessage,
+        owner_user_id: str,
+        owner_display_name: Optional[str],
+    ) -> Conversation:
         """
         获取或创建会话
-        
-        根据 channel_type 和 peer_id 判断是否为同一个会话。
-        如果 peer_id 和 type 相同，就认为是同一个会话。
+
+        会话唯一性：tag=channel + extra_metadata.channel.type + extra_metadata.channel.peer_id
         """
         from sqlalchemy import cast, String
         from app.common.deps.uuid_utils import conversation_id
-        from app.identity_access.models.user import User
 
         peer_id = channel_message.channel_user_id
         channel_type = channel_message.channel_type
-        
+
         logger.info(f"查找或创建渠道会话: channel_type={channel_type}, peer_id={peer_id}")
 
-        # 1) 查找已有渠道会话
-        # 根据 channel_type 和 peer_id 判断是否为同一个会话
-        # 先尝试SQL查询（性能好），如果失败则使用Python方式查询（更可靠）
         existing = None
-        
-        # 方法1：使用SQL查询（需要确保extra_metadata结构正确）
+
+        # 方法1：SQL 查询（性能好）
         try:
-            existing = self.db.query(Conversation).filter(
-                Conversation.tag == "channel",
-                Conversation.extra_metadata.isnot(None),
-                cast(Conversation.extra_metadata["channel"]["type"], String) == channel_type,
-                cast(Conversation.extra_metadata["channel"]["peer_id"], String) == peer_id,
-            ).first()
+            existing = (
+                self.db.query(Conversation)
+                .filter(
+                    Conversation.tag == "channel",
+                    Conversation.extra_metadata.isnot(None),
+                    cast(Conversation.extra_metadata["channel"]["type"], String) == channel_type,
+                    cast(Conversation.extra_metadata["channel"]["peer_id"], String) == peer_id,
+                )
+                .first()
+            )
         except Exception as e:
             logger.warning(f"SQL查询渠道会话失败，将使用Python方式查询: {e}")
-        
-        # 方法2：如果SQL查询失败或返回None，使用Python方式查询（备用方案）
+
+        # 方法2：Python 兜底（更鲁棒）
         if not existing:
             try:
-                all_channel_convs = self.db.query(Conversation).filter(
-                    Conversation.tag == "channel",
-                    Conversation.extra_metadata.isnot(None)
-                ).all()
-                
+                all_channel_convs = (
+                    self.db.query(Conversation)
+                    .filter(Conversation.tag == "channel", Conversation.extra_metadata.isnot(None))
+                    .all()
+                )
+
                 for conv in all_channel_convs:
-                    if conv.extra_metadata and isinstance(conv.extra_metadata, dict):
-                        channel_meta = conv.extra_metadata.get("channel", {})
-                        if (isinstance(channel_meta, dict) and 
-                            channel_meta.get("type") == channel_type and 
-                            str(channel_meta.get("peer_id")) == str(peer_id)):
-                            existing = conv
-                            logger.info(f"通过Python方式找到已存在的渠道会话: conversation_id={conv.id}, channel_type={channel_type}, peer_id={peer_id}")
-                            break
+                    if not isinstance(conv.extra_metadata, dict):
+                        continue
+                    channel_meta = conv.extra_metadata.get("channel")
+                    if not isinstance(channel_meta, dict):
+                        continue
+                    if channel_meta.get("type") == channel_type and str(channel_meta.get("peer_id")) == str(peer_id):
+                        existing = conv
+                        logger.info(
+                            f"通过Python方式找到已存在的渠道会话: conversation_id={conv.id}, channel_type={channel_type}, peer_id={peer_id}"
+                        )
+                        break
             except Exception as e:
                 logger.error(f"Python方式查询渠道会话也失败: {e}", exc_info=True)
-        
+
+        peer_name = channel_message.extra_data.get("peer_name") if channel_message.extra_data else None
+
         if existing:
+            # 修正历史占位 owner（以及同步 channel meta）
+            need_update = False
+            if str(existing.owner_id) != str(owner_user_id):
+                existing.owner_id = str(owner_user_id)
+                need_update = True
+
+            if not isinstance(existing.extra_metadata, dict):
+                existing.extra_metadata = {}
+                need_update = True
+
+            ch = existing.extra_metadata.get("channel")
+            if not isinstance(ch, dict):
+                ch = {}
+                existing.extra_metadata["channel"] = ch
+                need_update = True
+
+            if ch.get("customer_user_id") != str(owner_user_id):
+                ch["customer_user_id"] = str(owner_user_id)
+                need_update = True
+            if peer_name and ch.get("peer_name") != peer_name:
+                ch["peer_name"] = peer_name
+                need_update = True
+
+            if need_update:
+                from sqlalchemy.orm.attributes import flag_modified
+                flag_modified(existing, "extra_metadata")
+                self.db.commit()
+                self.db.refresh(existing)
+
             logger.info(f"找到已存在的渠道会话: conversation_id={existing.id}, channel_type={channel_type}, peer_id={peer_id}")
             return existing
-        
+
         logger.info(f"未找到匹配的渠道会话，将创建新会话: channel_type={channel_type}, peer_id={peer_id}")
 
-        # 2) 没有找到匹配的会话，创建新会话
-        # 选择一个可用 owner（仅用于满足外键，权限由 tag=channel 的规则控制）
-        owner = self.db.query(User).order_by(User.created_at.asc()).first()
-        if not owner:
-            raise BusinessException("系统内没有可用用户，无法创建渠道会话", code=ErrorCode.SYSTEM_ERROR)
+        title = owner_display_name or (peer_name.strip() if isinstance(peer_name, str) and peer_name.strip() else None) or f"{channel_type}:{peer_id}"
 
-        title = f"{channel_type}:{peer_id}"
-        
         logger.info(f"创建新的渠道会话: title={title}, channel_type={channel_type}, peer_id={peer_id}")
 
         conversation = Conversation(
             id=conversation_id(),
             title=title,
-            owner_id=str(owner.id),
+            owner_id=str(owner_user_id),
             chat_mode="single",
             tag="channel",
             extra_metadata={
                 "channel": {
                     "type": channel_type,
                     "peer_id": peer_id,
-                    "peer_name": channel_message.extra_data.get("peer_name") if channel_message.extra_data else None,
+                    "peer_name": peer_name,
+                    "customer_user_id": str(owner_user_id),
                 },
                 "assignment": {
                     "status": "unassigned",
@@ -298,7 +365,128 @@ class ChannelService:
         self.db.add(conversation)
         self.db.commit()
         self.db.refresh(conversation)
-        
+
         logger.info(f"成功创建新的渠道会话: conversation_id={conversation.id}, title={title}")
         return conversation
 
+    def _resolve_or_create_customer_user(self, channel_message: ChannelMessage) -> tuple[str, Optional[str]]:
+        """
+        将外部渠道 peer_id 归一为系统内 customer(User)。
+
+        返回：
+        - customer_user_id: str
+        - display_name: Optional[str]
+        """
+        from app.identity_access.enums import UserStatus
+        from app.identity_access.models.user import User, Role
+        from app.common.deps.uuid_utils import role_id
+        from app.core.password_utils import get_password_hash
+
+        channel_type = channel_message.channel_type
+        peer_id = str(channel_message.channel_user_id)
+        peer_name = None
+        if channel_message.extra_data and isinstance(channel_message.extra_data, dict):
+            peer_name = channel_message.extra_data.get("peer_name")
+            # 可选：上游已完成匹配时，可直接指定绑定到某个 customer_user_id
+            prebind_customer_user_id = channel_message.extra_data.get("customer_user_id") or channel_message.extra_data.get("bind_to_customer_user_id")
+            if isinstance(prebind_customer_user_id, str) and prebind_customer_user_id.strip():
+                prebind_customer_user_id = prebind_customer_user_id.strip()
+                user = self.db.query(User).filter(User.id == prebind_customer_user_id).first()
+                if user:
+                    # upsert identity 到指定 customer，并直接返回
+                    identity = (
+                        self.db.query(ChannelIdentity)
+                        .filter(ChannelIdentity.channel_type == channel_type, ChannelIdentity.peer_id == peer_id)
+                        .first()
+                    )
+                    if identity:
+                        identity.user_id = str(user.id)
+                        if peer_name:
+                            identity.peer_name = peer_name
+                        if channel_message.extra_data:
+                            identity.extra_data = channel_message.extra_data
+                    else:
+                        identity = ChannelIdentity(
+                            channel_type=channel_type,
+                            peer_id=peer_id,
+                            user_id=str(user.id),
+                            peer_name=peer_name,
+                            extra_data=channel_message.extra_data,
+                        )
+                        self.db.add(identity)
+                    from sqlalchemy.sql import func
+                    identity.last_seen_at = func.now()
+                    self.db.commit()
+                    self.db.refresh(identity)
+                    return str(user.id), peer_name
+
+        existing = (
+            self.db.query(ChannelIdentity)
+            .filter(
+                ChannelIdentity.channel_type == channel_type,
+                ChannelIdentity.peer_id == peer_id,
+            )
+            .first()
+        )
+        if existing:
+            # 更新展示名与 last_seen_at
+            if peer_name and peer_name != existing.peer_name:
+                existing.peer_name = peer_name
+            existing.extra_data = channel_message.extra_data if channel_message.extra_data else existing.extra_data
+            # last_seen_at 交由数据库更新时间戳也可以，这里显式更新更直观
+            from sqlalchemy.sql import func
+            existing.last_seen_at = func.now()
+            self.db.commit()
+            self.db.refresh(existing)
+            return str(existing.user_id), existing.peer_name
+
+        # 新客：创建 User(customer) + Customer/CustomerProfile + ChannelIdentity
+        peer_hash = hashlib.sha1(peer_id.encode("utf-8")).hexdigest()[:10]
+        safe_channel = "".join([c if c.isalnum() or c in ("_", "-") else "_" for c in channel_type])[:20]
+        username = (str(peer_name).strip() if isinstance(peer_name, str) and peer_name.strip() else None) or f"客户_{safe_channel}_{peer_hash[:6]}"
+        email = f"ch_{safe_channel}_{peer_hash}@channel.local"
+
+        # 保障 username/email 的唯一性（极小概率碰撞时追加随机后缀）
+        if self.db.query(User).filter(User.email == email).first():
+            email = f"ch_{safe_channel}_{peer_hash}_{secrets.token_hex(2)}@channel.local"
+        if self.db.query(User).filter(User.username == username).first():
+            username = f"{username}_{secrets.token_hex(2)}"
+
+        pwd = secrets.token_urlsafe(24)
+        user = User(
+            email=email,
+            username=username,
+            hashed_password=get_password_hash(pwd),
+            status=UserStatus.ACTIVE,
+        )
+
+        role = self.db.query(Role).filter(Role.name == "customer").first()
+        if not role:
+            role = Role(id=role_id(), name="customer")
+            self.db.add(role)
+            self.db.flush()
+        user.roles.append(role)
+
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+
+        # 创建 Customer 记录 + Profile（复用 CustomerService 的最小创建逻辑）
+        try:
+            from app.customer.services.customer_service import CustomerService
+            CustomerService(self.db).create_customer(user_id=str(user.id))
+        except Exception as e:
+            logger.warning(f"创建 Customer/Profile 失败（将继续，稍后可补齐）: user_id={user.id}, err={e}", exc_info=True)
+
+        identity = ChannelIdentity(
+            channel_type=channel_type,
+            peer_id=peer_id,
+            user_id=str(user.id),
+            peer_name=peer_name,
+            extra_data=channel_message.extra_data,
+        )
+        self.db.add(identity)
+        self.db.commit()
+        self.db.refresh(identity)
+
+        return str(user.id), peer_name

@@ -81,6 +81,20 @@ export const menuConfig: MenuConfig = {
       roles: ['admin']
     },
     {
+      id: 'channel-identities-admin',
+      label: '渠道身份映射',
+      path: '/admin/channel-identities',
+      icon: 'settings-icon',
+      roles: ['admin']
+    },
+    {
+      id: 'channel-configs-admin',
+      label: '会话存档配置',
+      path: '/admin/channel-configs',
+      icon: 'settings-icon',
+      roles: ['admin']
+    },
+    {
       id: 'mcp',
       label: 'MCP配置',
       path: '/mcp',

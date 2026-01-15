@@ -11,6 +11,9 @@ from app.mcp.controllers import mcp_config, mcp_server, mcp_oauth
 from app.digital_humans.controllers import digital_humans, admin_digital_humans
 from app.tasks.controllers import tasks
 from app.channels.controllers import webhook as channel_webhook
+from app.channels.controllers import archive as channel_archive
+from app.channels.controllers import channel_identities as channel_identities_controller
+from app.channels.controllers import channel_configs as channel_configs_controller
 
 api_router = APIRouter()
 
@@ -83,6 +86,12 @@ api_router.include_router(contacts.router, prefix="/contacts", tags=["contacts"]
 
 # 渠道Webhook路由
 api_router.include_router(channel_webhook.router, tags=["channels"])
+# 渠道会话内容存档拉取路由
+api_router.include_router(channel_archive.router, tags=["channels"])
+# 渠道身份映射管理路由
+api_router.include_router(channel_identities_controller.router, tags=["channels"])
+# 渠道配置管理路由
+api_router.include_router(channel_configs_controller.router, tags=["channels"])
 
 # 后续可添加其他路由
 

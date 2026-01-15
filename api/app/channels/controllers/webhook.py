@@ -2,12 +2,15 @@
 渠道 Webhook 接收端点
 """
 import logging
+from typing import Any, Optional
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from fastapi.responses import PlainTextResponse
 
 from app.channels.services.channel_service import ChannelService
 from app.channels.adapters.wechat_work.adapter import WeChatWorkAdapter
 from app.channels.adapters.wechat_work.kf_adapter import WeChatWorkKfAdapter
+from app.channels.interfaces import ChannelMessage
+from app.channels.services.wechat_work_archive_utils import extract_external_user_id
 from app.channels.deps.channel_deps import get_channel_service
 
 logger = logging.getLogger(__name__)
@@ -204,5 +207,76 @@ async def wechat_work_kf_webhook(
     payload = adapter.parse_incoming_payload(decrypt_body)
     channel_message = await adapter.receive_message(payload)
     await channel_service.process_incoming_message(channel_message)
+    return PlainTextResponse("success")
+
+
+
+
+@router.post("/webhook/wechat-work-archive")
+async def wechat_work_archive_webhook(
+    request: Request,
+    channel_service: ChannelService = Depends(get_channel_service),
+):
+    """
+    企业微信「会话内容存档」入站接收（已解密的 JSON）。
+
+    说明：
+    - 本端点接收已解密后的 chatdata 列表。
+    - 目前仅落库文本消息，媒体消息后续再完善。
+    """
+    try:
+        payload = await request.json()
+    except Exception:
+        logger.warning("会话存档回调 JSON 解析失败，直接返回 success")
+        return PlainTextResponse("success")
+
+    chatdata = payload.get("chatdata") or payload.get("data") or []
+    if not isinstance(chatdata, list):
+        logger.info("会话存档回调未包含 chatdata 列表，已忽略")
+        return PlainTextResponse("success")
+
+    for item in chatdata:
+        if not isinstance(item, dict):
+            continue
+
+        msgtype = str(item.get("msgtype") or "").lower()
+        msgid = str(item.get("msgid") or item.get("msg_id") or "")
+        msgtime = item.get("msgtime") or item.get("msg_time") or 0
+
+        external_userid = extract_external_user_id(item)
+        if not external_userid:
+            continue
+
+        from_id = item.get("from")
+        direction = "inbound" if isinstance(from_id, str) and from_id == external_userid else "outbound"
+
+        if msgtype != "text":
+            logger.info(f"会话存档暂不处理非文本消息: msgtype={msgtype}, msgid={msgid}")
+            continue
+
+        text = ""
+        text_obj = item.get("text")
+        if isinstance(text_obj, dict):
+            text = str(text_obj.get("content") or "").strip()
+        if not text:
+            continue
+
+        channel_message = ChannelMessage(
+            channel_type="wechat_work_contact",
+            channel_message_id=msgid or f"arch_{external_userid}_{msgtime}",
+            channel_user_id=external_userid,
+            content={"text": text},
+            message_type="text",
+            timestamp=int(msgtime) if isinstance(msgtime, (int, float, str)) else 0,
+            extra_data={
+                "direction": direction,
+                "from_user_id": from_id,
+                "to_user_ids": item.get("tolist") or item.get("to_list"),
+                "room_id": item.get("roomid"),
+                "peer_name": item.get("extname") or item.get("external_name"),
+            },
+        )
+        await channel_service.process_incoming_message(channel_message)
+
     return PlainTextResponse("success")
 
