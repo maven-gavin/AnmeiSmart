@@ -76,6 +76,7 @@ async def create_conversation(
 async def get_conversations(
     search: Optional[str] = None,
     unassigned_only: bool = Query(False, description="是否仅获取未分配的会话"),
+    customer_id: Optional[str] = Query(None, description="按客户ID过滤会话"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     current_user: User = Depends(get_current_user),
@@ -85,9 +86,19 @@ async def get_conversations(
     logger.info(f"端点：开始获取会话列表 - user_id={current_user.id}, unassigned_only={unassigned_only}, skip={skip}, limit={limit}")
     
     try:
+        if customer_id:
+            role = get_user_primary_role(current_user)
+            if role == "customer" and str(customer_id) != str(current_user.id):
+                raise BusinessException(
+                    "无权查询其他客户会话",
+                    code=ErrorCode.PERMISSION_DENIED,
+                    status_code=status.HTTP_403_FORBIDDEN,
+                )
+
         paginated_records = chat_service.get_conversations(
             user_id=str(current_user.id),
             user_role=None,  # 不再需要角色映射，sender_type统一为chat
+            customer_id=customer_id,
             skip=skip,
             limit=limit,
             search=search,

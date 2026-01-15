@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { authService } from '@/service/authService';
-import { type User } from '@/types/chat';
 import { type AuthUser } from '@/types/auth';
 
 export default function UserInfoBar() {
@@ -18,13 +17,6 @@ export default function UserInfoBar() {
     }
   }, []);
   
-  // 如果没有登录用户，显示默认信息
-  const displayUser = currentUser || {
-    id: '1',
-    name: '张医生',
-    avatar: '/avatars/default.png',
-    roles: []
-  };
   
   // 确定要显示的标签
   let tags: string[] = [];
@@ -43,12 +35,12 @@ export default function UserInfoBar() {
   return (
     <div className="flex items-center space-x-3">
       <img
-        src={displayUser.avatar || '/avatars/default.png'}
-        alt={displayUser.name}
+        src={currentUser?.avatar || '/avatars/default.png'}
+        alt={currentUser?.name || ''}
         className="h-10 w-10 rounded-full"
       />
       <div>
-        <h3 className="font-medium">{displayUser.name}</h3>
+        <h3 className="font-medium">{currentUser?.name || ''}</h3>
         {isClient && tags.length > 0 && (
           <div className="flex space-x-2">
             {tags.map(tag => (

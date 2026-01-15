@@ -136,7 +136,8 @@ export class ChatDataMapper {
    * 批量映射会话列表
    */
   static mapConversations(apiResponses: ConversationApiResponse[]): Conversation[] {
-    return apiResponses.map(response => this.mapConversation(response));
+    const list = Array.isArray(apiResponses) ? apiResponses : [];
+    return list.map(response => this.mapConversation(response));
   }
 
   /**

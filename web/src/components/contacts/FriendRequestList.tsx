@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Check, X, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { AvatarCircle } from '@/components/ui/AvatarCircle';
 import { cn } from '@/service/utils';
 import type { FriendRequest } from '@/types/contacts';
 import { getFriendRequests, handleFriendRequest } from '@/service/contacts/api';
@@ -92,20 +93,12 @@ export function FriendRequestList({ onRequestHandled }: FriendRequestListProps) 
         <div key={request.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
-                {request.user?.avatar ? (
-                  <img
-                    src={request.user.avatar}
-                    alt={request.user.username}
-                    className="w-12 h-12 rounded-full object-cover"
-                  />
-                ) : (
-                  <span className="text-lg font-medium text-gray-600">
-                    {request.user?.username?.charAt(0).toUpperCase()}
-                  </span>
-                )}
-              </div>
-              
+              <AvatarCircle
+                name={request.user?.username || ''}
+                avatar={request.user?.avatar}
+                sizeClassName="w-12 h-12"
+                className="bg-gray-200 text-gray-600"
+              />
               <div className="flex-1">
                 <div className="flex items-center space-x-2">
                   <h4 className="text-sm font-medium text-gray-900">

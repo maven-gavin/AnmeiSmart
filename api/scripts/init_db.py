@@ -20,16 +20,9 @@ logger = logging.getLogger(__name__)
 def init_db():
     """初始化数据库表结构"""
     try:
-        # 导入所有模型以确保它们被包含在Base.metadata中
-        from app.common.deps.database_model import BaseModel
-        from app.identity_access.models.user import User, Role
-        from app.customer.models.customer import Customer, CustomerProfile
-        from app.chat.models.chat import Conversation, Message
-        from app.system.models.system import SystemSettings
-        
-        # 导入和使用Base以创建所有表
-        from app.db.base import Base, engine
-        Base.metadata.create_all(bind=engine)
+        # 导入数据库初始化函数，它会自动导入所有模型
+        from app.common.deps.database import init_db as db_init
+        db_init()
         logger.info("成功创建数据库表")
     except Exception as e:
         logger.error(f"创建数据库表时出错: {e}")
@@ -39,32 +32,9 @@ def create_initial_roles():
     """创建初始角色"""
     try:
         # 导入角色相关模块
-        from app.db.base import SessionLocal
-        from app.identity_access.models.user import Role
-        from app.db.uuid_utils import role_id
-        
-        # 创建数据库会话
-        db = SessionLocal()
-        try:
-            # 检查角色是否存在
-            existing_roles = db.query(Role).all()
-            if existing_roles:
-                logger.info(f"已存在 {len(existing_roles)} 个角色，跳过创建初始角色")
-                return
-            
-            # 定义基础角色
-            roles = [
-                Role(id=role_id(), name="customer", description="客户"),
-                Role(id=role_id(), name="operator", description="运营人员"),
-                Role(id=role_id(), name="admin", description="系统管理员")
-            ]
-            
-            # 添加角色到数据库
-            db.add_all(roles)
-            db.commit()
-            logger.info(f"成功创建 {len(roles)} 个初始角色")
-        finally:
-            db.close()
+        from app.common.deps.database import create_initial_roles as db_create_roles
+        db_create_roles()
+        logger.info("成功创建初始角色")
     except Exception as e:
         logger.error(f"创建初始角色时出错: {e}")
         raise
@@ -73,51 +43,9 @@ def create_initial_system_settings():
     """创建系统初始设置"""
     try:
         # 导入系统设置相关模块
-        from app.db.base import SessionLocal
-        from app.system.models.system import SystemSettings
-        from app.db.uuid_utils import system_id, model_id
-
-        # 创建数据库会话
-        db = SessionLocal()
-        try:
-            # 检查系统设置是否已存在
-            existing_settings = db.query(SystemSettings).first()
-            if existing_settings:
-                logger.info(f"系统设置已存在，跳过创建初始设置")
-                return
-            
-            # 创建系统设置
-            settings_id = system_id()
-            system_settings = SystemSettings(
-                id=settings_id,
-                siteName="安美智能咨询系统",
-                logoUrl="/logo.png",
-                defaultModelId="GPT-4",
-                maintenanceMode=False,
-                userRegistrationEnabled=True
-            )
-            db.add(system_settings)
-            db.commit()
-            db.refresh(system_settings)
-            
-            # 创建AI模型配置
-            default_model = AIModelConfig(
-                id=model_id(),
-                modelName="GPT-4",
-                apiKey="sk-••••••••••••••••••••••••",  # 实际部署时应使用环境变量
-                baseUrl="https://api.openai.com/v1",
-                maxTokens="2000",
-                temperature=0.7,
-                enabled=True,
-                provider="openai",
-                system_settings_id=settings_id
-            )
-            db.add(default_model)
-            db.commit()
-            
-            logger.info("成功创建系统设置")
-        finally:
-            db.close()
+        from app.common.deps.database import create_initial_system_settings as db_create_settings
+        db_create_settings()
+        logger.info("成功创建系统设置")
     except Exception as e:
         logger.error(f"创建系统设置时出错: {e}")
         raise
@@ -132,7 +60,7 @@ def initialize_database(drop_all=False):
         logger.info("开始初始化数据库")
         
         # 调用init_db函数
-        from app.db.base import engine, Base, SessionLocal
+        from app.common.deps.database import engine, Base
         
         if drop_all:
             logger.info("删除所有现有表")

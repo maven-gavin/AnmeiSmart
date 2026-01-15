@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { EnhancedPagination } from '@/components/ui/pagination';
+import { AvatarCircle } from '@/components/ui/AvatarCircle';
 import { cn } from '@/service/utils';
 import type { Friendship } from '@/types/contacts';
 
@@ -131,21 +132,12 @@ function FriendCard({ friendship, viewMode, onAction }: FriendCardProps) {
         {/* 好友信息 */}
         <div className="flex items-center space-x-3">
           <div className="relative">
-            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-              {friend.avatar ? (
-                <img
-                  src={friend.avatar}
-                  alt={friend.username}
-                  className="w-10 h-10 rounded-full object-cover"
-                />
-              ) : (
-                <span className="text-sm font-medium text-gray-600">
-                  {friend.username.charAt(0).toUpperCase()}
-                </span>
-              )}
-            </div>
-            
-            {/* 在线状态指示器 - TODO: 从WebSocket获取 */}
+            <AvatarCircle
+              name={friend.username}
+              avatar={friend.avatar}
+              sizeClassName="w-10 h-10"
+              className="bg-gray-200 text-gray-600"
+            />
             <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white bg-green-500"></div>
           </div>
           

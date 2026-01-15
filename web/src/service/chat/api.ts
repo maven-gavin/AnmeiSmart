@@ -105,8 +105,11 @@ export class ChatApiService {
    * 获取指定客户的会话列表
    */
   public static async getCustomerConversations(customerId: string): Promise<Conversation[]> {
-    const response = await apiClient.get<ConversationApiResponse[]>(`${this.BASE_PATH}/conversations?customer_id=${customerId}`);
-    return response.data ? ChatDataMapper.mapConversations(response.data) : [];
+    const response = await apiClient.get<{ items?: ConversationApiResponse[] }>(
+      `${this.BASE_PATH}/conversations?customer_id=${customerId}`
+    );
+    const items = response.data?.items || [];
+    return ChatDataMapper.mapConversations(items);
   }
   
   // ===== 消息相关API =====

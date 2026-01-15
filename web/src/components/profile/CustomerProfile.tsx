@@ -19,9 +19,24 @@ export default function CustomerProfile({ customerId, conversationId }: Customer
   // 使用自定义hooks管理状态和逻辑
   const { profile, consultationHistory, loading, error, refetch } = useCustomerProfile(customerId, conversationId);
 
+  const displayProfile = useMemo(() => {
+    if (profile) {
+      return profile;
+    }
+    return {
+      id: '',
+      customer_id: customerId,
+      life_cycle_stage: 'lead',
+      industry: '',
+      company_scale: '',
+      ai_summary: '',
+      active_insights: []
+    };
+  }, [profile, customerId]);
+
   const insights = useMemo(() => {
-    return profile?.active_insights || [];
-  }, [profile?.active_insights]);
+    return displayProfile.active_insights || [];
+  }, [displayProfile.active_insights]);
 
   const handleAddInsight = async () => {
     const content = newContent.trim();
@@ -64,29 +79,28 @@ export default function CustomerProfile({ customerId, conversationId }: Customer
     );
   }
 
-  // 没有找到客户信息
-  if (!profile) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-gray-500">没有找到客户信息</p>
-      </div>
-    );
-  }
-
   return (
     <div className="h-full flex flex-col">
+      {!profile && (
+        <div className="bg-brand-soft text-brand-deep px-4 py-2 text-sm">
+          档案初始化中，暂时展示默认结构
+          <button className="am-btn-outline ml-3" type="button" onClick={refetch}>
+            立即刷新
+          </button>
+        </div>
+      )}
       {/* 头部/Tab */}
       <div className="sticky top-0 bg-white border-b border-gray-200">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="text-base font-semibold text-gray-900 truncate">客户画像</h3>
-              {profile.life_cycle_stage && (
-                <span className="am-badge-neutral">{profile.life_cycle_stage}</span>
-              )}
+              <span className="am-badge-neutral">
+                {displayProfile.life_cycle_stage || 'lead'}
+              </span>
             </div>
             <div className="mt-1 text-xs text-gray-500">
-              {profile.industry ? `行业：${profile.industry}` : '行业：-'} · {profile.company_scale ? `规模：${profile.company_scale}` : '规模：-'}
+              {displayProfile.industry ? `行业：${displayProfile.industry}` : '行业：-'} · {displayProfile.company_scale ? `规模：${displayProfile.company_scale}` : '规模：-'}
             </div>
           </div>
 
@@ -117,7 +131,7 @@ export default function CustomerProfile({ customerId, conversationId }: Customer
             <div className="am-card p-4">
               <div className="text-sm font-medium text-gray-900">AI 摘要</div>
               <div className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">
-                {profile.ai_summary?.trim() ? profile.ai_summary : '暂无摘要（后续由 SmartBrain 自动沉淀）'}
+                {displayProfile.ai_summary?.trim() ? displayProfile.ai_summary : '暂无摘要（后续由 SmartBrain 自动沉淀）'}
               </div>
             </div>
 

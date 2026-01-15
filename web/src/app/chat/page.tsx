@@ -124,7 +124,7 @@ function SmartCommunicationContent() {
         if (cancelled) return;
 
         const roles = targetUser.roles || [];
-        const staffRoles = new Set(['admin', 'admin', 'operator']);
+        const staffRoles = new Set(['admin', 'operator']);
         const hasStaffRole = roles.some((role) => staffRoles.has(role));
         const isCustomerRole = roles.includes('customer') || targetUser.activeRole === 'customer';
 

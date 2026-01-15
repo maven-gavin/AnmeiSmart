@@ -4,7 +4,7 @@
 
 // 枚举类型
 export type FriendshipStatus = 'pending' | 'accepted' | 'blocked' | 'deleted';
-export type TagCategory = 'work' | 'personal' | 'business' | 'medical' | 'custom';
+export type TagCategory = 'work' | 'personal' | 'business' | 'custom';
 export type GroupType = 'personal' | 'work' | 'project' | 'temporary';
 export type GroupMemberRole = 'member' | 'admin' | 'owner';
 export type InteractionType = 'chat_started' | 'message_sent' | 'call_made' | 'meeting_scheduled' | 'profile_viewed' | 'tag_added' | 'group_added';
@@ -319,16 +319,6 @@ export interface SystemTagConfig {
 
 // 常量定义
 export const SYSTEM_TAG_CATEGORIES: SystemTagConfig = {
-  medical: {
-    name: "医疗相关",
-    tags: [
-      { name: "医生", color: "#059669", icon: "stethoscope" },
-      { name: "顾问", color: "#0891B2", icon: "user-tie" },
-      { name: "护士", color: "#DB2777", icon: "heart" },
-      { name: "专家", color: "#DC2626", icon: "award" },
-      { name: "同行", color: "#7C3AED", icon: "users" }
-    ]
-  },
   business: {
     name: "商务关系",
     tags: [

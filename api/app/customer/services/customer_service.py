@@ -168,7 +168,16 @@ class CustomerService:
         ).first()
         
         if not profile:
-            return None
+            # 若用户存在但未初始化档案，则自动补齐
+            user = self.db.query(User).filter(User.id == customer_id).first()
+            if not user:
+                return None
+            self.create_customer(user.id)
+            profile = self.db.query(CustomerProfile).filter(
+                CustomerProfile.customer_id == customer_id
+            ).first()
+            if not profile:
+                return None
         
         # 获取用户信息
         user = self.db.query(User).filter(User.id == customer_id).first()
