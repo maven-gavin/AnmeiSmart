@@ -112,9 +112,8 @@ export default function RoleSelector({ onRoleSelect, className = '' }: RoleSelec
                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"></div>
               ) : (
                 <span className="text-lg">
-                  {role.id === 'consultant' ? '顾' : 
-                   role.id === 'doctor' ? '医' : 
-                   role.id === 'operator' ? '运' : '客'}
+                  {role.id === 'operator' ? '运' : 
+                   role.id === 'admin' ? '管' : '客'}
                 </span>
               )}
             </div>

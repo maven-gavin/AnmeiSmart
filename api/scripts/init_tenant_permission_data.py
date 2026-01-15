@@ -439,20 +439,6 @@ class TenantPermissionDataInitializer:
                 ]
             },
             {
-                "id": "role-consultant",
-                "name": "consultant",
-                "display_name": "顾问",
-                "description": "顾问，负责客户咨询",
-                "is_system": False,
-                "is_admin": False,
-                "priority": 200,
-                "permissions": [
-                    "user:read",
-                    "chat:create", "chat:read",
-                    "task:create"
-                ]
-            },
-            {
                 "id": "role-customer",
                 "name": "customer",
                 "display_name": "客户",

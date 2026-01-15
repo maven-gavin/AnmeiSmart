@@ -26,8 +26,6 @@ export function RoleSettingsPanel() {
   // 角色中文映射
   const roleNameMap: Record<string, string> = {
     'customer': '客户',
-    'consultant': '咨询师',
-    'doctor': '医生',
     'admin': '管理员',
     'operator': '运营人员'
   };
@@ -35,8 +33,6 @@ export function RoleSettingsPanel() {
   // 角色描述映射
   const roleDescriptionMap: Record<string, string> = {
     'customer': '客户角色 - 查看方案、管理个人信息',
-    'consultant': '咨询师角色 - 为客户提供专业咨询、制定方案建议',
-    'doctor': '医生角色 - 管理患者信息',
     'admin': '管理员角色 - 系统管理、用户管理、全局设置',
     'operator': '运营人员角色 - 内容管理、数据分析、客户服务'
   };

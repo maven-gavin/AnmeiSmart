@@ -55,9 +55,7 @@ def create_initial_roles():
             # 定义基础角色
             roles = [
                 Role(id=role_id(), name="customer", description="客户"),
-                Role(id=role_id(), name="doctor", description="医生"),
-                Role(id=role_id(), name="consultant", description="顾问"),
-                Role(id=role_id(), name="operator", description="管理员"),
+                Role(id=role_id(), name="operator", description="运营人员"),
                 Role(id=role_id(), name="administrator", description="系统管理员")
             ]
             

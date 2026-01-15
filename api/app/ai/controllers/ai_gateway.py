@@ -28,14 +28,6 @@ class ChatRequest(BaseModel):
     context: Optional[Dict[str, Any]] = Field(None, description="额外上下文")
 
 
-class BeautyPlanRequest(BaseModel):
-    """方案请求"""
-    requirements: str = Field(..., description="方案需求")
-    user_profile: Dict[str, Any] = Field(..., description="用户档案")
-    budget_range: Optional[str] = Field(None, description="预算范围")
-    timeline: Optional[str] = Field(None, description="期望时间")
-
-
 class SummaryRequest(BaseModel):
     """总结请求"""
     content: str = Field(..., description="待总结内容")
@@ -103,55 +95,6 @@ async def ai_chat(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"AI聊天服务暂时不可用: {str(e)}"
-        )
-
-
-@router.post("/beauty-plan", summary="生成方案")
-async def generate_beauty_plan(
-    request: BeautyPlanRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    生成个性化方案
-    
-    根据用户需求和档案信息，生成详细的方案。
-    """
-    try:
-        ai_gateway = get_ai_gateway_service(db)
-        
-        # 增强用户档案信息
-        enhanced_profile = {
-            **request.user_profile,
-            "user_id": str(current_user.id),
-            "username": current_user.username,
-            "budget_range": request.budget_range,
-            "timeline": request.timeline
-        }
-        
-        response = await ai_gateway.generate_beauty_plan(
-            requirements=[request.requirements],  # 将字符串转换为列表
-            user_id=str(current_user.id),
-            user_profile=enhanced_profile
-        )
-        
-        return {
-            "success": response.success,
-            "content": response.content,
-            "provider": response.provider.value,
-            "plan_sections": response.plan_sections,
-            "estimated_cost": response.estimated_cost,
-            "timeline": response.timeline,
-            "risks": response.risks,
-            "response_time": response.response_time,
-            "usage": response.usage
-        }
-        
-    except Exception as e:
-        logger.error(f"方案生成失败: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"方案生成服务暂时不可用: {str(e)}"
         )
 
 
@@ -286,7 +229,6 @@ def _get_scenario_description(scenario: AIScenario) -> str:
     """获取场景描述"""
     descriptions = {
         AIScenario.GENERAL_CHAT: "通用聊天对话",
-        AIScenario.BEAUTY_PLAN: "个性化方案生成",
         AIScenario.SENTIMENT_ANALYSIS: "文本情感倾向分析",
         AIScenario.CUSTOMER_SERVICE: "智能客服支持",
         AIScenario.MEDICAL_ADVICE: "医疗建议咨询"

@@ -24,7 +24,7 @@ export default function SystemMessage({ message }: MessageContentProps) {
         return `${content.user_name || '用户'} 离开了会话`;
       
       case 'consultant_assigned':
-        return `${content.consultant_name || '顾问'} 已分配到此会话`;
+        return `${content.consultant_name || '运营人员'} 已分配到此会话`;
       
       case 'video_call_status':
         switch (status) {

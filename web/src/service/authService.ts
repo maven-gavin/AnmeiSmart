@@ -558,18 +558,6 @@ export const authService = new AuthService();
  */
 export const roleOptions = [
   {
-    id: 'consultant' as UserRole,
-    name: '顾问端',
-    path: '/consultant',
-    icon: 'chat',
-  },
-  {
-    id: 'doctor' as UserRole,
-    name: '医生端',
-    path: '/doctor',
-    icon: 'hospital',
-  },
-  {
     id: 'operator' as UserRole,
     name: '运营端',
     path: '/operator',

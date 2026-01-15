@@ -11,7 +11,7 @@ from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session
 
 from .interfaces import (
-    AIRequest, AIResponse, PlanResponse, SummaryResponse, SentimentResponse,
+    AIRequest, AIResponse, SummaryResponse, SentimentResponse,
     AIScenario, AIProvider, ChatContext
 )
 from .gateway import (
@@ -93,7 +93,6 @@ class AIGatewayService:
                     service_class=AgentAdapter,
                     weight=3,
                     scenarios=[
-                        AIScenario.BEAUTY_PLAN,
                         AIScenario.GENERAL_CHAT,
                         AIScenario.CUSTOMER_SERVICE
                     ],
@@ -122,18 +121,6 @@ class AIGatewayService:
                         app_name="通用聊天助手",
                         app_mode="chat",
                         api_key=chat_config["api_key"],
-                        base_url=base_url,
-                        timeout_seconds=agent_settings.get("timeout_seconds", 30),
-                        max_retries=agent_settings.get("max_retries", 3)
-                    )
-                
-                if agent_settings["apps"].get("beauty"):
-                    beauty_config = agent_settings["apps"]["beauty"]
-                    apps["beauty_agent"] = AgentAppConfig(
-                        app_id=beauty_config.get("app_id", "agent-beauty-agent"), 
-                        app_name="方案专家",
-                        app_mode="workflow",
-                        api_key=beauty_config["api_key"],
                         base_url=base_url,
                         timeout_seconds=agent_settings.get("timeout_seconds", 30),
                         max_retries=agent_settings.get("max_retries", 3)
@@ -188,51 +175,6 @@ class AIGatewayService:
         )
         
         return await self.gateway.execute_request(request)
-    
-    async def generate_beauty_plan(self, user_profile: Dict[str, Any], 
-                                 requirements: List[str], user_id: str) -> PlanResponse:
-        """生成方案"""
-        if not self.gateway:
-            raise Exception("AI Gateway not initialized")
-        
-        # 构建方案生成的详细上下文
-        context = ChatContext(
-            user_id=user_id,
-            session_id=f"plan_{user_id}_{int(time.time())}",
-            user_profile=user_profile
-        )
-        
-        # 将需求列表转换为提示消息
-        requirements_text = "用户需求：" + "；".join(requirements)
-        
-        request = AIRequest(
-            scenario=AIScenario.BEAUTY_PLAN,
-            message=requirements_text,
-            context=context,
-            parameters={"plan_type": "comprehensive", "include_cost": True}
-        )
-        
-        # 获取基础响应并转换为 PlanResponse
-        base_response = await self.gateway.execute_request(request)
-        
-        # 转换为 PlanResponse
-        return PlanResponse(
-            request_id=base_response.request_id,
-            content=base_response.content,
-            provider=base_response.provider,
-            scenario=base_response.scenario,
-            success=base_response.success,
-            error_message=base_response.error_message,
-            metadata=base_response.metadata,
-            usage=base_response.usage,
-            response_time=base_response.response_time,
-            timestamp=base_response.timestamp,
-            # PlanResponse 特有字段可以从 metadata 或 content 中解析
-            plan_sections=base_response.metadata.get("plan_sections") if base_response.metadata else None,
-            estimated_cost=base_response.metadata.get("estimated_cost") if base_response.metadata else None,
-            timeline=base_response.metadata.get("timeline") if base_response.metadata else None,
-            risks=base_response.metadata.get("risks") if base_response.metadata else None
-        )
     
     async def analyze_sentiment(self, text: str, user_id: str) -> SentimentResponse:
         """分析文本情感"""

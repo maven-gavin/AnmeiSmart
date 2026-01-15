@@ -86,17 +86,6 @@ class UserBase(CamelModel):
     avatar: Optional[str] = None
     is_active: bool = True
 
-class DoctorBase(CamelModel):
-    """医生信息基础模型"""
-    specialization: Optional[str] = None
-    certification: Optional[str] = None
-    license_number: Optional[str] = None
-
-class ConsultantBase(CamelModel):
-    """顾问信息基础模型"""
-    expertise: Optional[str] = None
-    performance_metrics: Optional[str] = None
-
 class OperatorBase(CamelModel):
     """运营人员信息基础模型"""
     department: Optional[str] = None
@@ -113,8 +102,6 @@ class UserCreate(UserBase):
     roles: List[str] = ["customer"]  # 默认为客户角色
     tenant_id: Optional[str] = "system"
     customer_info: Optional["CustomerBase"] = None
-    doctor_info: Optional[DoctorBase] = None
-    consultant_info: Optional[ConsultantBase] = None
     operator_info: Optional[OperatorBase] = None
     administrator_info: Optional[AdministratorBase] = None
 
@@ -129,16 +116,12 @@ class UserUpdate(CamelModel):
     roles: Optional[List[str]] = None
     tenant_id: Optional[str] = None
     customer_info: Optional["CustomerBase"] = None
-    doctor_info: Optional[DoctorBase] = None
-    consultant_info: Optional[ConsultantBase] = None
     operator_info: Optional[OperatorBase] = None
     administrator_info: Optional[AdministratorBase] = None
 
 class ExtendedUserInfo(CamelModel):
     """扩展用户信息，包含角色特定信息"""
     customer_info: Optional["CustomerBase"] = None
-    doctor_info: Optional[DoctorBase] = None
-    consultant_info: Optional[ConsultantBase] = None
     operator_info: Optional[OperatorBase] = None
     administrator_info: Optional[AdministratorBase] = None
 

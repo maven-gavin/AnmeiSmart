@@ -450,7 +450,7 @@ const chatResponse = await fetch('/api/v1/agent/agent-1/chat', {
     "max_tokens": 2000,
     "temperature": 0.7
   },
-  "opening_statement": "您好，我是您的美容顾问，有什么可以帮您的？",
+  "opening_statement": "您好，我是您的客服助手，有什么可以帮您的？",
   "suggested_questions": [
     "如何选择适合的护肤方案？",
     "面部护理的注意事项有哪些？"

@@ -11,7 +11,6 @@ interface EmployeeSummaryProps {
 
 const ROLE_LABELS: Record<string, string> = {
   admin: '管理员',
-  doctor: '医生',
   operator: '运营人员',
   customer: '客户',
 };

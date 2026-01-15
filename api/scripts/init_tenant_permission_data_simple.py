@@ -136,7 +136,6 @@ def init_tenant_permission_data():
         business_roles = [
             ('role-tenant-admin', 'tenant_admin', '租户管理员', '租户管理员，拥有租户内所有权限', False, True, 800, 'default-tenant-001'),
             ('role-operator', 'operator', '运营人员', '运营人员，负责日常运营工作', False, False, 300, 'default-tenant-001'),
-            ('role-consultant', 'consultant', '顾问', '顾问，负责客户咨询', False, False, 200, 'default-tenant-001'),
             ('role-customer', 'customer', '客户', '普通客户用户', False, False, 100, 'default-tenant-001')
         ]
         
@@ -191,15 +190,6 @@ def init_tenant_permission_data():
             SELECT r.id, p.id FROM roles r, permissions p 
             WHERE r.name = 'operator' AND p.tenant_id = 'default-tenant-001' 
             AND p.name IN ('user:read', 'user:update', 'chat:create', 'chat:read', 'chat:manage', 'task:create', 'task:assign', 'task:manage')
-            ON CONFLICT DO NOTHING
-        """))
-        
-        # 顾问 - 基础权限
-        db.execute(text("""
-            INSERT INTO role_permissions (role_id, permission_id)
-            SELECT r.id, p.id FROM roles r, permissions p 
-            WHERE r.name = 'consultant' AND p.tenant_id = 'default-tenant-001' 
-            AND p.name IN ('user:read', 'chat:create', 'chat:read', 'task:create')
             ON CONFLICT DO NOTHING
         """))
         

@@ -16,7 +16,6 @@ import uuid
 class AIScenario(Enum):
     """AI使用场景枚举"""
     GENERAL_CHAT = "general_chat"           # 通用聊天
-    BEAUTY_PLAN = "beauty_plan"             # 方案生成
     SENTIMENT_ANALYSIS = "sentiment_analysis"      # 情感分析
     CUSTOMER_SERVICE = "customer_service"          # 客服支持
     MEDICAL_ADVICE = "medical_advice"              # 医疗建议
@@ -115,15 +114,6 @@ class AIResponse:
 
 
 @dataclass
-class PlanResponse(AIResponse):
-    """方案响应扩展"""
-    plan_sections: Optional[List[Dict[str, Any]]] = None
-    estimated_cost: Optional[Dict[str, float]] = None
-    timeline: Optional[Dict[str, str]] = None
-    risks: Optional[List[str]] = None
-
-
-@dataclass
 class SummaryResponse(AIResponse):
     """总结响应扩展"""
     key_points: Optional[List[str]] = None
@@ -159,18 +149,6 @@ class AIServiceInterface(ABC):
             
         Raises:
             AIServiceError: AI服务调用失败
-        """
-        pass
-    
-    @abstractmethod
-    async def generate_beauty_plan(self, request: AIRequest) -> PlanResponse:
-        """生成方案
-        
-        Args:
-            request: 包含用户信息和需求的请求对象
-            
-        Returns:
-            包含方案详情的响应对象
         """
         pass
     

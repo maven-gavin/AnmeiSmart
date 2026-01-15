@@ -8,7 +8,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_
 
-from app.identity_access.models.user import User, Role, Doctor, Consultant, Operator, Administrator
+from app.identity_access.models.user import User, Role, Operator, Administrator
 from app.identity_access.models.profile import UserPreferences, UserDefaultRole, LoginHistory
 from app.identity_access.schemas.user import UserCreate, UserUpdate, UserResponse, RoleResponse
 from app.identity_access.schemas.profile import UserPreferencesCreate, UserPreferencesUpdate, ChangePasswordRequest
@@ -59,7 +59,7 @@ class UserService:
             # 扩展信息由对应的业务模块（如客户管理）后续补充，不在创建用户时处理
             exclude_fields = {
                 "roles", "password", 
-                "customer_info", "doctor_info", "consultant_info", 
+                "customer_info", 
                 "operator_info", "administrator_info"
             }
             user_data = user_in.model_dump(exclude=exclude_fields)

@@ -8,7 +8,7 @@ export const menuConfig: MenuConfig = {
       label: '任务管理',
       path: '/tasks',
       icon: 'task-icon',
-      roles: ['doctor','consultant', 'customer', 'admin', 'operator']
+      roles: ['customer', 'admin', 'operator']
     },    
     {
       id: 'task-governance-admin',
@@ -22,7 +22,7 @@ export const menuConfig: MenuConfig = {
       label: '智能沟通',
       path: '/chat',
       icon: 'chat-icon',
-      roles: ['doctor','consultant', 'customer', 'admin', 'operator']
+      roles: ['customer', 'admin', 'operator']
     }, 
     {
       id: 'contacts',

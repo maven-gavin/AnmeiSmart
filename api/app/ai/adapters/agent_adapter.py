@@ -20,8 +20,8 @@ from pydantic import BaseModel
 
 from ..interfaces import (
     AIProvider, AIServiceInterface, AIRequest, AIResponse,
-    PlanResponse, SummaryResponse, SentimentResponse,
-    AIScenario, AIAuthenticationError, AIServiceError, AIProviderUnavailableError
+    SentimentResponse, AIScenario,
+    AIAuthenticationError, AIServiceError, AIProviderUnavailableError
 )
 
 logger = logging.getLogger(__name__)
@@ -230,16 +230,16 @@ class AgentAdapter(AIServiceInterface):
         
         # 应用场景映射
         self.scenario_app_mapping = {
-            AIScenario.CHAT: "chat",
-            AIScenario.PLAN_GENERATION: "beauty",
-            AIScenario.SUMMARY: "summary",
+            AIScenario.GENERAL_CHAT: "chat",
+            AIScenario.CUSTOMER_SERVICE: "chat",
+            AIScenario.MEDICAL_ADVICE: "chat",
             AIScenario.SENTIMENT_ANALYSIS: "sentiment"
         }
     
     async def chat(self, request: AIRequest) -> AIResponse:
         """聊天对话"""
         try:
-            app_config = self._select_app_for_scenario(AIScenario.CHAT)
+            app_config = self._select_app_for_scenario(AIScenario.GENERAL_CHAT)
             
             # 处理会话ID
             if request.conversation_id:
@@ -262,36 +262,6 @@ class AgentAdapter(AIServiceInterface):
             
         except Exception as e:
             logger.error(f"Agent chat error: {e}")
-            raise
-    
-    async def generate_plan(self, request: AIRequest) -> PlanResponse:
-        """生成方案"""
-        try:
-            app_config = self._select_app_for_scenario(AIScenario.PLAN_GENERATION)
-            
-            if request.user_id:
-                app_config.user_id = request.user_id
-            
-            response_data = await self.client.workflow_run(app_config, request)
-            return self._convert_plan_response(request, app_config, response_data)
-            
-        except Exception as e:
-            logger.error(f"Agent beauty plan error: {e}")
-            raise
-    
-    async def generate_summary(self, request: AIRequest) -> SummaryResponse:
-        """生成咨询总结"""
-        try:
-            app_config = self._select_app_for_scenario(AIScenario.SUMMARY)
-            
-            if request.user_id:
-                app_config.user_id = request.user_id
-            
-            response_data = await self.client.workflow_run(app_config, request)
-            return self._convert_summary_response(request, app_config, response_data)
-            
-        except Exception as e:
-            logger.error(f"Agent summary error: {e}")
             raise
     
     async def analyze_sentiment(self, request: AIRequest) -> SentimentResponse:
@@ -360,36 +330,6 @@ class AgentAdapter(AIServiceInterface):
                 "agent_app_id": app_config.app_id,
                 "agent_app_mode": app_config.app_mode,
                 "response_mode": app_config.response_mode
-            }
-        )
-    
-    def _convert_plan_response(
-        self, request: AIRequest, app_config: AgentAppConfig, response_data: Dict[str, Any]
-    ) -> PlanResponse:
-        """转换方案生成响应"""
-        return PlanResponse(
-            plan_content=response_data.get("answer", ""),
-            plan_type="beauty_treatment",
-            confidence_score=0.9,
-            metadata={
-                "provider": "agent",
-                "agent_app_id": app_config.app_id,
-                "agent_app_mode": app_config.app_mode
-            }
-        )
-    
-    def _convert_summary_response(
-        self, request: AIRequest, app_config: AgentAppConfig, response_data: Dict[str, Any]
-    ) -> SummaryResponse:
-        """转换总结响应"""
-        return SummaryResponse(
-            summary_content=response_data.get("answer", ""),
-            summary_type="consultation",
-            key_points=[],
-            metadata={
-                "provider": "agent",
-                "agent_app_id": app_config.app_id,
-                "agent_app_mode": app_config.app_mode
             }
         )
     

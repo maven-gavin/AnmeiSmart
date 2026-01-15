@@ -31,10 +31,8 @@ export default function UserInfoBar() {
   
   // 只在客户端根据用户角色设置标签
   if (isClient) {
-    if (currentUser?.currentRole === 'doctor') {
-      tags = ['皮肤科', '整形外科'];
-    } else if (currentUser?.currentRole === 'consultant') {
-      tags = ['顾问', '客户服务'];
+    if (currentUser?.currentRole === 'operator') {
+      tags = ['运营', '客户服务'];
     } else if (currentUser?.currentRole === 'customer') {
       tags = currentUser.id === '101' ? ['VIP客户'] : ['回头客'];
     } else if (currentUser?.currentRole === 'operator') {

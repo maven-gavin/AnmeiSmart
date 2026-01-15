@@ -18,7 +18,6 @@ import { MessageUtils } from '@/utils/messageUtils';
 import { apiClient } from '@/service/apiClient';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { saveMessage } from '@/service/chatService';
-import PlanGenerationButton from './PlanGenerationButton';
 import { ScreenshotCapture } from './ScreenshotCapture';
 import { Send, Smile, Image, Paperclip, Mic } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -51,9 +50,6 @@ export default function MessageInput({
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   
-  // 显示方案生成按钮的条件：对话对方是客户
-  const showPlanGeneration = !!conversationId && !!peerUserId && peerUserType === 'customer';
-
   // 录音相关状态
   const {
     isRecording,
@@ -741,20 +737,6 @@ export default function MessageInput({
               <Mic className="h-5 w-5" />
             </button>
             
-            {/* AI方案生成按钮 - 对话对方为客户时显示 */}
-            {showPlanGeneration && (
-              <PlanGenerationButton
-                conversationId={conversationId}
-                customerId={peerUserId ?? ''}
-                consultantId={user?.id || ''}
-                onPlanGenerated={(plan) => {
-                  console.log('方案生成完成:', plan);
-                  if (onUpdateMessages) {
-                    onUpdateMessages();
-                  }
-                }}
-              />
-            )}
           </div>
         </div>
 

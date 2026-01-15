@@ -45,24 +45,13 @@ class TaskService:
         if is_admin:
             # 管理员可以看到所有任务
             pass
-        elif user_role == "consultant":
-            # 顾问可以看到：1. 分配给自己的任务 2. 新用户接待类任务
+        elif user_role == "operator":
+            # 运营人员可以看到：1. 分配给自己的任务 2. 新用户接待类任务
             query = query.filter(
                 or_(
                     Task.assigned_to == user_id,
                     and_(
                         Task.task_type.in_(['new_user_reception']),
-                        Task.status == 'pending'
-                    )
-                )
-            )
-        elif user_role == "doctor":
-            # 医生可以看到：1. 分配给自己的任务 2. 医疗相关任务
-            query = query.filter(
-                or_(
-                    Task.assigned_to == user_id,
-                    and_(
-                        Task.task_type.in_(['prescription_review']),
                         Task.status == 'pending'
                     )
                 )

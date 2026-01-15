@@ -310,14 +310,14 @@ await broadcasting_service.broadcast_message(
     message_data={
         "id": "msg_456",
         "content": "你好，有什么可以帮助您的吗？",
-        "sender_id": "consultant_789",
+        "sender_id": "operator_789",
         "message_type": "text"
     },
-    exclude_user_id="consultant_789"  # 排除发送者
+    exclude_user_id="operator_789"  # 排除发送者
 )
 ```
 
-#### 顾问回复消息（优化推送策略）
+#### 运营人员回复消息（优化推送策略）
 
 ```python
 # 在线用户实时推送，离线用户推送通知
@@ -326,17 +326,17 @@ await broadcasting_service.broadcast_message(
     message_data={
         "id": "msg_789",
         "content": "根据您的需求，我推荐以下方案...",
-        "sender_id": "consultant_789",
+        "sender_id": "operator_789",
         "sender_type": "chat",
-        "sender_name": "张医生",
+        "sender_name": "王运营",
         "message_type": "text",
         "is_important": True,
         "extra_metadata": {
             "reply_type": "consultation",
-            "consultant_name": "张医生"
+            "operator_name": "王运营"
         }
     },
-    exclude_user_id="consultant_789"  # 排除发送者
+    exclude_user_id="operator_789"  # 排除发送者
 )
 ```
 
@@ -473,12 +473,12 @@ print(f"用户设备: {devices}")
 
 ```
 INFO  📱 推送通知 [mobile] [优先级: high]: customer_456
-INFO     标题: 顾问回复
+INFO     标题: 运营人员回复
 INFO     内容: 根据您的需求，我推荐以下方案...
 INFO     [数据: {'conversation_id': 'conv_123', 'action': 'open_conversation'}]
 
 DEBUG 移动端推送通知已排队: user_id=customer_456
-INFO  顾问回复广播完成: conversation_id=conv_123, consultant_id=consultant_789
+INFO  运营人员回复广播完成: conversation_id=conv_123, operator_id=operator_789
 ```
 
 ### 未来扩展
@@ -804,7 +804,7 @@ async def is_user_online(self, user_id: str) -> bool:
 
 ### 4. sender_type 枚举值简化（2025-11-27）
 
-**问题**：`sender_type` 枚举包含多个角色类型（customer、consultant、doctor等），但实际业务只需要区分智能聊天消息和系统消息。
+**问题**：`sender_type` 枚举包含多个角色类型（customer、operator等），但实际业务只需要区分智能聊天消息和系统消息。
 
 **解决方案**：
 
@@ -812,7 +812,7 @@ async def is_user_online(self, user_id: str) -> bool:
   - 所有智能聊天消息统一使用 `sender_type='chat'`
   - 系统消息使用 `sender_type='system'`
   - 移除了角色映射逻辑，简化了代码
-- **前端**：前端 `SenderType` 枚举仍保留多种类型（USER, CUSTOMER, CONSULTANT等），用于前端显示和类型检查，但发送到后端时会映射为 `'chat'` 或 `'system'`
+- **前端**：前端 `SenderType` 枚举仍保留多种类型（USER, CUSTOMER, OPERATOR等），用于前端显示和类型检查，但发送到后端时会映射为 `'chat'` 或 `'system'`
 
 **数据库迁移**：
 

@@ -29,8 +29,8 @@ async def get_customers(
 ):
     """获取客户列表（企业内部用户使用）"""
     try:
-        # 检查权限，只有顾问、医生、管理员等可以访问
-        if not await check_customer_permission(current_user, ['consultant', 'doctor', 'admin', 'operator']):
+        # 检查权限，只有运营人员、管理员等可以访问
+        if not await check_customer_permission(current_user, ['admin', 'operator']):
             raise HTTPException(status_code=403, detail="无权访问客户列表")
         
         # 调用服务
@@ -53,7 +53,7 @@ async def get_customer(
     """获取客户详细信息"""
     try:
         # 检查权限
-        if not await check_customer_permission(current_user, ['consultant', 'doctor', 'admin', 'operator']) and current_user.id != customer_id:
+        if not await check_customer_permission(current_user, ['admin', 'operator']) and current_user.id != customer_id:
             raise HTTPException(status_code=403, detail="无权访问此客户信息")
         
         # 调用服务
@@ -81,7 +81,7 @@ async def get_customer_profile(
     """获取客户档案信息"""
     try:
         # 检查权限
-        if not await check_customer_permission(current_user, ['consultant', 'doctor', 'admin', 'operator']) and current_user.id != customer_id:
+        if not await check_customer_permission(current_user, ['admin', 'operator']) and current_user.id != customer_id:
             raise HTTPException(status_code=403, detail="无权访问客户档案")
         
         # 调用服务
@@ -110,7 +110,7 @@ async def create_customer_profile(
     """创建客户档案"""
     try:
         # 检查权限
-        if not await check_customer_permission(current_user, ['consultant', 'doctor', 'admin', 'operator']) and current_user.id != customer_id:
+        if not await check_customer_permission(current_user, ['admin', 'operator']) and current_user.id != customer_id:
             raise HTTPException(status_code=403, detail="无权创建客户档案")
         
         # 调用服务
@@ -136,7 +136,7 @@ async def update_customer_profile(
     """更新客户档案"""
     try:
         # 检查权限
-        if not await check_customer_permission(current_user, ['consultant', 'doctor', 'admin', 'operator']) and current_user.id != customer_id:
+        if not await check_customer_permission(current_user, ['admin', 'operator']) and current_user.id != customer_id:
             raise HTTPException(status_code=403, detail="无权更新客户档案")
         
         # 调用服务

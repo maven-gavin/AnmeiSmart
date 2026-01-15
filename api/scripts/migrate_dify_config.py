@@ -36,15 +36,13 @@ def migrate_env_to_db():
         # 获取环境变量配置
         base_url = settings.AGENT_API_BASE_URL
         chat_api_key = settings.AGENT_CHAT_API_KEY
-        beauty_api_key = settings.AGENT_BEAUTY_API_KEY
         summary_api_key = settings.AGENT_SUMMARY_API_KEY
         
         # 检查是否有有效的配置
-        if not any([chat_api_key, beauty_api_key, summary_api_key]):
+        if not any([chat_api_key, summary_api_key]):
             print("❌ 环境变量中没有找到有效的Agent API Key")
             print("   请先配置以下环境变量：")
             print("   - AGENT_CHAT_API_KEY")
-            print("   - AGENT_BEAUTY_API_KEY") 
             print("   - AGENT_SUMMARY_API_KEY")
             return
         
@@ -63,11 +61,6 @@ def migrate_env_to_db():
             new_config.chat_app_id = "agent-chat-app"
             new_config.chat_api_key = chat_api_key
             print(f"✅ 迁移聊天应用配置")
-        
-        if beauty_api_key:
-            new_config.beauty_app_id = "agent-beauty-agent"
-            new_config.beauty_api_key = beauty_api_key
-            print(f"✅ 迁移方案专家配置")
         
         if summary_api_key:
             new_config.summary_app_id = "agent-summary-workflow"
@@ -120,7 +113,6 @@ def create_sample_config():
             base_url="http://localhost/v1",
             description="这是一个示例配置，请在管理界面中修改为实际的API Key",
             chat_app_id="agent-chat-app",
-            beauty_app_id="agent-beauty-agent",
             summary_app_id="agent-summary-workflow",
             enabled=False,  # 默认禁用
             timeout_seconds=30,
@@ -159,5 +151,4 @@ if __name__ == "__main__":
     
     print("\n📝 后续步骤：")
     print("1. 访问 http://localhost:3000/admin/settings 管理Agent配置")
-    print("2. 配置完成后，AI辅助方案生成功能将使用真实的Agent服务")
-    print("3. 无需重启服务，配置更改立即生效") 
+    print("2. 无需重启服务，配置更改立即生效")

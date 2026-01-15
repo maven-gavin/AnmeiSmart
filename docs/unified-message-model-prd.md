@@ -10,9 +10,9 @@
     "conversation_id": "conv_xxxxxxxx",
     "sender": { // 发送者信息可以保留，因为角色会变
         "id": "usr_a7737b435f4f4bd0b7525f47df5fdcb4",
-        "name": "张医生",
-        "avatar": "/avatars/doctor1.png",
-        "type": "consultant" // 发送此消息时的身份
+        "name": "王运营",
+        "avatar": "/avatars/operator1.png",
+        "type": "operator" // 发送此消息时的身份
     },
     "type": "text", // 消息的主类型: text, media, system
     "content": { // 将内容封装成一个对象
@@ -38,9 +38,9 @@
     "conversation_id": "conv_xxxxxxxx",
     "sender": { // 发送者信息可以保留，因为角色会变
         "id": "usr_a7737b435f4f4bd0b7525f47df5fdcb4",
-        "name": "张医生",
-        "avatar": "/avatars/doctor1.png",
-        "type": "consultant" // 发送此消息时的身份
+        "name": "王运营",
+        "avatar": "/avatars/operator1.png",
+        "type": "operator" // 发送此消息时的身份
     },
     "type": "media", // 统一为 media 类型
     "content": {
@@ -74,7 +74,7 @@
 - **原子性**：一次用户操作（如上传带文字的图片）只对应一条消息，解决了数据冗余问题。
 - **可扩展性**：
   - 未来可以轻松增加新的媒体类型（如 `video`, `audio`），只需在 `media_info` 中增加相应字段（如 `duration`）。
-  - 可以增加新的主类型，如 `type: "system"` 用于系统通知（"张医生已加入会话"），或 `type: "structured"` 用于卡片式消息（如预约确认卡）。
+- 可以增加新的主类型，如 `type: "system"` 用于系统通知（"运营人员已加入会话"），或 `type: "structured"` 用于卡片式消息（如预约确认卡）。
 
 #### 为未来功能做准备
 
@@ -164,7 +164,7 @@
 这是一个非常关键的区别点：**视频聊天不是“消息”，而是一个“事件”**。
 
 * **消息**（Message）：是异步的、有内容的记录。比如一段文字、一个文件。
-* **事件**（Event）：是会话中发生的状态变化或特定行为。比如“张医生发起了视频通话”、“通话被拒绝”、“通话结束，时长5分3秒”。
+* **事件**（Event）：是会话中发生的状态变化或特定行为。比如“运营人员发起了视频通话”、“通话被拒绝”、“通话结束，时长5分3秒”。
 
 试图将“事件”强行塞进为“消息”设计的模型中，会破坏其结构。幸运的是，我们的模型早已为此做好了准备！这就是 `type: "system"` 的用武之地。
 

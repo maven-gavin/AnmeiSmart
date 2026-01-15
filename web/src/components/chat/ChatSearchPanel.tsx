@@ -354,7 +354,6 @@ export function ChatSearchPanel({
                 <option value="all">全部</option>
                 <option value="user">用户</option>
                 <option value="ai">AI助手</option>
-                <option value="consultant">顾问</option>
               </select>
             </div>
           </div>

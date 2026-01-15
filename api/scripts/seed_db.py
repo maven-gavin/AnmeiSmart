@@ -22,12 +22,12 @@ from pathlib import Path
 
 try:
     from sqlalchemy.orm import Session
-    from app.identity_access.models.user import User, Role, Doctor, Consultant, Operator, Administrator
+    from app.identity_access.models.user import User, Role, Operator, Administrator
     from app.identity_access.enums import AdminLevel
     from app.customer.models.customer import Customer, CustomerProfile
     from app.db.base import get_db, engine
     # from app.services import user_service as crud_user  # 已重构为DDD架构，不再需要
-    from app.identity_access.schemas.user import UserCreate, DoctorBase, ConsultantBase, OperatorBase, AdministratorBase
+    from app.identity_access.schemas.user import UserCreate, OperatorBase, AdministratorBase
     from app.customer.schemas.customer import CustomerBase
     from app.db.uuid_utils import (
         user_id, role_id, conversation_id, message_id, profile_id, system_id, model_id
@@ -43,39 +43,6 @@ logger = logging.getLogger(__name__)
 
 # 示例测试用户数据 - 确保ID格式一致
 MOCK_USERS = [
-    # 医生示例数据
-    {
-        "id": user_id(),  # 使用函数生成统一格式的ID
-        "email": "zhang@example.com",
-        "username": "张医生",
-        "password": "123456@Test",
-        "roles": ["doctor", "consultant"],
-        "phone": "13800138001",
-        "avatar": "/avatars/doctor1.png",
-        "doctor_info": DoctorBase(
-            specialization="整形外科",
-            certification="医师资格证",
-            license_number="DOC123456"
-        ),
-        "consultant_info": ConsultantBase(
-            expertise="面部整形咨询",
-            performance_metrics="高级顾问"
-        )
-    },
-    # 顾问示例数据
-    {
-        "id": user_id(),  # 使用函数生成统一格式的ID
-        "email": "li@example.com",
-        "username": "李顾问",
-        "password": "123456@Test",
-        "roles": ["consultant"],
-        "phone": "13900139001",
-        "avatar": "/avatars/consultant1.png",
-        "consultant_info": ConsultantBase(
-            expertise="皮肤护理",
-            performance_metrics="资深顾问"
-        )
-    },
     # 运营示例数据
     {
         "id": user_id(),  # 使用函数生成统一格式的ID
@@ -143,7 +110,7 @@ def check_extension_tables_exist():
     inspector = inspect(engine)
     tables = inspector.get_table_names()
     required_tables = [
-        "users", "roles", "user_roles", "customers", "doctors", "consultants", 
+        "users", "roles", "user_roles", "customers", 
         "operators", "administrators", "system_settings"
     ]
     
@@ -173,8 +140,6 @@ async def create_mock_users(db: Session, force_update: bool = False) -> Dict[str
         # 提取角色和扩展信息
         user_id_value = user_data.pop("id", None) or user_id()
         roles = user_data.get("roles", ["customer"])
-        doctor_info = user_data.pop("doctor_info", None)
-        consultant_info = user_data.pop("consultant_info", None)
         customer_info = user_data.pop("customer_info", None)
         operator_info = user_data.pop("operator_info", None)
         administrator_info = user_data.pop("administrator_info", None)
@@ -214,7 +179,7 @@ async def create_mock_users(db: Session, force_update: bool = False) -> Dict[str
         # 添加扩展信息
         await update_user_extended_info(
             db, user, 
-            doctor_info, consultant_info, customer_info, 
+            customer_info, 
             operator_info, administrator_info,
             force_update
         )
@@ -228,8 +193,6 @@ async def create_mock_users(db: Session, force_update: bool = False) -> Dict[str
 async def update_user_extended_info(
     db: Session, 
     user: User, 
-    doctor_info: Optional[DoctorBase] = None,
-    consultant_info: Optional[ConsultantBase] = None,
     customer_info: Optional[CustomerBase] = None,
     operator_info: Optional[OperatorBase] = None,
     administrator_info: Optional[AdministratorBase] = None,
@@ -240,8 +203,6 @@ async def update_user_extended_info(
     Args:
         db: 数据库会话
         user: 用户对象
-        doctor_info: 医生信息
-        consultant_info: 顾问信息
         customer_info: 客户信息
         operator_info: 运营人员信息
         administrator_info: 管理员信息
@@ -258,34 +219,6 @@ async def update_user_extended_info(
         else:
             roles = []
     
-    # 更新医生信息
-    if "doctor" in roles and doctor_info and (not user.doctor or force_update):
-        if not user.doctor:
-            doctor = Doctor(user_id=user.id)
-            db.add(doctor)
-            logger.info(f"  - 添加医生扩展信息")
-        else:
-            doctor = user.doctor
-            logger.info(f"  - 更新医生扩展信息")
-            
-        for key, value in doctor_info.model_dump().items():
-            if value is not None:
-                setattr(doctor, key, value)
-        
-    # 更新顾问信息
-    if "consultant" in roles and consultant_info and (not user.consultant or force_update):
-        if not user.consultant:
-            consultant = Consultant(user_id=user.id)
-            db.add(consultant)
-            logger.info(f"  - 添加顾问扩展信息")
-        else:
-            consultant = user.consultant
-            logger.info(f"  - 更新顾问扩展信息")
-            
-        for key, value in consultant_info.model_dump().items():
-            if value is not None:
-                setattr(consultant, key, value)
-        
     # 更新客户信息
     if "customer" in roles and customer_info:
         # 使用单独的函数处理客户信息
@@ -382,15 +315,9 @@ async def create_test_conversations(db: Session) -> None:
     # 获取AI助手ID - 使用统一的ID生成方式
     ai_id = user_id()
     
-    # 获取顾问
-    consultant = db.query(User).filter(User.email == "li@example.com").first()
-    
     if not customer1 or not customer2:
         logger.warning("找不到测试客户用户，跳过创建会话数据")
         return
-    
-    if not consultant:
-        logger.warning("找不到顾问用户，跳过创建含顾问的消息")
     
     # 创建AI用户（如果不存在）
     ai_user = db.query(User).filter(User.username == "AI助手").first()
@@ -692,48 +619,6 @@ async def create_test_conversations(db: Session) -> None:
                 "timestamp": datetime.now() - timedelta(days=1, hours=3, minutes=4)
             }
         ]
-        
-        # 仅当顾问存在时添加顾问消息
-        if consultant:
-            messages2.append({
-                "sender_id": consultant.id,
-                "sender_type": "consultant",
-                "content": {"text": "您好！我是李顾问，很高兴为您提供更专业的咨询服务。注意到您对瘦脸针很感兴趣，我们医疗中心近期有瘦脸针优惠活动，可以为您提供个性化方案和价格咨询。如果您有意向，可以预约面诊，我将亲自为您服务。"},
-                "type": "text",
-                "timestamp": datetime.now() - timedelta(days=1, hours=2)
-            })
-            
-            messages2.append({
-                "sender_id": customer2.id,
-                "sender_type": "customer",
-                "content": {"text": "谢谢顾问，我想再多了解一下，瘦脸针和瘦脸导入哪个效果更好呢？"},
-                "type": "text",
-                "timestamp": datetime.now() - timedelta(days=1, hours=1)
-            })
-            
-            messages2.append({
-                "sender_id": ai_id,
-                "sender_type": "ai",
-                "content": {"text": "瘦脸针与瘦脸导入的比较：\n\n瘦脸针(肉毒素注射)：\n- 原理：通过肌肉松弛达到瘦脸效果\n- 适用人群：咬肌发达者\n- 见效时间：7-14天开始见效\n- 持久性：4-6个月\n- 优势：效果明显，过程快速\n- 风险：需要专业医生操作\n\n瘦脸导入(电离子导入)：\n- 原理：通过电流促进活性成分吸收\n- 适用人群：轻度浮肿、想保养的人群\n- 见效时间：需多次治疗累积\n- 持久性：需持续保养\n- 优势：无创、舒适、风险低\n- 风险：效果相对温和\n\n选择建议：\n- 咬肌发达选择瘦脸针\n- 轻度改善选择导入技术\n- 最佳效果可考虑组合使用\n\n建议您与专业医生面诊评估，根据您的脸型特点选择最适合的方案。"},
-                "type": "text",
-                "timestamp": datetime.now() - timedelta(days=1, hours=1, minutes=1)
-            })
-            
-            messages2.append({
-                "sender_id": consultant.id,
-                "sender_type": "consultant",
-                "content": {
-                    "system_event_type": "takeover",
-                    "status": "completed",
-                    "details": {
-                        "from": "ai",
-                        "to": "consultant",
-                        "reason": "客户需要专业咨询服务"
-                    }
-                },
-                "type": "system",
-                "timestamp": datetime.now() - timedelta(days=1, hours=2, minutes=1)
-            })
         
         for msg_data in messages2:
             msg = Message(

@@ -23,8 +23,6 @@
 users ←→ user_roles ←→ roles
   ↓
   ├── customers
-  ├── doctors  
-  ├── consultants
   ├── operators
   ├── administrators
   └── digital_humans
@@ -38,11 +36,6 @@ conversations ←→ messages ←→ message_attachments
 friendships ←→ friendship_tags ←→ contact_tags
   ↓
   └── contact_groups ←→ contact_group_members
-
-方案生成模块:
-plan_generation_sessions ←→ plan_drafts
-  ↓
-  └── info_completeness
 
 系统配置模块:
 system_settings ←→ ai_model_configs
@@ -64,10 +57,9 @@ user_preferences
 user_default_roles
 login_history
 
-顾问业务模块:
+运营业务模块:
 project_types
 simulation_images
-personalized_plans ←→ plan_versions
 project_templates
 customer_preferences
 ```
@@ -125,41 +117,6 @@ customer_preferences
 - PRIMARY KEY (user_id, role_id)
 - FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 - FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
-
-#### 1.4 医生扩展表 (doctors)
-
-| 字段名         | 数据类型    | 约束                 | 默认值            | 说明     |
-| -------------- | ----------- | -------------------- | ----------------- | -------- |
-| id             | VARCHAR(36) | PRIMARY KEY          | -                 | 记录ID   |
-| user_id        | VARCHAR(36) | UNIQUE, FK, NOT NULL | -                 | 用户ID   |
-| specialization | VARCHAR     | NULL                 | -                 | 专科方向 |
-| certification  | VARCHAR     | NULL                 | -                 | 资格证书 |
-| license_number | VARCHAR     | NULL                 | -                 | 执业证号 |
-| created_at     | TIMESTAMP   | NOT NULL             | CURRENT_TIMESTAMP | 创建时间 |
-| updated_at     | TIMESTAMP   | NOT NULL             | CURRENT_TIMESTAMP | 更新时间 |
-
-**索引：**
-
-- PRIMARY KEY (id)
-- UNIQUE INDEX (user_id)
-- FOREIGN KEY (user_id) REFERENCES users(id)
-
-#### 1.5 顾问扩展表 (consultants)
-
-| 字段名              | 数据类型    | 约束                 | 默认值            | 说明     |
-| ------------------- | ----------- | -------------------- | ----------------- | -------- |
-| id                  | VARCHAR(36) | PRIMARY KEY          | -                 | 记录ID   |
-| user_id             | VARCHAR(36) | UNIQUE, FK, NOT NULL | -                 | 用户ID   |
-| expertise           | VARCHAR     | NULL                 | -                 | 专长领域 |
-| performance_metrics | TEXT        | NULL                 | -                 | 业绩指标 |
-| created_at          | TIMESTAMP   | NOT NULL             | CURRENT_TIMESTAMP | 创建时间 |
-| updated_at          | TIMESTAMP   | NOT NULL             | CURRENT_TIMESTAMP | 更新时间 |
-
-**索引：**
-
-- PRIMARY KEY (id)
-- UNIQUE INDEX (user_id)
-- FOREIGN KEY (user_id) REFERENCES users(id)
 
 #### 1.6 运营人员扩展表 (operators)
 
@@ -424,92 +381,6 @@ customer_preferences
 - UNIQUE INDEX (upload_id, chunk_index)
 - FOREIGN KEY (upload_id) REFERENCES upload_sessions(upload_id)
 
-### 7. 方案生成模块
-
-#### 5.1 方案生成会话表 (plan_generation_sessions)
-
-| 字段名              | 数据类型    | 约束         | 默认值            | 说明                     |
-| ------------------- | ----------- | ------------ | ----------------- | ------------------------ |
-| id                  | VARCHAR(36) | PRIMARY KEY  | -                 | 会话ID                   |
-| conversation_id     | VARCHAR(36) | FK, NOT NULL | -                 | 关联的对话会话ID         |
-| customer_id         | VARCHAR(36) | FK, NOT NULL | -                 | 客户ID                   |
-| consultant_id       | VARCHAR(36) | FK, NOT NULL | -                 | 顾问ID                   |
-| status              | ENUM        | NOT NULL     | 'collecting'      | 会话状态                 |
-| required_info       | JSON        | NOT NULL     | -                 | 必需信息清单             |
-| extracted_info      | JSON        | NULL         | -                 | 从对话中提取的结构化信息 |
-| interaction_history | JSON        | NULL         | -                 | 人机交互历史记录         |
-| session_metadata    | JSON        | NULL         | -                 | 会话元数据               |
-| performance_metrics | JSON        | NULL         | -                 | 性能指标                 |
-| created_at          | TIMESTAMP   | NOT NULL     | CURRENT_TIMESTAMP | 创建时间                 |
-| updated_at          | TIMESTAMP   | NOT NULL     | CURRENT_TIMESTAMP | 更新时间                 |
-
-**索引：**
-
-- PRIMARY KEY (id)
-- INDEX (conversation_id)
-- INDEX (customer_id)
-- INDEX (consultant_id)
-- INDEX (status)
-- FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
-- FOREIGN KEY (customer_id) REFERENCES users(id)
-- FOREIGN KEY (consultant_id) REFERENCES users(id)
-
-#### 5.2 方案草稿表 (plan_drafts)
-
-| 字段名          | 数据类型    | 约束         | 默认值            | 说明                 |
-| --------------- | ----------- | ------------ | ----------------- | -------------------- |
-| id              | VARCHAR(36) | PRIMARY KEY  | -                 | 草稿ID               |
-| session_id      | VARCHAR(36) | FK, NOT NULL | -                 | 关联的方案生成会话ID |
-| version         | INTEGER     | NOT NULL     | 1                 | 版本号               |
-| parent_version  | INTEGER     | NULL         | -                 | 父版本号             |
-| status          | ENUM        | NOT NULL     | 'draft'           | 草稿状态             |
-| content         | JSON        | NOT NULL     | -                 | 结构化的方案内容     |
-| feedback        | JSON        | NULL         | -                 | 反馈意见             |
-| improvements    | JSON        | NULL         | -                 | 改进记录             |
-| generation_info | JSON        | NULL         | -                 | 生成信息             |
-| created_at      | TIMESTAMP   | NOT NULL     | CURRENT_TIMESTAMP | 创建时间             |
-| updated_at      | TIMESTAMP   | NOT NULL     | CURRENT_TIMESTAMP | 更新时间             |
-
-**索引：**
-
-- PRIMARY KEY (id)
-- INDEX (session_id)
-- INDEX (status)
-- FOREIGN KEY (session_id) REFERENCES plan_generation_sessions(id) ON DELETE CASCADE
-
-#### 5.3 信息完整性表 (info_completeness)
-
-| 字段名                 | 数据类型    | 约束                 | 默认值            | 说明                 |
-| ---------------------- | ----------- | -------------------- | ----------------- | -------------------- |
-| id                     | VARCHAR(36) | PRIMARY KEY          | -                 | 记录ID               |
-| session_id             | VARCHAR(36) | FK, UNIQUE, NOT NULL | -                 | 关联的方案生成会话ID |
-| basic_info_status      | ENUM        | NOT NULL             | 'missing'         | 基础信息状态         |
-| basic_info_score       | FLOAT       | NOT NULL             | 0.0               | 基础信息完整度评分   |
-| concerns_status        | ENUM        | NOT NULL             | 'missing'         | 关注点信息状态       |
-| concerns_score         | FLOAT       | NOT NULL             | 0.0               | 关注点完整度评分     |
-| budget_status          | ENUM        | NOT NULL             | 'missing'         | 预算信息状态         |
-| budget_score           | FLOAT       | NOT NULL             | 0.0               | 预算完整度评分       |
-| timeline_status        | ENUM        | NOT NULL             | 'missing'         | 时间安排状态         |
-| timeline_score         | FLOAT       | NOT NULL             | 0.0               | 时间安排完整度评分   |
-| medical_history_status | ENUM        | NOT NULL             | 'missing'         | 病史信息状态         |
-| medical_history_score  | FLOAT       | NOT NULL             | 0.0               | 病史完整度评分       |
-| expectations_status    | ENUM        | NOT NULL             | 'missing'         | 期望信息状态         |
-| expectations_score     | FLOAT       | NOT NULL             | 0.0               | 期望完整度评分       |
-| completeness_score     | FLOAT       | NOT NULL             | 0.0               | 总体完整度评分       |
-| missing_fields         | JSON        | NULL                 | -                 | 缺失信息详情         |
-| guidance_questions     | JSON        | NULL                 | -                 | AI生成的引导问题     |
-| suggestions            | JSON        | NULL                 | -                 | 改进建议             |
-| last_analysis_at       | TIMESTAMP   | NOT NULL             | CURRENT_TIMESTAMP | 最后分析时间         |
-| analysis_version       | INTEGER     | NOT NULL             | 1                 | 分析版本号           |
-| created_at             | TIMESTAMP   | NOT NULL             | CURRENT_TIMESTAMP | 创建时间             |
-| updated_at             | TIMESTAMP   | NOT NULL             | CURRENT_TIMESTAMP | 更新时间             |
-
-**索引：**
-
-- PRIMARY KEY (id)
-- UNIQUE INDEX (session_id)
-- FOREIGN KEY (session_id) REFERENCES plan_generation_sessions(id) ON DELETE CASCADE
-
 ### 6. 系统配置模块
 
 #### 6.1 系统设置表 (system_settings)
@@ -708,7 +579,7 @@ customer_preferences
 - INDEX (login_time)
 - FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 
-### 10. 顾问业务模块
+### 10. 运营业务模块
 
 #### 10.1 项目类型表 (project_types)
 
@@ -741,7 +612,7 @@ customer_preferences
 | project_type_id      | VARCHAR(36)  | FK, NOT NULL | -                 | 项目类型ID           |
 | parameters           | JSON         | NULL         | -                 | 模拟参数（JSON格式） |
 | notes                | TEXT         | NULL         | -                 | 备注                 |
-| consultant_id        | VARCHAR(36)  | FK, NOT NULL | -                 | 顾问ID               |
+| operator_id          | VARCHAR(36)  | FK, NOT NULL | -                 | 运营人员ID           |
 | created_at           | TIMESTAMP    | NOT NULL     | CURRENT_TIMESTAMP | 创建时间             |
 | updated_at           | TIMESTAMP    | NOT NULL     | CURRENT_TIMESTAMP | 更新时间             |
 
@@ -750,58 +621,12 @@ customer_preferences
 - PRIMARY KEY (id)
 - INDEX (customer_id)
 - INDEX (project_type_id)
-- INDEX (consultant_id)
+- INDEX (operator_id)
 - FOREIGN KEY (customer_id) REFERENCES customers(user_id)
 - FOREIGN KEY (project_type_id) REFERENCES project_types(id)
-- FOREIGN KEY (consultant_id) REFERENCES consultants(user_id)
+- FOREIGN KEY (operator_id) REFERENCES users(id)
 
-#### 10.3 个性化方案表 (personalized_plans)
-
-| 字段名              | 数据类型     | 约束         | 默认值            | 说明                     |
-| ------------------- | ------------ | ------------ | ----------------- | ------------------------ |
-| id                  | VARCHAR(36)  | PRIMARY KEY  | -                 | 方案ID                   |
-| customer_id         | VARCHAR(36)  | FK, NOT NULL | -                 | 客户ID                   |
-| customer_name       | VARCHAR(100) | NOT NULL     | -                 | 客户姓名                 |
-| consultant_id       | VARCHAR(36)  | FK, NOT NULL | -                 | 顾问ID                   |
-| consultant_name     | VARCHAR(100) | NOT NULL     | -                 | 顾问姓名                 |
-| customer_profile    | JSON         | NULL         | -                 | 客户画像信息（JSON格式） |
-| projects            | JSON         | NOT NULL     | -                 | 推荐项目列表（JSON格式） |
-| total_cost          | FLOAT        | NOT NULL     | 0.0               | 总费用                   |
-| estimated_timeframe | VARCHAR(100) | NULL         | -                 | 预计时间框架             |
-| status              | ENUM         | NOT NULL     | 'DRAFT'           | 方案状态                 |
-| notes               | TEXT         | NULL         | -                 | 方案备注                 |
-| created_at          | TIMESTAMP    | NOT NULL     | CURRENT_TIMESTAMP | 创建时间                 |
-| updated_at          | TIMESTAMP    | NOT NULL     | CURRENT_TIMESTAMP | 更新时间                 |
-
-**索引：**
-
-- PRIMARY KEY (id)
-- INDEX (customer_id)
-- INDEX (consultant_id)
-- INDEX (status)
-- FOREIGN KEY (customer_id) REFERENCES customers(user_id)
-- FOREIGN KEY (consultant_id) REFERENCES consultants(user_id)
-
-#### 10.4 方案版本表 (plan_versions)
-
-| 字段名         | 数据类型    | 约束         | 默认值            | 说明                     |
-| -------------- | ----------- | ------------ | ----------------- | ------------------------ |
-| id             | VARCHAR(36) | PRIMARY KEY  | -                 | 版本ID                   |
-| plan_id        | VARCHAR(36) | FK, NOT NULL | -                 | 方案ID                   |
-| version_number | INTEGER     | NOT NULL     | -                 | 版本号                   |
-| projects       | JSON        | NOT NULL     | -                 | 项目列表快照（JSON格式） |
-| total_cost     | FLOAT       | NOT NULL     | -                 | 总费用快照               |
-| notes          | TEXT        | NULL         | -                 | 版本备注                 |
-| created_at     | TIMESTAMP   | NOT NULL     | CURRENT_TIMESTAMP | 创建时间                 |
-| updated_at     | TIMESTAMP   | NOT NULL     | CURRENT_TIMESTAMP | 更新时间                 |
-
-**索引：**
-
-- PRIMARY KEY (id)
-- INDEX (plan_id)
-- FOREIGN KEY (plan_id) REFERENCES personalized_plans(id)
-
-#### 10.5 项目模板表 (project_templates)
+#### 10.3 项目模板表 (project_templates)
 
 | 字段名            | 数据类型     | 约束        | 默认值            | 说明                     |
 | ----------------- | ------------ | ----------- | ----------------- | ------------------------ |
@@ -860,8 +685,7 @@ customer_preferences
 ### 发送者类型枚举 (sender_type)
 
 - `customer`: 客户
-- `consultant`: 顾问
-- `doctor`: 医生
+- `operator`: 运营人员
 - `system`: 系统
 - `digital_human`: 数字人
 
@@ -872,24 +696,6 @@ customer_preferences
 - `emergency`: 紧急咨询
 - `specialized`: 专项咨询
 - `other`: 其他
-
-### 方案生成会话状态枚举 (plan_session_status)
-
-- `collecting`: 收集中
-- `generating`: 生成中
-- `optimizing`: 优化中
-- `reviewing`: 审核中
-- `completed`: 已完成
-- `failed`: 失败
-- `cancelled`: 已取消
-
-### 方案草稿状态枚举 (plan_draft_status)
-
-- `draft`: 草稿
-- `reviewing`: 审核中
-- `approved`: 已确认
-- `rejected`: 已拒绝
-- `archived`: 已归档
 
 ### 信息状态枚举 (info_status)
 
@@ -980,7 +786,6 @@ customer_preferences
 
 ### 3. 版本控制
 
-- 方案版本管理
 - 数据迁移支持
 - 兼容性维护
 

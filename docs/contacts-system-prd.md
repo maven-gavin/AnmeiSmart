@@ -13,9 +13,8 @@
 - **合规安全保障**：满足行业的合规要求，保障用户隐私和数据安全
 
 ### 1.3 目标用户
-- **医生用户**：管理患者、同行、合作伙伴关系
-- **顾问用户**：管理客户、医生、供应商关系  
-- **客户用户**：管理医生、顾问、朋友关系
+- **运营人员**：管理客户、供应商、合作伙伴关系
+- **客户用户**：管理运营人员、朋友关系
 - **管理员**：监督和管理系统内的用户关系网络
 
 ## 2. 领域模型设计
@@ -358,14 +357,14 @@ sequenceDiagram
 
 ```javascript
 const SYSTEM_TAG_CATEGORIES = {
-  medical: {
-    name: "医疗相关",
+  organization: {
+    name: "组织关系",
     tags: [
-      { name: "医生", color: "#059669", icon: "stethoscope" },
-      { name: "顾问", color: "#0891B2", icon: "user-tie" },
-      { name: "护士", color: "#DB2777", icon: "heart" },
-      { name: "专家", color: "#DC2626", icon: "award" },
-      { name: "同行", color: "#7C3AED", icon: "users" }
+      { name: "运营人员", color: "#0891B2", icon: "user-tie" },
+      { name: "客户服务", color: "#10B981", icon: "headset" },
+      { name: "同事", color: "#3B82F6", icon: "users" },
+      { name: "供应商", color: "#7C3AED", icon: "truck" },
+      { name: "合作伙伴", color: "#10B981", icon: "handshake" }
     ]
   },
   business: {
@@ -499,12 +498,12 @@ const SYSTEM_TAG_CATEGORIES = {
 │   ├── 自定义分组
 │   │   ├── 📋 客户群体 (89)
 │   │   ├── 👥 同事朋友 (45)
-│   │   ├── 🏥 医疗网络 (67)
+│   │   ├── 🤝 业务网络 (67)
 │   │   └── ➕ 创建分组
 │   ├── 标签筛选
 │   │   ├── 🏷️ 客户 (89)
-│   │   ├── 🏷️ 医生 (23)
-│   │   ├── 🏷️ 顾问 (34)
+│   │   ├── 🏷️ 运营人员 (23)
+│   │   ├── 🏷️ 客户服务 (34)
 │   │   └── 🏷️ 管理标签
 │   └── 设置选项
 │       ├── ⚙️ 隐私设置
@@ -1481,41 +1480,39 @@ class ContactAccessControl:
 
 ### 8.2 合规要求
 
-#### 8.2.1 医患关系管理
+#### 8.2.1 关系合规管理
 ```python
-class MedicalComplianceService:
-    """医疗合规服务"""
+class RelationshipComplianceService:
+    """关系合规服务"""
     
-    async def validate_medical_relationship(
+    async def validate_relationship(
         self, 
-        doctor_id: str, 
-        patient_id: str,
+        operator_id: str, 
+        customer_id: str,
         db: Session
     ) -> bool:
-        """验证医患关系的合规性"""
-        # 检查医生资质
-        doctor = await self._get_user_with_role(doctor_id, "doctor", db)
-        if not doctor or not doctor.doctor.is_licensed:
+        """验证运营人员与客户关系的合规性"""
+        operator = await self._get_user_with_role(operator_id, "operator", db)
+        if not operator:
             return False
         
-        # 检查患者同意
-        consent = await self._get_patient_consent(patient_id, doctor_id, db)
+        consent = await self._get_customer_consent(customer_id, operator_id, db)
         if not consent or not consent.is_active:
             return False
         
         return True
     
-    async def create_medical_relationship_audit(
+    async def create_relationship_audit(
         self,
-        doctor_id: str,
-        patient_id: str,
+        operator_id: str,
+        customer_id: str,
         action: str,
         db: Session
     ):
-        """创建医患关系审计记录"""
-        audit_record = MedicalRelationshipAudit(
-            doctor_id=doctor_id,
-            patient_id=patient_id,
+        """创建关系审计记录"""
+        audit_record = RelationshipAudit(
+            operator_id=operator_id,
+            customer_id=customer_id,
             action=action,
             timestamp=datetime.now(),
             ip_address=get_client_ip(),

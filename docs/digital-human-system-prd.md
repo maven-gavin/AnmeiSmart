@@ -379,7 +379,7 @@ class Message(BaseModel):
     sender_id = Column(String(36), ForeignKey("users.id"), nullable=True, comment="发送者用户ID")
     sender_digital_human_id = Column(String(36), ForeignKey("digital_humans.id"), nullable=True, 
                                     comment="发送者数字人ID")
-    sender_type = Column(Enum("customer", "consultant", "doctor", "system", "digital_human", name="sender_type"), 
+    sender_type = Column(Enum("customer", "operator", "system", "digital_human", name="sender_type"), 
                          nullable=False, comment="发送者类型")
     
     # 消息状态
@@ -415,7 +415,7 @@ class ConsultationRecord(BaseModel):
     __table_args__ = (
         Index('idx_consultation_conversation', 'conversation_id'),
         Index('idx_consultation_customer', 'customer_id'),
-        Index('idx_consultation_consultant', 'consultant_id'),
+        Index('idx_consultation_operator', 'operator_id'),
         Index('idx_consultation_type', 'consultation_type'),
         {"comment": "咨询记录表，记录每次咨询的详细信息"}
     )
@@ -425,7 +425,7 @@ class ConsultationRecord(BaseModel):
     
     # 参与人员
     customer_id = Column(String(36), ForeignKey("users.id"), nullable=False, comment="客户ID")
-    consultant_id = Column(String(36), ForeignKey("users.id"), nullable=True, comment="顾问ID")
+    operator_id = Column(String(36), ForeignKey("users.id"), nullable=True, comment="运营人员ID")
     digital_human_id = Column(String(36), ForeignKey("digital_humans.id"), nullable=True, comment="数字人ID")
     
     # 咨询信息
@@ -451,7 +451,7 @@ class ConsultationRecord(BaseModel):
     # 关联关系
     conversation = relationship("Conversation")
     customer = relationship("User", foreign_keys=[customer_id])
-    consultant = relationship("User", foreign_keys=[consultant_id])
+    operator = relationship("User", foreign_keys=[operator_id])
     digital_human = relationship("DigitalHuman", foreign_keys=[digital_human_id])
 ```
 
@@ -533,7 +533,7 @@ sequenceDiagram
     participant S as 系统
     participant DH as 数字人
     participant T as 任务系统
-    participant C as 顾问
+    participant C as 运营人员
 
     U->>S: 用户注册
     S->>S: 创建用户账户
@@ -541,7 +541,7 @@ sequenceDiagram
     S->>S: 创建会话
     S->>DH: 数字人发送欢迎消息
     S->>T: 创建待办任务：新用户接待
-    T->>C: 通知顾问有新任务
+    T->>C: 通知运营人员有新任务
     C->>T: 认领任务
     C->>U: 主动联系用户
 ```
@@ -757,16 +757,10 @@ async def initialize_system_agents():
     """初始化系统默认智能体配置"""
     default_agents = [
         {
-            "app_name": "咨询助手",
-            "app_id": "medical_beauty_consultant",
-            "agent_type": "consultant",
+            "app_name": "客户服务助手",
+            "app_id": "customer_service_assistant",
+            "agent_type": "operator",
             "capabilities": ["consultation", "appointment", "recommendation"]
-        },
-        {
-            "app_name": "处方安全检查",
-            "app_id": "prescription_safety_checker", 
-            "agent_type": "medical_checker",
-            "capabilities": ["safety_check", "drug_interaction", "dosage_validation"]
         }
     ]
     

@@ -424,8 +424,6 @@ class AIGateway:
             # 根据场景调用相应方法
             if request.scenario == AIScenario.GENERAL_CHAT:
                 response = await service.chat(request)
-            elif request.scenario == AIScenario.BEAUTY_PLAN:
-                response = await service.generate_beauty_plan(request)
             elif request.scenario == AIScenario.SENTIMENT_ANALYSIS:
                 response = await service.analyze_sentiment(request)
             else:

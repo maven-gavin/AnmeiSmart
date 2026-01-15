@@ -25,7 +25,7 @@
   - `send_text_message()` - 发送文本消息
   - `send_media_message()` - 发送媒体消息
   - `send_system_event_message()` - 发送系统事件消息
-- **智能顾问匹配**：改进了从结构化内容中提取文本用于匹配的逻辑
+- **智能客服匹配**：改进了从结构化内容中提取文本用于匹配的逻辑
 - **广播集成**：所有新方法都集成了消息广播功能
 
 ### 2. API接口调整 ✅
@@ -306,7 +306,7 @@ message = await message_service.create_system_event_message(
     conversation_id="conv_123",
     event_type="takeover",
     status="completed",
-    event_data={"consultant_name": "张医生"}
+    event_data={"operator_name": "王运营"}
 )
 ```
 

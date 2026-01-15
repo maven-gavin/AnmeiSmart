@@ -14,8 +14,8 @@
 │  (AnmeiSmart)   │    │   抽象层        │    │ (Dify/OpenAI)   │
 │                 │    │                 │    │                 │
 │ • 聊天服务      │    │ • 智能路由      │    │ • Dify Chat     │
-│ • 方案服务      │◄──►│ • 熔断保护      │◄──►│ • Dify Agent    │
-│ • 咨询服务      │    │ • 缓存优化      │    │ • Dify Workflow │
+│ • 咨询服务      │◄──►│ • 熔断保护      │◄──►│ • Dify Agent    │
+│ • 用户服务      │    │ • 缓存优化      │    │ • Dify Workflow │
 │ • 用户服务      │    │ • 监控日志      │    │ • OpenAI GPT    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
@@ -90,7 +90,6 @@
 # 在 .env 文件中添加
 DIFY_API_BASE_URL=http://localhost/v1
 DIFY_CHAT_API_KEY=app-xxxxxxxxxx
-DIFY_BEAUTY_API_KEY=app-xxxxxxxxxx
 DIFY_SUMMARY_API_KEY=app-xxxxxxxxxx
 
 OPENAI_API_KEY=sk-xxxxxxxxxx
@@ -110,12 +109,6 @@ response = await ai_gateway.chat(
     user_profile={"age": 25, "skin_type": "mixed"}
 )
 
-# 方案生成
-plan = await ai_gateway.generate_beauty_plan(
-    requirements="面部抗衰老，预算2万元",
-    user_id="user_123",
-    user_profile={"age": 35, "concerns": ["wrinkles", "sagging"]}
-)
 ```
 
 3. **API调用**
@@ -175,7 +168,6 @@ python test_ai_gateway.py
 
 - ✅ 健康检查
 - ✅ 通用聊天
-- ✅ 方案生成
 - ✅ 情感分析
 - ✅ 咨询总结
 - ✅ 性能和并发测试

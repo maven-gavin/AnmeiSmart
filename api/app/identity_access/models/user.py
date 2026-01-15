@@ -164,7 +164,7 @@ class User(BaseModel):
     
     # 扩展表关联
     # 使用 backref 自动生成，避免循环依赖
-    # customer, doctor, consultant, operator, administrator 已在各自模型中定义
+    # customer, operator, administrator 已在各自模型中定义
     
     # 上传会话关联
     # 使用 backref 自动生成，避免循环依赖
@@ -178,33 +178,6 @@ class User(BaseModel):
     # 通讯录关联（新增）
     # 使用 backref 自动生成，避免循环依赖
     # friendships, contact_tags, contact_groups, contact_privacy_setting 已在 contacts 模块中定义
-
-class Doctor(BaseModel):
-    """医生特有信息表，存储医生扩展信息"""
-    __tablename__ = "doctors"
-    __table_args__ = {"comment": "医生表，存储医生扩展信息"}
-    
-    user_id = Column(String(36), ForeignKey("users.id"), unique=True, nullable=False, comment="用户ID")
-    specialization = Column(String(255), nullable=True, comment="专科方向")
-    certification = Column(String(255), nullable=True, comment="资格证书")
-    license_number = Column(String(100), nullable=True, comment="执业证号")
-    
-    # 关联到基础用户表
-    from sqlalchemy.orm import backref
-    user = relationship("User", foreign_keys=[user_id], backref=backref("doctor", uselist=False, cascade="all, delete-orphan"))
-
-class Consultant(BaseModel):
-    """顾问特有信息表，存储顾问扩展信息"""
-    __tablename__ = "consultants"
-    __table_args__ = {"comment": "顾问表，存储顾问扩展信息"}
-    
-    user_id = Column(String(36), ForeignKey("users.id"), unique=True, nullable=False, comment="用户ID")
-    expertise = Column(String(255), nullable=True, comment="专长领域")
-    performance_metrics = Column(JSON, nullable=True, comment="业绩指标")
-    
-    # 关联到基础用户表
-    from sqlalchemy.orm import backref
-    user = relationship("User", foreign_keys=[user_id], backref=backref("consultant", uselist=False, cascade="all, delete-orphan"))
 
 class Operator(BaseModel):
     """机构运营人员特有信息表，存储运营人员扩展信息"""
