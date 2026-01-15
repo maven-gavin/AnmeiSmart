@@ -10,7 +10,8 @@ from app.channels.services.channel_service import ChannelService
 from app.channels.adapters.wechat_work.adapter import WeChatWorkAdapter
 from app.channels.adapters.wechat_work.kf_adapter import WeChatWorkKfAdapter
 from app.channels.interfaces import ChannelMessage
-from app.channels.services.wechat_work_archive_utils import extract_external_user_id
+from app.channels.services.wechat_work_archive_service import WeChatWorkArchiveService
+from app.channels.services.wechat_work_archive_ingest import ingest_decrypted_messages
 from app.channels.deps.channel_deps import get_channel_service
 
 logger = logging.getLogger(__name__)
@@ -215,6 +216,9 @@ async def wechat_work_kf_webhook(
 @router.post("/webhook/wechat-work-archive")
 async def wechat_work_archive_webhook(
     request: Request,
+    msg_signature: str = Query(None, description="签名"),
+    timestamp: str = Query(None, description="时间戳"),
+    nonce: str = Query(None, description="随机数"),
     channel_service: ChannelService = Depends(get_channel_service),
 ):
     """
@@ -230,53 +234,28 @@ async def wechat_work_archive_webhook(
         logger.warning("会话存档回调 JSON 解析失败，直接返回 success")
         return PlainTextResponse("success")
 
+    # 兼容加密回调：payload 内存在 encrypt
+    encrypt = payload.get("encrypt") or payload.get("Encrypt")
+    if encrypt and msg_signature and timestamp and nonce:
+        archive_service = WeChatWorkArchiveService(db=channel_service.db)
+        decrypted = archive_service.decrypt_callback_payload(
+            msg_signature=msg_signature,
+            timestamp=timestamp,
+            nonce=nonce,
+            encrypted=str(encrypt),
+        )
+        if decrypted:
+            payload = decrypted
+        else:
+            logger.warning("会话存档回调解密失败，已忽略")
+            return PlainTextResponse("success")
+
     chatdata = payload.get("chatdata") or payload.get("data") or []
     if not isinstance(chatdata, list):
         logger.info("会话存档回调未包含 chatdata 列表，已忽略")
         return PlainTextResponse("success")
 
-    for item in chatdata:
-        if not isinstance(item, dict):
-            continue
-
-        msgtype = str(item.get("msgtype") or "").lower()
-        msgid = str(item.get("msgid") or item.get("msg_id") or "")
-        msgtime = item.get("msgtime") or item.get("msg_time") or 0
-
-        external_userid = extract_external_user_id(item)
-        if not external_userid:
-            continue
-
-        from_id = item.get("from")
-        direction = "inbound" if isinstance(from_id, str) and from_id == external_userid else "outbound"
-
-        if msgtype != "text":
-            logger.info(f"会话存档暂不处理非文本消息: msgtype={msgtype}, msgid={msgid}")
-            continue
-
-        text = ""
-        text_obj = item.get("text")
-        if isinstance(text_obj, dict):
-            text = str(text_obj.get("content") or "").strip()
-        if not text:
-            continue
-
-        channel_message = ChannelMessage(
-            channel_type="wechat_work_contact",
-            channel_message_id=msgid or f"arch_{external_userid}_{msgtime}",
-            channel_user_id=external_userid,
-            content={"text": text},
-            message_type="text",
-            timestamp=int(msgtime) if isinstance(msgtime, (int, float, str)) else 0,
-            extra_data={
-                "direction": direction,
-                "from_user_id": from_id,
-                "to_user_ids": item.get("tolist") or item.get("to_list"),
-                "room_id": item.get("roomid"),
-                "peer_name": item.get("extname") or item.get("external_name"),
-            },
-        )
-        await channel_service.process_incoming_message(channel_message)
+    await ingest_decrypted_messages(chatdata, channel_service=channel_service)
 
     return PlainTextResponse("success")
 

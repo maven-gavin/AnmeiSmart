@@ -19,6 +19,8 @@ from sqlalchemy.orm import Session
 
 from app.channels.models.channel_config import ChannelConfig
 from app.core.redis_client import redis_manager
+from app.channels.adapters.wechat_work.crypto import WeChatWorkCrypto
+from app.channels.adapters.wechat_work.crypto import WeChatWorkCrypto
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,7 @@ class WeChatWorkArchiveService:
 
     TOKEN_URL = "https://qyapi.weixin.qq.com/cgi-bin/gettoken"
     ARCHIVE_URL = "https://qyapi.weixin.qq.com/cgi-bin/msgaudit/getchatdata"
+    ARCHIVE_MEDIA_URL = "https://qyapi.weixin.qq.com/cgi-bin/msgaudit/getmedia"
 
     def __init__(self, db: Session):
         self.db = db
@@ -81,6 +84,54 @@ class WeChatWorkArchiveService:
             if data.get("errcode") != 0:
                 raise RuntimeError(f"获取 access_token 失败: {data.get('errmsg')} ({data.get('errcode')})")
             return data["access_token"]
+
+    async def download_media(self, *, sdkfileid: str) -> bytes:
+        cfg = self._load_config()
+        if not cfg:
+            raise RuntimeError("会话内容存档配置缺失")
+
+        corp_id = str(cfg.get("corp_id") or "")
+        secret = str(cfg.get("secret") or "")
+        if not corp_id or not secret:
+            raise RuntimeError("会话内容存档配置缺少 corp_id 或 secret")
+
+        access_token = await self._get_access_token(corp_id, secret)
+        url = "https://qyapi.weixin.qq.com/cgi-bin/msgaudit/getmedia"
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(url, params={"access_token": access_token}, json={"sdkfileid": sdkfileid})
+            resp.raise_for_status()
+            if resp.headers.get("Content-Type", "").startswith("application/json"):
+                data = resp.json()
+                raise RuntimeError(f"下载会话存档媒体失败: {data.get('errmsg')} ({data.get('errcode')})")
+            return resp.content
+
+    def decrypt_callback_payload(
+        self,
+        *,
+        msg_signature: str,
+        timestamp: str,
+        nonce: str,
+        encrypted: str,
+    ) -> Optional[dict[str, Any]]:
+        cfg = self._load_config()
+        if not cfg:
+            return None
+        token = cfg.get("token")
+        encoding_aes_key = cfg.get("encoding_aes_key")
+        corp_id = cfg.get("corp_id")
+        if not token or not encoding_aes_key or not corp_id:
+            return None
+
+        crypto = WeChatWorkCrypto(token=token, encoding_aes_key=encoding_aes_key, corp_id=corp_id)
+        if not crypto.verify_signature(msg_signature, timestamp, nonce, encrypted):
+            return None
+        decrypted = crypto.decrypt_encrypt_field(encrypted)
+        if not decrypted:
+            return None
+        try:
+            return json.loads(decrypted)
+        except Exception:
+            return None
 
     async def _get_last_seq(self, cfg: dict[str, Any]) -> int:
         # 优先尝试 Redis
@@ -200,3 +251,56 @@ class WeChatWorkArchiveService:
         await self._set_last_seq(cfg, next_seq)
         return decrypted, next_seq
 
+    async def download_media(self, *, sdkfileid: str) -> Optional[bytes]:
+        cfg = self._load_config()
+        if not cfg:
+            return None
+        corp_id = str(cfg.get("corp_id") or "")
+        secret = str(cfg.get("secret") or "")
+        if not corp_id or not secret:
+            return None
+
+        token = await self._get_access_token(corp_id, secret)
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.post(
+                self.ARCHIVE_MEDIA_URL,
+                params={"access_token": token},
+                json={"sdkfileid": sdkfileid},
+            )
+            resp.raise_for_status()
+            content_type = resp.headers.get("Content-Type", "")
+            if "application/json" in content_type:
+                data = resp.json()
+                if data.get("errcode") != 0:
+                    logger.warning(f"下载存档媒体失败: {data.get('errmsg')} ({data.get('errcode')})")
+                return None
+            return resp.content
+
+    def decrypt_callback_payload(
+        self,
+        *,
+        msg_signature: str,
+        timestamp: str,
+        nonce: str,
+        encrypted: str,
+    ) -> Optional[dict[str, Any]]:
+        cfg = self._load_config()
+        if not cfg:
+            return None
+
+        token = str(cfg.get("token") or "")
+        encoding_aes_key = str(cfg.get("encoding_aes_key") or "")
+        corp_id = str(cfg.get("corp_id") or "")
+        if not token or not encoding_aes_key or not corp_id:
+            return None
+
+        crypto = WeChatWorkCrypto(token=token, encoding_aes_key=encoding_aes_key, corp_id=corp_id)
+        if not crypto.verify_signature(msg_signature, timestamp, nonce, encrypted):
+            return None
+        plaintext = crypto.decrypt_encrypt_field(encrypted)
+        if not plaintext:
+            return None
+        try:
+            return json.loads(plaintext)
+        except Exception:
+            return None

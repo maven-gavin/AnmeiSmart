@@ -15,7 +15,8 @@ import { usePermission } from '@/hooks/usePermission';
 import { handleApiError } from '@/service/apiClient';
 import { channelConfigService } from '@/service/channelConfigService';
 
-const CHANNEL_TYPE = 'wechat_work_archive';
+const ARCHIVE_CHANNEL_TYPE = 'wechat_work_archive';
+const CONTACT_CHANNEL_TYPE = 'wechat_work_contact';
 
 export default function ChannelConfigsPage() {
   const { user } = useAuthContext();
@@ -28,9 +29,15 @@ export default function ChannelConfigsPage() {
   const [corpId, setCorpId] = useState('');
   const [secret, setSecret] = useState('');
   const [privateKey, setPrivateKey] = useState('');
+  const [token, setToken] = useState('');
+  const [encodingAesKey, setEncodingAesKey] = useState('');
   const [pollEnabled, setPollEnabled] = useState(false);
   const [pollIntervalSeconds, setPollIntervalSeconds] = useState(60);
   const [pollLimit, setPollLimit] = useState(100);
+
+  const [contactCorpId, setContactCorpId] = useState('');
+  const [contactSecret, setContactSecret] = useState('');
+  const [contactIsActive, setContactIsActive] = useState(true);
 
   useEffect(() => {
     if (user && !isAdmin) {
@@ -41,16 +48,32 @@ export default function ChannelConfigsPage() {
   const loadConfig = useCallback(async () => {
     setLoading(true);
     try {
-      const cfg = await channelConfigService.getConfig(CHANNEL_TYPE);
-      setIsActive(cfg.is_active);
-      setName(cfg.name || '企业微信会话内容存档');
-      const config = cfg.config || {};
-      setCorpId(String(config.corp_id || ''));
-      setSecret(String(config.secret || ''));
-      setPrivateKey(String(config.private_key || ''));
-      setPollEnabled(Boolean(config.poll_enabled));
-      setPollIntervalSeconds(Number(config.poll_interval_seconds || 60));
-      setPollLimit(Number(config.poll_limit || 100));
+      try {
+        const cfg = await channelConfigService.getConfig(ARCHIVE_CHANNEL_TYPE);
+        setIsActive(cfg.is_active);
+        setName(cfg.name || '企业微信会话内容存档');
+        const config = cfg.config || {};
+        setCorpId(String(config.corp_id || ''));
+        setSecret(String(config.secret || ''));
+        setPrivateKey(String(config.private_key || ''));
+        setToken(String(config.token || ''));
+        setEncodingAesKey(String(config.encoding_aes_key || ''));
+        setPollEnabled(Boolean(config.poll_enabled));
+        setPollIntervalSeconds(Number(config.poll_interval_seconds || 60));
+        setPollLimit(Number(config.poll_limit || 100));
+      } catch (err) {
+        handleApiError(err, '加载会话存档配置失败');
+      }
+
+      try {
+        const contactCfg = await channelConfigService.getConfig(CONTACT_CHANNEL_TYPE);
+        setContactIsActive(contactCfg.is_active);
+        const c = contactCfg.config || {};
+        setContactCorpId(String(c.corp_id || ''));
+        setContactSecret(String(c.secret || ''));
+      } catch (err) {
+        handleApiError(err, '加载客户联系配置失败');
+      }
     } catch (err) {
       handleApiError(err, '加载配置失败');
     } finally {
@@ -64,13 +87,15 @@ export default function ChannelConfigsPage() {
 
   const handleSave = useCallback(async () => {
     try {
-      await channelConfigService.updateConfig(CHANNEL_TYPE, {
+      await channelConfigService.updateConfig(ARCHIVE_CHANNEL_TYPE, {
         name,
         is_active: isActive,
         config: {
           corp_id: corpId.trim(),
           secret: secret.trim(),
           private_key: privateKey.trim(),
+          token: token.trim(),
+          encoding_aes_key: encodingAesKey.trim(),
           poll_enabled: pollEnabled,
           poll_interval_seconds: pollIntervalSeconds,
           poll_limit: pollLimit,
@@ -80,7 +105,23 @@ export default function ChannelConfigsPage() {
     } catch (err) {
       handleApiError(err, '保存失败');
     }
-  }, [corpId, isActive, name, pollEnabled, pollIntervalSeconds, pollLimit, privateKey, secret]);
+  }, [corpId, isActive, name, pollEnabled, pollIntervalSeconds, pollLimit, privateKey, secret, token, encodingAesKey]);
+
+  const handleSaveContact = useCallback(async () => {
+    try {
+      await channelConfigService.updateConfig(CONTACT_CHANNEL_TYPE, {
+        name: '企业微信客户联系',
+        is_active: contactIsActive,
+        config: {
+          corp_id: contactCorpId.trim(),
+          secret: contactSecret.trim(),
+        },
+      });
+      toast.success('客户联系配置已保存');
+    } catch (err) {
+      handleApiError(err, '保存客户联系配置失败');
+    }
+  }, [contactCorpId, contactIsActive, contactSecret]);
 
   return (
     <AppLayout requiredRole={user?.currentRole}>
@@ -133,6 +174,17 @@ export default function ChannelConfigsPage() {
                   />
                 </div>
 
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>回调 Token</Label>
+                    <Input className="am-field" value={token} onChange={(e) => setToken(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>EncodingAESKey</Label>
+                    <Input className="am-field" value={encodingAesKey} onChange={(e) => setEncodingAesKey(e.target.value)} />
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div className="space-y-2">
                     <Label>自动拉取</Label>
@@ -174,6 +226,29 @@ export default function ChannelConfigsPage() {
                 </div>
               </>
             )}
+          </div>
+
+          <div className="mt-6 am-card p-4 space-y-4">
+            <div className="text-sm font-medium text-gray-900">客户联系配置</div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Corp ID</Label>
+                <Input className="am-field" value={contactCorpId} onChange={(e) => setContactCorpId(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>客户联系 Secret</Label>
+                <Input className="am-field" value={contactSecret} onChange={(e) => setContactSecret(e.target.value)} />
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch checked={contactIsActive} onCheckedChange={setContactIsActive} />
+              <span className="text-sm text-gray-500">{contactIsActive ? '启用' : '停用'}</span>
+            </div>
+            <div className="flex items-center justify-end">
+              <Button className="am-btn-primary" onClick={handleSaveContact}>
+                保存客户联系配置
+              </Button>
+            </div>
           </div>
         </div>
       </div>

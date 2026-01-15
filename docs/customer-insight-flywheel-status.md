@@ -76,11 +76,13 @@
   - 渠道入站文本消息：同样会触发洞察 pipeline（失败不影响主流程）
 - **会话内容存档接入（客户联系）**
   - 新增接收入口：`POST /channels/webhook/wechat-work-archive`
-  - 目前仅处理“已解密 chatdata 列表”的文本消息
+  - 支持解密回调（encrypt + 签名校验），也可接收已解密 chatdata
+  - 支持文本 + 图片/文件媒体（sdkfileid 下载后转存）
   - 统一归一到 `channel_type=wechat_work_contact`，且仅 inbound 触发画像飞轮
   - 新增拉取入口：`POST /channels/archive/pull`（管理员手动触发拉取+解密+写入）
   - 新增后台配置入口：`/admin/channel-configs`（管理 corp_id/secret/private_key + 轮询策略）
   - 新增轮询拉取：按 `poll_enabled/poll_interval_seconds` 自动拉取写入
+  - 自动身份归一：基于 unionid/mobile 尝试合并到已有 customer
 - **配置启用方式**
   - 通过 AgentConfig 表按 `app_name="客户画像洞察器"` 精确匹配启用
   - 未配置时自动跳过洞察提取，不影响主流程
@@ -90,6 +92,7 @@
 - 客户档案页已替换为画像流页面（AI摘要 + 时间流 + 人工录入/归档）（待办：待调研这个入口在哪里？）
 - 客户列表已从 tags/priority 改为展示 lifeCycleStage （TODO：待调研这个入口在哪里？）
 - 统一使用新后端契约（profile + active_insights）
+- 会话列表显示来源标签（企微-客户/企微-客服/企微-应用）
 
 ### 4. 未完成（Todo / Next）
 
@@ -109,7 +112,7 @@
 - ✅ 已实现：支持“一个 customer 绑定多个 ChannelIdentity”（多渠道同一客户合并）
 - ✅ 已实现：支持人工合并/迁移（冲突处理、误识别修正）
 - ✅ 已实现：补齐前端管理入口（运营/管理员可视化绑定、合并、纠错）
-- 待办：更强的自动身份归一（例如：基于手机号/union_id/企业微信外部联系人信息做自动匹配，降低人工成本）
+- ✅ 已实现：更强的自动身份归一（基于手机号/union_id/企业微信外部联系人信息做自动匹配）
 - 备注：入站消息支持可选预绑定（`extra_data.customer_user_id` / `extra_data.bind_to_customer_user_id`），便于后续接入“外部联系人同步/手机号匹配”等上游能力后，直接写入同一客户飞轮。
 
 ### 5. 待优化（Nice-to-have / Risk）

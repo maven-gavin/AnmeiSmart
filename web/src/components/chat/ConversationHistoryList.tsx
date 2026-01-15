@@ -97,7 +97,17 @@ export default function ConversationHistoryList({
   };
 
   // 渲染标签
-  const renderTags = (conversation: Conversation) => (
+  const renderTags = (conversation: Conversation) => {
+    const channelType = conversation.extra_metadata?.channel?.type;
+    const channelLabel = channelType === 'wechat_work_contact'
+      ? '企微-客户'
+      : channelType === 'wechat_work_kf'
+      ? '企微-客服'
+      : channelType === 'wechat_work'
+      ? '企微-应用'
+      : '渠道';
+
+    return (
     <>
       {/* 未读消息数 */}
       {conversation.unreadCount > 0 && (
@@ -121,12 +131,13 @@ export default function ConversationHistoryList({
       {conversation.tag === 'channel' && (
         <div className="flex-shrink-0 ml-2">
           <span className="inline-flex items-center justify-center h-5 px-2 text-xs font-medium text-white bg-emerald-600 rounded-full">
-            {['wechat_work', 'wechat_work_kf'].includes(conversation.extra_metadata?.channel?.type) ? '企微' : '渠道'}
+            {channelLabel}
           </span>
         </div>
       )}
     </>
-  );
+    );
+  };
 
   // 渲染内容区域
   const renderContent = () => {

@@ -10,11 +10,13 @@ import logging
 from typing import Any, Optional
 
 from sqlalchemy.orm import Session
+from sqlalchemy import cast, String
 
 from app.channels.models.channel_identity import ChannelIdentity
 from app.chat.models.chat import Conversation
 from app.core.api import BusinessException, ErrorCode
 from app.identity_access.models.user import User
+from app.identity_access.models.user import Role, user_roles
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,50 @@ class ChannelIdentityService:
             .order_by(ChannelIdentity.last_seen_at.desc())
             .all()
         )
+
+    def resolve_customer_by_profile(self, *, unionid: Optional[str], phone: Optional[str]) -> Optional[str]:
+        """
+        根据外部联系人画像（unionid/phone）尝试找到唯一 customer(User)。
+        规则：
+        - unionid 命中已有 ChannelIdentity -> 直接返回该 user_id
+        - phone 命中唯一 customer -> 返回 user_id
+        """
+        if unionid:
+            identity = (
+                self.db.query(ChannelIdentity)
+                .filter(
+                    ChannelIdentity.extra_data.isnot(None),
+                    cast(ChannelIdentity.extra_data["unionid"], String) == unionid,
+                )
+                .first()
+            )
+            if identity:
+                return str(identity.user_id)
+
+            identity = (
+                self.db.query(ChannelIdentity)
+                .filter(
+                    ChannelIdentity.extra_data.isnot(None),
+                    cast(ChannelIdentity.extra_data["contact_profile"]["unionid"], String) == unionid,
+                )
+                .first()
+            )
+            if identity:
+                return str(identity.user_id)
+
+        if phone:
+            # 仅允许唯一匹配
+            users = (
+                self.db.query(User)
+                .join(user_roles, user_roles.c.user_id == User.id)
+                .join(Role, Role.id == user_roles.c.role_id)
+                .filter(Role.name == "customer", User.phone == phone)
+                .all()
+            )
+            if len(users) == 1:
+                return str(users[0].id)
+
+        return None
 
     def bind_identity(
         self,
@@ -97,6 +143,33 @@ class ChannelIdentityService:
             )
 
         return identity
+
+    def resolve_customer_by_profile(
+        self,
+        *,
+        unionid: Optional[str],
+        phone: Optional[str],
+    ) -> Optional[str]:
+        """
+        根据 unionid / phone 在已有 ChannelIdentity 中查找已绑定的 customer_user_id。
+        仅用于“自动归一”场景，命中后返回 customer_user_id。
+        """
+        if not unionid and not phone:
+            return None
+
+        candidates = (
+            self.db.query(ChannelIdentity)
+            .filter(ChannelIdentity.extra_data.isnot(None))
+            .all()
+        )
+
+        for identity in candidates:
+            extra = identity.extra_data or {}
+            if unionid and extra.get("unionid") == unionid:
+                return identity.user_id
+            if phone and extra.get("mobile") == phone:
+                return identity.user_id
+        return None
 
     def _migrate_channel_conversations(
         self,

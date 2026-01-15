@@ -103,6 +103,27 @@ class ChannelService:
             elif channel_message.message_type == "media":
                 media_info = channel_message.content.get("media_info", {})
                 
+                # 会话存档媒体：优先使用 sdkfileid 下载并转存
+                sdkfileid = media_info.get("sdkfileid")
+                if sdkfileid and channel_message.channel_type == "wechat_work_contact":
+                    from app.channels.services.wechat_work_archive_service import WeChatWorkArchiveService
+
+                    archive_service = WeChatWorkArchiveService(db=self.db)
+                    data = await archive_service.download_media(sdkfileid=str(sdkfileid))
+                    filename = media_info.get("name") or f"media_{sdkfileid}"
+                    mime_type = media_info.get("mime_type")
+                    upload_result = await self.file_service.upload_binary_data(
+                        data=data,
+                        filename=filename,
+                        conversation_id=conversation.id,
+                        user_id=conversation.owner_id,
+                        mime_type=mime_type,
+                    )
+                    media_info["file_id"] = upload_result["file_id"]
+                    media_info["name"] = upload_result["file_name"]
+                    media_info["size_bytes"] = upload_result["file_size"]
+                    media_info["mime_type"] = upload_result["mime_type"]
+
                 # 如果是企业微信媒体，且有MediaId，尝试下载并转存到我们的MinIO
                 media_id = channel_message.extra_data.get("media_id") if channel_message.extra_data else None
                 if media_id and channel_message.channel_type == "wechat_work":
@@ -134,6 +155,31 @@ class ChannelService:
                             logger.info(f"企业微信媒体转存成功: file_id={media_info['file_id']}")
                         else:
                             logger.warning(f"下载企业微信媒体失败: media_id={media_id}")
+
+                # 会话内容存档媒体：sdkfileid -> 下载 -> 转存
+                if channel_message.channel_type == "wechat_work_contact" and not media_info.get("file_id"):
+                    sdkfileid = media_info.get("sdkfileid")
+                    if sdkfileid:
+                        from app.channels.services.wechat_work_archive_service import WeChatWorkArchiveService
+
+                        archive_service = WeChatWorkArchiveService(db=self.db)
+                        data = await archive_service.download_media(sdkfileid=str(sdkfileid))
+                        if data:
+                            filename = media_info.get("name") or f"wechat_{sdkfileid}"
+                            mime_type = media_info.get("mime_type")
+                            upload_result = await self.file_service.upload_binary_data(
+                                data=data,
+                                filename=filename,
+                                conversation_id=str(conversation.id),
+                                user_id=str(conversation.owner_id),
+                                mime_type=mime_type,
+                            )
+                            media_info["file_id"] = upload_result["file_id"]
+                            media_info["name"] = upload_result["file_name"]
+                            media_info["size_bytes"] = upload_result["file_size"]
+                            media_info["mime_type"] = upload_result["mime_type"]
+                        else:
+                            logger.warning(f"下载会话存档媒体失败: sdkfileid={sdkfileid}")
 
                 media_file_id = media_info.get("file_id")
                 if not media_file_id:
