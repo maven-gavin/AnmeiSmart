@@ -61,7 +61,7 @@ async def list_tenants(
     tenant_status: Optional[str] = Query(None, alias="status", description="租户状态筛选"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     tenant_service: TenantService = Depends(get_tenant_service)
 ):
     """获取租户列表"""
@@ -112,7 +112,7 @@ async def get_tenant(
 @router.post("", response_model=ApiResponse[TenantResponse])
 async def create_tenant(
     tenant_in: TenantCreate,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     tenant_service: TenantService = Depends(get_tenant_service)
 ):
     """创建新租户"""
@@ -129,7 +129,7 @@ async def create_tenant(
 async def update_tenant(
     tenant_id: str,
     tenant_in: TenantUpdate,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     tenant_service: TenantService = Depends(get_tenant_service)
 ):
     """更新租户"""
@@ -145,7 +145,7 @@ async def update_tenant(
 @router.delete("/{tenant_id}", response_model=ApiResponse[dict])
 async def delete_tenant(
     tenant_id: str,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     tenant_service: TenantService = Depends(get_tenant_service)
 ):
     """删除租户"""
@@ -160,7 +160,7 @@ async def delete_tenant(
 @router.post("/{tenant_id}/activate", response_model=ApiResponse[dict])
 async def activate_tenant(
     tenant_id: str,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     tenant_service: TenantService = Depends(get_tenant_service)
 ):
     """激活租户"""
@@ -175,7 +175,7 @@ async def activate_tenant(
 @router.post("/{tenant_id}/deactivate", response_model=ApiResponse[dict])
 async def deactivate_tenant(
     tenant_id: str,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     tenant_service: TenantService = Depends(get_tenant_service)
 ):
     """停用租户"""
@@ -190,7 +190,7 @@ async def deactivate_tenant(
 @router.get("/{tenant_id}/statistics", response_model=ApiResponse[TenantStatisticsResponse])
 async def get_tenant_statistics(
     tenant_id: str,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     tenant_service: TenantService = Depends(get_tenant_service)
 ):
     """获取租户统计信息"""

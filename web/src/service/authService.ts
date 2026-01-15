@@ -70,7 +70,7 @@ const normalizeRole = (role?: string): UserRole | undefined => {
   if (!role) {
     return undefined;
   }
-  return (role === 'administrator' ? 'admin' : role) as UserRole;
+  return (role === 'admin' ? 'admin' : role) as UserRole;
 };
 
 const normalizeRoles = (roles?: string[]): UserRole[] => {
@@ -264,8 +264,8 @@ class AuthService {
     
     try {
       // 调用后端API切换角色并获取新令牌对 - 使用统一的apiClient
-      // 将前端的 'admin' 角色映射为后端的 'administrator'
-      const backendRole = role === 'admin' ? 'administrator' : role;
+      // 将前端的 'admin' 角色映射为后端的 'admin'
+      const backendRole = role === 'admin' ? 'admin' : role;
       const response = await apiClient.post<{ access_token: string; refresh_token: string; token_type: string }>('/auth/switch-role', {
         body: { role: backendRole }
       });
@@ -526,7 +526,7 @@ class AuthService {
 
       const permissionSummary = await this.getUserPermissionSummary();
       if (permissionSummary) {
-        // 保留原始角色信息（可能包含administrator），同时normalize用于显示
+        // 保留原始角色信息（可能包含admin），同时normalize用于显示
         const originalRoles = permissionSummary.roles || [];
         const normalizedRoles = normalizeRoles(originalRoles);
         

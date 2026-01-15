@@ -30,7 +30,7 @@ def _handle_unexpected_error(message: str, exc: Exception) -> SystemException:
 @router.post("", response_model=ApiResponse[UserResponse], status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_in: UserCreate,
-    current_user: User = Depends(require_role("administrator")), # 简化权限检查
+    current_user: User = Depends(require_role("admin")), # 简化权限检查
     user_service: UserService = Depends(get_user_service)
 ) -> ApiResponse[UserResponse]:
     """创建新用户"""
@@ -77,7 +77,7 @@ async def read_users(
     skip: int = 0,
     limit: int = 100,
     search: Optional[str] = Query(None, description="搜索关键词"),
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     user_service: UserService = Depends(get_user_service)
 ) -> ApiResponse[UserListResponse]:
     """获取用户列表"""
@@ -557,7 +557,7 @@ async def read_user_by_id(
 async def update_user(
     user_id: str,
     user_in: UserUpdate,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     user_service: UserService = Depends(get_user_service)
 ) -> ApiResponse[UserResponse]:
     """更新用户信息 (管理员)"""
@@ -600,7 +600,7 @@ async def update_user(
 @router.delete("/{user_id}", status_code=status.HTTP_200_OK)
 async def delete_user(
     user_id: str,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     user_service: UserService = Depends(get_user_service)
 ) -> ApiResponse[dict]:
     """删除用户（物理删除）"""
@@ -625,7 +625,7 @@ async def delete_user(
 
 @router.get("/roles/all", response_model=ApiResponse[List[RoleResponse]])
 async def read_roles(
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     role_service: RoleService = Depends(get_role_service)
 ) -> ApiResponse[List[RoleResponse]]:
     """获取所有角色"""
@@ -714,7 +714,7 @@ async def get_user_permissions_summary(
         permissions = []
         is_admin = False
         for role in user.roles:
-            if role.is_admin or role.name in ["administrator", "super_admin"]:
+            if role.is_admin or role.name in ["admin", "super_admin"]:
                 is_admin = True
             # 收集角色的权限
             if role.permissions:

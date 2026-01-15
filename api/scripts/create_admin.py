@@ -16,7 +16,7 @@ from app.core.bcrypt_patch import *
 import logging
 from sqlalchemy.orm import Session
 
-from app.identity_access.models.user import User, Role, Administrator
+from app.identity_access.models.user import User, Role, Admin
 from app.identity_access.enums import AdminLevel
 from app.db.base import get_db, engine
 from app.core.password_utils import get_password_hash
@@ -44,12 +44,12 @@ def create_admin_user():
             logger.info(f"管理员账号 {admin_email} 已存在")
             return existing_user
         
-        # 检查administrator角色是否存在
-        admin_role = db.query(Role).filter(Role.name == "administrator").first()
+        # 检查admin角色是否存在
+        admin_role = db.query(Role).filter(Role.name == "admin").first()
         if not admin_role:
-            logger.info("创建administrator角色")
+            logger.info("创建admin角色")
             admin_role = Role(
-                name="administrator",
+                name="admin",
                 description="系统管理员角色"
             )
             db.add(admin_role)
@@ -77,13 +77,13 @@ def create_admin_user():
         
         # 创建管理员扩展信息
         logger.info("创建管理员扩展信息")
-        administrator = Administrator(
+        admin = Admin(
             user_id=admin_user.id,
             admin_level=AdminLevel.SUPER,  # 使用枚举值，表示超级管理员级别
             access_permissions="全局系统管理权限"
         )
         
-        db.add(administrator)
+        db.add(admin)
         db.commit()
         
         logger.info(f"管理员账号创建成功!")

@@ -92,7 +92,7 @@ class RoleService:
             return False
             
         for role in user.roles:
-            if role.is_admin or role.name in ["administrator", "super_admin"]:
+            if role.is_admin or role.name in ["admin", "super_admin"]:
                 return True
                 
             # 检查具体权限关联

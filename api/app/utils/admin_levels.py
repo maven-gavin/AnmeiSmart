@@ -59,9 +59,9 @@ class AdminLevelHelper:
         Returns:
             bool: 是否为超级管理员
         """
-        if not user.administrator:
+        if not user.admin:
             return False
-        return user.administrator.admin_level == AdminLevel.SUPER
+        return user.admin.admin_level == AdminLevel.SUPER
     
     @staticmethod
     def get_user_admin_level(user: User) -> Optional[str]:
@@ -73,9 +73,9 @@ class AdminLevelHelper:
         Returns:
             Optional[str]: 管理员级别，如果不是管理员则返回None
         """
-        if not user.administrator:
+        if not user.admin:
             return None
-        return user.administrator.admin_level
+        return user.admin.admin_level
 
 
 # 便捷的常量导出
@@ -120,6 +120,6 @@ def create_admin_info(level: str = AdminLevel.BASIC, permissions: str = None) ->
        pass
 
 3. 获取级别信息：
-   description = AdminLevelHelper.get_level_description(user.administrator.admin_level)
-   priority = AdminLevelHelper.get_level_priority(user.administrator.admin_level)
+   description = AdminLevelHelper.get_level_description(user.admin.admin_level)
+   priority = AdminLevelHelper.get_level_priority(user.admin.admin_level)
 """ 

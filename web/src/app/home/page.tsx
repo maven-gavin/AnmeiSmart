@@ -19,7 +19,7 @@ export default function DynamicHomePage() {
   const role = user.currentRole;
 
   // 1. 优先匹配已知系统角色
-  if (role === 'admin' || role === 'administrator') return <AdminDashboard />;
+  if (role === 'admin' || role === 'admin') return <AdminDashboard />;
   if (role === 'doctor') return <DoctorDashboard />;
   if (role === 'consultant') return <ConsultantDashboard />;
   if (role === 'customer') return <CustomerDashboard />;

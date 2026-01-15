@@ -44,7 +44,7 @@ def _convert_role_to_response(role: Role) -> RoleResponse:
 @router.get("", response_model=ApiResponse[List[RoleResponse]])
 async def list_roles(
     search: Optional[str] = Query(None, description="搜索关键词"),
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     role_service: RoleService = Depends(get_role_service)
 ) -> ApiResponse[List[RoleResponse]]:
     """获取角色列表"""
@@ -58,7 +58,7 @@ async def list_roles(
 @router.post("", response_model=ApiResponse[RoleResponse], status_code=status.HTTP_201_CREATED)
 async def create_role(
     role_in: RoleCreate,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     role_service: RoleService = Depends(get_role_service)
 ) -> ApiResponse[RoleResponse]:
     """创建新角色"""
@@ -76,7 +76,7 @@ async def create_role(
 @router.get("/{role_id}", response_model=ApiResponse[RoleResponse])
 async def get_role(
     role_id: str,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     role_service: RoleService = Depends(get_role_service)
 ) -> ApiResponse[RoleResponse]:
     """获取角色详情"""
@@ -95,7 +95,7 @@ async def get_role(
 async def update_role(
     role_id: str,
     role_in: RoleUpdate,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     role_service: RoleService = Depends(get_role_service)
 ) -> ApiResponse[RoleResponse]:
     """更新角色"""
@@ -113,7 +113,7 @@ async def update_role(
 @router.delete("/{role_id}", response_model=ApiResponse[bool])
 async def delete_role(
     role_id: str,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     role_service: RoleService = Depends(get_role_service)
 ) -> ApiResponse[bool]:
     """删除角色"""
@@ -128,7 +128,7 @@ async def delete_role(
 @router.get("/{role_id}/permissions", response_model=ApiResponse[List[PermissionResponse]])
 async def get_role_permissions(
     role_id: str,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     role_service: RoleService = Depends(get_role_service)
 ) -> ApiResponse[List[PermissionResponse]]:
     """获取角色已分配的权限"""
@@ -150,7 +150,7 @@ async def get_role_permissions(
 async def assign_permissions_to_role(
     role_id: str,
     request: Request,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     role_service: RoleService = Depends(get_role_service)
 ) -> ApiResponse[dict]:
     """为角色分配权限"""
@@ -196,7 +196,7 @@ async def assign_permissions_to_role(
 async def unassign_permissions_from_role(
     role_id: str,
     request: Request,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     role_service: RoleService = Depends(get_role_service)
 ) -> ApiResponse[dict]:
     """从角色移除权限"""

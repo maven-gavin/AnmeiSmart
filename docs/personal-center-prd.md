@@ -320,7 +320,7 @@ CREATE TABLE login_history (
 1. **统一数据源**：
 
    - 个人中心与现有profile页面使用相同的API接口
-   - 共享 `users` 表和各角色扩展表（`customers`, `operators`, `administrators`）
+   - 共享 `users` 表和各角色扩展表（`customers`, `operators`, `admins`）
    - 通过 `user_service.py` 统一处理数据更新
 2. **API复用**：
 

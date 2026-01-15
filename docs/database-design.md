@@ -24,7 +24,7 @@ users ←→ user_roles ←→ roles
   ↓
   ├── customers
   ├── operators
-  ├── administrators
+  ├── admins
   └── digital_humans
 
 聊天模块:
@@ -135,7 +135,7 @@ customer_preferences
 - UNIQUE INDEX (user_id)
 - FOREIGN KEY (user_id) REFERENCES users(id)
 
-#### 1.7 管理员扩展表 (administrators)
+#### 1.7 管理员扩展表 (admins)
 
 | 字段名             | 数据类型    | 约束                 | 默认值            | 说明       |
 | ------------------ | ----------- | -------------------- | ----------------- | ---------- |

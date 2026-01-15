@@ -164,7 +164,7 @@ export function BasicInfoPanel() {
 
       if (roleChanged && formData.active_role) {
         try {
-          const frontendRole = formData.active_role === 'administrator' ? 'admin' : formData.active_role as any;
+          const frontendRole = formData.active_role === 'admin' ? 'admin' : formData.active_role as any;
           await authService.switchRole(frontendRole);
           const refreshedInfo = await profileService.getMyBasicInfo();
           setUserInfo(refreshedInfo);

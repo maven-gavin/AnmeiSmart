@@ -11,7 +11,7 @@ export function useFilteredMenuItems(): MenuItem[] {
   return useMemo(() => {
     if (!user) return [];
 
-    // 如果是administrator角色，显示所有菜单
+    // 如果是admin角色，显示所有菜单
     if (isAdmin) {
       return menuConfig.items.slice().sort((a, b) => {
         const priorityA = a.priority || 0;

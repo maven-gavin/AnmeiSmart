@@ -59,7 +59,7 @@ def _handle_unexpected_error(message: str, exc: Exception) -> SystemException:
 
 def _require_admin(user: User) -> None:
     role = get_user_primary_role(user)
-    if role not in {"administrator", "admin", "super_admin"}:
+    if role not in {"admin", "admin", "super_admin"}:
         raise BusinessException(
             "仅管理员可操作",
             code=ErrorCode.PERMISSION_DENIED,

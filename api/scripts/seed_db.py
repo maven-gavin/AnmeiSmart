@@ -22,12 +22,12 @@ from pathlib import Path
 
 try:
     from sqlalchemy.orm import Session
-    from app.identity_access.models.user import User, Role, Operator, Administrator
+    from app.identity_access.models.user import User, Role, Operator, Admin
     from app.identity_access.enums import AdminLevel
     from app.customer.models.customer import Customer, CustomerProfile
     from app.db.base import get_db, engine
     # from app.services import user_service as crud_user  # 已重构为DDD架构，不再需要
-    from app.identity_access.schemas.user import UserCreate, OperatorBase, AdministratorBase
+    from app.identity_access.schemas.user import UserCreate, OperatorBase, AdminBase
     from app.customer.schemas.customer import CustomerBase
     from app.db.uuid_utils import (
         user_id, role_id, conversation_id, message_id, profile_id, system_id, model_id
@@ -111,7 +111,7 @@ def check_extension_tables_exist():
     tables = inspector.get_table_names()
     required_tables = [
         "users", "roles", "user_roles", "customers", 
-        "operators", "administrators", "system_settings"
+        "operators", "admins", "system_settings"
     ]
     
     for table in required_tables:
@@ -142,7 +142,7 @@ async def create_mock_users(db: Session, force_update: bool = False) -> Dict[str
         roles = user_data.get("roles", ["customer"])
         customer_info = user_data.pop("customer_info", None)
         operator_info = user_data.pop("operator_info", None)
-        administrator_info = user_data.pop("administrator_info", None)
+        admin_info = user_data.pop("admin_info", None)
         
         # 检查用户是否存在（直接使用数据库模型）
         user = db.query(User).filter(User.email == user_data["email"]).first()
@@ -180,7 +180,7 @@ async def create_mock_users(db: Session, force_update: bool = False) -> Dict[str
         await update_user_extended_info(
             db, user, 
             customer_info, 
-            operator_info, administrator_info,
+            operator_info, admin_info,
             force_update
         )
         
@@ -195,7 +195,7 @@ async def update_user_extended_info(
     user: User, 
     customer_info: Optional[CustomerBase] = None,
     operator_info: Optional[OperatorBase] = None,
-    administrator_info: Optional[AdministratorBase] = None,
+    admin_info: Optional[AdminBase] = None,
     force_update: bool = False
 ) -> None:
     """更新用户的扩展信息
@@ -205,7 +205,7 @@ async def update_user_extended_info(
         user: 用户对象
         customer_info: 客户信息
         operator_info: 运营人员信息
-        administrator_info: 管理员信息
+        admin_info: 管理员信息
         force_update: 是否强制更新现有数据
     """
     # 安全地获取角色列表
@@ -239,18 +239,18 @@ async def update_user_extended_info(
                 setattr(operator, key, value)
         
     # 更新管理员信息
-    if "administrator" in roles and administrator_info and (not user.administrator or force_update):
-        if not user.administrator:
-            administrator = Administrator(user_id=user.id)
-            db.add(administrator)
+    if "admin" in roles and admin_info and (not user.admin or force_update):
+        if not user.admin:
+            admin = Admin(user_id=user.id)
+            db.add(admin)
             logger.info(f"  - 添加管理员扩展信息")
         else:
-            administrator = user.administrator
+            admin = user.admin
             logger.info(f"  - 更新管理员扩展信息")
             
-        for key, value in administrator_info.model_dump().items():
+        for key, value in admin_info.model_dump().items():
             if value is not None:
-                setattr(administrator, key, value)
+                setattr(admin, key, value)
                 
     db.commit()
 

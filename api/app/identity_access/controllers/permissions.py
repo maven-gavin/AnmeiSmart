@@ -68,7 +68,7 @@ def _convert_permission_to_response(permission: Permission) -> PermissionRespons
 async def list_permissions(
     skip: int = Query(0, ge=0, description="跳过数量"),
     limit: int = Query(100, ge=1, le=1000, description="限制数量"),
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     permission_service: PermissionService = Depends(get_permission_service)
 ) -> ApiResponse[PermissionListResponse]:
     """获取权限列表（全局，不区分租户）"""
@@ -104,7 +104,7 @@ async def list_permissions(
 @router.get("/{permission_id}", response_model=ApiResponse[PermissionResponse])
 async def get_permission(
     permission_id: str,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     permission_service: PermissionService = Depends(get_permission_service)
 ) -> ApiResponse[PermissionResponse]:
     """获取权限详情"""
@@ -124,7 +124,7 @@ async def get_permission(
 @router.post("", response_model=ApiResponse[PermissionResponse], status_code=status.HTTP_201_CREATED)
 async def create_permission(
     permission_in: PermissionCreate,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     permission_service: PermissionService = Depends(get_permission_service)
 ) -> ApiResponse[PermissionResponse]:
     """创建权限"""
@@ -142,7 +142,7 @@ async def create_permission(
 async def update_permission(
     permission_id: str,
     permission_in: PermissionUpdate,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     permission_service: PermissionService = Depends(get_permission_service)
 ) -> ApiResponse[PermissionResponse]:
     """更新权限"""
@@ -159,7 +159,7 @@ async def update_permission(
 @router.delete("/{permission_id}", status_code=status.HTTP_200_OK)
 async def delete_permission(
     permission_id: str,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     permission_service: PermissionService = Depends(get_permission_service)
 ) -> ApiResponse[dict]:
     """删除权限（物理删除）"""
@@ -185,7 +185,7 @@ async def delete_permission(
 @router.get("/{permission_id}/resources", response_model=ApiResponse[List[ResourceResponse]])
 async def get_permission_resources(
     permission_id: str,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     permission_service: PermissionService = Depends(get_permission_service),
     resource_service: ResourceService = Depends(get_resource_service)
 ) -> ApiResponse[List[ResourceResponse]]:
@@ -222,7 +222,7 @@ async def get_permission_resources(
 async def assign_resources_to_permission(
     permission_id: str,
     request: Request,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     permission_service: PermissionService = Depends(get_permission_service)
 ) -> ApiResponse[dict]:
     """为权限分配资源"""
@@ -320,7 +320,7 @@ async def assign_resources_to_permission(
 async def unassign_resources_from_permission(
     permission_id: str,
     request: Request,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     permission_service: PermissionService = Depends(get_permission_service)
 ) -> ApiResponse[dict]:
     """从权限移除资源"""

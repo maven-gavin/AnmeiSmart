@@ -91,7 +91,7 @@ class OperatorBase(CamelModel):
     department: Optional[str] = None
     responsibilities: Optional[str] = None
 
-class AdministratorBase(CamelModel):
+class AdminBase(CamelModel):
     """管理员信息基础模型"""
     admin_level: str = AdminLevel.BASIC  # 与数据库模型保持一致，使用枚举值
     access_permissions: Optional[str] = None
@@ -103,7 +103,7 @@ class UserCreate(UserBase):
     tenant_id: Optional[str] = "system"
     customer_info: Optional["CustomerBase"] = None
     operator_info: Optional[OperatorBase] = None
-    administrator_info: Optional[AdministratorBase] = None
+    admin_info: Optional[AdminBase] = None
 
 class UserUpdate(CamelModel):
     """用户更新模型"""
@@ -117,13 +117,13 @@ class UserUpdate(CamelModel):
     tenant_id: Optional[str] = None
     customer_info: Optional["CustomerBase"] = None
     operator_info: Optional[OperatorBase] = None
-    administrator_info: Optional[AdministratorBase] = None
+    admin_info: Optional[AdminBase] = None
 
 class ExtendedUserInfo(CamelModel):
     """扩展用户信息，包含角色特定信息"""
     customer_info: Optional["CustomerBase"] = None
     operator_info: Optional[OperatorBase] = None
-    administrator_info: Optional[AdministratorBase] = None
+    admin_info: Optional[AdminBase] = None
 
 class UserResponse(UserBase):
     """API响应中的用户模型"""

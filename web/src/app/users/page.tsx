@@ -51,7 +51,7 @@ export default function UsersPage() {
   useEffect(() => {
     // 这里假设 admin 角色名就是 'admin'，实际情况请根据项目调整
     // 如果 roles 包含 admin 或 operator (根据 RolePermissionDomainService 逻辑)
-    if (user && !user.roles.some(role => ['admin', 'administrator', 'operator'].includes(role))) {
+    if (user && !user.roles.some(role => ['admin', 'admin', 'operator'].includes(role))) {
       router.push('/unauthorized');
     }
   }, [user, router]);

@@ -30,7 +30,7 @@ async def list_resources(
     skip: int = Query(0, ge=0, description="跳过数量"),
     limit: int = Query(100, ge=1, le=1000, description="限制数量"),
     resource_type: Optional[str] = Query(None, alias="resourceType", description="资源类型筛选：api 或 menu"),
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     resource_service: ResourceService = Depends(get_resource_service)
 ) -> ApiResponse[ResourceListResponse]:
     """获取资源列表（全局，不区分租户）"""
@@ -94,7 +94,7 @@ async def list_resources(
 @router.get("/{resource_id}", response_model=ApiResponse[ResourceResponse])
 async def get_resource(
     resource_id: str,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     resource_service: ResourceService = Depends(get_resource_service)
 ) -> ApiResponse[ResourceResponse]:
     """获取资源详情"""
@@ -128,7 +128,7 @@ async def get_resource(
 @router.post("", response_model=ApiResponse[ResourceResponse], status_code=status.HTTP_201_CREATED)
 async def create_resource(
     resource_in: ResourceCreate,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     resource_service: ResourceService = Depends(get_resource_service)
 ) -> ApiResponse[ResourceResponse]:
     """创建资源（全局，不区分租户）"""
@@ -161,7 +161,7 @@ async def create_resource(
 async def update_resource(
     resource_id: str,
     resource_in: ResourceUpdate,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     resource_service: ResourceService = Depends(get_resource_service)
 ) -> ApiResponse[ResourceResponse]:
     """更新资源（全局，不区分租户）"""
@@ -193,7 +193,7 @@ async def update_resource(
 @router.delete("/{resource_id}", status_code=status.HTTP_200_OK)
 async def delete_resource(
     resource_id: str,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     resource_service: ResourceService = Depends(get_resource_service)
 ) -> ApiResponse[dict]:
     """删除资源（物理删除）"""
@@ -219,7 +219,7 @@ async def delete_resource(
 @router.post("/sync-menus", response_model=ApiResponse[SyncMenusResponse])
 async def sync_menus(
     request: SyncMenusRequest,
-    current_user: User = Depends(require_role("administrator")),
+    current_user: User = Depends(require_role("admin")),
     resource_service: ResourceService = Depends(get_resource_service)
 ) -> ApiResponse[SyncMenusResponse]:
     """

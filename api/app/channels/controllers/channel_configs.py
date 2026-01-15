@@ -20,7 +20,7 @@ router = APIRouter(prefix="/channels/configs", tags=["channels-configs"])
 
 
 async def _require_channel_admin(current_user: User) -> None:
-    ok = await check_user_any_role(current_user, ["operator", "administrator", "admin"])
+    ok = await check_user_any_role(current_user, ["operator", "admin", "admin"])
     if not ok:
         raise HTTPException(status_code=403, detail="无权管理渠道配置")
 

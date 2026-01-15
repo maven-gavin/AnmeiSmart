@@ -106,12 +106,12 @@ export function usePermission(): UsePermissionReturn {
       return true;
     }
     
-    // 检查是否为管理员角色（包括administrator）
-    // 注意：normalizeRole会将administrator转换为admin，但我们需要检查原始角色
-    const adminRoles = ['admin', 'administrator', 'operator'];
+    // 检查是否为管理员角色（包括admin）
+    // 注意：normalizeRole会将admin转换为admin，但我们需要检查原始角色
+    const adminRoles = ['admin', 'admin', 'operator'];
     const userRoles = user.roles || [];
     
-    // 检查原始角色列表（可能包含administrator）
+    // 检查原始角色列表（可能包含admin）
     if (userRoles.some(role => adminRoles.includes(role.toLowerCase()))) {
       return true;
     }

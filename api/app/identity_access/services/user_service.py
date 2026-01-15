@@ -8,7 +8,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_
 
-from app.identity_access.models.user import User, Role, Operator, Administrator
+from app.identity_access.models.user import User, Role, Operator, Admin
 from app.identity_access.models.profile import UserPreferences, UserDefaultRole, LoginHistory
 from app.identity_access.schemas.user import UserCreate, UserUpdate, UserResponse, RoleResponse
 from app.identity_access.schemas.profile import UserPreferencesCreate, UserPreferencesUpdate, ChangePasswordRequest
@@ -60,7 +60,7 @@ class UserService:
             exclude_fields = {
                 "roles", "password", 
                 "customer_info", 
-                "operator_info", "administrator_info"
+                "operator_info", "admin_info"
             }
             user_data = user_in.model_dump(exclude=exclude_fields)
             user_data["tenant_id"] = tenant_id

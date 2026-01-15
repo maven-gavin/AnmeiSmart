@@ -1053,7 +1053,7 @@ class ChatService:
         # 权限检查：只有管理员可以创建系统事件消息
         from app.identity_access.deps.permission_deps import get_user_primary_role
         sender_role = get_user_primary_role(sender)
-        if sender_role not in ["admin", "administrator", "super_admin"]:
+        if sender_role not in ["admin", "admin", "super_admin"]:
             raise PermissionError("只有管理员可以创建系统事件消息")
         
         # 验证会话存在

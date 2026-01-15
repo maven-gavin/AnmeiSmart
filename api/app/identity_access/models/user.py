@@ -164,7 +164,7 @@ class User(BaseModel):
     
     # 扩展表关联
     # 使用 backref 自动生成，避免循环依赖
-    # customer, operator, administrator 已在各自模型中定义
+    # customer, operator, admin 已在各自模型中定义
     
     # 上传会话关联
     # 使用 backref 自动生成，避免循环依赖
@@ -192,9 +192,9 @@ class Operator(BaseModel):
     from sqlalchemy.orm import backref
     user = relationship("User", foreign_keys=[user_id], backref=backref("operator", uselist=False, cascade="all, delete-orphan"))
 
-class Administrator(BaseModel):
+class Admin(BaseModel):
     """系统管理员特有信息表，存储管理员扩展信息"""
-    __tablename__ = "administrators"
+    __tablename__ = "admins"
     __table_args__ = {"comment": "系统管理员表，存储管理员扩展信息"}
     
     user_id = Column(String(36), ForeignKey("users.id"), unique=True, nullable=False, comment="用户ID")
@@ -203,4 +203,4 @@ class Administrator(BaseModel):
     
     # 关联到基础用户表
     from sqlalchemy.orm import backref
-    user = relationship("User", foreign_keys=[user_id], backref=backref("administrator", uselist=False, cascade="all, delete-orphan"))
+    user = relationship("User", foreign_keys=[user_id], backref=backref("admin", uselist=False, cascade="all, delete-orphan"))

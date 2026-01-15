@@ -104,7 +104,7 @@ async def get_current_admin(
     # 简单检查是否为管理员
     is_admin = False
     for role in current_user.roles:
-        if role.is_admin or role.name in ["administrator", "super_admin"]:
+        if role.is_admin or role.name in ["admin", "super_admin"]:
             is_admin = True
             break
             

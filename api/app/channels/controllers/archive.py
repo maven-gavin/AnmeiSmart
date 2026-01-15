@@ -25,12 +25,12 @@ router = APIRouter(prefix="/channels/archive", tags=["channels-archive"])
     "/pull",
     response_model=ApiResponse[dict],
     status_code=status.HTTP_200_OK,
-    dependencies=[Depends(require_any_role(["admin", "administrator", "operator"]))],
+    dependencies=[Depends(require_any_role(["admin", "admin", "operator"]))],
 )
 async def pull_wechat_work_archive(
     seq: Optional[int] = Query(None, description="起始 seq，留空则使用上次记录"),
     limit: int = Query(100, ge=1, le=1000, description="每次拉取数量"),
-    current_user: User = Depends(require_any_role(["admin", "administrator", "operator"])),
+    current_user: User = Depends(require_any_role(["admin", "admin", "operator"])),
     db: Session = Depends(get_db),
     channel_service: ChannelService = Depends(get_channel_service),
 ):

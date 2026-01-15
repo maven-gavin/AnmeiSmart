@@ -14,7 +14,7 @@ def get_user_primary_role(user: User) -> str:
     
     # 优先返回管理员角色
     for role in user.roles:
-        if role.is_admin or role.name in ["administrator", "super_admin"]:
+        if role.is_admin or role.name in ["admin", "super_admin"]:
             return "admin"
     
     # 按优先级返回第一个角色
@@ -39,7 +39,7 @@ def check_user_has_role(user: User, role_name: str) -> bool:
     
     # 管理员拥有所有角色权限
     for role in user.roles:
-        if role.is_admin or role.name in ["administrator", "super_admin"]:
+        if role.is_admin or role.name in ["admin", "super_admin"]:
             return True
     
     # 检查是否有指定角色
@@ -53,7 +53,7 @@ async def check_user_any_role(user: User, required_roles: List[str]) -> bool:
     
     # 管理员拥有所有角色权限
     for role in user.roles:
-        if role.is_admin or role.name in ["administrator", "super_admin"]:
+        if role.is_admin or role.name in ["admin", "super_admin"]:
             return True
     
     # 检查是否有任意一个指定角色
@@ -82,7 +82,7 @@ def check_role_permission(user: User, permission: str) -> bool:
     
     # 管理员拥有所有权限
     for role in user.roles:
-        if role.is_admin or role.name in ["administrator", "super_admin"]:
+        if role.is_admin or role.name in ["admin", "super_admin"]:
             return True
     
     # 检查角色权限
