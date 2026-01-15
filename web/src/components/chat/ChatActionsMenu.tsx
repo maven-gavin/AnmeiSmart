@@ -20,7 +20,6 @@ import {
 
 interface ChatActionsMenuProps {
   conversationId: string;
-  isConsultant?: boolean;
   hasCustomerProfile?: boolean;
   onSearchToggle: () => void;
   onParticipantsToggle: () => void;
@@ -31,7 +30,6 @@ interface ChatActionsMenuProps {
 
 export function ChatActionsMenu({
   conversationId,
-  isConsultant = false,
   hasCustomerProfile = false,
   onSearchToggle,
   onParticipantsToggle,
@@ -71,11 +69,11 @@ export function ChatActionsMenu({
         
         <DropdownMenuSeparator />
         
-        {/* 客户资料 - 仅顾问可见 */}
-        {isConsultant && hasCustomerProfile && (
+        {/* 对方信息 */}
+        {hasCustomerProfile && (
           <DropdownMenuItem onClick={onCustomerProfileToggle} className="cursor-pointer">
             <User className="mr-2 h-4 w-4" />
-            <span>客户资料</span>
+            <span>对方信息</span>
           </DropdownMenuItem>
         )}
         

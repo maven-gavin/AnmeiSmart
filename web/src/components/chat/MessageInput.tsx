@@ -20,7 +20,6 @@ import { useAuthContext } from '@/contexts/AuthContext';
 import { saveMessage } from '@/service/chatService';
 import PlanGenerationButton from './PlanGenerationButton';
 import { ScreenshotCapture } from './ScreenshotCapture';
-import { useSearchParams } from 'next/navigation';
 import { Send, Smile, Image, Paperclip, Mic } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -31,6 +30,8 @@ interface MessageInputProps {
   messages?: Message[]; // 传递给FAQ使用
   onInputFocus?: () => void; // 新增：输入框获得焦点时的回调
   onMessageAdded?: (message: Message) => void; // 新增：消息添加回调，用于更新消息状态
+  peerUserId?: string | null;
+  peerUserType?: 'customer' | 'staff' | null;
 }
 
 export default function MessageInput({
@@ -39,24 +40,19 @@ export default function MessageInput({
   onUpdateMessages,
   messages = [],
   onInputFocus,
-  onMessageAdded
+  onMessageAdded,
+  peerUserId = null,
+  peerUserType = null
 }: MessageInputProps) {
   const { user } = useAuthContext();
-  const searchParams = useSearchParams();
 
   // 内部管理的状态
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   
-  // 获取URL参数中的客户ID（仅在顾问界面）
-  const customerId = searchParams?.get('customerId');
-  
-  // 检查当前用户是否为顾问
-  const isConsultant = user?.currentRole === 'consultant';
-  
-  // 显示方案生成按钮的条件：是顾问且有会话ID和客户ID
-  const showPlanGeneration = isConsultant && conversationId && customerId;
+  // 显示方案生成按钮的条件：对话对方是客户
+  const showPlanGeneration = !!conversationId && !!peerUserId && peerUserType === 'customer';
 
   // 录音相关状态
   const {
@@ -745,11 +741,11 @@ export default function MessageInput({
               <Mic className="h-5 w-5" />
             </button>
             
-            {/* AI方案生成按钮 - 仅对顾问显示 */}
+            {/* AI方案生成按钮 - 对话对方为客户时显示 */}
             {showPlanGeneration && (
               <PlanGenerationButton
                 conversationId={conversationId}
-                customerId={customerId}
+                customerId={peerUserId ?? ''}
                 consultantId={user?.id || ''}
                 onPlanGenerated={(plan) => {
                   console.log('方案生成完成:', plan);

@@ -161,6 +161,23 @@ class UserResponse(UserBase):
     active_role: Optional[str] = None
     extended_info: Optional[ExtendedUserInfo] = None
 
+    @field_validator("roles", mode="before")
+    @classmethod
+    def normalize_roles(cls, value):
+        """兼容 ORM Role 对象，确保 roles 是字符串列表"""
+        if value is None:
+            return []
+        if isinstance(value, list):
+            normalized = []
+            for item in value:
+                if isinstance(item, str):
+                    normalized.append(item)
+                else:
+                    role_name = getattr(item, "name", None)
+                    normalized.append(role_name if role_name is not None else str(item))
+            return normalized
+        return [str(value)]
+
 class UserListResponse(CamelModel):
     """用户列表响应模型"""
     users: List[UserResponse] = Field(..., description="用户列表")

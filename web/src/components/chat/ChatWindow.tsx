@@ -22,9 +22,10 @@ interface ChatWindowProps {
   conversation: Conversation;
   messages: Message[];
   loadingMessages: boolean;
-  isConsultant?: boolean;
   hasCustomerProfile?: boolean;
   digitalHumanId?: string;
+  peerUserId?: string | null;
+  peerUserType?: 'customer' | 'staff' | null;
   onAction: (action: string, conversationId: string) => void;
   onLoadMessages: (forceRefresh?: boolean) => Promise<void>;
   onCustomerProfileToggle?: () => void;
@@ -43,9 +44,10 @@ export default function ChatWindow({
   conversation, 
   messages, 
   loadingMessages,
-  isConsultant = false,
   hasCustomerProfile = false,
   digitalHumanId,
+  peerUserId = null,
+  peerUserType = null,
   onAction,
   onLoadMessages,
   onCustomerProfileToggle,
@@ -360,7 +362,6 @@ export default function ChatWindow({
         {/* 更多操作菜单 */}
         <ChatActionsMenu
           conversationId={conversation.id}
-          isConsultant={isConsultant}
           hasCustomerProfile={hasCustomerProfile}
           onSearchToggle={onSearchToggle || (() => {})}
           onParticipantsToggle={onParticipantsToggle || (() => {})}
@@ -404,6 +405,8 @@ export default function ChatWindow({
           messages={messages}
           onInputFocus={onInputFocus}
           onMessageAdded={onMessageAdded}
+          peerUserId={peerUserId}
+          peerUserType={peerUserType}
         />
       </div>
     </div>

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import AppLayout from '@/components/layout/AppLayout';
 import ChatWindow from '@/components/chat/ChatWindow';
 import CustomerProfile from '@/components/profile/CustomerProfile';
+import EmployeeSummary from '@/components/profile/EmployeeSummary';
 import ConversationHistoryList from '@/components/chat/ConversationHistoryList';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { ErrorDisplay } from '@/components/ui/ErrorDisplay';
@@ -22,6 +23,8 @@ import { useWebSocket } from '@/contexts/WebSocketContext';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Message, SenderType } from '@/types/chat';
 import { ChevronLeft } from 'lucide-react';
+import { getConversationParticipants } from '@/service/chatService';
+import { userService } from '@/service/userService';
 
 function SmartCommunicationContent() {
   const router = useRouter();
@@ -37,12 +40,7 @@ function SmartCommunicationContent() {
     redirectTo: '/login?redirect=/chat'
   });
   
-  // 获取当前用户角色
-  const currentRole = user?.currentRole;
-  const isConsultant = currentRole === 'consultant';
-  
   // URL作为唯一状态源
-  const selectedCustomerId = searchParams?.get('customerId');
   const selectedConversationId = searchParams?.get('conversationId');
   const selectedFriendId = searchParams?.get('friend');
   const digitalHumanIdFromUrl = searchParams?.get('digital_human_id') || '';
@@ -66,6 +64,11 @@ function SmartCommunicationContent() {
     saveMessage,
     toggleMessageImportant
   } = useMessageState(selectedConversationId);
+
+  const [peerUserId, setPeerUserId] = useState<string | null>(null);
+  const [peerUserType, setPeerUserType] = useState<'customer' | 'staff' | null>(null);
+  const [peerUserLoading, setPeerUserLoading] = useState(false);
+  const [peerUserError, setPeerUserError] = useState<string | null>(null);
   
   // 使用 ref 存储函数引用，避免依赖项变化导致重复执行
   const saveMessageRef = useRef(saveMessage);
@@ -82,6 +85,68 @@ function SmartCommunicationContent() {
     loadMessagesRef.current = loadMessages;
     refreshConversationsRef.current = refreshConversations;
   }, [saveMessage, updateUnreadCount, updateLastMessage, loadMessages, refreshConversations]);
+
+  // 获取对话对方信息（用于客户档案/员工简要信息）
+  useEffect(() => {
+    if (!selectedConversationId || !user?.id) {
+      setPeerUserId(null);
+      setPeerUserType(null);
+      setPeerUserError(null);
+      setPeerUserLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadPeerUser = async () => {
+      setPeerUserLoading(true);
+      setPeerUserError(null);
+
+      try {
+        const participants = await getConversationParticipants(selectedConversationId);
+        const candidate = participants.find(p => p.userId && p.userId !== user.id)
+          || participants.find(p => p.userId);
+
+        if (!candidate?.userId) {
+          if (!cancelled) {
+            setPeerUserId(null);
+            setPeerUserType(null);
+          }
+          return;
+        }
+
+        const targetUserId = candidate.userId;
+        if (!cancelled) {
+          setPeerUserId(targetUserId);
+        }
+
+        const targetUser = await userService.getUser(targetUserId);
+        if (cancelled) return;
+
+        const roles = targetUser.roles || [];
+        const staffRoles = new Set(['admin', 'administrator', 'doctor', 'operator', 'consultant']);
+        const hasStaffRole = roles.some((role) => staffRoles.has(role));
+        const isCustomerRole = roles.includes('customer') || targetUser.activeRole === 'customer';
+
+        setPeerUserType(hasStaffRole ? 'staff' : (isCustomerRole ? 'customer' : 'staff'));
+      } catch (err) {
+        if (!cancelled) {
+          setPeerUserError(err instanceof Error ? err.message : '获取对话对方信息失败');
+          setPeerUserType(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setPeerUserLoading(false);
+        }
+      }
+    };
+
+    loadPeerUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedConversationId, user?.id]);
     
   // 跟踪已处理的消息ID，避免重复处理
   const processedMessageIdsRef = useRef<Set<string>>(new Set());
@@ -375,12 +440,46 @@ function SmartCommunicationContent() {
 
     switch (activeRightPanel) {
       case 'customer':
-        return selectedCustomerId ? (
+        if (peerUserLoading) {
+          return (
+            <div className="flex h-full items-center justify-center p-6">
+              <LoadingSpinner />
+            </div>
+          );
+        }
+
+        if (peerUserError) {
+          return (
+            <div className="am-card p-4">
+              <div className="text-sm text-red-600">{peerUserError}</div>
+            </div>
+          );
+        }
+
+        if (!peerUserId) {
+          return (
+            <div className="am-card p-4">
+              <div className="text-sm text-gray-500">未找到对方信息</div>
+            </div>
+          );
+        }
+
+        if (!peerUserType) {
+          return (
+            <div className="am-card p-4">
+              <div className="text-sm text-gray-500">正在识别对方类型...</div>
+            </div>
+          );
+        }
+
+        return peerUserType === 'staff' ? (
+          <EmployeeSummary userId={peerUserId} />
+        ) : (
           <CustomerProfile 
-            customerId={selectedCustomerId} 
+            customerId={peerUserId} 
             conversationId={selectedConversationId || undefined} 
           />
-        ) : null;
+        );
       
       case 'search':
         return selectedConversationId ? (
@@ -426,7 +525,10 @@ function SmartCommunicationContent() {
     }
   }, [
     activeRightPanel,
-    selectedCustomerId,
+    peerUserId,
+    peerUserType,
+    peerUserLoading,
+    peerUserError,
     selectedConversationId,
     selectedConversation,
     messages,
@@ -437,7 +539,7 @@ function SmartCommunicationContent() {
   // 获取面板标题
   const getPanelTitle = useCallback((panelType: RightPanelType): string => {
     switch (panelType) {
-      case 'customer': return '客户资料';
+      case 'customer': return '对方信息';
       case 'search': return '搜索';
       case 'participants': return '参与者';
       case 'important': return '重点消息';
@@ -515,8 +617,7 @@ function SmartCommunicationContent() {
                     conversation={effectiveConversation}
                     messages={messages}
                     loadingMessages={loadingMessages}
-                    isConsultant={isConsultant}
-                    hasCustomerProfile={!!selectedCustomerId}
+                    hasCustomerProfile={!!peerUserId}
                     digitalHumanId={digitalHumanIdFromUrl || undefined}
                     onAction={handleConversationAction}
                     onLoadMessages={loadMessages}
@@ -530,6 +631,8 @@ function SmartCommunicationContent() {
                     onInputFocus={handleInputFocus}
                     isHistoryListCollapsed={true}
                     onToggleHistoryList={handleBackToHistory}
+                    peerUserId={peerUserId}
+                    peerUserType={peerUserType}
                   />
                 ) : (
                   // 有会话ID但会话详情尚未补齐时，展示可返回的加载态，避免“无头空态”卡死
@@ -630,8 +733,7 @@ function SmartCommunicationContent() {
                   conversation={effectiveConversation}
                   messages={messages}
                   loadingMessages={loadingMessages}
-                  isConsultant={isConsultant}
-                  hasCustomerProfile={!!selectedCustomerId}
+                  hasCustomerProfile={!!peerUserId}
                   digitalHumanId={digitalHumanIdFromUrl || undefined}
                   onAction={handleConversationAction}
                   onLoadMessages={loadMessages}
@@ -645,6 +747,8 @@ function SmartCommunicationContent() {
                   onInputFocus={handleInputFocus}
                   isHistoryListCollapsed={isHistoryListCollapsed}
                   onToggleHistoryList={() => setIsHistoryListCollapsed(!isHistoryListCollapsed)}
+                  peerUserId={peerUserId}
+                  peerUserType={peerUserType}
                 />
               ) : (
                 <div className="flex h-full items-center justify-center bg-gray-50">

@@ -6,6 +6,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.api import ApiResponse
+from app.common.deps.uuid_utils import generate_uuid
 from app.identity_access.deps import get_current_user
 from app.identity_access.deps.permission_deps import check_user_any_role
 from app.identity_access.models.user import User
@@ -34,7 +35,18 @@ async def get_channel_config(
         await _require_channel_admin(current_user)
         row = service.get_by_type(channel_type=channel_type)
         if not row:
-            raise HTTPException(status_code=404, detail="渠道配置不存在")
+            # 配置不存在时返回默认空配置，而不是404
+            # 这样前端可以正常显示表单，用户可以直接填写并保存
+            default_config = ChannelConfigInfo(
+                id=generate_uuid(),
+                channel_type=channel_type,
+                name=channel_type,
+                config={},
+                is_active=True,
+                created_at=None,
+                updated_at=None,
+            )
+            return ApiResponse.success(default_config)
         return ApiResponse.success(ChannelConfigInfo.model_validate(row))
     except HTTPException:
         raise

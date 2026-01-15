@@ -18,7 +18,8 @@ def get_user_primary_role(user: User) -> str:
             return "admin"
     
     # 按优先级返回第一个角色
-    sorted_roles = sorted(user.roles, key=lambda r: r.priority, reverse=True)
+    # 处理 priority 为 None 的情况，将其视为 0
+    sorted_roles = sorted(user.roles, key=lambda r: r.priority if r.priority is not None else 0, reverse=True)
     if sorted_roles:
         return sorted_roles[0].name
     

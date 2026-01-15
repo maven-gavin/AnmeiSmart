@@ -519,7 +519,35 @@ async def read_user_by_id(
         user = await user_service.get_user_by_id(user_id)
         if not user:
             raise BusinessException("用户不存在", code=ErrorCode.NOT_FOUND, status_code=status.HTTP_404_NOT_FOUND)
-        return ApiResponse.success(user, message="获取用户成功")
+        # 将 Role 对象列表转换为角色名称字符串列表
+        roles = [role.name for role in user.roles] if user.roles else []
+        active_role = roles[0] if roles else None
+
+        # 获取租户名称
+        tenant_name = None
+        if user.tenant:
+            tenant_name = user.tenant.display_name or user.tenant.name
+
+        user_data = {
+            "id": user.id,
+            "tenant_id": user.tenant_id,
+            "tenant_name": tenant_name,
+            "email": user.email,
+            "username": user.username,
+            "phone": user.phone,
+            "avatar": user.avatar,
+            "is_active": user.status == UserStatus.ACTIVE if hasattr(user, 'status') else getattr(user, 'is_active', True),
+            "created_at": user.created_at,
+            "updated_at": user.updated_at,
+            "last_login_at": getattr(user, 'last_login_at', None),
+            "roles": roles,
+            "permissions": [],
+            "active_role": active_role,
+            "extended_info": None
+        }
+
+        user_response = UserResponse(**user_data)
+        return ApiResponse.success(user_response, message="获取用户成功")
     except BusinessException:
         raise
     except Exception as e:
