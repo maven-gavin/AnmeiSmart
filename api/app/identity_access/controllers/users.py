@@ -2,7 +2,14 @@ import logging
 from fastapi import APIRouter, Depends, Query, status
 from typing import List, Optional
 
-from app.identity_access.schemas.user import UserCreate, UserUpdate, UserResponse, RoleResponse, UserListResponse
+from app.identity_access.schemas.user import (
+    UserCreate,
+    UserUpdate,
+    UserResponse,
+    RoleResponse,
+    UserListResponse,
+    UserListItemResponse,
+)
 from app.identity_access.models.user import User
 from app.identity_access.enums import UserStatus
 from app.identity_access.services.user_service import UserService
@@ -142,7 +149,7 @@ async def read_users(
                 logger.info(f"用户 {user.id} 的 status 值: {user.status}")
                 logger.info(f"处理后的 is_active 值: {is_active_value} (类型: {type(is_active_value)})")
                 
-                user_response = UserResponse(**user_data)
+                user_response = UserListItemResponse(**user_data)
                 user_responses.append(user_response)
                 logger.info(f"用户 {user.id} 转换成功")
             except Exception as user_error:

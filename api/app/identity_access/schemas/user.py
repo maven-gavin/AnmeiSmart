@@ -161,9 +161,49 @@ class UserResponse(UserBase):
             return normalized
         return [str(value)]
 
+class UserListItemResponse(CamelModel):
+    """用户列表响应模型（宽松校验，避免历史数据导致列表失败）"""
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        alias_generator=to_camel,
+    )
+
+    id: str
+    tenant_id: str
+    tenant_name: Optional[str] = None
+    email: Optional[str] = None
+    username: str
+    phone: Optional[str] = None
+    avatar: Optional[str] = None
+    is_active: bool = True
+    created_at: datetime
+    updated_at: datetime
+    last_login_at: Optional[datetime] = None
+    roles: List[str] = []
+    active_role: Optional[str] = None
+    extended_info: Optional[ExtendedUserInfo] = None
+
+    @field_validator("roles", mode="before")
+    @classmethod
+    def normalize_list_roles(cls, value):
+        """兼容 ORM Role 对象，确保 roles 是字符串列表"""
+        if value is None:
+            return []
+        if isinstance(value, list):
+            normalized = []
+            for item in value:
+                if isinstance(item, str):
+                    normalized.append(item)
+                else:
+                    role_name = getattr(item, "name", None)
+                    normalized.append(role_name if role_name is not None else str(item))
+            return normalized
+        return [str(value)]
+
 class UserListResponse(CamelModel):
     """用户列表响应模型"""
-    users: List[UserResponse] = Field(..., description="用户列表")
+    users: List[UserListItemResponse] = Field(..., description="用户列表")
     total: int = Field(..., description="总数量")
     skip: int = Field(..., description="跳过数量")
     limit: int = Field(..., description="限制数量")
