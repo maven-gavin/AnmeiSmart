@@ -138,13 +138,7 @@ export default function RoleHeader() {
             }}
           />
           <h1 className="text-xl font-bold text-gray-800">安美智享</h1>
-          
-          {/* 角色标识 - 只在客户端且有currentRoleInfo时显示内容 */}
-          {isClient && currentRoleInfo && (
-            <div className="ml-6 rounded-full bg-orange-100 px-3 py-1 text-sm font-medium text-orange-700">
-              {currentRoleInfo.name}
-            </div>
-          )}
+          {/* 不在头部展示“当前角色”徽章（避免出现截图标识1的“客户”文案） */}
           
           {/* 全局 WebSocket 状态指示器 */}
           {websocketState.isEnabled && (
@@ -157,13 +151,6 @@ export default function RoleHeader() {
                 connect={websocketState.connect}
                 disconnect={websocketState.disconnect}
               />
-            </div>
-          )}
-          
-          {/* 占位元素，保持布局一致 */}
-          {(!isClient || !currentRoleInfo) && (
-            <div className="ml-6 rounded-full bg-gray-100 px-3 py-1 text-sm font-medium text-gray-400">
-              加载中...
             </div>
           )}
         </div>

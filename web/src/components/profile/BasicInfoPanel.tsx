@@ -277,9 +277,6 @@ export function BasicInfoPanel() {
           </div>
           <div>
             <h3 className="text-lg font-medium">{userInfo?.username}</h3>
-            <p className="text-sm text-gray-500">
-              {userInfo?.roles.join(', ') || '无角色'}
-            </p>
           </div>
         </div>
 

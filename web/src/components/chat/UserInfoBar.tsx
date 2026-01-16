@@ -1,47 +1,54 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { authService } from '@/service/authService';
-import { type AuthUser } from '@/types/auth';
+import { useEffect, useState } from 'react';
+import { useAuthContext } from '@/contexts/AuthContext';
+import { profileService, type BasicUserInfo } from '@/service/profileService';
 
 export default function UserInfoBar() {
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [isClient, setIsClient] = useState(false);
-  
-  // 在客户端挂载后设置用户信息
-  useEffect(() => {
-    setIsClient(true);
-    const user = authService.getCurrentUser();
-    if (user) {
-      setCurrentUser(user);
-    }
-  }, []);
-  
+  const { user: currentUser } = useAuthContext();
+  const [basicInfo, setBasicInfo] = useState<BasicUserInfo | null>(null);
   
   // 确定要显示的标签
-  let tags: string[] = [];
+  const tags: string[] = [];
   
-  // 只在客户端根据用户角色设置标签
-  if (isClient) {
-    if (currentUser?.currentRole === 'operator') {
-      tags = ['运营', '客户服务'];
-    } else if (currentUser?.currentRole === 'customer') {
-      tags = currentUser.id === '101' ? ['VIP客户'] : ['回头客'];
-    } else if (currentUser?.currentRole === 'operator') {
-      tags = ['运营', '数据分析'];
-    }
+  // 根据用户角色设置标签
+  if (currentUser?.currentRole === 'operator') {
+    tags.push('运营', '客户服务');
+  } else if (currentUser?.currentRole === 'customer') {
+    tags.push(currentUser.id === '101' ? 'VIP客户' : '回头客');
   }
+
+  // 以 /auth/me 的“基本信息”为准渲染头像与名称，确保与个人中心一致
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const info = await profileService.getMyBasicInfo();
+        if (!cancelled) setBasicInfo(info);
+      } catch {
+        // 静默失败：回退到 AuthContext 的缓存信息
+        if (!cancelled) setBasicInfo(null);
+      }
+    };
+    if (currentUser) load();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id]);
+
+  const displayName = basicInfo?.username || currentUser?.name || '';
+  const displayAvatar = basicInfo?.avatar || currentUser?.avatar || '/avatars/default.png';
 
   return (
     <div className="flex items-center space-x-3">
       <img
-        src={currentUser?.avatar || '/avatars/default.png'}
-        alt={currentUser?.name || ''}
+        src={displayAvatar}
+        alt={displayName}
         className="h-10 w-10 rounded-full"
       />
       <div>
-        <h3 className="font-medium">{currentUser?.name || ''}</h3>
-        {isClient && tags.length > 0 && (
+        <h3 className="font-medium">{displayName}</h3>
+        {tags.length > 0 && (
           <div className="flex space-x-2">
             {tags.map(tag => (
               <span
