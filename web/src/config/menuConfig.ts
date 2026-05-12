@@ -18,6 +18,13 @@ export const menuConfig: MenuConfig = {
       roles: ['admin']
     },
     {
+      id: 'datahub-admin',
+      label: 'DataHub',
+      path: '/admin/datahub',
+      icon: 'stats-icon',
+      roles: ['admin']
+    },
+    {
       id: 'chat-consultant',
       label: '智能沟通',
       path: '/chat',

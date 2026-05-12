@@ -93,7 +93,7 @@ async def create_digital_human_admin(
     "/{digital_human_id}",
     response_model=ApiResponse[AdminDigitalHumanResponse],
 )
-async def get_digital_human_detail(
+def get_digital_human_detail(
     digital_human_id: str,
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db),

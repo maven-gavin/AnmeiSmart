@@ -10,6 +10,7 @@ from app.contacts.controllers import contacts
 from app.mcp.controllers import mcp_config, mcp_server, mcp_oauth
 from app.digital_humans.controllers import digital_humans, admin_digital_humans
 from app.tasks.controllers import tasks
+from app.datahub.controllers import datahub as datahub_controller
 from app.channels.controllers import webhook as channel_webhook
 from app.channels.controllers import archive as channel_archive
 from app.channels.controllers import channel_identities as channel_identities_controller
@@ -80,6 +81,9 @@ api_router.include_router(admin_digital_humans.router, prefix="/admin/digital-hu
 
 # 待办任务管理路由
 api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
+
+# DataHub 路由
+api_router.include_router(datahub_controller.router, prefix="/datahub", tags=["datahub"])
 
 # 通讯录管理路由
 api_router.include_router(contacts.router, prefix="/contacts", tags=["contacts"])

@@ -40,7 +40,7 @@ router = APIRouter()
 
 
 @router.post("/{agent_config_id}/chat")
-async def agent_chat(
+def agent_chat(
     agent_config_id: str,
     request: AgentChatRequest,
     current_user: User = Depends(get_current_user),

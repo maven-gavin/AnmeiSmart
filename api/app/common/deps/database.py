@@ -68,6 +68,7 @@ def init_db():
     import app.common.models.upload
     import app.common.models.file
     import app.channels.models  # 渠道模型
+    import app.datahub.models
     
     # 创建所有表
     Base.metadata.create_all(bind=engine)

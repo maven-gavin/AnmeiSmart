@@ -20,11 +20,11 @@ oauth2_scheme_optional = OAuth2PasswordBearer(
     auto_error=False,
 )
 
-async def get_current_user(
+def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ) -> User:
-    """获取当前用户"""
+    """获取当前用户（sync + Session 查询，便于在线程池执行，避免阻塞事件循环）"""
     jwt_service = JWTService()
     payload = jwt_service.verify_token(token)
     
@@ -57,7 +57,7 @@ async def get_current_user(
     return user
 
 
-async def get_current_user_optional(
+def get_current_user_optional(
     token: str | None = Depends(oauth2_scheme_optional),
     db: Session = Depends(get_db),
 ) -> Optional[User]:
@@ -97,7 +97,7 @@ async def get_current_user_optional(
 
     return user
 
-async def get_current_admin(
+def get_current_admin(
     current_user: User = Depends(get_current_user)
 ) -> User:
     """获取当前管理员用户"""
@@ -117,7 +117,7 @@ async def get_current_admin(
 
 def require_role(role_name: str):
     """检查用户是否拥有特定角色"""
-    async def check_role(current_user: User = Depends(get_current_user)):
+    def check_role(current_user: User = Depends(get_current_user)):
         has_role = False
         for role in current_user.roles:
             if role.name == role_name or role.is_admin: # 管理员拥有所有角色权限
@@ -134,7 +134,7 @@ def require_role(role_name: str):
 
 def require_permission(permission_code: str):
     """检查用户是否拥有特定权限"""
-    async def check_permission(current_user: User = Depends(get_current_user)):
+    def check_permission(current_user: User = Depends(get_current_user)):
         # 1. 如果是超级管理员，直接通过
         for role in current_user.roles:
             if role.is_admin:

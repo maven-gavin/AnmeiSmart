@@ -19,7 +19,7 @@ from app.websocket.broadcasting_service import BroadcastingService
 logger = logging.getLogger(__name__)
 
 
-async def get_chat_service(
+def get_chat_service(
     db: Session = Depends(get_db),
     broadcasting_service: Optional[BroadcastingService] = Depends(get_broadcasting_service_dependency)
 ) -> ChatService:

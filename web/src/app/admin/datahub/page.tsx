@@ -1,0 +1,762 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import toast from 'react-hot-toast'
+import type { CheckedState } from '@radix-ui/react-checkbox'
+import { RefreshCw, Play, Database, ListChecks, ShieldAlert, PackageSearch, ChevronDown } from 'lucide-react'
+
+import AppLayout from '@/components/layout/AppLayout'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Badge } from '@/components/ui/badge'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
+import { EnhancedPagination } from '@/components/ui/pagination'
+import { Progress } from '@/components/ui/progress'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useAuthContext } from '@/contexts/AuthContext'
+import { usePermission } from '@/hooks/usePermission'
+import { datahubService } from '@/service/datahubService'
+import type {
+  DatahubJobRunInfo,
+  DatahubJobTaskInfo,
+  DatahubObjectIndexInfo,
+  DatahubQualityReportInfo,
+  DatahubWorkerHeartbeatInfo,
+} from '@/types/datahub'
+
+const ALL_DATASETS_VALUE = '__ALL__'
+
+export default function DatahubAdminPage() {
+  const { user } = useAuthContext()
+  const { isAdmin } = usePermission()
+  const router = useRouter()
+
+  const [loading, setLoading] = useState(true)
+  const [runningBackfill, setRunningBackfill] = useState(false)
+  const [runningDaily, setRunningDaily] = useState(false)
+  const [seeding, setSeeding] = useState(false)
+
+  const [runs, setRuns] = useState<DatahubJobRunInfo[]>([])
+  const [selectedRunId, setSelectedRunId] = useState<string>('')
+  const [tasks, setTasks] = useState<DatahubJobTaskInfo[]>([])
+  const [qualityReports, setQualityReports] = useState<DatahubQualityReportInfo[]>([])
+  const [objectIndexes, setObjectIndexes] = useState<DatahubObjectIndexInfo[]>([])
+  const [datasetOptions, setDatasetOptions] = useState<string[]>([])
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [workerHeartbeat, setWorkerHeartbeat] = useState<DatahubWorkerHeartbeatInfo | null>(null)
+  const [errorDialog, setErrorDialog] = useState<{ open: boolean; title: string; content: string }>({
+    open: false,
+    title: '',
+    content: '',
+  })
+
+  const [runFilter, setRunFilter] = useState({ dataset: '', status: '', keyword: '', page: 1, pageSize: 10 })
+  const [taskFilter, setTaskFilter] = useState({ status: '', symbol: '', page: 1, pageSize: 10 })
+  const [qualityFilter, setQualityFilter] = useState({ dataset: '', symbol: '', severity: '', page: 1, pageSize: 10 })
+  const [objectFilter, setObjectFilter] = useState({ dataset: '', symbol: '', page: 1, pageSize: 10 })
+
+  const [backfillForm, setBackfillForm] = useState({
+    datasets: [ALL_DATASETS_VALUE],
+    symbol: '',
+    start_date: '2024-01-01',
+    end_date: '2024-01-31',
+  })
+  const [dailyForm, setDailyForm] = useState({
+    datasets: [ALL_DATASETS_VALUE],
+    symbol: '',
+    window_days: 7,
+  })
+
+  useEffect(() => {
+    if (user && !isAdmin) {
+      router.push('/unauthorized')
+    }
+  }, [user, isAdmin, router])
+
+  const loadAll = async () => {
+    setLoading(true)
+    try {
+      const [jobRuns, reports, indexes, heartbeat] = await Promise.all([
+        datahubService.listJobRuns(100),
+        datahubService.listQualityReports({ limit: 100 }),
+        datahubService.listObjectIndexes({ limit: 100 }),
+        datahubService.getWorkerHeartbeat().catch(() => null),
+      ])
+      const datasets = await datahubService.listDatasets()
+      const availableDatasets = datasets.map((item) => item.dataset_key)
+      setDatasetOptions(availableDatasets)
+      setRuns(jobRuns)
+      setQualityReports(reports)
+      setObjectIndexes(indexes)
+      setWorkerHeartbeat(heartbeat)
+
+      if (jobRuns.length > 0) {
+        const runId = selectedRunId || jobRuns[0].id
+        setSelectedRunId(runId)
+        const runTasks = await datahubService.listJobTasks(runId)
+        setTasks(runTasks)
+      } else {
+        setTasks([])
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadAll()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (!autoRefresh) return
+    const timer = window.setInterval(() => {
+      loadAll()
+    }, 10000)
+    return () => window.clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRefresh])
+
+  const selectedRun = useMemo(() => runs.find((item) => item.id === selectedRunId), [runs, selectedRunId])
+
+  const onSelectRun = async (runId: string) => {
+    setSelectedRunId(runId)
+    const runTasks = await datahubService.listJobTasks(runId)
+    setTasks(runTasks)
+  }
+
+  const resolveSelectedDatasets = (selectedValues: string[]) => {
+    if (selectedValues.includes(ALL_DATASETS_VALUE)) {
+      return datasetOptions
+    }
+    return selectedValues
+  }
+
+  const toggleDatasets = (
+    selectedValues: string[],
+    changedValue: string,
+    checked: boolean,
+  ) => {
+    if (changedValue === ALL_DATASETS_VALUE) {
+      return checked ? [ALL_DATASETS_VALUE] : []
+    }
+    const next = checked
+      ? [...selectedValues.filter((item) => item !== ALL_DATASETS_VALUE), changedValue]
+      : selectedValues.filter((item) => item !== changedValue && item !== ALL_DATASETS_VALUE)
+    return Array.from(new Set(next))
+  }
+
+  const onDatasetCheckedChange = (
+    currentValues: string[],
+    setter: (nextValues: string[]) => void,
+    changedValue: string,
+    checkedState: CheckedState,
+  ) => {
+    setter(toggleDatasets(currentValues, changedValue, checkedState === true))
+  }
+
+  const getDatasetTriggerText = (selectedValues: string[]) => {
+    if (datasetOptions.length === 0) {
+      return '暂无数据集，请先初始化'
+    }
+    if (selectedValues.includes(ALL_DATASETS_VALUE)) {
+      return datasetOptions.length > 0 ? `全部数据集 (${datasetOptions.length})` : '全部数据集'
+    }
+    if (selectedValues.length === 0) {
+      return '请选择数据集'
+    }
+    return selectedValues.join(', ')
+  }
+
+  const runBackfill = async () => {
+    const selectedDatasets = resolveSelectedDatasets(backfillForm.datasets)
+    if (selectedDatasets.length === 0) {
+      toast.error('请至少选择一个 Dataset')
+      return
+    }
+    setRunningBackfill(true)
+    try {
+      const runIds: string[] = []
+      for (const dataset of selectedDatasets) {
+        const payload = {
+          dataset,
+          symbol: backfillForm.symbol.trim() || undefined,
+          start_date: backfillForm.start_date,
+          end_date: backfillForm.end_date,
+        }
+        const run = await datahubService.runBackfill(payload)
+        runIds.push(run.id)
+      }
+      toast.success(`回填已提交：已创建 ${runIds.length} 个后台任务`)
+      await loadAll()
+    } finally {
+      setRunningBackfill(false)
+    }
+  }
+
+  const runDailyIncremental = async () => {
+    const selectedDatasets = resolveSelectedDatasets(dailyForm.datasets)
+    if (selectedDatasets.length === 0) {
+      toast.error('请至少选择一个 Dataset')
+      return
+    }
+    setRunningDaily(true)
+    try {
+      const runIds: string[] = []
+      for (const dataset of selectedDatasets) {
+        const payload = {
+          dataset,
+          symbol: dailyForm.symbol.trim() || undefined,
+          window_days: Number(dailyForm.window_days || 7),
+        }
+        const run = await datahubService.runDailyIncremental(payload)
+        runIds.push(run.id)
+      }
+      toast.success(`增量已提交：已创建 ${runIds.length} 个后台任务`)
+      await loadAll()
+    } finally {
+      setRunningDaily(false)
+    }
+  }
+
+  const seedDatasets = async () => {
+    setSeeding(true)
+    try {
+      const created = await datahubService.seedDatasets()
+      toast.success(`初始化完成，新增 ${created} 个数据集`)
+      await loadAll()
+    } finally {
+      setSeeding(false)
+    }
+  }
+
+  const runStats = useMemo(() => {
+    return {
+      total: runs.length,
+      success: runs.filter((r) => r.status === 'success').length,
+      failed: runs.filter((r) => r.status === 'failed').length,
+      running: runs.filter((r) => r.status === 'running').length,
+    }
+  }, [runs])
+
+  const getRunProgress = (run: DatahubJobRunInfo) => {
+    if (run.task_total <= 0) {
+      if (run.status === 'success') return 100
+      if (run.status === 'failed') return 100
+      return 0
+    }
+    const completed = run.task_success + run.task_failed
+    return Math.min(100, Math.round((completed / run.task_total) * 100))
+  }
+
+  const filteredRuns = useMemo(() => {
+    return runs.filter((run) => {
+      if (runFilter.dataset && run.dataset !== runFilter.dataset) return false
+      if (runFilter.status && run.status !== runFilter.status) return false
+      if (runFilter.keyword) {
+        const keyword = runFilter.keyword.toLowerCase()
+        const hit = `${run.id} ${run.job_type} ${run.dataset || ''} ${run.error_message || ''}`.toLowerCase().includes(keyword)
+        if (!hit) return false
+      }
+      return true
+    })
+  }, [runs, runFilter])
+
+  const pagedRuns = useMemo(() => {
+    const start = (runFilter.page - 1) * runFilter.pageSize
+    return filteredRuns.slice(start, start + runFilter.pageSize)
+  }, [filteredRuns, runFilter.page, runFilter.pageSize])
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      if (taskFilter.status && task.status !== taskFilter.status) return false
+      if (taskFilter.symbol && !(task.symbol || '').toLowerCase().includes(taskFilter.symbol.toLowerCase())) return false
+      return true
+    })
+  }, [tasks, taskFilter])
+
+  const pagedTasks = useMemo(() => {
+    const start = (taskFilter.page - 1) * taskFilter.pageSize
+    return filteredTasks.slice(start, start + taskFilter.pageSize)
+  }, [filteredTasks, taskFilter.page, taskFilter.pageSize])
+
+  const filteredQualityReports = useMemo(() => {
+    return qualityReports.filter((report) => {
+      if (qualityFilter.dataset && report.dataset !== qualityFilter.dataset) return false
+      if (qualityFilter.symbol && !(report.symbol || '').toLowerCase().includes(qualityFilter.symbol.toLowerCase())) return false
+      if (qualityFilter.severity && report.severity !== qualityFilter.severity) return false
+      return true
+    })
+  }, [qualityReports, qualityFilter])
+
+  const pagedQualityReports = useMemo(() => {
+    const start = (qualityFilter.page - 1) * qualityFilter.pageSize
+    return filteredQualityReports.slice(start, start + qualityFilter.pageSize)
+  }, [filteredQualityReports, qualityFilter.page, qualityFilter.pageSize])
+
+  const filteredObjectIndexes = useMemo(() => {
+    return objectIndexes.filter((row) => {
+      if (objectFilter.dataset && row.dataset !== objectFilter.dataset) return false
+      if (objectFilter.symbol && !(row.symbol || '').toLowerCase().includes(objectFilter.symbol.toLowerCase())) return false
+      return true
+    })
+  }, [objectIndexes, objectFilter])
+
+  const pagedObjectIndexes = useMemo(() => {
+    const start = (objectFilter.page - 1) * objectFilter.pageSize
+    return filteredObjectIndexes.slice(start, start + objectFilter.pageSize)
+  }, [filteredObjectIndexes, objectFilter.page, objectFilter.pageSize])
+
+  return (
+    <AppLayout requiredRole={user?.currentRole}>
+      <div className="am-page">
+        <div className="am-container space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="am-page-title">DataHub 管理台</h1>
+              <p className="text-sm text-gray-500">执行回填/增量任务，查看任务结果、质量报告与对象索引</p>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex items-center gap-2 rounded border border-gray-200 bg-white px-3">
+                <span className="text-xs text-gray-600">自动轮询</span>
+                <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} />
+              </div>
+              <Button className="am-btn-outline" onClick={seedDatasets} disabled={seeding}>
+                <Database className="mr-1 h-4 w-4" />
+                {seeding ? '初始化中...' : '初始化数据集'}
+              </Button>
+              <Button className="am-btn-reset" onClick={loadAll} disabled={loading}>
+                <RefreshCw className="mr-1 h-4 w-4" />
+                刷新
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <Card className="am-card">
+              <CardHeader className="pb-2"><CardTitle className="text-sm">作业总数</CardTitle></CardHeader>
+              <CardContent className="text-2xl font-bold">{runStats.total}</CardContent>
+            </Card>
+            <Card className="am-card">
+              <CardHeader className="pb-2"><CardTitle className="text-sm">成功</CardTitle></CardHeader>
+              <CardContent className="text-2xl font-bold text-green-700">{runStats.success}</CardContent>
+            </Card>
+            <Card className="am-card">
+              <CardHeader className="pb-2"><CardTitle className="text-sm">失败</CardTitle></CardHeader>
+              <CardContent className="text-2xl font-bold text-red-600">{runStats.failed}</CardContent>
+            </Card>
+            <Card className="am-card">
+              <CardHeader className="pb-2"><CardTitle className="text-sm">运行中</CardTitle></CardHeader>
+              <CardContent className="text-2xl font-bold text-brand-primaryHover">{runStats.running}</CardContent>
+            </Card>
+          </div>
+
+          <Card className="am-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Worker 心跳</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {workerHeartbeat ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Badge className={workerHeartbeat.is_online ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}>
+                      {workerHeartbeat.is_online ? '在线' : '离线'}
+                    </Badge>
+                    <span className="text-gray-600">{workerHeartbeat.worker_name}</span>
+                  </div>
+                  <div className="text-gray-600">状态：{workerHeartbeat.status}</div>
+                  <div className="text-gray-600">最近心跳：{workerHeartbeat.last_heartbeat_at}</div>
+                  <div className="text-gray-600">累计处理：{workerHeartbeat.processed_count}</div>
+                  {workerHeartbeat.last_run_id && <div className="text-gray-600">最近作业：{workerHeartbeat.last_run_id}</div>}
+                  {workerHeartbeat.last_error && <div className="text-red-600">最近错误：{workerHeartbeat.last_error}</div>}
+                </>
+              ) : (
+                <div className="text-gray-500">尚未检测到心跳，请确认 worker 已启动。</div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Card className="am-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Play className="h-4 w-4" />执行 Backfill</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <Label>Dataset</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button type="button" className="am-field mt-1 flex w-full items-center justify-between">
+                          <span className="truncate text-left">{getDatasetTriggerText(backfillForm.datasets)}</span>
+                          <ChevronDown className="h-4 w-4 text-gray-500" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="z-[80] w-[320px] border-gray-200 bg-white p-3 shadow-lg">
+                        <div className="space-y-2">
+                          <label className="flex cursor-pointer items-center gap-2 rounded-sm bg-white px-1.5 py-1 text-sm text-gray-900 hover:bg-gray-50">
+                            <Checkbox
+                              disabled={datasetOptions.length === 0}
+                              checked={backfillForm.datasets.includes(ALL_DATASETS_VALUE)}
+                              onCheckedChange={(checked) =>
+                                onDatasetCheckedChange(
+                                  backfillForm.datasets,
+                                  (next) => setBackfillForm((p) => ({ ...p, datasets: next })),
+                                  ALL_DATASETS_VALUE,
+                                  checked,
+                                )
+                              }
+                            />
+                            全部数据集
+                          </label>
+                          <div className="max-h-48 space-y-1 overflow-auto pr-1">
+                            {datasetOptions.length === 0 && (
+                              <div className="px-1.5 py-1 text-sm text-gray-500">暂无数据集，请先点击右上角“初始化数据集”</div>
+                            )}
+                            {datasetOptions.map((dataset) => (
+                              <label key={dataset} className="flex cursor-pointer items-center gap-2 rounded-sm bg-white px-1.5 py-1 text-sm text-gray-900 hover:bg-gray-50">
+                                <Checkbox
+                                  checked={backfillForm.datasets.includes(ALL_DATASETS_VALUE) || backfillForm.datasets.includes(dataset)}
+                                  onCheckedChange={(checked) =>
+                                    onDatasetCheckedChange(
+                                      backfillForm.datasets,
+                                      (next) => setBackfillForm((p) => ({ ...p, datasets: next })),
+                                      dataset,
+                                      checked,
+                                    )
+                                  }
+                                />
+                                {dataset}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div>
+                    <Label>Symbol (可选)</Label>
+                    <Input value={backfillForm.symbol} onChange={(e) => setBackfillForm((p) => ({ ...p, symbol: e.target.value }))} className="am-field mt-1" placeholder="如不填则处理所选数据集全部标的" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <Label>Start Date</Label>
+                    <Input type="date" value={backfillForm.start_date} onChange={(e) => setBackfillForm((p) => ({ ...p, start_date: e.target.value }))} className="am-field mt-1" />
+                  </div>
+                  <div>
+                    <Label>End Date</Label>
+                    <Input type="date" value={backfillForm.end_date} onChange={(e) => setBackfillForm((p) => ({ ...p, end_date: e.target.value }))} className="am-field mt-1" />
+                  </div>
+                </div>
+                <Button className="am-btn-primary w-full" onClick={runBackfill} disabled={runningBackfill}>
+                  {runningBackfill ? '执行中...' : '立即执行回填'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="am-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><RefreshCw className="h-4 w-4" />执行 Daily Incremental</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <Label>Dataset</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button type="button" className="am-field mt-1 flex w-full items-center justify-between">
+                          <span className="truncate text-left">{getDatasetTriggerText(dailyForm.datasets)}</span>
+                          <ChevronDown className="h-4 w-4 text-gray-500" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="z-[80] w-[320px] border-gray-200 bg-white p-3 shadow-lg">
+                        <div className="space-y-2">
+                          <label className="flex cursor-pointer items-center gap-2 rounded-sm bg-white px-1.5 py-1 text-sm text-gray-900 hover:bg-gray-50">
+                            <Checkbox
+                              disabled={datasetOptions.length === 0}
+                              checked={dailyForm.datasets.includes(ALL_DATASETS_VALUE)}
+                              onCheckedChange={(checked) =>
+                                onDatasetCheckedChange(
+                                  dailyForm.datasets,
+                                  (next) => setDailyForm((p) => ({ ...p, datasets: next })),
+                                  ALL_DATASETS_VALUE,
+                                  checked,
+                                )
+                              }
+                            />
+                            全部数据集
+                          </label>
+                          <div className="max-h-48 space-y-1 overflow-auto pr-1">
+                            {datasetOptions.length === 0 && (
+                              <div className="px-1.5 py-1 text-sm text-gray-500">暂无数据集，请先点击右上角“初始化数据集”</div>
+                            )}
+                            {datasetOptions.map((dataset) => (
+                              <label key={dataset} className="flex cursor-pointer items-center gap-2 rounded-sm bg-white px-1.5 py-1 text-sm text-gray-900 hover:bg-gray-50">
+                                <Checkbox
+                                  checked={dailyForm.datasets.includes(ALL_DATASETS_VALUE) || dailyForm.datasets.includes(dataset)}
+                                  onCheckedChange={(checked) =>
+                                    onDatasetCheckedChange(
+                                      dailyForm.datasets,
+                                      (next) => setDailyForm((p) => ({ ...p, datasets: next })),
+                                      dataset,
+                                      checked,
+                                    )
+                                  }
+                                />
+                                {dataset}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div>
+                    <Label>Symbol (可选)</Label>
+                    <Input value={dailyForm.symbol} onChange={(e) => setDailyForm((p) => ({ ...p, symbol: e.target.value }))} className="am-field mt-1" placeholder="如不填则处理所选数据集全部标的" />
+                  </div>
+                </div>
+                <div>
+                  <Label>Window Days</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={dailyForm.window_days}
+                    onChange={(e) => setDailyForm((p) => ({ ...p, window_days: Number(e.target.value || 7) }))}
+                    className="am-field mt-1"
+                  />
+                </div>
+                <Button className="am-btn-primary w-full" onClick={runDailyIncremental} disabled={runningDaily}>
+                  {runningDaily ? '执行中...' : '立即执行增量'}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Tabs defaultValue="runs" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="runs">作业运行</TabsTrigger>
+              <TabsTrigger value="tasks">作业任务</TabsTrigger>
+              <TabsTrigger value="quality">质量报告</TabsTrigger>
+              <TabsTrigger value="objects">对象索引</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="runs">
+              <Card className="am-card">
+                <CardHeader><CardTitle className="flex items-center gap-2"><ListChecks className="h-4 w-4" />作业运行记录</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-4">
+                    <Input placeholder="筛选 dataset" value={runFilter.dataset} className="am-field" onChange={(e) => setRunFilter((p) => ({ ...p, dataset: e.target.value, page: 1 }))} />
+                    <Input placeholder="筛选 status" value={runFilter.status} className="am-field" onChange={(e) => setRunFilter((p) => ({ ...p, status: e.target.value, page: 1 }))} />
+                    <Input placeholder="关键词（id/错误）" value={runFilter.keyword} className="am-field" onChange={(e) => setRunFilter((p) => ({ ...p, keyword: e.target.value, page: 1 }))} />
+                    <Button className="am-btn-reset" onClick={() => setRunFilter({ dataset: '', status: '', keyword: '', page: 1, pageSize: runFilter.pageSize })}>重置筛选</Button>
+                  </div>
+                  <div className="space-y-2">
+                    {pagedRuns.map((run) => (
+                      <button
+                        key={run.id}
+                        type="button"
+                        onClick={() => onSelectRun(run.id)}
+                        className={`w-full rounded border p-3 text-left ${selectedRunId === run.id ? 'border-brand-primary bg-brand-soft' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-sm font-medium text-gray-900">{run.job_type} · {run.dataset || '-'}</div>
+                          <Badge className={run.status === 'success' ? 'bg-green-100 text-green-800' : run.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-brand-soft text-brand-primaryHover'}>
+                            {run.status}
+                          </Badge>
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {run.id} · success {run.task_success}/{run.task_total} · failed {run.task_failed}
+                        </div>
+                        <div className="mt-2">
+                          <div className="mb-1 flex items-center justify-between text-[11px] text-gray-500">
+                            <span>进度</span>
+                            <span>{getRunProgress(run)}%</span>
+                          </div>
+                          <Progress value={getRunProgress(run)} />
+                        </div>
+                        {run.error_message && (
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            <div className="truncate text-xs text-red-600">{run.error_message}</div>
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              className="cursor-pointer rounded border border-brand-primary px-2 py-1 text-xs text-brand-primaryHover hover:bg-brand-soft"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setErrorDialog({
+                                  open: true,
+                                  title: `运行错误：${run.id}`,
+                                  content: run.error_message || '',
+                                })
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  setErrorDialog({
+                                    open: true,
+                                    title: `运行错误：${run.id}`,
+                                    content: run.error_message || '',
+                                  })
+                                }
+                              }}
+                            >
+                              查看详情
+                            </span>
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                    {filteredRuns.length === 0 && <div className="text-sm text-gray-500">暂无作业记录</div>}
+                  </div>
+                  <div className="mt-4">
+                    <EnhancedPagination
+                      currentPage={runFilter.page}
+                      totalPages={Math.ceil(filteredRuns.length / runFilter.pageSize) || 1}
+                      totalItems={filteredRuns.length}
+                      itemsPerPage={runFilter.pageSize}
+                      onPageChange={(page) => setRunFilter((p) => ({ ...p, page }))}
+                      onItemsPerPageChange={(pageSize) => setRunFilter((p) => ({ ...p, pageSize, page: 1 }))}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="tasks">
+              <Card className="am-card">
+                <CardHeader><CardTitle>作业任务明细 {selectedRun ? `(${selectedRun.id})` : ''}</CardTitle></CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+                    <Input placeholder="筛选 status" value={taskFilter.status} className="am-field" onChange={(e) => setTaskFilter((p) => ({ ...p, status: e.target.value, page: 1 }))} />
+                    <Input placeholder="筛选 symbol" value={taskFilter.symbol} className="am-field" onChange={(e) => setTaskFilter((p) => ({ ...p, symbol: e.target.value, page: 1 }))} />
+                    <Button className="am-btn-reset" onClick={() => setTaskFilter({ status: '', symbol: '', page: 1, pageSize: taskFilter.pageSize })}>重置筛选</Button>
+                  </div>
+                  {pagedTasks.map((task) => (
+                    <div key={task.id} className="rounded border border-gray-200 p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-medium">{task.symbol || '-'}</div>
+                        <Badge className={task.status === 'success' ? 'bg-green-100 text-green-800' : task.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-brand-soft text-brand-primaryHover'}>
+                          {task.status}
+                        </Badge>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        {task.dataset} · {task.start_date || '-'} ~ {task.end_date || '-'} · attempts={task.attempts}
+                      </div>
+                      {task.last_error && <div className="mt-1 text-xs text-red-600">{task.last_error}</div>}
+                    </div>
+                  ))}
+                  {filteredTasks.length === 0 && <div className="text-sm text-gray-500">暂无任务明细，请先选择一个作业。</div>}
+                  <div className="mt-4">
+                    <EnhancedPagination
+                      currentPage={taskFilter.page}
+                      totalPages={Math.ceil(filteredTasks.length / taskFilter.pageSize) || 1}
+                      totalItems={filteredTasks.length}
+                      itemsPerPage={taskFilter.pageSize}
+                      onPageChange={(page) => setTaskFilter((p) => ({ ...p, page }))}
+                      onItemsPerPageChange={(pageSize) => setTaskFilter((p) => ({ ...p, pageSize, page: 1 }))}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="quality">
+              <Card className="am-card">
+                <CardHeader><CardTitle className="flex items-center gap-2"><ShieldAlert className="h-4 w-4" />质量报告</CardTitle></CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-4">
+                    <Input placeholder="筛选 dataset" value={qualityFilter.dataset} className="am-field" onChange={(e) => setQualityFilter((p) => ({ ...p, dataset: e.target.value, page: 1 }))} />
+                    <Input placeholder="筛选 symbol" value={qualityFilter.symbol} className="am-field" onChange={(e) => setQualityFilter((p) => ({ ...p, symbol: e.target.value, page: 1 }))} />
+                    <Input placeholder="筛选 severity" value={qualityFilter.severity} className="am-field" onChange={(e) => setQualityFilter((p) => ({ ...p, severity: e.target.value, page: 1 }))} />
+                    <Button className="am-btn-reset" onClick={() => setQualityFilter({ dataset: '', symbol: '', severity: '', page: 1, pageSize: qualityFilter.pageSize })}>重置筛选</Button>
+                  </div>
+                  {pagedQualityReports.map((report) => (
+                    <div key={report.id} className="rounded border border-gray-200 p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-medium">{report.dataset} · {report.symbol || '-'}</div>
+                        <Badge className={report.severity === 'p0' ? 'bg-red-100 text-red-700' : report.severity === 'p1' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}>
+                          {report.severity}
+                        </Badge>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        score={report.quality_score.toFixed(2)} · {report.checked_at}
+                      </div>
+                      {report.object_key && <div className="mt-1 text-xs text-gray-600 break-all">{report.object_key}</div>}
+                    </div>
+                  ))}
+                  {filteredQualityReports.length === 0 && <div className="text-sm text-gray-500">暂无质量报告</div>}
+                  <div className="mt-4">
+                    <EnhancedPagination
+                      currentPage={qualityFilter.page}
+                      totalPages={Math.ceil(filteredQualityReports.length / qualityFilter.pageSize) || 1}
+                      totalItems={filteredQualityReports.length}
+                      itemsPerPage={qualityFilter.pageSize}
+                      onPageChange={(page) => setQualityFilter((p) => ({ ...p, page }))}
+                      onItemsPerPageChange={(pageSize) => setQualityFilter((p) => ({ ...p, pageSize, page: 1 }))}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="objects">
+              <Card className="am-card">
+                <CardHeader><CardTitle className="flex items-center gap-2"><PackageSearch className="h-4 w-4" />对象索引</CardTitle></CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+                    <Input placeholder="筛选 dataset" value={objectFilter.dataset} className="am-field" onChange={(e) => setObjectFilter((p) => ({ ...p, dataset: e.target.value, page: 1 }))} />
+                    <Input placeholder="筛选 symbol" value={objectFilter.symbol} className="am-field" onChange={(e) => setObjectFilter((p) => ({ ...p, symbol: e.target.value, page: 1 }))} />
+                    <Button className="am-btn-reset" onClick={() => setObjectFilter({ dataset: '', symbol: '', page: 1, pageSize: objectFilter.pageSize })}>重置筛选</Button>
+                  </div>
+                  {pagedObjectIndexes.map((row) => (
+                    <div key={row.id} className="rounded border border-gray-200 p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-medium">{row.dataset} · {row.symbol || '-'}</div>
+                        <Badge variant="outline">{row.layer}</Badge>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        provider={row.provider || '-'} · rows={row.row_count} · {row.start_date || '-'} ~ {row.end_date || '-'}
+                      </div>
+                      <div className="mt-1 text-xs text-gray-600 break-all">{row.object_key}</div>
+                    </div>
+                  ))}
+                  {filteredObjectIndexes.length === 0 && <div className="text-sm text-gray-500">暂无对象索引</div>}
+                  <div className="mt-4">
+                    <EnhancedPagination
+                      currentPage={objectFilter.page}
+                      totalPages={Math.ceil(filteredObjectIndexes.length / objectFilter.pageSize) || 1}
+                      totalItems={filteredObjectIndexes.length}
+                      itemsPerPage={objectFilter.pageSize}
+                      onPageChange={(page) => setObjectFilter((p) => ({ ...p, page }))}
+                      onItemsPerPageChange={(pageSize) => setObjectFilter((p) => ({ ...p, pageSize, page: 1 }))}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+      <Dialog open={errorDialog.open} onOpenChange={(open) => setErrorDialog((prev) => ({ ...prev, open }))}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{errorDialog.title}</DialogTitle>
+          </DialogHeader>
+          <pre className="max-h-[60vh] overflow-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
+            {errorDialog.content}
+          </pre>
+        </DialogContent>
+      </Dialog>
+    </AppLayout>
+  )
+}

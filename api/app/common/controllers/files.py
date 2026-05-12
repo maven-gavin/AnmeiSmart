@@ -147,7 +147,7 @@ async def upload_avatar(
 
 
 @router.get("/{file_id}/preview", name="file_preview")
-async def preview_file_by_id(
+def preview_file_by_id(
     file_id: str,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
@@ -236,7 +236,7 @@ async def preview_file_by_id(
 
 
 @router.get("/{file_id}/download", name="file_download")
-async def download_file_by_id(
+def download_file_by_id(
     file_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -288,7 +288,7 @@ async def download_file_by_id(
 
 
 @router.get("/{file_id}/info", name="file_info")
-async def get_file_info_by_id(
+def get_file_info_by_id(
     file_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -323,7 +323,7 @@ async def get_file_info_by_id(
 
 
 @router.get("/download/{object_name:path}")
-async def download_file(
+def download_file(
     object_name: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -371,7 +371,7 @@ async def download_file(
 
 
 @router.get("/preview/{object_name:path}")
-async def preview_file(
+def preview_file(
     object_name: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -468,7 +468,7 @@ async def get_supported_file_types():
 
 
 @router.get("/conversation/{conversation_id}/files")
-async def get_conversation_files(
+def get_conversation_files(
     conversation_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -517,7 +517,7 @@ async def get_conversation_files(
 
 
 @router.delete("/{file_id}")
-async def delete_file(
+def delete_file(
     file_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -579,7 +579,7 @@ async def get_file_info(
 
 
 @router.post("/cleanup")
-async def cleanup_orphaned_files(
+def cleanup_orphaned_files(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -615,7 +615,7 @@ async def cleanup_orphaned_files(
 # ================== 断点续传相关端点 ==================
 
 @router.get("/upload-status/{upload_id}", response_model=UploadStatusResponse)
-async def get_upload_status(
+def get_upload_status(
     upload_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -755,7 +755,7 @@ async def complete_upload(
 
 
 @router.post("/start-resumable-upload")
-async def start_resumable_upload(
+def start_resumable_upload(
     file_name: str = Form(...),
     file_size: int = Form(...),
     chunk_size: int = Form(...),
@@ -807,7 +807,7 @@ async def start_resumable_upload(
 
 
 @router.delete("/cancel-upload/{upload_id}")
-async def cancel_upload(
+def cancel_upload(
     upload_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
