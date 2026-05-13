@@ -101,3 +101,53 @@ export interface PurgeJobRunsPayload {
 export interface PurgeJobRunsResult {
   deleted_count: number
 }
+
+export interface DatahubFailureGroupInfo {
+  error_message: string
+  count: number
+  symbols: string[]
+}
+
+export interface DatahubRunFailureDetailInfo {
+  run_id: string
+  failed_count: number
+  groups: DatahubFailureGroupInfo[]
+  tasks: DatahubJobTaskInfo[]
+}
+
+export interface RetryFailedTasksPayload {
+  strategy: 'immediate' | 'by_error'
+  max_retry_attempts: number
+}
+
+export interface RetryFailedTasksResult {
+  created_runs: number
+  skipped_tasks: number
+  retried_tasks: number
+  retried_symbols: string[]
+}
+
+export interface MarketDailyMissingScanResult {
+  dataset: string
+  start_date: string
+  end_date: string
+  reference_date: string
+  expected_count: number
+  existing_count: number
+  missing_count: number
+  missing_symbols: string[]
+}
+
+export interface FillMarketDailyMissingPayload {
+  start_date: string
+  end_date: string
+  reference_date?: string
+  max_symbols: number
+  batch_size: number
+}
+
+export interface FillMarketDailyMissingResult {
+  created_runs: number
+  filled_symbols: number
+  symbols: string[]
+}

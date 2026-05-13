@@ -5,13 +5,16 @@ import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import type { CheckedState } from '@radix-ui/react-checkbox'
 import {
+  ClipboardList,
   RefreshCw,
   Play,
   Database,
   ListChecks,
+  Search,
   ShieldAlert,
   PackageSearch,
   ChevronDown,
+  RotateCcw,
   Trash2,
 } from 'lucide-react'
 
@@ -42,10 +45,14 @@ import { useAuthContext } from '@/contexts/AuthContext'
 import { usePermission } from '@/hooks/usePermission'
 import { datahubService } from '@/service/datahubService'
 import type {
+  DatahubRunFailureDetailInfo,
+  FillMarketDailyMissingResult,
   DatahubJobRunInfo,
   DatahubJobTaskInfo,
+  MarketDailyMissingScanResult,
   DatahubObjectIndexInfo,
   DatahubQualityReportInfo,
+  RetryFailedTasksPayload,
   DatahubWorkerHeartbeatInfo,
 } from '@/types/datahub'
 
@@ -70,16 +77,28 @@ export default function DatahubAdminPage() {
   const [datasetOptions, setDatasetOptions] = useState<string[]>([])
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [workerHeartbeat, setWorkerHeartbeat] = useState<DatahubWorkerHeartbeatInfo | null>(null)
-  const [errorDialog, setErrorDialog] = useState<{ open: boolean; title: string; content: string }>({
-    open: false,
-    title: '',
-    content: '',
-  })
   const [purgeFailedDialogOpen, setPurgeFailedDialogOpen] = useState(false)
   const [purgeFailedLoading, setPurgeFailedLoading] = useState(false)
   const [deleteRunDialogOpen, setDeleteRunDialogOpen] = useState(false)
   const [deleteRunLoading, setDeleteRunLoading] = useState(false)
   const [runToDelete, setRunToDelete] = useState<DatahubJobRunInfo | null>(null)
+  const [failureDetailOpen, setFailureDetailOpen] = useState(false)
+  const [failureDetailLoading, setFailureDetailLoading] = useState(false)
+  const [retryFailedLoading, setRetryFailedLoading] = useState(false)
+  const [failureDetail, setFailureDetail] = useState<DatahubRunFailureDetailInfo | null>(null)
+  const [retryStrategy, setRetryStrategy] = useState<RetryFailedTasksPayload['strategy']>('immediate')
+  const [retryMaxAttempts, setRetryMaxAttempts] = useState(3)
+  const [missingForm, setMissingForm] = useState({
+    start_date: '2024-01-01',
+    end_date: '2024-01-31',
+    reference_date: '',
+    limit: 500,
+    batch_size: 200,
+  })
+  const [missingLoading, setMissingLoading] = useState(false)
+  const [fillingMissing, setFillingMissing] = useState(false)
+  const [missingReport, setMissingReport] = useState<MarketDailyMissingScanResult | null>(null)
+  const [fillResult, setFillResult] = useState<FillMarketDailyMissingResult | null>(null)
 
   const [runFilter, setRunFilter] = useState({ dataset: '', status: '', keyword: '', page: 1, pageSize: 10 })
   const [taskFilter, setTaskFilter] = useState({ status: '', symbol: '', page: 1, pageSize: 10 })
@@ -333,6 +352,75 @@ export default function DatahubAdminPage() {
     }
   }
 
+  const openFailureDetail = async (runId: string) => {
+    setFailureDetailLoading(true)
+    setFailureDetailOpen(true)
+    try {
+      const detail = await datahubService.getRunFailureDetail(runId, 500)
+      setFailureDetail(detail)
+    } finally {
+      setFailureDetailLoading(false)
+    }
+  }
+
+  const retryFailedTasks = async () => {
+    if (!failureDetail?.run_id) return
+    setRetryFailedLoading(true)
+    try {
+      const result = await datahubService.retryFailedTasks(failureDetail.run_id, {
+        strategy: retryStrategy,
+        max_retry_attempts: retryMaxAttempts,
+      })
+      toast.success(
+        `已提交重试：新建 ${result.created_runs} 个run，重试 ${result.retried_tasks} 条，跳过 ${result.skipped_tasks} 条`,
+      )
+      const detail = await datahubService.getRunFailureDetail(failureDetail.run_id, 500)
+      setFailureDetail(detail)
+      await loadAll()
+    } finally {
+      setRetryFailedLoading(false)
+    }
+  }
+
+  const scanMissing = async () => {
+    setMissingLoading(true)
+    setFillResult(null)
+    try {
+      const report = await datahubService.scanMarketDailyMissing({
+        start_date: missingForm.start_date,
+        end_date: missingForm.end_date,
+        reference_date: missingForm.reference_date || undefined,
+        limit: missingForm.limit,
+      })
+      setMissingReport(report)
+    } finally {
+      setMissingLoading(false)
+    }
+  }
+
+  const fillMissing = async () => {
+    setFillingMissing(true)
+    try {
+      const result = await datahubService.fillMarketDailyMissing({
+        start_date: missingForm.start_date,
+        end_date: missingForm.end_date,
+        reference_date: missingForm.reference_date || undefined,
+        max_symbols: missingForm.limit,
+        batch_size: missingForm.batch_size,
+      })
+      setFillResult(result)
+      toast.success(`已提交补齐：${result.filled_symbols} 个symbol，${result.created_runs}个run`)
+      await loadAll()
+    } finally {
+      setFillingMissing(false)
+    }
+  }
+
+  const getRunStatusLabel = (run: DatahubJobRunInfo) => {
+    if (run.status === 'failed' && run.task_success > 0) return 'partial_failed'
+    return run.status
+  }
+
   const filteredRuns = useMemo(() => {
     return runs.filter((run) => {
       if (runFilter.dataset && run.dataset !== runFilter.dataset) return false
@@ -442,20 +530,121 @@ export default function DatahubAdminPage() {
             <CardContent className="space-y-2 text-sm">
               {workerHeartbeat ? (
                 <>
-                  <div className="flex items-center gap-2">
-                    <Badge className={workerHeartbeat.is_online ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}>
-                      {workerHeartbeat.is_online ? '在线' : '离线'}
-                    </Badge>
-                    <span className="text-gray-600">{workerHeartbeat.worker_name}</span>
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                    <div className="flex items-center gap-2 md:col-span-3">
+                      <Badge className={workerHeartbeat.is_online ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}>
+                        {workerHeartbeat.is_online ? '在线' : '离线'}
+                      </Badge>
+                      <span className="text-gray-600">{workerHeartbeat.worker_name}</span>
+                    </div>
+                    <div className="text-gray-600">状态：{workerHeartbeat.status}</div>
+                    <div className="text-gray-600">最近心跳：{workerHeartbeat.last_heartbeat_at}</div>
+                    <div className="text-gray-600">累计处理：{workerHeartbeat.processed_count}</div>
+                    {workerHeartbeat.last_run_id ? (
+                      <div className="text-gray-600 md:col-span-2">最近作业：{workerHeartbeat.last_run_id}</div>
+                    ) : (
+                      <div />
+                    )}
+                    {workerHeartbeat.last_error ? (
+                      <div className="text-red-600 md:col-span-2">最近错误：{workerHeartbeat.last_error}</div>
+                    ) : (
+                      <div />
+                    )}
                   </div>
-                  <div className="text-gray-600">状态：{workerHeartbeat.status}</div>
-                  <div className="text-gray-600">最近心跳：{workerHeartbeat.last_heartbeat_at}</div>
-                  <div className="text-gray-600">累计处理：{workerHeartbeat.processed_count}</div>
-                  {workerHeartbeat.last_run_id && <div className="text-gray-600">最近作业：{workerHeartbeat.last_run_id}</div>}
-                  {workerHeartbeat.last_error && <div className="text-red-600">最近错误：{workerHeartbeat.last_error}</div>}
                 </>
               ) : (
                 <div className="text-gray-500">尚未检测到心跳，请确认 worker 已启动。</div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="am-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Search className="h-4 w-4" />
+                缺失巡检与补齐（market_daily）
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+                <div>
+                  <Label>Start Date</Label>
+                  <Input
+                    type="date"
+                    className="am-field mt-1"
+                    value={missingForm.start_date}
+                    onChange={(e) => setMissingForm((p) => ({ ...p, start_date: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label>End Date</Label>
+                  <Input
+                    type="date"
+                    className="am-field mt-1"
+                    value={missingForm.end_date}
+                    onChange={(e) => setMissingForm((p) => ({ ...p, end_date: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label>Reference Date</Label>
+                  <Input
+                    type="date"
+                    className="am-field mt-1"
+                    value={missingForm.reference_date}
+                    onChange={(e) => setMissingForm((p) => ({ ...p, reference_date: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label>最多补齐 symbols</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={5000}
+                    className="am-field mt-1"
+                    value={missingForm.limit}
+                    onChange={(e) => setMissingForm((p) => ({ ...p, limit: Number(e.target.value || 500) }))}
+                  />
+                </div>
+                <div>
+                  <Label>每批 symbols</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    className="am-field mt-1"
+                    value={missingForm.batch_size}
+                    onChange={(e) => setMissingForm((p) => ({ ...p, batch_size: Number(e.target.value || 200) }))}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button className="am-btn-outline" onClick={scanMissing} disabled={missingLoading}>
+                  <ClipboardList className="mr-1 h-4 w-4" />
+                  {missingLoading ? '扫描中...' : '扫描缺失'}
+                </Button>
+                <Button
+                  className="am-btn-primary"
+                  onClick={fillMissing}
+                  disabled={fillingMissing || !missingReport || missingReport.missing_count === 0}
+                >
+                  <RotateCcw className="mr-1 h-4 w-4" />
+                  {fillingMissing ? '提交中...' : '补齐缺失'}
+                </Button>
+              </div>
+              {missingReport && (
+                <div className="rounded border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+                  预期 {missingReport.expected_count}，已存在 {missingReport.existing_count}，缺失 {missingReport.missing_count}
+                  {missingReport.missing_symbols.length > 0 && (
+                    <div className="mt-2 text-xs text-gray-600">
+                      示例: {missingReport.missing_symbols.slice(0, 20).join(', ')}
+                    </div>
+                  )}
+                </div>
+              )}
+              {fillResult && (
+                <div className="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+                  已创建 {fillResult.created_runs} 个补齐 run，共补齐 {fillResult.filled_symbols} 个 symbol。
+                </div>
               )}
             </CardContent>
           </Card>
@@ -680,14 +869,16 @@ export default function DatahubAdminPage() {
                               </div>
                               <Badge
                                 className={
-                                  run.status === 'success'
+                                  getRunStatusLabel(run) === 'success'
                                     ? 'bg-green-100 text-green-800'
-                                    : run.status === 'failed'
-                                      ? 'bg-red-100 text-red-700'
-                                      : 'bg-brand-soft text-brand-primaryHover'
+                                    : getRunStatusLabel(run) === 'partial_failed'
+                                      ? 'bg-yellow-100 text-yellow-800'
+                                      : getRunStatusLabel(run) === 'failed'
+                                        ? 'bg-red-100 text-red-700'
+                                        : 'bg-brand-soft text-brand-primaryHover'
                                 }
                               >
-                                {run.status}
+                                {getRunStatusLabel(run)}
                               </Badge>
                             </div>
                             <div className="mt-1 text-xs text-gray-500">
@@ -700,9 +891,9 @@ export default function DatahubAdminPage() {
                               </div>
                               <Progress value={getRunProgress(run)} />
                             </div>
-                            {run.error_message && (
+                            {(run.error_message || run.task_failed > 0) && (
                               <div className="mt-2 flex items-center justify-between gap-2">
-                                <div className="truncate text-xs text-red-600">{run.error_message}</div>
+                                <div className="truncate text-xs text-red-600">{run.error_message || `failed=${run.task_failed}`}</div>
                                 <span
                                   role="button"
                                   tabIndex={0}
@@ -710,25 +901,17 @@ export default function DatahubAdminPage() {
                                   onClick={(e) => {
                                     e.preventDefault()
                                     e.stopPropagation()
-                                    setErrorDialog({
-                                      open: true,
-                                      title: `运行错误：${run.id}`,
-                                      content: run.error_message || '',
-                                    })
+                                    void openFailureDetail(run.id)
                                   }}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter' || e.key === ' ') {
                                       e.preventDefault()
                                       e.stopPropagation()
-                                      setErrorDialog({
-                                        open: true,
-                                        title: `运行错误：${run.id}`,
-                                        content: run.error_message || '',
-                                      })
+                                      void openFailureDetail(run.id)
                                     }
                                   }}
                                 >
-                                  查看详情
+                                  查看失败({run.task_failed})
                                 </span>
                               </div>
                             )}
@@ -881,14 +1064,61 @@ export default function DatahubAdminPage() {
           </Tabs>
         </div>
       </div>
-      <Dialog open={errorDialog.open} onOpenChange={(open) => setErrorDialog((prev) => ({ ...prev, open }))}>
+      <Dialog open={failureDetailOpen} onOpenChange={setFailureDetailOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{errorDialog.title}</DialogTitle>
+            <DialogTitle>失败明细 {failureDetail?.run_id ? `(${failureDetail.run_id})` : ''}</DialogTitle>
           </DialogHeader>
-          <pre className="max-h-[60vh] overflow-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
-            {errorDialog.content}
-          </pre>
+          {failureDetailLoading ? (
+            <div className="py-8 text-center text-sm text-gray-500">加载中...</div>
+          ) : failureDetail ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-2 rounded border border-gray-200 bg-gray-50 p-3 text-sm md:grid-cols-3">
+                <div>失败任务：{failureDetail.failed_count}</div>
+                <div>
+                  <Label className="text-xs text-gray-500">重试策略</Label>
+                  <select
+                    className="am-field mt-1 h-9 w-full rounded border px-2 text-sm"
+                    value={retryStrategy}
+                    onChange={(e) => setRetryStrategy(e.target.value as RetryFailedTasksPayload['strategy'])}
+                  >
+                    <option value="immediate">立即重试</option>
+                    <option value="by_error">按错误分组重试</option>
+                  </select>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">最大重试次数</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={10}
+                    className="am-field mt-1 h-9"
+                    value={retryMaxAttempts}
+                    onChange={(e) => setRetryMaxAttempts(Number(e.target.value || 3))}
+                  />
+                </div>
+              </div>
+              <Button className="am-btn-primary w-full" disabled={retryFailedLoading} onClick={retryFailedTasks}>
+                {retryFailedLoading ? '提交重试中...' : `重试失败项 (${failureDetail.failed_count})`}
+              </Button>
+              <div className="max-h-[40vh] space-y-2 overflow-auto">
+                {failureDetail.groups.map((group, idx) => (
+                  <div key={`${group.error_message}-${idx}`} className="rounded border border-gray-200 p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-red-600">失败 {group.count} 条</span>
+                      <span className="text-xs text-gray-500">{group.symbols.slice(0, 3).join(', ')}</span>
+                    </div>
+                    <div className="mt-1 whitespace-pre-wrap text-xs text-gray-700">{group.error_message}</div>
+                  </div>
+                ))}
+                {failureDetail.groups.length === 0 && (
+                  <div className="py-6 text-center text-sm text-gray-500">当前无失败任务</div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="py-8 text-center text-sm text-gray-500">暂无失败明细</div>
+          )}
         </DialogContent>
       </Dialog>
 

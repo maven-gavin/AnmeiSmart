@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, Query, status
 
 from app.core.api import ApiResponse
@@ -6,6 +8,12 @@ from app.identity_access.models.user import User
 from app.datahub.deps import get_datahub_metadata_service, get_datahub_service
 from app.datahub.schemas.datahub import (
     DatahubDatasetInfo,
+    DatahubRunFailureDetailInfo,
+    RetryFailedTasksRequest,
+    RetryFailedTasksResult,
+    MarketDailyMissingScanResult,
+    FillMarketDailyMissingRequest,
+    FillMarketDailyMissingResult,
     PurgeJobRunsRequest,
     PurgeJobRunsResult,
     DatahubJobTaskInfo,
@@ -128,6 +136,65 @@ def list_job_tasks(
     _: User = Depends(get_current_admin),
 ) -> ApiResponse[list[DatahubJobTaskInfo]]:
     return ApiResponse.success(data=service.list_job_tasks(run_id), message="list job tasks success")
+
+
+@router.get("/jobs/runs/{run_id}/failures", response_model=ApiResponse[DatahubRunFailureDetailInfo])
+def get_run_failures(
+    run_id: str,
+    limit: int = Query(200, ge=1, le=1000),
+    service: DatahubService = Depends(get_datahub_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[DatahubRunFailureDetailInfo]:
+    return ApiResponse.success(data=service.get_run_failure_detail(run_id, limit=limit), message="get run failures success")
+
+
+@router.post("/jobs/runs/{run_id}/retry-failed", response_model=ApiResponse[RetryFailedTasksResult])
+def retry_failed_tasks(
+    run_id: str,
+    payload: RetryFailedTasksRequest,
+    service: DatahubService = Depends(get_datahub_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[RetryFailedTasksResult]:
+    data = service.retry_failed_tasks(
+        run_id,
+        strategy=payload.strategy,
+        max_retry_attempts=payload.max_retry_attempts,
+    )
+    return ApiResponse.success(data=data, message="retry failed tasks queued")
+
+
+@router.get("/market-daily/missing", response_model=ApiResponse[MarketDailyMissingScanResult])
+def scan_market_daily_missing(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    reference_date: date | None = Query(None),
+    limit: int = Query(500, ge=1, le=5000),
+    service: DatahubService = Depends(get_datahub_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[MarketDailyMissingScanResult]:
+    data = service.scan_market_daily_missing(
+        start_date=start_date,
+        end_date=end_date,
+        reference_date=reference_date,
+        limit=limit,
+    )
+    return ApiResponse.success(data=data, message="scan market daily missing success")
+
+
+@router.post("/market-daily/fill-missing", response_model=ApiResponse[FillMarketDailyMissingResult])
+def fill_market_daily_missing(
+    payload: FillMarketDailyMissingRequest,
+    service: DatahubService = Depends(get_datahub_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[FillMarketDailyMissingResult]:
+    data = service.fill_market_daily_missing(
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+        reference_date=payload.reference_date,
+        max_symbols=payload.max_symbols,
+        batch_size=payload.batch_size,
+    )
+    return ApiResponse.success(data=data, message="fill market daily missing queued")
 
 
 @router.get("/quality/reports", response_model=ApiResponse[list[DatahubQualityReportInfo]])

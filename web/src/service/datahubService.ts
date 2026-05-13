@@ -1,13 +1,19 @@
 import { apiClient, handleApiError } from '@/service/apiClient'
 import type {
   DatahubDatasetInfo,
+  DatahubRunFailureDetailInfo,
+  FillMarketDailyMissingPayload,
+  FillMarketDailyMissingResult,
   DatahubJobRunInfo,
   DatahubJobTaskInfo,
+  MarketDailyMissingScanResult,
   DatahubObjectIndexInfo,
   DatahubQualityReportInfo,
   DatahubWorkerHeartbeatInfo,
   PurgeJobRunsPayload,
   PurgeJobRunsResult,
+  RetryFailedTasksPayload,
+  RetryFailedTasksResult,
   TriggerBackfillPayload,
   TriggerDailyIncrementalPayload,
 } from '@/types/datahub'
@@ -91,6 +97,56 @@ export const datahubService = {
       return resp.data
     } catch (err) {
       handleApiError(err, '批量清理作业失败')
+      throw err
+    }
+  },
+
+  async getRunFailureDetail(runId: string, limit = 200): Promise<DatahubRunFailureDetailInfo> {
+    try {
+      const resp = await apiClient.get<DatahubRunFailureDetailInfo>(`/datahub/jobs/runs/${encodeURIComponent(runId)}/failures?limit=${limit}`)
+      return resp.data
+    } catch (err) {
+      handleApiError(err, '获取失败明细失败')
+      throw err
+    }
+  },
+
+  async retryFailedTasks(runId: string, payload: RetryFailedTasksPayload): Promise<RetryFailedTasksResult> {
+    try {
+      const resp = await apiClient.post<RetryFailedTasksResult>(`/datahub/jobs/runs/${encodeURIComponent(runId)}/retry-failed`, payload)
+      return resp.data
+    } catch (err) {
+      handleApiError(err, '重试失败任务失败')
+      throw err
+    }
+  },
+
+  async scanMarketDailyMissing(params: {
+    start_date: string
+    end_date: string
+    reference_date?: string
+    limit?: number
+  }): Promise<MarketDailyMissingScanResult> {
+    try {
+      const search = new URLSearchParams()
+      search.set('start_date', params.start_date)
+      search.set('end_date', params.end_date)
+      if (params.reference_date) search.set('reference_date', params.reference_date)
+      search.set('limit', String(params.limit ?? 500))
+      const resp = await apiClient.get<MarketDailyMissingScanResult>(`/datahub/market-daily/missing?${search.toString()}`)
+      return resp.data
+    } catch (err) {
+      handleApiError(err, '缺失扫描失败')
+      throw err
+    }
+  },
+
+  async fillMarketDailyMissing(payload: FillMarketDailyMissingPayload): Promise<FillMarketDailyMissingResult> {
+    try {
+      const resp = await apiClient.post<FillMarketDailyMissingResult>('/datahub/market-daily/fill-missing', payload)
+      return resp.data
+    } catch (err) {
+      handleApiError(err, '补齐缺失任务提交失败')
       throw err
     }
   },

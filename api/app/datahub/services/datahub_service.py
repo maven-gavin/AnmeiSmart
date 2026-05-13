@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta, timezone
+from collections import defaultdict
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -12,9 +13,14 @@ from app.datahub.models import (
 )
 from app.datahub.schemas.datahub import (
     DatahubDatasetInfo,
+    DatahubFailureGroupInfo,
     DatahubJobTaskInfo,
     DatahubJobRunInfo,
+    DatahubRunFailureDetailInfo,
+    FillMarketDailyMissingResult,
     DatahubObjectIndexInfo,
+    MarketDailyMissingScanResult,
+    RetryFailedTasksResult,
     DatahubQualityReportInfo,
     DatahubWorkerHeartbeatInfo,
     TriggerBackfillRequest,
@@ -22,6 +28,8 @@ from app.datahub.schemas.datahub import (
 )
 from app.core.api import BusinessException, ErrorCode
 from app.datahub.enums import DatahubTaskStatus
+from app.datahub.normalize import normalize_symbol
+from app.datahub.providers import BaoStockProvider
 
 
 class DatahubService:
@@ -231,6 +239,11 @@ class DatahubService:
                 f"当前不支持 backfill dataset: {payload.dataset}",
                 code=ErrorCode.VALIDATION_ERROR,
             )
+        if payload.symbols and payload.dataset != "market_daily":
+            raise BusinessException(
+                "symbols 仅支持 market_daily 回填",
+                code=ErrorCode.VALIDATION_ERROR,
+            )
         job_run = DatahubJobRun(
             job_type="backfill",
             dataset=payload.dataset,
@@ -248,7 +261,7 @@ class DatahubService:
         task = DatahubJobTask(
             job_run_id=job_run.id,
             dataset=payload.dataset,
-            symbol=payload.symbol,
+            symbol=payload.symbol or ((payload.symbols or [None])[0]),
             start_date=payload.start_date,
             end_date=payload.end_date,
             status=DatahubTaskStatus.PENDING.value,
@@ -331,6 +344,212 @@ class DatahubService:
             self.db.delete(row)
         self.db.commit()
         return len(rows)
+
+    def get_run_failure_detail(self, run_id: str, limit: int = 200) -> DatahubRunFailureDetailInfo:
+        run = self.db.query(DatahubJobRun).filter(DatahubJobRun.id == run_id).first()
+        if run is None:
+            raise BusinessException("作业记录不存在", code=ErrorCode.NOT_FOUND)
+        failed_rows = (
+            self.db.query(DatahubJobTask)
+            .filter(
+                DatahubJobTask.job_run_id == run_id,
+                DatahubJobTask.status == DatahubTaskStatus.FAILED.value,
+            )
+            .order_by(DatahubJobTask.updated_at.desc())
+            .limit(limit)
+            .all()
+        )
+        grouped: dict[str, list[str]] = defaultdict(list)
+        for row in failed_rows:
+            key = row.last_error or "未知错误"
+            symbol = row.symbol or "-"
+            if symbol not in grouped[key]:
+                grouped[key].append(symbol)
+
+        groups = [
+            DatahubFailureGroupInfo(
+                error_message=message,
+                count=len(symbols),
+                symbols=symbols[:20],
+            )
+            for message, symbols in sorted(grouped.items(), key=lambda item: len(item[1]), reverse=True)
+        ]
+        tasks = [
+            DatahubJobTaskInfo(
+                id=row.id,
+                job_run_id=row.job_run_id,
+                dataset=row.dataset,
+                symbol=row.symbol,
+                start_date=row.start_date,
+                end_date=row.end_date,
+                status=row.status,
+                attempts=row.attempts,
+                last_error=row.last_error,
+                locked_at=row.locked_at,
+                created_at=row.created_at,
+                updated_at=row.updated_at,
+            )
+            for row in failed_rows
+        ]
+        return DatahubRunFailureDetailInfo(
+            run_id=run_id,
+            failed_count=len(failed_rows),
+            groups=groups,
+            tasks=tasks,
+        )
+
+    def retry_failed_tasks(
+        self,
+        run_id: str,
+        *,
+        strategy: str = "immediate",
+        max_retry_attempts: int = 3,
+    ) -> RetryFailedTasksResult:
+        run = self.db.query(DatahubJobRun).filter(DatahubJobRun.id == run_id).first()
+        if run is None:
+            raise BusinessException("作业记录不存在", code=ErrorCode.NOT_FOUND)
+        if run.job_type != "backfill":
+            raise BusinessException("仅支持 backfill 作业重试失败项", code=ErrorCode.VALIDATION_ERROR)
+        if strategy not in {"immediate", "by_error"}:
+            raise BusinessException("不支持的重试策略", code=ErrorCode.VALIDATION_ERROR)
+
+        failed_tasks = (
+            self.db.query(DatahubJobTask)
+            .filter(
+                DatahubJobTask.job_run_id == run_id,
+                DatahubJobTask.status == DatahubTaskStatus.FAILED.value,
+            )
+            .order_by(DatahubJobTask.created_at.asc())
+            .all()
+        )
+        if not failed_tasks:
+            return RetryFailedTasksResult(created_runs=0, skipped_tasks=0, retried_tasks=0, retried_symbols=[])
+
+        filtered_tasks: list[DatahubJobTask] = []
+        skipped = 0
+        for task in failed_tasks:
+            if task.attempts >= max_retry_attempts:
+                skipped += 1
+                continue
+            filtered_tasks.append(task)
+
+        grouped: dict[tuple[str, date | None, date | None, str], list[DatahubJobTask]] = defaultdict(list)
+        for task in filtered_tasks:
+            error_key = task.last_error or "unknown"
+            key = (
+                task.dataset,
+                task.start_date,
+                task.end_date,
+                error_key if strategy == "by_error" else "all",
+            )
+            grouped[key].append(task)
+
+        created_runs = 0
+        retried_symbols: list[str] = []
+        for (_, start_date, end_date, _), tasks in grouped.items():
+            if start_date is None or end_date is None:
+                skipped += len(tasks)
+                continue
+            symbols = sorted({normalize_symbol(task.symbol) for task in tasks if task.symbol})
+            if not symbols:
+                skipped += len(tasks)
+                continue
+            payload = TriggerBackfillRequest(
+                dataset="market_daily",
+                start_date=start_date,
+                end_date=end_date,
+                symbols=symbols,
+            )
+            self.create_backfill_job(payload, trigger_source=f"retry:{run_id}")
+            created_runs += 1
+            retried_symbols.extend(symbols)
+
+        return RetryFailedTasksResult(
+            created_runs=created_runs,
+            skipped_tasks=skipped,
+            retried_tasks=len(filtered_tasks),
+            retried_symbols=sorted(set(retried_symbols)),
+        )
+
+    def scan_market_daily_missing(
+        self,
+        *,
+        start_date: date,
+        end_date: date,
+        reference_date: date | None = None,
+        limit: int = 500,
+    ) -> MarketDailyMissingScanResult:
+        provider = BaoStockProvider()
+        ref_date = reference_date or end_date
+        rows = provider.get_security_master(day=ref_date)
+        expected_symbols = sorted(
+            {
+                normalize_symbol(row_symbol)
+                for row in rows
+                for row_symbol in [row.get("symbol")]
+                if row_symbol and row.get("status") == "active"
+            }
+        )
+        existing_symbols = {
+            normalize_symbol(item[0])
+            for item in (
+                self.db.query(DatahubObjectIndex.symbol)
+                .filter(
+                    DatahubObjectIndex.dataset == "market_daily",
+                    DatahubObjectIndex.start_date == start_date,
+                    DatahubObjectIndex.end_date == end_date,
+                    DatahubObjectIndex.symbol.isnot(None),
+                )
+                .all()
+            )
+            if item[0]
+        }
+        missing_symbols = sorted([symbol for symbol in expected_symbols if symbol not in existing_symbols])
+        return MarketDailyMissingScanResult(
+            start_date=start_date,
+            end_date=end_date,
+            reference_date=ref_date,
+            expected_count=len(expected_symbols),
+            existing_count=len(existing_symbols),
+            missing_count=len(missing_symbols),
+            missing_symbols=missing_symbols[:limit],
+        )
+
+    def fill_market_daily_missing(
+        self,
+        *,
+        start_date: date,
+        end_date: date,
+        reference_date: date | None = None,
+        max_symbols: int = 500,
+        batch_size: int = 200,
+    ) -> FillMarketDailyMissingResult:
+        scan = self.scan_market_daily_missing(
+            start_date=start_date,
+            end_date=end_date,
+            reference_date=reference_date,
+            limit=max_symbols,
+        )
+        symbols = scan.missing_symbols[:max_symbols]
+        if not symbols:
+            return FillMarketDailyMissingResult(created_runs=0, filled_symbols=0, symbols=[])
+
+        created_runs = 0
+        for i in range(0, len(symbols), batch_size):
+            chunk = symbols[i : i + batch_size]
+            payload = TriggerBackfillRequest(
+                dataset="market_daily",
+                start_date=start_date,
+                end_date=end_date,
+                symbols=chunk,
+            )
+            self.create_backfill_job(payload, trigger_source="auto-fill-missing")
+            created_runs += 1
+        return FillMarketDailyMissingResult(
+            created_runs=created_runs,
+            filled_symbols=len(symbols),
+            symbols=symbols,
+        )
 
     @staticmethod
     def _to_job_info(row: DatahubJobRun) -> DatahubJobRunInfo:

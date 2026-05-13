@@ -28,7 +28,7 @@ class MarketDailyBackfillService:
     def execute(self, run_id: str, payload: TriggerBackfillRequest) -> None:
         job_run = self._require_run(run_id)
         placeholder_task = self._require_task(run_id)
-        symbols = self._resolve_symbols(payload.symbol, payload.end_date)
+        symbols = self._resolve_symbols(payload.symbol, payload.symbols, payload.end_date)
         tasks = self._prepare_tasks(
             run_id=run_id,
             placeholder_task=placeholder_task,
@@ -191,7 +191,11 @@ class MarketDailyBackfillService:
             f"symbol={symbol}/batch_id={batch_prefix}-{batch_id}.parquet"
         )
 
-    def _resolve_symbols(self, symbol: str | None, end_date: date) -> list[str]:
+    def _resolve_symbols(self, symbol: str | None, symbols: list[str] | None, end_date: date) -> list[str]:
+        if symbols:
+            normalized_symbols = sorted({normalize_symbol(item) for item in symbols if item})
+            if normalized_symbols:
+                return normalized_symbols
         if symbol:
             return [normalize_symbol(symbol)]
 
