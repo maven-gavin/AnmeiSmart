@@ -6,6 +6,8 @@ import type {
   DatahubObjectIndexInfo,
   DatahubQualityReportInfo,
   DatahubWorkerHeartbeatInfo,
+  PurgeJobRunsPayload,
+  PurgeJobRunsResult,
   TriggerBackfillPayload,
   TriggerDailyIncrementalPayload,
 } from '@/types/datahub'
@@ -67,6 +69,28 @@ export const datahubService = {
       return resp.data
     } catch (err) {
       handleApiError(err, '获取作业任务失败')
+      throw err
+    }
+  },
+
+  async deleteJobRun(runId: string): Promise<void> {
+    try {
+      await apiClient.delete(`/datahub/jobs/runs/${encodeURIComponent(runId)}`)
+    } catch (err) {
+      handleApiError(err, '删除作业记录失败')
+      throw err
+    }
+  },
+
+  async purgeJobRuns(payload: PurgeJobRunsPayload): Promise<PurgeJobRunsResult> {
+    try {
+      const resp = await apiClient.post<PurgeJobRunsResult>('/datahub/jobs/runs/purge', {
+        status: payload.status,
+        limit: payload.limit ?? 100,
+      })
+      return resp.data
+    } catch (err) {
+      handleApiError(err, '批量清理作业失败')
       throw err
     }
   },

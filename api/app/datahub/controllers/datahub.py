@@ -6,6 +6,8 @@ from app.identity_access.models.user import User
 from app.datahub.deps import get_datahub_metadata_service, get_datahub_service
 from app.datahub.schemas.datahub import (
     DatahubDatasetInfo,
+    PurgeJobRunsRequest,
+    PurgeJobRunsResult,
     DatahubJobTaskInfo,
     DatahubJobRunInfo,
     DatahubObjectIndexInfo,
@@ -48,6 +50,16 @@ def list_job_runs(
     _: User = Depends(get_current_admin),
 ) -> ApiResponse[list[DatahubJobRunInfo]]:
     return ApiResponse.success(data=service.list_job_runs(limit=limit), message="list job runs success")
+
+
+@router.post("/jobs/runs/purge", response_model=ApiResponse[PurgeJobRunsResult])
+def purge_job_runs(
+    payload: PurgeJobRunsRequest,
+    service: DatahubService = Depends(get_datahub_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[PurgeJobRunsResult]:
+    deleted = service.purge_job_runs(status=payload.status, limit=payload.limit)
+    return ApiResponse.success(data=PurgeJobRunsResult(deleted_count=deleted), message="purge job runs success")
 
 
 @router.post("/jobs/backfill", response_model=ApiResponse[DatahubJobRunInfo], status_code=status.HTTP_201_CREATED)
@@ -97,6 +109,16 @@ def get_job_run(
     _: User = Depends(get_current_admin),
 ) -> ApiResponse[DatahubJobRunInfo | None]:
     return ApiResponse.success(data=service.get_job_run(run_id), message="get job run success")
+
+
+@router.delete("/jobs/runs/{run_id}", status_code=status.HTTP_200_OK)
+def delete_job_run(
+    run_id: str,
+    service: DatahubService = Depends(get_datahub_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[dict[str, bool]]:
+    service.delete_job_run(run_id)
+    return ApiResponse.success(data={"deleted": True}, message="job run deleted")
 
 
 @router.get("/jobs/runs/{run_id}/tasks", response_model=ApiResponse[list[DatahubJobTaskInfo]])

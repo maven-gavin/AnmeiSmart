@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
 
 from sqlalchemy.orm import Session
@@ -10,6 +10,7 @@ from app.core.api import BusinessException, ErrorCode
 from app.core.config import get_settings
 from app.datahub.enums import DatahubTaskStatus
 from app.datahub.models import DatahubDatasetWatermark, DatahubJobRun, DatahubJobTask
+from app.datahub.normalize import normalize_symbol
 from app.datahub.providers import BaoStockProvider
 from app.datahub.schemas.datahub import TriggerBackfillRequest
 from app.datahub.services.quality_service import DatahubQualityService
@@ -26,32 +27,49 @@ class MarketDailyBackfillService:
 
     def execute(self, run_id: str, payload: TriggerBackfillRequest) -> None:
         job_run = self._require_run(run_id)
-        job_task = self._require_task(run_id)
+        placeholder_task = self._require_task(run_id)
+        symbols = self._resolve_symbols(payload.symbol, payload.end_date)
+        tasks = self._prepare_tasks(
+            run_id=run_id,
+            placeholder_task=placeholder_task,
+            symbols=symbols,
+            start_date=payload.start_date,
+            end_date=payload.end_date,
+        )
 
-        if not payload.symbol:
-            self._mark_failed(job_run, job_task, "market_daily 回填必须提供 symbol")
-            raise BusinessException("market_daily 回填必须提供 symbol", code=ErrorCode.VALIDATION_ERROR)
+        self._prepare_run(job_run, total=len(tasks))
 
-        self._mark_running(job_run, job_task)
+        success = 0
+        failed = 0
+        for task in tasks:
+            self._mark_task_running(task)
+            try:
+                task_symbol = task.symbol or ""
+                quality_score, object_key = self.process_symbol(
+                    symbol=task_symbol,
+                    start_date=payload.start_date,
+                    end_date=payload.end_date,
+                    batch_prefix="backfill",
+                )
+                self._upsert_watermark(
+                    symbol=task_symbol,
+                    end_date=payload.end_date,
+                    quality_score=quality_score,
+                    object_key=object_key,
+                    batch_prefix="backfill",
+                )
+                self._mark_task_success(task)
+                success += 1
+            except Exception as exc:
+                self._mark_task_failed(task, str(exc))
+                failed += 1
 
-        try:
-            quality_score, object_key = self.process_symbol(
-                symbol=payload.symbol,
-                start_date=payload.start_date,
-                end_date=payload.end_date,
-                batch_prefix="backfill",
+        self._finish_run(job_run, success=success, failed=failed)
+        if failed > 0:
+            raise BusinessException(
+                f"market_daily backfill 部分失败：success={success}, failed={failed}",
+                code=ErrorCode.BUSINESS_ERROR,
             )
-            self._upsert_watermark(
-                symbol=payload.symbol,
-                end_date=payload.end_date,
-                quality_score=quality_score,
-                object_key=object_key,
-                batch_prefix="backfill",
-            )
-            self._mark_success(job_run, job_task)
-        except Exception as exc:
-            self._mark_failed(job_run, job_task, str(exc))
-            raise
 
     def process_symbol(
         self,
@@ -173,6 +191,70 @@ class MarketDailyBackfillService:
             f"symbol={symbol}/batch_id={batch_prefix}-{batch_id}.parquet"
         )
 
+    def _resolve_symbols(self, symbol: str | None, end_date: date) -> list[str]:
+        if symbol:
+            return [normalize_symbol(symbol)]
+
+        rows = self._load_security_master_rows(end_date=end_date)
+        symbols = sorted(
+            {
+                normalize_symbol(row_symbol)
+                for row in rows
+                for row_symbol in [row.get("symbol")]
+                if row_symbol
+            }
+        )
+        if not symbols:
+            raise BusinessException(
+                "未提供 symbol，且无法获取可回填证券列表，请检查 security_master 数据源",
+                code=ErrorCode.BUSINESS_ERROR,
+            )
+        return symbols
+
+    def _load_security_master_rows(self, *, end_date: date) -> list[dict]:
+        for offset in range(0, 8):
+            day = end_date - timedelta(days=offset)
+            rows = self.provider.get_security_master(day=day)
+            if rows:
+                return rows
+        return []
+
+    def _prepare_tasks(
+        self,
+        *,
+        run_id: str,
+        placeholder_task: DatahubJobTask,
+        symbols: list[str],
+        start_date: date,
+        end_date: date,
+    ) -> list[DatahubJobTask]:
+        placeholder_task.dataset = "market_daily"
+        placeholder_task.symbol = symbols[0]
+        placeholder_task.start_date = start_date
+        placeholder_task.end_date = end_date
+        placeholder_task.status = DatahubTaskStatus.PENDING.value
+        placeholder_task.last_error = None
+        placeholder_task.locked_at = None
+        placeholder_task.attempts = 0
+        tasks = [placeholder_task]
+
+        for symbol in symbols[1:]:
+            task = DatahubJobTask(
+                job_run_id=run_id,
+                dataset="market_daily",
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+                status=DatahubTaskStatus.PENDING.value,
+                attempts=0,
+            )
+            self.db.add(task)
+            tasks.append(task)
+        self.db.commit()
+        for task in tasks:
+            self.db.refresh(task)
+        return tasks
+
     def _require_run(self, run_id: str) -> DatahubJobRun:
         row = self.db.query(DatahubJobRun).filter(DatahubJobRun.id == run_id).first()
         if row is None:
@@ -185,32 +267,35 @@ class MarketDailyBackfillService:
             raise BusinessException("作业任务不存在", code=ErrorCode.NOT_FOUND)
         return row
 
-    def _mark_running(self, job_run: DatahubJobRun, job_task: DatahubJobTask) -> None:
-        now = datetime.now(timezone.utc)
+    def _prepare_run(self, job_run: DatahubJobRun, total: int) -> None:
         job_run.status = DatahubTaskStatus.RUNNING.value
-        job_run.started_at = now
-        job_task.status = DatahubTaskStatus.RUNNING.value
-        job_task.locked_at = now
-        job_task.attempts = job_task.attempts + 1
-        self.db.commit()
-
-    def _mark_success(self, job_run: DatahubJobRun, job_task: DatahubJobTask) -> None:
-        now = datetime.now(timezone.utc)
-        job_task.status = DatahubTaskStatus.SUCCESS.value
-        job_task.last_error = None
-        job_run.status = DatahubTaskStatus.SUCCESS.value
-        job_run.task_success = 1
-        job_run.task_failed = 0
-        job_run.finished_at = now
-        self.db.commit()
-
-    def _mark_failed(self, job_run: DatahubJobRun, job_task: DatahubJobTask, message: str) -> None:
-        now = datetime.now(timezone.utc)
-        job_task.status = DatahubTaskStatus.FAILED.value
-        job_task.last_error = message[:2000]
-        job_run.status = DatahubTaskStatus.FAILED.value
+        job_run.started_at = datetime.now(timezone.utc)
+        job_run.task_total = total
         job_run.task_success = 0
-        job_run.task_failed = 1
-        job_run.error_message = message[:2000]
-        job_run.finished_at = now
+        job_run.task_failed = 0
+        job_run.error_message = None
+        self.db.commit()
+
+    def _mark_task_running(self, task: DatahubJobTask) -> None:
+        task.status = DatahubTaskStatus.RUNNING.value
+        task.locked_at = datetime.now(timezone.utc)
+        task.attempts = task.attempts + 1
+        self.db.commit()
+
+    def _mark_task_success(self, task: DatahubJobTask) -> None:
+        task.status = DatahubTaskStatus.SUCCESS.value
+        task.last_error = None
+        self.db.commit()
+
+    def _mark_task_failed(self, task: DatahubJobTask, message: str) -> None:
+        task.status = DatahubTaskStatus.FAILED.value
+        task.last_error = message[:2000]
+        self.db.commit()
+
+    def _finish_run(self, job_run: DatahubJobRun, *, success: int, failed: int) -> None:
+        job_run.task_success = success
+        job_run.task_failed = failed
+        job_run.status = DatahubTaskStatus.SUCCESS.value if failed == 0 else DatahubTaskStatus.FAILED.value
+        job_run.finished_at = datetime.now(timezone.utc)
+        job_run.error_message = None if failed == 0 else f"partial_failed: success={success}, failed={failed}"
         self.db.commit()

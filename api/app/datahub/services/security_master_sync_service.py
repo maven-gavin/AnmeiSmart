@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -35,14 +35,13 @@ class SecurityMasterSyncService:
     def _run_single(self, run: DatahubJobRun, task: DatahubJobTask, *, batch_prefix: str) -> None:
         self._mark_running(run, task)
         try:
-            rows = self.provider.get_security_master()
+            rows, biz_date = self._load_security_master_rows()
             if not rows:
                 raise BusinessException("security_master 未获取到数据", code=ErrorCode.BUSINESS_ERROR)
             parquet_bytes = MarketDailyBackfillService._to_parquet_bytes(rows)
-            today = date.today()
             object_key = (
                 "datahub/normalized/"
-                f"dataset=security_master/year={today.year}/month={today.month:02d}/"
+                f"dataset=security_master/year={biz_date.year}/month={biz_date.month:02d}/"
                 f"batch_id={batch_prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}.parquet"
             )
             MinioParquetStore().put_bytes(object_key=object_key, data=parquet_bytes, content_type="application/octet-stream")
@@ -64,8 +63,8 @@ class SecurityMasterSyncService:
                 dataset="security_master",
                 layer="normalized",
                 provider="baostock",
-                start_date=today,
-                end_date=today,
+                start_date=biz_date,
+                end_date=biz_date,
                 row_count=len(rows),
                 schema_version="1.0",
             )
@@ -77,11 +76,20 @@ class SecurityMasterSyncService:
                 issues=issues,
                 object_key=object_key,
             )
-            self._upsert_watermark(last_date=today, quality_score=score, object_key=object_key, batch_prefix=batch_prefix)
+            self._upsert_watermark(last_date=biz_date, quality_score=score, object_key=object_key, batch_prefix=batch_prefix)
             self._mark_success(run, task)
         except Exception as exc:
             self._mark_failed(run, task, str(exc))
             raise
+
+    def _load_security_master_rows(self) -> tuple[list[dict], date]:
+        today = date.today()
+        for offset in range(0, 8):
+            query_date = today - timedelta(days=offset)
+            rows = self.provider.get_security_master(day=query_date)
+            if rows:
+                return rows, query_date
+        return [], today
 
     def _upsert_watermark(self, *, last_date: date, quality_score: float, object_key: str, batch_prefix: str) -> None:
         row = (

@@ -30,6 +30,15 @@ class DatahubJobRunInfo(BaseModel):
     updated_at: datetime
 
 
+class PurgeJobRunsRequest(BaseModel):
+    status: str = Field(..., description="按该状态批量删除运行记录，如 failed")
+    limit: int = Field(100, ge=1, le=500, description="最多删除条数")
+
+
+class PurgeJobRunsResult(BaseModel):
+    deleted_count: int
+
+
 class DatahubJobTaskInfo(BaseModel):
     id: str
     job_run_id: str

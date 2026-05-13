@@ -20,10 +20,14 @@ from app.datahub.schemas.datahub import (
     TriggerBackfillRequest,
     TriggerDailyIncrementalRequest,
 )
+from app.core.api import BusinessException, ErrorCode
 from app.datahub.enums import DatahubTaskStatus
 
 
 class DatahubService:
+    SUPPORTED_BACKFILL_DATASETS = {"market_daily", "security_master", "trading_calendar"}
+    SUPPORTED_DAILY_DATASETS = {"market_daily", "security_master", "trading_calendar"}
+
     def __init__(self, db: Session):
         self.db = db
 
@@ -222,6 +226,11 @@ class DatahubService:
         )
 
     def create_backfill_job(self, payload: TriggerBackfillRequest, trigger_source: str = "api") -> DatahubJobRunInfo:
+        if payload.dataset not in self.SUPPORTED_BACKFILL_DATASETS:
+            raise BusinessException(
+                f"当前不支持 backfill dataset: {payload.dataset}",
+                code=ErrorCode.VALIDATION_ERROR,
+            )
         job_run = DatahubJobRun(
             job_type="backfill",
             dataset=payload.dataset,
@@ -255,6 +264,11 @@ class DatahubService:
         payload: TriggerDailyIncrementalRequest,
         trigger_source: str = "api",
     ) -> DatahubJobRunInfo:
+        if payload.dataset not in self.SUPPORTED_DAILY_DATASETS:
+            raise BusinessException(
+                f"当前不支持 daily_incremental dataset: {payload.dataset}",
+                code=ErrorCode.VALIDATION_ERROR,
+            )
         job_run = DatahubJobRun(
             job_type="daily_incremental",
             dataset=payload.dataset,
@@ -289,6 +303,34 @@ class DatahubService:
             .all()
         )
         return [row.id for row in rows]
+
+    def delete_job_run(self, run_id: str) -> None:
+        row = self.db.query(DatahubJobRun).filter(DatahubJobRun.id == run_id).first()
+        if row is None:
+            raise BusinessException("作业记录不存在", code=ErrorCode.NOT_FOUND)
+        if row.status == DatahubTaskStatus.RUNNING.value:
+            raise BusinessException("运行中的作业不可删除，请等待结束后再试", code=ErrorCode.BUSINESS_ERROR)
+        self.db.delete(row)
+        self.db.commit()
+
+    def purge_job_runs(self, *, status: str, limit: int) -> int:
+        if status == DatahubTaskStatus.RUNNING.value:
+            raise BusinessException("不支持删除 running 状态的作业批量记录", code=ErrorCode.VALIDATION_ERROR)
+        allowed = {s.value for s in DatahubTaskStatus}
+        if status not in allowed:
+            raise BusinessException(f"无效的 status: {status}", code=ErrorCode.VALIDATION_ERROR)
+
+        rows = (
+            self.db.query(DatahubJobRun)
+            .filter(DatahubJobRun.status == status)
+            .order_by(DatahubJobRun.created_at.asc())
+            .limit(limit)
+            .all()
+        )
+        for row in rows:
+            self.db.delete(row)
+        self.db.commit()
+        return len(rows)
 
     @staticmethod
     def _to_job_info(row: DatahubJobRun) -> DatahubJobRunInfo:

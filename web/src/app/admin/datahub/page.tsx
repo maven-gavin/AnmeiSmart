@@ -4,7 +4,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import type { CheckedState } from '@radix-ui/react-checkbox'
-import { RefreshCw, Play, Database, ListChecks, ShieldAlert, PackageSearch, ChevronDown } from 'lucide-react'
+import {
+  RefreshCw,
+  Play,
+  Database,
+  ListChecks,
+  ShieldAlert,
+  PackageSearch,
+  ChevronDown,
+  Trash2,
+} from 'lucide-react'
 
 import AppLayout from '@/components/layout/AppLayout'
 import { Button } from '@/components/ui/button'
@@ -19,6 +28,16 @@ import { Switch } from '@/components/ui/switch'
 import { EnhancedPagination } from '@/components/ui/pagination'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { useAuthContext } from '@/contexts/AuthContext'
 import { usePermission } from '@/hooks/usePermission'
 import { datahubService } from '@/service/datahubService'
@@ -31,6 +50,7 @@ import type {
 } from '@/types/datahub'
 
 const ALL_DATASETS_VALUE = '__ALL__'
+const SUPPORTED_TRIGGER_DATASETS = new Set(['market_daily', 'security_master', 'trading_calendar'])
 
 export default function DatahubAdminPage() {
   const { user } = useAuthContext()
@@ -55,6 +75,11 @@ export default function DatahubAdminPage() {
     title: '',
     content: '',
   })
+  const [purgeFailedDialogOpen, setPurgeFailedDialogOpen] = useState(false)
+  const [purgeFailedLoading, setPurgeFailedLoading] = useState(false)
+  const [deleteRunDialogOpen, setDeleteRunDialogOpen] = useState(false)
+  const [deleteRunLoading, setDeleteRunLoading] = useState(false)
+  const [runToDelete, setRunToDelete] = useState<DatahubJobRunInfo | null>(null)
 
   const [runFilter, setRunFilter] = useState({ dataset: '', status: '', keyword: '', page: 1, pageSize: 10 })
   const [taskFilter, setTaskFilter] = useState({ status: '', symbol: '', page: 1, pageSize: 10 })
@@ -72,6 +97,11 @@ export default function DatahubAdminPage() {
     symbol: '',
     window_days: 7,
   })
+
+  const supportedDatasetOptions = useMemo(
+    () => datasetOptions.filter((item) => SUPPORTED_TRIGGER_DATASETS.has(item)),
+    [datasetOptions],
+  )
 
   useEffect(() => {
     if (user && !isAdmin) {
@@ -97,11 +127,13 @@ export default function DatahubAdminPage() {
       setWorkerHeartbeat(heartbeat)
 
       if (jobRuns.length > 0) {
-        const runId = selectedRunId || jobRuns[0].id
+        const runStillExists = selectedRunId !== '' && jobRuns.some((r) => r.id === selectedRunId)
+        const runId = runStillExists ? selectedRunId : jobRuns[0].id
         setSelectedRunId(runId)
         const runTasks = await datahubService.listJobTasks(runId)
         setTasks(runTasks)
       } else {
+        setSelectedRunId('')
         setTasks([])
       }
     } finally {
@@ -133,9 +165,9 @@ export default function DatahubAdminPage() {
 
   const resolveSelectedDatasets = (selectedValues: string[]) => {
     if (selectedValues.includes(ALL_DATASETS_VALUE)) {
-      return datasetOptions
+      return supportedDatasetOptions
     }
-    return selectedValues
+    return selectedValues.filter((item) => SUPPORTED_TRIGGER_DATASETS.has(item))
   }
 
   const toggleDatasets = (
@@ -166,7 +198,7 @@ export default function DatahubAdminPage() {
       return '暂无数据集，请先初始化'
     }
     if (selectedValues.includes(ALL_DATASETS_VALUE)) {
-      return datasetOptions.length > 0 ? `全部数据集 (${datasetOptions.length})` : '全部数据集'
+      return supportedDatasetOptions.length > 0 ? `全部可执行数据集 (${supportedDatasetOptions.length})` : '暂无可执行数据集'
     }
     if (selectedValues.length === 0) {
       return '请选择数据集'
@@ -176,8 +208,10 @@ export default function DatahubAdminPage() {
 
   const runBackfill = async () => {
     const selectedDatasets = resolveSelectedDatasets(backfillForm.datasets)
+    const requestedDatasets = backfillForm.datasets.includes(ALL_DATASETS_VALUE) ? datasetOptions : backfillForm.datasets
+    const skippedCount = requestedDatasets.filter((item) => !SUPPORTED_TRIGGER_DATASETS.has(item)).length
     if (selectedDatasets.length === 0) {
-      toast.error('请至少选择一个 Dataset')
+      toast.error('当前所选数据集均暂不支持回填，请选择 market_daily / security_master / trading_calendar')
       return
     }
     setRunningBackfill(true)
@@ -193,6 +227,9 @@ export default function DatahubAdminPage() {
         const run = await datahubService.runBackfill(payload)
         runIds.push(run.id)
       }
+      if (skippedCount > 0) {
+        toast(`已自动跳过 ${skippedCount} 个暂不支持的数据集`)
+      }
       toast.success(`回填已提交：已创建 ${runIds.length} 个后台任务`)
       await loadAll()
     } finally {
@@ -202,8 +239,10 @@ export default function DatahubAdminPage() {
 
   const runDailyIncremental = async () => {
     const selectedDatasets = resolveSelectedDatasets(dailyForm.datasets)
+    const requestedDatasets = dailyForm.datasets.includes(ALL_DATASETS_VALUE) ? datasetOptions : dailyForm.datasets
+    const skippedCount = requestedDatasets.filter((item) => !SUPPORTED_TRIGGER_DATASETS.has(item)).length
     if (selectedDatasets.length === 0) {
-      toast.error('请至少选择一个 Dataset')
+      toast.error('当前所选数据集均暂不支持增量，请选择 market_daily / security_master / trading_calendar')
       return
     }
     setRunningDaily(true)
@@ -217,6 +256,9 @@ export default function DatahubAdminPage() {
         }
         const run = await datahubService.runDailyIncremental(payload)
         runIds.push(run.id)
+      }
+      if (skippedCount > 0) {
+        toast(`已自动跳过 ${skippedCount} 个暂不支持的数据集`)
       }
       toast.success(`增量已提交：已创建 ${runIds.length} 个后台任务`)
       await loadAll()
@@ -253,6 +295,42 @@ export default function DatahubAdminPage() {
     }
     const completed = run.task_success + run.task_failed
     return Math.min(100, Math.round((completed / run.task_total) * 100))
+  }
+
+  const failedRunsCount = useMemo(() => runs.filter((r) => r.status === 'failed').length, [runs])
+
+  const confirmPurgeFailedRuns = async () => {
+    setPurgeFailedLoading(true)
+    try {
+      let total = 0
+      for (let i = 0; i < 50; i += 1) {
+        const { deleted_count } = await datahubService.purgeJobRuns({ status: 'failed', limit: 500 })
+        total += deleted_count
+        if (deleted_count === 0) break
+      }
+      toast.success(`已删除 ${total} 条失败作业记录`)
+      setPurgeFailedDialogOpen(false)
+      await loadAll()
+    } finally {
+      setPurgeFailedLoading(false)
+    }
+  }
+
+  const confirmDeleteSingleRun = async () => {
+    if (!runToDelete) return
+    setDeleteRunLoading(true)
+    try {
+      if (selectedRunId === runToDelete.id) {
+        setSelectedRunId('')
+      }
+      await datahubService.deleteJobRun(runToDelete.id)
+      toast.success('作业记录已删除')
+      setDeleteRunDialogOpen(false)
+      setRunToDelete(null)
+      await loadAll()
+    } finally {
+      setDeleteRunLoading(false)
+    }
   }
 
   const filteredRuns = useMemo(() => {
@@ -413,15 +491,18 @@ export default function DatahubAdminPage() {
                                 )
                               }
                             />
-                            全部数据集
+                            全部可执行数据集
                           </label>
                           <div className="max-h-48 space-y-1 overflow-auto pr-1">
                             {datasetOptions.length === 0 && (
                               <div className="px-1.5 py-1 text-sm text-gray-500">暂无数据集，请先点击右上角“初始化数据集”</div>
                             )}
-                            {datasetOptions.map((dataset) => (
-                              <label key={dataset} className="flex cursor-pointer items-center gap-2 rounded-sm bg-white px-1.5 py-1 text-sm text-gray-900 hover:bg-gray-50">
+                            {datasetOptions.map((dataset) => {
+                              const isSupported = SUPPORTED_TRIGGER_DATASETS.has(dataset)
+                              return (
+                              <label key={dataset} className={`flex items-center gap-2 rounded-sm px-1.5 py-1 text-sm ${isSupported ? 'cursor-pointer bg-white text-gray-900 hover:bg-gray-50' : 'cursor-not-allowed bg-gray-50 text-gray-400'}`}>
                                 <Checkbox
+                                  disabled={!isSupported}
                                   checked={backfillForm.datasets.includes(ALL_DATASETS_VALUE) || backfillForm.datasets.includes(dataset)}
                                   onCheckedChange={(checked) =>
                                     onDatasetCheckedChange(
@@ -433,8 +514,10 @@ export default function DatahubAdminPage() {
                                   }
                                 />
                                 {dataset}
+                                {!isSupported && <span className="text-xs text-gray-400">(暂不支持)</span>}
                               </label>
-                            ))}
+                              )
+                            })}
                           </div>
                         </div>
                       </PopoverContent>
@@ -491,15 +574,18 @@ export default function DatahubAdminPage() {
                                 )
                               }
                             />
-                            全部数据集
+                            全部可执行数据集
                           </label>
                           <div className="max-h-48 space-y-1 overflow-auto pr-1">
                             {datasetOptions.length === 0 && (
                               <div className="px-1.5 py-1 text-sm text-gray-500">暂无数据集，请先点击右上角“初始化数据集”</div>
                             )}
-                            {datasetOptions.map((dataset) => (
-                              <label key={dataset} className="flex cursor-pointer items-center gap-2 rounded-sm bg-white px-1.5 py-1 text-sm text-gray-900 hover:bg-gray-50">
+                            {datasetOptions.map((dataset) => {
+                              const isSupported = SUPPORTED_TRIGGER_DATASETS.has(dataset)
+                              return (
+                              <label key={dataset} className={`flex items-center gap-2 rounded-sm px-1.5 py-1 text-sm ${isSupported ? 'cursor-pointer bg-white text-gray-900 hover:bg-gray-50' : 'cursor-not-allowed bg-gray-50 text-gray-400'}`}>
                                 <Checkbox
+                                  disabled={!isSupported}
                                   checked={dailyForm.datasets.includes(ALL_DATASETS_VALUE) || dailyForm.datasets.includes(dataset)}
                                   onCheckedChange={(checked) =>
                                     onDatasetCheckedChange(
@@ -511,8 +597,10 @@ export default function DatahubAdminPage() {
                                   }
                                 />
                                 {dataset}
+                                {!isSupported && <span className="text-xs text-gray-400">(暂不支持)</span>}
                               </label>
-                            ))}
+                              )
+                            })}
                           </div>
                         </div>
                       </PopoverContent>
@@ -551,7 +639,21 @@ export default function DatahubAdminPage() {
 
             <TabsContent value="runs">
               <Card className="am-card">
-                <CardHeader><CardTitle className="flex items-center gap-2"><ListChecks className="h-4 w-4" />作业运行记录</CardTitle></CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                  <CardTitle className="flex items-center gap-2">
+                    <ListChecks className="h-4 w-4" />
+                    作业运行记录
+                  </CardTitle>
+                  <Button
+                    type="button"
+                    className="text-red-600 hover:bg-red-50 hover:text-red-700 border-red-300"
+                    variant="outline"
+                    disabled={purgeFailedLoading || failedRunsCount === 0}
+                    onClick={() => setPurgeFailedDialogOpen(true)}
+                  >
+                    清理全部失败记录
+                  </Button>
+                </CardHeader>
                 <CardContent>
                   <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-4">
                     <Input placeholder="筛选 dataset" value={runFilter.dataset} className="am-field" onChange={(e) => setRunFilter((p) => ({ ...p, dataset: e.target.value, page: 1 }))} />
@@ -561,60 +663,92 @@ export default function DatahubAdminPage() {
                   </div>
                   <div className="space-y-2">
                     {pagedRuns.map((run) => (
-                      <button
+                      <div
                         key={run.id}
-                        type="button"
-                        onClick={() => onSelectRun(run.id)}
-                        className={`w-full rounded border p-3 text-left ${selectedRunId === run.id ? 'border-brand-primary bg-brand-soft' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                        role="presentation"
+                        className={`rounded border p-3 text-left ${selectedRunId === run.id ? 'border-brand-primary bg-brand-soft' : 'border-gray-200 bg-white'}`}
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-sm font-medium text-gray-900">{run.job_type} · {run.dataset || '-'}</div>
-                          <Badge className={run.status === 'success' ? 'bg-green-100 text-green-800' : run.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-brand-soft text-brand-primaryHover'}>
-                            {run.status}
-                          </Badge>
-                        </div>
-                        <div className="mt-1 text-xs text-gray-500">
-                          {run.id} · success {run.task_success}/{run.task_total} · failed {run.task_failed}
-                        </div>
-                        <div className="mt-2">
-                          <div className="mb-1 flex items-center justify-between text-[11px] text-gray-500">
-                            <span>进度</span>
-                            <span>{getRunProgress(run)}%</span>
-                          </div>
-                          <Progress value={getRunProgress(run)} />
-                        </div>
-                        {run.error_message && (
-                          <div className="mt-2 flex items-center justify-between gap-2">
-                            <div className="truncate text-xs text-red-600">{run.error_message}</div>
-                            <span
-                              role="button"
-                              tabIndex={0}
-                              className="cursor-pointer rounded border border-brand-primary px-2 py-1 text-xs text-brand-primaryHover hover:bg-brand-soft"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setErrorDialog({
-                                  open: true,
-                                  title: `运行错误：${run.id}`,
-                                  content: run.error_message || '',
-                                })
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault()
-                                  e.stopPropagation()
-                                  setErrorDialog({
-                                    open: true,
-                                    title: `运行错误：${run.id}`,
-                                    content: run.error_message || '',
-                                  })
+                        <div className="flex items-start gap-2">
+                          <button
+                            type="button"
+                            onClick={() => onSelectRun(run.id)}
+                            className="min-w-0 flex-1 text-left hover:opacity-90"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="text-sm font-medium text-gray-900">
+                                {run.job_type} · {run.dataset || '-'}
+                              </div>
+                              <Badge
+                                className={
+                                  run.status === 'success'
+                                    ? 'bg-green-100 text-green-800'
+                                    : run.status === 'failed'
+                                      ? 'bg-red-100 text-red-700'
+                                      : 'bg-brand-soft text-brand-primaryHover'
                                 }
-                              }}
-                            >
-                              查看详情
-                            </span>
-                          </div>
-                        )}
-                      </button>
+                              >
+                                {run.status}
+                              </Badge>
+                            </div>
+                            <div className="mt-1 text-xs text-gray-500">
+                              {run.id} · success {run.task_success}/{run.task_total} · failed {run.task_failed}
+                            </div>
+                            <div className="mt-2">
+                              <div className="mb-1 flex items-center justify-between text-[11px] text-gray-500">
+                                <span>进度</span>
+                                <span>{getRunProgress(run)}%</span>
+                              </div>
+                              <Progress value={getRunProgress(run)} />
+                            </div>
+                            {run.error_message && (
+                              <div className="mt-2 flex items-center justify-between gap-2">
+                                <div className="truncate text-xs text-red-600">{run.error_message}</div>
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  className="shrink-0 cursor-pointer rounded border border-brand-primary px-2 py-1 text-xs text-brand-primaryHover hover:bg-brand-soft"
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    setErrorDialog({
+                                      open: true,
+                                      title: `运行错误：${run.id}`,
+                                      content: run.error_message || '',
+                                    })
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      setErrorDialog({
+                                        open: true,
+                                        title: `运行错误：${run.id}`,
+                                        content: run.error_message || '',
+                                      })
+                                    }
+                                  }}
+                                >
+                                  查看详情
+                                </span>
+                              </div>
+                            )}
+                          </button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            title={run.status === 'running' ? '运行中的作业不可删除' : '删除此条记录'}
+                            disabled={run.status === 'running' || deleteRunLoading}
+                            className="shrink-0 text-red-600 hover:bg-red-50 hover:text-red-700 border-red-300"
+                            onClick={() => {
+                              setRunToDelete(run)
+                              setDeleteRunDialogOpen(true)
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
                     ))}
                     {filteredRuns.length === 0 && <div className="text-sm text-gray-500">暂无作业记录</div>}
                   </div>
@@ -757,6 +891,76 @@ export default function DatahubAdminPage() {
           </pre>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={purgeFailedDialogOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setPurgeFailedDialogOpen(true)
+          } else if (!purgeFailedLoading) {
+            setPurgeFailedDialogOpen(false)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>清理全部失败记录</AlertDialogTitle>
+            <AlertDialogDescription>
+              将按批次从数据库删除状态为 failed 的作业运行记录（含关联子任务）。此操作不可恢复。当前约有 {failedRunsCount} 条失败记录。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={purgeFailedLoading}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={purgeFailedLoading}
+              onClick={(e) => {
+                e.preventDefault()
+                void confirmPurgeFailedRuns()
+              }}
+            >
+              {purgeFailedLoading ? '清理中…' : '确认清理'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={deleteRunDialogOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setDeleteRunDialogOpen(true)
+          } else if (!deleteRunLoading) {
+            setDeleteRunDialogOpen(false)
+            setRunToDelete(null)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除作业记录</AlertDialogTitle>
+            <AlertDialogDescription>
+              删除后无法恢复。
+              {runToDelete ? (
+                <span className="mt-2 block font-mono text-xs text-gray-700">{runToDelete.id}</span>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteRunLoading}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteRunLoading}
+              onClick={(e) => {
+                e.preventDefault()
+                void confirmDeleteSingleRun()
+              }}
+            >
+              {deleteRunLoading ? '删除中…' : '确认删除'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   )
 }

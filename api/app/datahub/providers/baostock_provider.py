@@ -48,14 +48,15 @@ class BaoStockProvider(BaseProvider):
         finally:
             bs.logout()
 
-    def get_security_master(self) -> list[dict[str, Any]]:
+    def get_security_master(self, day: date | None = None) -> list[dict[str, Any]]:
         bs = self._import_baostock()
         self._login(bs)
         try:
-            query_result = bs.query_all_stock(day=date.today().strftime("%Y-%m-%d"))
+            target_day = day or date.today()
+            query_result = bs.query_all_stock(day=target_day.strftime("%Y-%m-%d"))
             if query_result.error_code != "0":
                 raise BusinessException(
-                    f"baostock 查询证券主数据失败: {query_result.error_msg}",
+                    f"baostock 查询证券主数据失败: {query_result.error_msg} (day={target_day})",
                     code=ErrorCode.NETWORK_ERROR,
                 )
             rows: list[dict[str, Any]] = []

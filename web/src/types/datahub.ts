@@ -92,3 +92,12 @@ export interface TriggerDailyIncrementalPayload {
   symbol?: string
   window_days: number
 }
+
+export interface PurgeJobRunsPayload {
+  status: string
+  limit?: number
+}
+
+export interface PurgeJobRunsResult {
+  deleted_count: number
+}
