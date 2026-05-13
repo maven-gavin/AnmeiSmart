@@ -22,7 +22,7 @@ class BaseProvider(ABC):
     def get_financial_statement(self, symbol: str, start_date: date, end_date: date) -> list[dict[str, Any]]:
         return []
 
-    def get_security_master(self) -> list[dict[str, Any]]:
+    def get_security_master(self, day: Optional[date] = None) -> list[dict[str, Any]]:
         return []
 
     def get_trading_calendar(self, start_date: date, end_date: date) -> list[dict[str, Any]]:

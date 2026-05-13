@@ -5,6 +5,7 @@ from app.datahub.schemas.datahub import TriggerBackfillRequest, TriggerDailyIncr
 from app.datahub.models import DatahubJobRun
 from app.datahub.services import (
     DatahubService,
+    ExtendedDatasetSyncService,
     MarketDailyBackfillService,
     MarketDailyIncrementalService,
     SecurityMasterSyncService,
@@ -27,6 +28,9 @@ def _execute_backfill_with_db(run_id: str, payload_data: dict, service: DatahubS
         if payload.dataset == "trading_calendar":
             TradingCalendarSyncService(db).execute_backfill(run_id, payload)
             return
+        if payload.dataset in {"money_flow", "sector_members", "financial_summary"}:
+            ExtendedDatasetSyncService(db).execute_backfill(run_id, payload)
+            return
 
         service.mark_run_failed(run_id, f"unsupported backfill dataset: {payload.dataset}")
     except Exception as exc:
@@ -46,6 +50,9 @@ def _execute_daily_with_db(run_id: str, payload_data: dict, service: DatahubServ
             return
         if payload.dataset == "trading_calendar":
             TradingCalendarSyncService(db).execute_daily_incremental(run_id, payload)
+            return
+        if payload.dataset in {"money_flow", "sector_members", "financial_summary"}:
+            ExtendedDatasetSyncService(db).execute_daily_incremental(run_id, payload)
             return
 
         service.mark_run_failed(run_id, f"unsupported daily dataset: {payload.dataset}")

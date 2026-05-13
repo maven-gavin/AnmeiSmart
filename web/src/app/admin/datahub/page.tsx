@@ -56,10 +56,18 @@ import type {
   RetryFailedTasksPayload,
   DatahubWorkerHeartbeatInfo,
   DatahubProviderHealthInfo,
+  DatahubMetricsSummaryInfo,
 } from '@/types/datahub'
 
 const ALL_DATASETS_VALUE = '__ALL__'
-const SUPPORTED_TRIGGER_DATASETS = new Set(['market_daily', 'security_master', 'trading_calendar'])
+const SUPPORTED_TRIGGER_DATASETS = new Set([
+  'market_daily',
+  'security_master',
+  'trading_calendar',
+  'money_flow',
+  'sector_members',
+  'financial_summary',
+])
 
 export default function DatahubAdminPage() {
   const { user } = useAuthContext()
@@ -80,6 +88,7 @@ export default function DatahubAdminPage() {
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [workerHeartbeat, setWorkerHeartbeat] = useState<DatahubWorkerHeartbeatInfo | null>(null)
   const [providerHealthRows, setProviderHealthRows] = useState<DatahubProviderHealthInfo[]>([])
+  const [metricsSummary, setMetricsSummary] = useState<DatahubMetricsSummaryInfo | null>(null)
   const [purgeFailedDialogOpen, setPurgeFailedDialogOpen] = useState(false)
   const [purgeFailedLoading, setPurgeFailedLoading] = useState(false)
   const [deleteRunDialogOpen, setDeleteRunDialogOpen] = useState(false)
@@ -141,6 +150,7 @@ export default function DatahubAdminPage() {
         datahubService.getWorkerHeartbeat().catch(() => null),
       ])
       const providerHealth = await datahubService.listProviderHealth({ limit: 100 })
+      const metrics = await datahubService.getMetricsSummary(7)
       const datasets = await datahubService.listDatasets()
       const availableDatasets = datasets.map((item) => item.dataset_key)
       setDatasetOptions(availableDatasets)
@@ -149,6 +159,7 @@ export default function DatahubAdminPage() {
       setObjectIndexes(indexes)
       setWorkerHeartbeat(heartbeat)
       setProviderHealthRows(providerHealth)
+      setMetricsSummary(metrics)
 
       if (jobRuns.length > 0) {
         const runStillExists = selectedRunId !== '' && jobRuns.some((r) => r.id === selectedRunId)
@@ -235,7 +246,7 @@ export default function DatahubAdminPage() {
     const requestedDatasets = backfillForm.datasets.includes(ALL_DATASETS_VALUE) ? datasetOptions : backfillForm.datasets
     const skippedCount = requestedDatasets.filter((item) => !SUPPORTED_TRIGGER_DATASETS.has(item)).length
     if (selectedDatasets.length === 0) {
-      toast.error('当前所选数据集均暂不支持回填，请选择 market_daily / security_master / trading_calendar')
+      toast.error('当前所选数据集均暂不支持回填，请选择已支持的数据集')
       return
     }
     setRunningBackfill(true)
@@ -266,7 +277,7 @@ export default function DatahubAdminPage() {
     const requestedDatasets = dailyForm.datasets.includes(ALL_DATASETS_VALUE) ? datasetOptions : dailyForm.datasets
     const skippedCount = requestedDatasets.filter((item) => !SUPPORTED_TRIGGER_DATASETS.has(item)).length
     if (selectedDatasets.length === 0) {
-      toast.error('当前所选数据集均暂不支持增量，请选择 market_daily / security_master / trading_calendar')
+      toast.error('当前所选数据集均暂不支持增量，请选择已支持的数据集')
       return
     }
     setRunningDaily(true)
@@ -527,6 +538,22 @@ export default function DatahubAdminPage() {
               <CardContent className="text-2xl font-bold text-brand-primaryHover">{runStats.running}</CardContent>
             </Card>
           </div>
+
+          {metricsSummary && (
+            <Card className="am-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">近 {metricsSummary.window_days} 天运行指标</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 gap-2 text-sm text-gray-700 md:grid-cols-3">
+                <div>成功率：{(metricsSummary.success_rate * 100).toFixed(2)}%</div>
+                <div>平均耗时：{metricsSummary.avg_duration_seconds.toFixed(2)}s</div>
+                <div>P95 耗时：{metricsSummary.p95_duration_seconds.toFixed(2)}s</div>
+                <div>平均质量分：{metricsSummary.avg_quality_score.toFixed(2)}</div>
+                <div>P0 质量问题：{metricsSummary.p0_quality_count}</div>
+                <div>Provider 冷却/降级：{metricsSummary.provider_cooldown_count}/{metricsSummary.provider_degraded_count}</div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="am-card">
             <CardHeader className="pb-2">

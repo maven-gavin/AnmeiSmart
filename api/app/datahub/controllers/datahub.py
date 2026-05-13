@@ -21,6 +21,7 @@ from app.datahub.schemas.datahub import (
     DatahubObjectIndexInfo,
     DatahubProviderHealthInfo,
     DatahubQualityReportInfo,
+    DatahubMetricsSummaryInfo,
     DatahubWorkerHeartbeatInfo,
     TriggerBackfillRequest,
     TriggerDailyIncrementalRequest,
@@ -232,6 +233,16 @@ def list_provider_health(
 ) -> ApiResponse[list[DatahubProviderHealthInfo]]:
     data = service.list_provider_health(dataset=dataset, provider=provider, limit=limit)
     return ApiResponse.success(data=data, message="list provider health success")
+
+
+@router.get("/metrics/summary", response_model=ApiResponse[DatahubMetricsSummaryInfo])
+def get_metrics_summary(
+    window_days: int = Query(7, ge=1, le=30),
+    service: DatahubService = Depends(get_datahub_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[DatahubMetricsSummaryInfo]:
+    data = service.get_metrics_summary(window_days=window_days)
+    return ApiResponse.success(data=data, message="get metrics summary success")
 
 
 @router.get("/worker/heartbeat", response_model=ApiResponse[DatahubWorkerHeartbeatInfo | None])

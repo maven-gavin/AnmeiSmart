@@ -31,13 +31,13 @@ class MarketDailyIncrementalService(MarketDailyBackfillService):
         for task in tasks:
             self._mark_task_running(task)
             try:
-                quality_score, object_key, is_fallback, watermark_date = self.process_symbol(
+                quality_score, object_key, is_fallback, watermark_date, can_publish = self.process_symbol(
                     symbol=task.symbol,
                     start_date=start_date,
                     end_date=end_date,
                     batch_prefix="daily",
                 )
-                if not is_fallback:
+                if not is_fallback and can_publish:
                     self._upsert_watermark(
                         symbol=task.symbol,
                         end_date=watermark_date,

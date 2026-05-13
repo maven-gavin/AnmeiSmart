@@ -1,10 +1,12 @@
 import hashlib
+import json
 from datetime import date
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from app.datahub.models import DatahubObjectIndex
+from app.datahub.storage import MinioParquetStore
 
 
 class DatahubStorageService:
@@ -50,3 +52,32 @@ class DatahubStorageService:
         self.db.commit()
         self.db.refresh(row)
         return row
+
+    def publish_latest_manifest(
+        self,
+        *,
+        dataset: str,
+        symbol: str | None,
+        object_key: str,
+        schema_version: str,
+        quality_score: float,
+        start_date: date | None,
+        end_date: date | None,
+    ) -> str:
+        symbol_part = symbol or "__ALL__"
+        manifest_key = f"datahub/normalized/dataset={dataset}/latest/symbol={symbol_part}.json"
+        payload = {
+            "dataset": dataset,
+            "symbol": symbol,
+            "object_key": object_key,
+            "schema_version": schema_version,
+            "quality_score": quality_score,
+            "start_date": start_date.isoformat() if start_date else None,
+            "end_date": end_date.isoformat() if end_date else None,
+        }
+        MinioParquetStore().put_bytes(
+            object_key=manifest_key,
+            data=json.dumps(payload, ensure_ascii=True).encode("utf-8"),
+            content_type="application/json",
+        )
+        return manifest_key

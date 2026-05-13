@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
+import math
 
 from sqlalchemy.orm import Session
 
@@ -24,6 +25,7 @@ from app.datahub.schemas.datahub import (
     RetryFailedTasksResult,
     DatahubQualityReportInfo,
     DatahubProviderHealthInfo,
+    DatahubMetricsSummaryInfo,
     DatahubWorkerHeartbeatInfo,
     TriggerBackfillRequest,
     TriggerDailyIncrementalRequest,
@@ -35,8 +37,22 @@ from app.datahub.providers import BaoStockProvider
 
 
 class DatahubService:
-    SUPPORTED_BACKFILL_DATASETS = {"market_daily", "security_master", "trading_calendar"}
-    SUPPORTED_DAILY_DATASETS = {"market_daily", "security_master", "trading_calendar"}
+    SUPPORTED_BACKFILL_DATASETS = {
+        "market_daily",
+        "security_master",
+        "trading_calendar",
+        "money_flow",
+        "sector_members",
+        "financial_summary",
+    }
+    SUPPORTED_DAILY_DATASETS = {
+        "market_daily",
+        "security_master",
+        "trading_calendar",
+        "money_flow",
+        "sector_members",
+        "financial_summary",
+    }
 
     def __init__(self, db: Session):
         self.db = db
@@ -215,6 +231,54 @@ class DatahubService:
             )
         return items
 
+    def get_metrics_summary(self, *, window_days: int = 7) -> DatahubMetricsSummaryInfo:
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(days=window_days)
+        runs = self.db.query(DatahubJobRun).filter(DatahubJobRun.created_at >= window_start).all()
+        total_runs = len(runs)
+        success_runs = sum(1 for row in runs if row.status == DatahubTaskStatus.SUCCESS.value)
+        failed_runs = sum(1 for row in runs if row.status == DatahubTaskStatus.FAILED.value)
+        running_runs = sum(1 for row in runs if row.status == DatahubTaskStatus.RUNNING.value)
+        success_rate = (success_runs / total_runs) if total_runs > 0 else 0.0
+
+        durations: list[float] = []
+        for row in runs:
+            if row.started_at and row.finished_at:
+                durations.append(max(0.0, (row.finished_at - row.started_at).total_seconds()))
+        avg_duration = (sum(durations) / len(durations)) if durations else 0.0
+        p95_duration = 0.0
+        if durations:
+            ordered = sorted(durations)
+            p95_index = min(len(ordered) - 1, max(0, math.ceil(len(ordered) * 0.95) - 1))
+            p95_duration = ordered[p95_index]
+
+        quality_rows = self.db.query(DatahubQualityReport).filter(DatahubQualityReport.created_at >= window_start).all()
+        avg_quality_score = (
+            sum(row.quality_score for row in quality_rows) / len(quality_rows)
+            if quality_rows
+            else 0.0
+        )
+        p0_quality_count = sum(1 for row in quality_rows if row.severity == "p0")
+
+        provider_rows = self.db.query(DatahubProviderHealth).all()
+        cooldown_count = sum(1 for row in provider_rows if row.status == "cooldown")
+        degraded_count = sum(1 for row in provider_rows if row.status == "degraded")
+
+        return DatahubMetricsSummaryInfo(
+            window_days=window_days,
+            total_runs=total_runs,
+            success_runs=success_runs,
+            failed_runs=failed_runs,
+            running_runs=running_runs,
+            success_rate=success_rate,
+            avg_duration_seconds=avg_duration,
+            p95_duration_seconds=p95_duration,
+            avg_quality_score=avg_quality_score,
+            p0_quality_count=p0_quality_count,
+            provider_cooldown_count=cooldown_count,
+            provider_degraded_count=degraded_count,
+        )
+
     def upsert_worker_heartbeat(
         self,
         *,
@@ -277,9 +341,9 @@ class DatahubService:
                 f"当前不支持 backfill dataset: {payload.dataset}",
                 code=ErrorCode.VALIDATION_ERROR,
             )
-        if payload.symbols and payload.dataset != "market_daily":
+        if payload.symbols and payload.dataset not in {"market_daily", "money_flow", "financial_summary"}:
             raise BusinessException(
-                "symbols 仅支持 market_daily 回填",
+                "symbols 仅支持 market_daily/money_flow/financial_summary 回填",
                 code=ErrorCode.VALIDATION_ERROR,
             )
         job_run = DatahubJobRun(

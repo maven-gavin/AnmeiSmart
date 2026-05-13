@@ -53,13 +53,13 @@ class MarketDailyBackfillService:
             self._mark_task_running(task)
             try:
                 task_symbol = task.symbol or ""
-                quality_score, object_key, is_fallback, watermark_date = self.process_symbol(
+                quality_score, object_key, is_fallback, watermark_date, can_publish = self.process_symbol(
                     symbol=task_symbol,
                     start_date=payload.start_date,
                     end_date=payload.end_date,
                     batch_prefix="backfill",
                 )
-                if not is_fallback:
+                if not is_fallback and can_publish:
                     self._upsert_watermark(
                         symbol=task_symbol,
                         end_date=watermark_date,
@@ -87,7 +87,7 @@ class MarketDailyBackfillService:
         start_date: date,
         end_date: date,
         batch_prefix: str,
-    ) -> tuple[float, str, bool, date]:
+    ) -> tuple[float, str, bool, date, bool]:
         priorities = self.router_service.get_provider_priority("market_daily")
         errors: list[str] = []
         rows: list[dict] | None = None
@@ -113,7 +113,7 @@ class MarketDailyBackfillService:
                     ],
                     object_key=object_key,
                 )
-                return quality_score, object_key, True, snapshot_date
+                return quality_score, object_key, True, snapshot_date, False
 
             provider_client = self.providers.get(provider)
             if provider_client is None:
@@ -123,7 +123,11 @@ class MarketDailyBackfillService:
                 errors.append(f"{provider} 处于熔断冷却")
                 continue
             try:
-                rows = provider_client.get_daily_bars(symbol, start_date, end_date)
+                rows = self.router_service.run_with_policy(
+                    dataset="market_daily",
+                    provider=provider,
+                    operation=lambda: provider_client.get_daily_bars(symbol, start_date, end_date),
+                )
             except Exception as exc:
                 self.provider_health_service.record_failure(
                     provider=provider,
@@ -178,7 +182,18 @@ class MarketDailyBackfillService:
             issues=issues,
             object_key=object_key,
         )
-        return quality_score, object_key, False, end_date
+        can_publish = self.quality_service.can_publish_latest("market_daily", quality_score)
+        if can_publish:
+            self.storage_service.publish_latest_manifest(
+                dataset="market_daily",
+                symbol=symbol,
+                object_key=object_key,
+                schema_version="1.0",
+                quality_score=quality_score,
+                start_date=start_date,
+                end_date=end_date,
+            )
+        return quality_score, object_key, False, end_date, can_publish
 
     def _upsert_watermark(
         self,
@@ -321,7 +336,11 @@ class MarketDailyBackfillService:
         baostock_provider = self.providers["baostock"]
         for offset in range(0, 8):
             day = end_date - timedelta(days=offset)
-            rows = baostock_provider.get_security_master(day=day)
+            rows = self.router_service.run_with_policy(
+                dataset="security_master",
+                provider="baostock",
+                operation=lambda: baostock_provider.get_security_master(day=day),
+            )
             if rows:
                 return rows
         return []

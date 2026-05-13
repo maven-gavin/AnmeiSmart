@@ -94,11 +94,27 @@ export interface DatahubProviderHealthInfo {
   is_available: boolean
 }
 
+export interface DatahubMetricsSummaryInfo {
+  window_days: number
+  total_runs: number
+  success_runs: number
+  failed_runs: number
+  running_runs: number
+  success_rate: number
+  avg_duration_seconds: number
+  p95_duration_seconds: number
+  avg_quality_score: number
+  p0_quality_count: number
+  provider_cooldown_count: number
+  provider_degraded_count: number
+}
+
 export interface TriggerBackfillPayload {
   dataset: string
   start_date: string
   end_date: string
   symbol?: string
+  symbols?: string[]
 }
 
 export interface TriggerDailyIncrementalPayload {

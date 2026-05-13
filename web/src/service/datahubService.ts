@@ -10,6 +10,7 @@ import type {
   DatahubObjectIndexInfo,
   DatahubProviderHealthInfo,
   DatahubQualityReportInfo,
+  DatahubMetricsSummaryInfo,
   DatahubWorkerHeartbeatInfo,
   PurgeJobRunsPayload,
   PurgeJobRunsResult,
@@ -204,6 +205,16 @@ export const datahubService = {
       return resp.data
     } catch (err) {
       handleApiError(err, '获取 Provider 健康状态失败')
+      throw err
+    }
+  },
+
+  async getMetricsSummary(windowDays = 7): Promise<DatahubMetricsSummaryInfo> {
+    try {
+      const resp = await apiClient.get<DatahubMetricsSummaryInfo>(`/datahub/metrics/summary?window_days=${windowDays}`)
+      return resp.data
+    } catch (err) {
+      handleApiError(err, '获取 DataHub 指标汇总失败')
       throw err
     }
   },

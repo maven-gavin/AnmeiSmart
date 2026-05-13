@@ -12,6 +12,7 @@ from app.datahub.schemas.datahub import TriggerBackfillRequest, TriggerDailyIncr
 from app.datahub.services.market_daily_backfill_service import MarketDailyBackfillService
 from app.datahub.services.provider_health_service import DatahubProviderHealthService
 from app.datahub.services.quality_service import DatahubQualityService
+from app.datahub.services.router_service import DatahubRouterService
 from app.datahub.services.storage_service import DatahubStorageService
 from app.datahub.storage import MinioParquetStore
 
@@ -23,6 +24,7 @@ class SecurityMasterSyncService:
         self.storage_service = DatahubStorageService(db)
         self.quality_service = DatahubQualityService(db)
         self.provider_health_service = DatahubProviderHealthService(db)
+        self.router_service = DatahubRouterService()
 
     def execute_backfill(self, run_id: str, payload: TriggerBackfillRequest) -> None:
         run = self._require_run(run_id)
@@ -80,7 +82,18 @@ class SecurityMasterSyncService:
                 issues=issues,
                 object_key=object_key,
             )
-            self._upsert_watermark(last_date=biz_date, quality_score=score, object_key=object_key, batch_prefix=batch_prefix)
+            can_publish = self.quality_service.can_publish_latest("security_master", score)
+            if can_publish:
+                self.storage_service.publish_latest_manifest(
+                    dataset="security_master",
+                    symbol=None,
+                    object_key=object_key,
+                    schema_version="1.0",
+                    quality_score=score,
+                    start_date=biz_date,
+                    end_date=biz_date,
+                )
+                self._upsert_watermark(last_date=biz_date, quality_score=score, object_key=object_key, batch_prefix=batch_prefix)
             self._mark_success(run, task)
         except Exception as exc:
             snapshot = self._get_stable_snapshot()
@@ -116,7 +129,11 @@ class SecurityMasterSyncService:
         for offset in range(0, 8):
             query_date = today - timedelta(days=offset)
             try:
-                rows = self.provider.get_security_master(day=query_date)
+                rows = self.router_service.run_with_policy(
+                    dataset="security_master",
+                    provider=provider_name,
+                    operation=lambda: self.provider.get_security_master(day=query_date),
+                )
             except Exception as exc:
                 self.provider_health_service.record_failure(
                     provider=provider_name,

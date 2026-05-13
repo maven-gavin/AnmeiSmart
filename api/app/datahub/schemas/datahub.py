@@ -159,6 +159,21 @@ class DatahubProviderHealthInfo(BaseModel):
     is_available: bool
 
 
+class DatahubMetricsSummaryInfo(BaseModel):
+    window_days: int
+    total_runs: int
+    success_runs: int
+    failed_runs: int
+    running_runs: int
+    success_rate: float
+    avg_duration_seconds: float
+    p95_duration_seconds: float
+    avg_quality_score: float
+    p0_quality_count: int
+    provider_cooldown_count: int
+    provider_degraded_count: int
+
+
 class TriggerBackfillRequest(BaseModel):
     dataset: str = Field(..., description="数据集")
     start_date: date = Field(..., description="开始日期")

@@ -3,6 +3,7 @@ DataHub 服务导出
 """
 
 from .datahub_service import DatahubService
+from .extended_dataset_sync_service import ExtendedDatasetSyncService
 from .market_daily_backfill_service import MarketDailyBackfillService
 from .market_daily_incremental_service import MarketDailyIncrementalService
 from .metadata_service import DatahubMetadataService
@@ -15,6 +16,7 @@ from .trading_calendar_sync_service import TradingCalendarSyncService
 
 __all__ = [
     "DatahubService",
+    "ExtendedDatasetSyncService",
     "MarketDailyBackfillService",
     "MarketDailyIncrementalService",
     "DatahubMetadataService",

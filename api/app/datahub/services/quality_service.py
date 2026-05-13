@@ -7,8 +7,18 @@ from app.datahub.models import DatahubQualityReport
 
 
 class DatahubQualityService:
+    CORE_DATASETS = {"market_daily", "security_master", "trading_calendar"}
+
     def __init__(self, db: Session):
         self.db = db
+
+    @classmethod
+    def quality_threshold(cls, dataset: str) -> float:
+        return 95.0 if dataset in cls.CORE_DATASETS else 90.0
+
+    @classmethod
+    def can_publish_latest(cls, dataset: str, quality_score: float) -> bool:
+        return quality_score >= cls.quality_threshold(dataset)
 
     def write_report(
         self,
