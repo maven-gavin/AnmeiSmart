@@ -6,6 +6,7 @@ from .datahub_service import DatahubService
 from .market_daily_backfill_service import MarketDailyBackfillService
 from .market_daily_incremental_service import MarketDailyIncrementalService
 from .metadata_service import DatahubMetadataService
+from .provider_health_service import DatahubProviderHealthService
 from .quality_service import DatahubQualityService
 from .router_service import DatahubRouterService
 from .security_master_sync_service import SecurityMasterSyncService
@@ -17,6 +18,7 @@ __all__ = [
     "MarketDailyBackfillService",
     "MarketDailyIncrementalService",
     "DatahubMetadataService",
+    "DatahubProviderHealthService",
     "DatahubQualityService",
     "DatahubRouterService",
     "SecurityMasterSyncService",

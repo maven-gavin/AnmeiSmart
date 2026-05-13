@@ -19,6 +19,7 @@ from app.datahub.schemas.datahub import (
     DatahubJobTaskInfo,
     DatahubJobRunInfo,
     DatahubObjectIndexInfo,
+    DatahubProviderHealthInfo,
     DatahubQualityReportInfo,
     DatahubWorkerHeartbeatInfo,
     TriggerBackfillRequest,
@@ -219,6 +220,18 @@ def list_object_indexes(
 ) -> ApiResponse[list[DatahubObjectIndexInfo]]:
     data = service.list_object_indexes(dataset=dataset, symbol=symbol, limit=limit)
     return ApiResponse.success(data=data, message="list object indexes success")
+
+
+@router.get("/providers/health", response_model=ApiResponse[list[DatahubProviderHealthInfo]])
+def list_provider_health(
+    dataset: str | None = Query(None),
+    provider: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    service: DatahubService = Depends(get_datahub_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[list[DatahubProviderHealthInfo]]:
+    data = service.list_provider_health(dataset=dataset, provider=provider, limit=limit)
+    return ApiResponse.success(data=data, message="list provider health success")
 
 
 @router.get("/worker/heartbeat", response_model=ApiResponse[DatahubWorkerHeartbeatInfo | None])

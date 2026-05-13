@@ -80,6 +80,20 @@ export interface DatahubWorkerHeartbeatInfo {
   offline_threshold_seconds: number
 }
 
+export interface DatahubProviderHealthInfo {
+  provider: string
+  dataset: string
+  status: string
+  success_count: number
+  failure_count: number
+  failure_rate: number
+  last_success_at?: string | null
+  last_failure_at?: string | null
+  last_error?: string | null
+  cooldown_until?: string | null
+  is_available: boolean
+}
+
 export interface TriggerBackfillPayload {
   dataset: string
   start_date: string

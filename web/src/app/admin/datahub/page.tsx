@@ -13,6 +13,7 @@ import {
   Search,
   ShieldAlert,
   PackageSearch,
+  Activity,
   ChevronDown,
   RotateCcw,
   Trash2,
@@ -54,6 +55,7 @@ import type {
   DatahubQualityReportInfo,
   RetryFailedTasksPayload,
   DatahubWorkerHeartbeatInfo,
+  DatahubProviderHealthInfo,
 } from '@/types/datahub'
 
 const ALL_DATASETS_VALUE = '__ALL__'
@@ -77,6 +79,7 @@ export default function DatahubAdminPage() {
   const [datasetOptions, setDatasetOptions] = useState<string[]>([])
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [workerHeartbeat, setWorkerHeartbeat] = useState<DatahubWorkerHeartbeatInfo | null>(null)
+  const [providerHealthRows, setProviderHealthRows] = useState<DatahubProviderHealthInfo[]>([])
   const [purgeFailedDialogOpen, setPurgeFailedDialogOpen] = useState(false)
   const [purgeFailedLoading, setPurgeFailedLoading] = useState(false)
   const [deleteRunDialogOpen, setDeleteRunDialogOpen] = useState(false)
@@ -137,6 +140,7 @@ export default function DatahubAdminPage() {
         datahubService.listObjectIndexes({ limit: 100 }),
         datahubService.getWorkerHeartbeat().catch(() => null),
       ])
+      const providerHealth = await datahubService.listProviderHealth({ limit: 100 })
       const datasets = await datahubService.listDatasets()
       const availableDatasets = datasets.map((item) => item.dataset_key)
       setDatasetOptions(availableDatasets)
@@ -144,6 +148,7 @@ export default function DatahubAdminPage() {
       setQualityReports(reports)
       setObjectIndexes(indexes)
       setWorkerHeartbeat(heartbeat)
+      setProviderHealthRows(providerHealth)
 
       if (jobRuns.length > 0) {
         const runStillExists = selectedRunId !== '' && jobRuns.some((r) => r.id === selectedRunId)
@@ -819,11 +824,12 @@ export default function DatahubAdminPage() {
           </div>
 
           <Tabs defaultValue="runs" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="runs">作业运行</TabsTrigger>
               <TabsTrigger value="tasks">作业任务</TabsTrigger>
               <TabsTrigger value="quality">质量报告</TabsTrigger>
               <TabsTrigger value="objects">对象索引</TabsTrigger>
+              <TabsTrigger value="providers">Provider 健康</TabsTrigger>
             </TabsList>
 
             <TabsContent value="runs">
@@ -1058,6 +1064,39 @@ export default function DatahubAdminPage() {
                       onItemsPerPageChange={(pageSize) => setObjectFilter((p) => ({ ...p, pageSize, page: 1 }))}
                     />
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="providers">
+              <Card className="am-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="h-4 w-4" />
+                    Provider 健康状态
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {providerHealthRows.map((row) => (
+                    <div key={`${row.provider}-${row.dataset}`} className="rounded border border-gray-200 p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-medium">{row.provider} · {row.dataset}</div>
+                        <Badge className={row.is_available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}>
+                          {row.is_available ? row.status : 'cooldown'}
+                        </Badge>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-600">
+                        success={row.success_count} · failure={row.failure_count} · failure_rate={(row.failure_rate * 100).toFixed(2)}%
+                      </div>
+                      {row.cooldown_until && (
+                        <div className="mt-1 text-xs text-amber-700">cooldown_until: {row.cooldown_until}</div>
+                      )}
+                      {row.last_error && (
+                        <div className="mt-1 break-all text-xs text-red-600">{row.last_error}</div>
+                      )}
+                    </div>
+                  ))}
+                  {providerHealthRows.length === 0 && <div className="text-sm text-gray-500">暂无 Provider 健康记录</div>}
                 </CardContent>
               </Card>
             </TabsContent>

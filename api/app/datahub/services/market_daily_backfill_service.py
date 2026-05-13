@@ -9,10 +9,13 @@ from sqlalchemy.orm import Session
 from app.core.api import BusinessException, ErrorCode
 from app.core.config import get_settings
 from app.datahub.enums import DatahubTaskStatus
+from app.datahub.models import DatahubObjectIndex
 from app.datahub.models import DatahubDatasetWatermark, DatahubJobRun, DatahubJobTask
 from app.datahub.normalize import normalize_symbol
-from app.datahub.providers import BaoStockProvider
+from app.datahub.providers import BaoStockProvider, EastMoneyProvider
 from app.datahub.schemas.datahub import TriggerBackfillRequest
+from app.datahub.services.router_service import DatahubRouterService
+from app.datahub.services.provider_health_service import DatahubProviderHealthService
 from app.datahub.services.quality_service import DatahubQualityService
 from app.datahub.services.storage_service import DatahubStorageService
 from app.datahub.storage import MinioParquetStore
@@ -21,9 +24,14 @@ from app.datahub.storage import MinioParquetStore
 class MarketDailyBackfillService:
     def __init__(self, db: Session):
         self.db = db
-        self.provider = BaoStockProvider()
+        self.providers = {
+            "baostock": BaoStockProvider(),
+            "eastmoney": EastMoneyProvider(),
+        }
+        self.router_service = DatahubRouterService()
         self.storage_service = DatahubStorageService(db)
         self.quality_service = DatahubQualityService(db)
+        self.provider_health_service = DatahubProviderHealthService(db)
 
     def execute(self, run_id: str, payload: TriggerBackfillRequest) -> None:
         job_run = self._require_run(run_id)
@@ -45,19 +53,20 @@ class MarketDailyBackfillService:
             self._mark_task_running(task)
             try:
                 task_symbol = task.symbol or ""
-                quality_score, object_key = self.process_symbol(
+                quality_score, object_key, is_fallback, watermark_date = self.process_symbol(
                     symbol=task_symbol,
                     start_date=payload.start_date,
                     end_date=payload.end_date,
                     batch_prefix="backfill",
                 )
-                self._upsert_watermark(
-                    symbol=task_symbol,
-                    end_date=payload.end_date,
-                    quality_score=quality_score,
-                    object_key=object_key,
-                    batch_prefix="backfill",
-                )
+                if not is_fallback:
+                    self._upsert_watermark(
+                        symbol=task_symbol,
+                        end_date=watermark_date,
+                        quality_score=quality_score,
+                        object_key=object_key,
+                        batch_prefix="backfill",
+                    )
                 self._mark_task_success(task)
                 success += 1
             except Exception as exc:
@@ -78,10 +87,66 @@ class MarketDailyBackfillService:
         start_date: date,
         end_date: date,
         batch_prefix: str,
-    ) -> tuple[float, str]:
-        rows = self.provider.get_daily_bars(symbol, start_date, end_date)
-        if not rows:
-            raise BusinessException("未获取到任何 market_daily 数据", code=ErrorCode.BUSINESS_ERROR)
+    ) -> tuple[float, str, bool, date]:
+        priorities = self.router_service.get_provider_priority("market_daily")
+        errors: list[str] = []
+        rows: list[dict] | None = None
+        source_provider: str | None = None
+        for provider in priorities:
+            if provider == "minio_cache":
+                snapshot = self._get_stable_snapshot(symbol=symbol, required_end_date=end_date)
+                if snapshot is None:
+                    errors.append("minio_cache 无可用稳定快照")
+                    continue
+                quality_score, object_key, snapshot_date = snapshot
+                self.quality_service.write_report(
+                    dataset="market_daily",
+                    symbol=symbol,
+                    quality_score=quality_score,
+                    severity="p1",
+                    issues=[
+                        {
+                            "rule": "provider_fallback_snapshot",
+                            "message": "源站失败，降级使用 MinIO 稳定快照",
+                            "snapshot_date": snapshot_date.isoformat(),
+                        }
+                    ],
+                    object_key=object_key,
+                )
+                return quality_score, object_key, True, snapshot_date
+
+            provider_client = self.providers.get(provider)
+            if provider_client is None:
+                errors.append(f"{provider} 未接入")
+                continue
+            if not self.provider_health_service.is_available(provider=provider, dataset="market_daily"):
+                errors.append(f"{provider} 处于熔断冷却")
+                continue
+            try:
+                rows = provider_client.get_daily_bars(symbol, start_date, end_date)
+            except Exception as exc:
+                self.provider_health_service.record_failure(
+                    provider=provider,
+                    dataset="market_daily",
+                    error=str(exc),
+                )
+                errors.append(f"{provider} 获取失败: {exc}")
+                continue
+            if not rows:
+                self.provider_health_service.record_failure(
+                    provider=provider,
+                    dataset="market_daily",
+                    error="查询结果为空",
+                )
+                errors.append(f"{provider} 查询结果为空")
+                continue
+            self.provider_health_service.record_success(provider=provider, dataset="market_daily")
+            source_provider = provider
+            break
+
+        if not rows or source_provider is None:
+            reason = " | ".join(errors) if errors else "未获取到任何 market_daily 数据"
+            raise BusinessException(f"market_daily 获取失败: {reason}", code=ErrorCode.BUSINESS_ERROR)
 
         parquet_bytes = self._to_parquet_bytes(rows)
         object_key = self._build_object_key(symbol=symbol, end_date=end_date, batch_prefix=batch_prefix)
@@ -95,13 +160,14 @@ class MarketDailyBackfillService:
             object_key=object_key,
             dataset="market_daily",
             layer="normalized",
-            provider="baostock",
+            provider=source_provider,
             symbol=symbol,
             start_date=start_date,
             end_date=end_date,
             row_count=len(rows),
             schema_version="1.0",
             content_hash=hashlib.sha256(parquet_bytes).hexdigest(),
+            quality_score=quality_score,
         )
 
         self.quality_service.write_report(
@@ -112,7 +178,7 @@ class MarketDailyBackfillService:
             issues=issues,
             object_key=object_key,
         )
-        return quality_score, object_key
+        return quality_score, object_key, False, end_date
 
     def _upsert_watermark(
         self,
@@ -215,10 +281,47 @@ class MarketDailyBackfillService:
             )
         return symbols
 
+    def _get_stable_snapshot(self, *, symbol: str, required_end_date: date) -> tuple[float, str, date] | None:
+        watermark = (
+            self.db.query(DatahubDatasetWatermark)
+            .filter(
+                DatahubDatasetWatermark.dataset == "market_daily",
+                DatahubDatasetWatermark.symbol == symbol,
+            )
+            .first()
+        )
+        if (
+            watermark is None
+            or not watermark.last_object_key
+            or watermark.last_success_date is None
+            or watermark.last_quality_score is None
+        ):
+            return None
+        if watermark.last_quality_score < 95:
+            return None
+        if watermark.last_success_date < required_end_date:
+            return None
+        object_exists = MinioParquetStore().exists(watermark.last_object_key)
+        if not object_exists:
+            return None
+        indexed = (
+            self.db.query(DatahubObjectIndex.id)
+            .filter(DatahubObjectIndex.object_key == watermark.last_object_key)
+            .first()
+        )
+        if indexed is None:
+            return None
+        return (
+            float(watermark.last_quality_score),
+            watermark.last_object_key,
+            watermark.last_success_date,
+        )
+
     def _load_security_master_rows(self, *, end_date: date) -> list[dict]:
+        baostock_provider = self.providers["baostock"]
         for offset in range(0, 8):
             day = end_date - timedelta(days=offset)
-            rows = self.provider.get_security_master(day=day)
+            rows = baostock_provider.get_security_master(day=day)
             if rows:
                 return rows
         return []

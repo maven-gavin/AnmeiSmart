@@ -5,10 +5,12 @@ from sqlalchemy.orm import Session
 from app.core.api import BusinessException, ErrorCode
 from app.core.config import get_settings
 from app.datahub.enums import DatahubTaskStatus
+from app.datahub.models import DatahubObjectIndex
 from app.datahub.models import DatahubDatasetWatermark, DatahubJobRun, DatahubJobTask
 from app.datahub.providers import BaoStockProvider
 from app.datahub.schemas.datahub import TriggerBackfillRequest, TriggerDailyIncrementalRequest
 from app.datahub.services.market_daily_backfill_service import MarketDailyBackfillService
+from app.datahub.services.provider_health_service import DatahubProviderHealthService
 from app.datahub.services.quality_service import DatahubQualityService
 from app.datahub.services.storage_service import DatahubStorageService
 from app.datahub.storage import MinioParquetStore
@@ -20,6 +22,7 @@ class TradingCalendarSyncService:
         self.provider = BaoStockProvider()
         self.storage_service = DatahubStorageService(db)
         self.quality_service = DatahubQualityService(db)
+        self.provider_health_service = DatahubProviderHealthService(db)
 
     def execute_backfill(self, run_id: str, payload: TriggerBackfillRequest) -> None:
         run = self._require_run(run_id)
@@ -36,7 +39,22 @@ class TradingCalendarSyncService:
     def _run_single(self, run: DatahubJobRun, task: DatahubJobTask, *, start_date: date, end_date: date, batch_prefix: str) -> None:
         self._mark_running(run, task)
         try:
-            rows = self.provider.get_trading_calendar(start_date, end_date)
+            provider_name = self.provider.provider_name
+            if not self.provider_health_service.is_available(provider=provider_name, dataset="trading_calendar"):
+                raise BusinessException(
+                    f"{provider_name} 当前处于熔断冷却中，请稍后重试",
+                    code=ErrorCode.BUSINESS_ERROR,
+                )
+            try:
+                rows = self.provider.get_trading_calendar(start_date, end_date)
+            except Exception as exc:
+                self.provider_health_service.record_failure(
+                    provider=provider_name,
+                    dataset="trading_calendar",
+                    error=str(exc),
+                )
+                raise
+            self.provider_health_service.record_success(provider=provider_name, dataset="trading_calendar")
             if not rows:
                 raise BusinessException("trading_calendar 未获取到数据", code=ErrorCode.BUSINESS_ERROR)
             parquet_bytes = MarketDailyBackfillService._to_parquet_bytes(rows)
@@ -62,6 +80,7 @@ class TradingCalendarSyncService:
                 end_date=end_date,
                 row_count=len(rows),
                 schema_version="1.0",
+                quality_score=score,
             )
             self.quality_service.write_report(
                 dataset="trading_calendar",
@@ -74,6 +93,25 @@ class TradingCalendarSyncService:
             self._upsert_watermark(last_date=end_date, quality_score=score, object_key=object_key, batch_prefix=batch_prefix)
             self._mark_success(run, task)
         except Exception as exc:
+            snapshot = self._get_stable_snapshot(required_end_date=end_date)
+            if snapshot is not None:
+                score, object_key, snapshot_date = snapshot
+                self.quality_service.write_report(
+                    dataset="trading_calendar",
+                    symbol="SSE",
+                    quality_score=score,
+                    severity="p1",
+                    issues=[
+                        {
+                            "rule": "provider_fallback_snapshot",
+                            "message": "trading_calendar 源站失败，降级使用 MinIO 稳定快照",
+                            "snapshot_date": snapshot_date.isoformat(),
+                        }
+                    ],
+                    object_key=object_key,
+                )
+                self._mark_success(run, task)
+                return
             self._mark_failed(run, task, str(exc))
             raise
 
@@ -91,6 +129,38 @@ class TradingCalendarSyncService:
         row.last_object_key = object_key
         row.last_batch_id = f"{batch_prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
         self.db.commit()
+
+    def _get_stable_snapshot(self, *, required_end_date: date) -> tuple[float, str, date] | None:
+        watermark = (
+            self.db.query(DatahubDatasetWatermark)
+            .filter(DatahubDatasetWatermark.dataset == "trading_calendar", DatahubDatasetWatermark.symbol == "SSE")
+            .first()
+        )
+        if (
+            watermark is None
+            or not watermark.last_object_key
+            or watermark.last_success_date is None
+            or watermark.last_quality_score is None
+        ):
+            return None
+        if watermark.last_quality_score < 95:
+            return None
+        if watermark.last_success_date < required_end_date:
+            return None
+        if not MinioParquetStore().exists(watermark.last_object_key):
+            return None
+        indexed = (
+            self.db.query(DatahubObjectIndex.id)
+            .filter(DatahubObjectIndex.object_key == watermark.last_object_key)
+            .first()
+        )
+        if indexed is None:
+            return None
+        return (
+            float(watermark.last_quality_score),
+            watermark.last_object_key,
+            watermark.last_success_date,
+        )
 
     def _require_run(self, run_id: str) -> DatahubJobRun:
         row = self.db.query(DatahubJobRun).filter(DatahubJobRun.id == run_id).first()

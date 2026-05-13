@@ -8,6 +8,7 @@ import type {
   DatahubJobTaskInfo,
   MarketDailyMissingScanResult,
   DatahubObjectIndexInfo,
+  DatahubProviderHealthInfo,
   DatahubQualityReportInfo,
   DatahubWorkerHeartbeatInfo,
   PurgeJobRunsPayload,
@@ -189,6 +190,20 @@ export const datahubService = {
       return resp.data
     } catch (err) {
       handleApiError(err, '获取 Worker 心跳失败')
+      throw err
+    }
+  },
+
+  async listProviderHealth(params?: { dataset?: string; provider?: string; limit?: number }): Promise<DatahubProviderHealthInfo[]> {
+    try {
+      const search = new URLSearchParams()
+      if (params?.dataset) search.set('dataset', params.dataset)
+      if (params?.provider) search.set('provider', params.provider)
+      search.set('limit', String(params?.limit ?? 100))
+      const resp = await apiClient.get<DatahubProviderHealthInfo[]>(`/datahub/providers/health?${search.toString()}`)
+      return resp.data
+    } catch (err) {
+      handleApiError(err, '获取 Provider 健康状态失败')
       throw err
     }
   },

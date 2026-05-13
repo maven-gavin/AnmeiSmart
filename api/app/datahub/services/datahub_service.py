@@ -8,6 +8,7 @@ from app.datahub.models import (
     DatahubJobRun,
     DatahubJobTask,
     DatahubObjectIndex,
+    DatahubProviderHealth,
     DatahubQualityReport,
     DatahubWorkerHeartbeat,
 )
@@ -22,6 +23,7 @@ from app.datahub.schemas.datahub import (
     MarketDailyMissingScanResult,
     RetryFailedTasksResult,
     DatahubQualityReportInfo,
+    DatahubProviderHealthInfo,
     DatahubWorkerHeartbeatInfo,
     TriggerBackfillRequest,
     TriggerDailyIncrementalRequest,
@@ -176,6 +178,42 @@ class DatahubService:
             )
             for row in rows
         ]
+
+    def list_provider_health(
+        self,
+        *,
+        dataset: str | None = None,
+        provider: str | None = None,
+        limit: int = 100,
+    ) -> list[DatahubProviderHealthInfo]:
+        query = self.db.query(DatahubProviderHealth)
+        if dataset:
+            query = query.filter(DatahubProviderHealth.dataset == dataset)
+        if provider:
+            query = query.filter(DatahubProviderHealth.provider == provider)
+        rows = query.order_by(DatahubProviderHealth.updated_at.desc()).limit(limit).all()
+        now = datetime.now(timezone.utc)
+        items: list[DatahubProviderHealthInfo] = []
+        for row in rows:
+            total = row.success_count + row.failure_count
+            failure_rate = (row.failure_count / total) if total > 0 else 0.0
+            is_available = row.cooldown_until is None or row.cooldown_until <= now
+            items.append(
+                DatahubProviderHealthInfo(
+                    provider=row.provider,
+                    dataset=row.dataset,
+                    status=row.status,
+                    success_count=row.success_count,
+                    failure_count=row.failure_count,
+                    failure_rate=failure_rate,
+                    last_success_at=row.last_success_at,
+                    last_failure_at=row.last_failure_at,
+                    last_error=row.last_error,
+                    cooldown_until=row.cooldown_until,
+                    is_available=is_available,
+                )
+            )
+        return items
 
     def upsert_worker_heartbeat(
         self,

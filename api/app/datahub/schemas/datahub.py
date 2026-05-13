@@ -145,6 +145,20 @@ class DatahubWorkerHeartbeatInfo(BaseModel):
     offline_threshold_seconds: int
 
 
+class DatahubProviderHealthInfo(BaseModel):
+    provider: str
+    dataset: str
+    status: str
+    success_count: int
+    failure_count: int
+    failure_rate: float
+    last_success_at: Optional[datetime] = None
+    last_failure_at: Optional[datetime] = None
+    last_error: Optional[str] = None
+    cooldown_until: Optional[datetime] = None
+    is_available: bool
+
+
 class TriggerBackfillRequest(BaseModel):
     dataset: str = Field(..., description="数据集")
     start_date: date = Field(..., description="开始日期")

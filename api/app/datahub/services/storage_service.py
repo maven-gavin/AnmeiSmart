@@ -25,6 +25,7 @@ class DatahubStorageService:
         row_count: int = 0,
         schema_version: str = "1.0",
         content_hash: Optional[str] = None,
+        quality_score: Optional[float] = None,
     ) -> DatahubObjectIndex:
         row = (
             self.db.query(DatahubObjectIndex)
@@ -45,6 +46,7 @@ class DatahubStorageService:
         row.row_count = row_count
         row.schema_version = schema_version
         row.content_hash = content_hash or hashlib.sha256(object_key.encode("utf-8")).hexdigest()
+        row.quality_score = quality_score
         self.db.commit()
         self.db.refresh(row)
         return row

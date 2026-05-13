@@ -5,10 +5,12 @@ from sqlalchemy.orm import Session
 from app.core.api import BusinessException, ErrorCode
 from app.core.config import get_settings
 from app.datahub.enums import DatahubTaskStatus
+from app.datahub.models import DatahubObjectIndex
 from app.datahub.models import DatahubDatasetWatermark, DatahubJobRun, DatahubJobTask
 from app.datahub.providers import BaoStockProvider
 from app.datahub.schemas.datahub import TriggerBackfillRequest, TriggerDailyIncrementalRequest
 from app.datahub.services.market_daily_backfill_service import MarketDailyBackfillService
+from app.datahub.services.provider_health_service import DatahubProviderHealthService
 from app.datahub.services.quality_service import DatahubQualityService
 from app.datahub.services.storage_service import DatahubStorageService
 from app.datahub.storage import MinioParquetStore
@@ -20,6 +22,7 @@ class SecurityMasterSyncService:
         self.provider = BaoStockProvider()
         self.storage_service = DatahubStorageService(db)
         self.quality_service = DatahubQualityService(db)
+        self.provider_health_service = DatahubProviderHealthService(db)
 
     def execute_backfill(self, run_id: str, payload: TriggerBackfillRequest) -> None:
         run = self._require_run(run_id)
@@ -67,6 +70,7 @@ class SecurityMasterSyncService:
                 end_date=biz_date,
                 row_count=len(rows),
                 schema_version="1.0",
+                quality_score=score,
             )
             self.quality_service.write_report(
                 dataset="security_master",
@@ -79,16 +83,58 @@ class SecurityMasterSyncService:
             self._upsert_watermark(last_date=biz_date, quality_score=score, object_key=object_key, batch_prefix=batch_prefix)
             self._mark_success(run, task)
         except Exception as exc:
+            snapshot = self._get_stable_snapshot()
+            if snapshot is not None:
+                score, object_key, snapshot_date = snapshot
+                self.quality_service.write_report(
+                    dataset="security_master",
+                    symbol=None,
+                    quality_score=score,
+                    severity="p1",
+                    issues=[
+                        {
+                            "rule": "provider_fallback_snapshot",
+                            "message": "security_master 源站失败，降级使用 MinIO 稳定快照",
+                            "snapshot_date": snapshot_date.isoformat(),
+                        }
+                    ],
+                    object_key=object_key,
+                )
+                self._mark_success(run, task)
+                return
             self._mark_failed(run, task, str(exc))
             raise
 
     def _load_security_master_rows(self) -> tuple[list[dict], date]:
+        provider_name = self.provider.provider_name
+        if not self.provider_health_service.is_available(provider=provider_name, dataset="security_master"):
+            raise BusinessException(
+                f"{provider_name} 当前处于熔断冷却中，请稍后重试",
+                code=ErrorCode.BUSINESS_ERROR,
+            )
         today = date.today()
         for offset in range(0, 8):
             query_date = today - timedelta(days=offset)
-            rows = self.provider.get_security_master(day=query_date)
+            try:
+                rows = self.provider.get_security_master(day=query_date)
+            except Exception as exc:
+                self.provider_health_service.record_failure(
+                    provider=provider_name,
+                    dataset="security_master",
+                    error=str(exc),
+                )
+                raise
             if rows:
+                self.provider_health_service.record_success(
+                    provider=provider_name,
+                    dataset="security_master",
+                )
                 return rows, query_date
+        self.provider_health_service.record_failure(
+            provider=provider_name,
+            dataset="security_master",
+            error="security_master 查询结果为空",
+        )
         return [], today
 
     def _upsert_watermark(self, *, last_date: date, quality_score: float, object_key: str, batch_prefix: str) -> None:
@@ -105,6 +151,36 @@ class SecurityMasterSyncService:
         row.last_object_key = object_key
         row.last_batch_id = f"{batch_prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
         self.db.commit()
+
+    def _get_stable_snapshot(self) -> tuple[float, str, date] | None:
+        watermark = (
+            self.db.query(DatahubDatasetWatermark)
+            .filter(DatahubDatasetWatermark.dataset == "security_master", DatahubDatasetWatermark.symbol.is_(None))
+            .first()
+        )
+        if (
+            watermark is None
+            or not watermark.last_object_key
+            or watermark.last_success_date is None
+            or watermark.last_quality_score is None
+        ):
+            return None
+        if watermark.last_quality_score < 95:
+            return None
+        if not MinioParquetStore().exists(watermark.last_object_key):
+            return None
+        indexed = (
+            self.db.query(DatahubObjectIndex.id)
+            .filter(DatahubObjectIndex.object_key == watermark.last_object_key)
+            .first()
+        )
+        if indexed is None:
+            return None
+        return (
+            float(watermark.last_quality_score),
+            watermark.last_object_key,
+            watermark.last_success_date,
+        )
 
     def _require_run(self, run_id: str) -> DatahubJobRun:
         row = self.db.query(DatahubJobRun).filter(DatahubJobRun.id == run_id).first()
