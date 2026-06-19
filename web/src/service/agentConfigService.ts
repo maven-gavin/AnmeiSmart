@@ -12,6 +12,7 @@ export interface AgentConfig {
   appId: string;
   appName: string;
   agentType?: string;
+  capabilities?: Record<string, unknown>;
   baseUrl: string;
   timeoutSeconds: number;
   maxRetries: number;
@@ -32,6 +33,7 @@ export interface AgentConfigCreate {
   maxRetries: number;
   enabled: boolean;
   description?: string;
+  capabilities?: Record<string, unknown>;
 }
 
 export interface AgentConfigUpdate {
@@ -45,6 +47,7 @@ export interface AgentConfigUpdate {
   maxRetries?: number;
   enabled?: boolean;
   description?: string;
+  capabilities?: Record<string, unknown>;
 }
 
 export interface TestConnectionResult {
@@ -75,6 +78,7 @@ const mapAgentConfigFromApi = (apiData: any): AgentConfig => {
     appId: apiData.app_id || apiData.appId,
     appName: apiData.app_name || apiData.appName,
     agentType: apiData.agent_type || apiData.agentType,
+    capabilities: apiData.capabilities ?? undefined,
     baseUrl: apiData.base_url || apiData.baseUrl,
     timeoutSeconds: apiData.timeout_seconds || apiData.timeoutSeconds,
     maxRetries: apiData.max_retries || apiData.maxRetries,
@@ -132,6 +136,7 @@ const mapAgentConfigToApi = (config: AgentConfigCreate | AgentConfigUpdate): any
   if ('appId' in config && config.appId !== undefined) result.app_id = config.appId;
   if ('appName' in config && config.appName !== undefined) result.app_name = config.appName;
   if ('agentType' in config && config.agentType !== undefined) result.agent_type = config.agentType;
+  if ('capabilities' in config && config.capabilities !== undefined) result.capabilities = config.capabilities;
   if ('apiKey' in config && config.apiKey !== undefined) result.api_key = config.apiKey;
   if ('baseUrl' in config && config.baseUrl !== undefined) result.base_url = config.baseUrl;
   if ('timeoutSeconds' in config && config.timeoutSeconds !== undefined) result.timeout_seconds = config.timeoutSeconds;
@@ -230,7 +235,8 @@ export const testAgentConnection = async (config: AgentConfig): Promise<TestConn
       timeoutSeconds: config.timeoutSeconds,
       maxRetries: config.maxRetries,
       enabled: config.enabled,
-      description: config.description
+      description: config.description,
+      capabilities: config.capabilities,
     };
     
     const response = await apiClient.post<TestConnectionResult>(

@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from app.identity_access.controllers import users, auth, roles, tenants, resources, permissions
 from app.chat.controllers import chat
-from app.ai.controllers import ai_gateway, agent_config, agent_chat
+from app.ai.controllers import ai_gateway, agent_config, agent_chat, agent_knowledge
 from app.system.controllers import system
 from app.customer.controllers import customer
 from app.websocket.controllers import websocket
@@ -57,6 +57,9 @@ api_router.include_router(agent_config.router, prefix="/agent", tags=["agent-con
 
 # Agent对话路由
 api_router.include_router(agent_chat.router, prefix="/agent", tags=["agent-chat"])
+
+# Agent 知识库（RAG）路由
+api_router.include_router(agent_knowledge.router, prefix="/agent", tags=["agent-knowledge"])
 
 # MCP配置管理路由（管理员界面）
 api_router.include_router(mcp_config.router, prefix="/mcp/admin", tags=["mcp-admin"])

@@ -33,6 +33,15 @@ import { useAgentConfigs } from '@/hooks/useAgentConfigs';
 import { AgentConfig, AgentConfigCreate, AgentConfigUpdate } from '@/service/agentConfigService';
 import { SMARTBRAIN_API_BASE_URL, SMARTBRAIN_DEFAULT_TIMEOUT, SMARTBRAIN_DEFAULT_MAX_RETRIES } from '@/config';
 import { EnhancedPagination } from '@/components/ui/pagination';
+import { AgentLlmConfigFields } from '@/components/agents/AgentLlmConfigFields';
+import {
+  capabilitiesFromRecord,
+  capabilitiesToRecord,
+  DEFAULT_CAPABILITIES,
+  getProviderPreset,
+  type AgentCapabilitiesForm,
+  type LlmProviderId,
+} from '@/lib/llmProviderPresets';
 
 export default function AgentsPage() {
   const { user } = useAuthContext();
@@ -75,6 +84,8 @@ export default function AgentsPage() {
   const [timeoutSeconds, setTimeoutSeconds] = useState(SMARTBRAIN_DEFAULT_TIMEOUT);
   const [maxRetries, setMaxRetries] = useState(SMARTBRAIN_DEFAULT_MAX_RETRIES);
   const [enabled, setEnabled] = useState(true);
+  const [llmProvider, setLlmProvider] = useState<LlmProviderId>('openai');
+  const [capabilities, setCapabilities] = useState<AgentCapabilitiesForm>({ ...DEFAULT_CAPABILITIES });
 
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
@@ -136,6 +147,24 @@ export default function AgentsPage() {
     setCurrentPage(1);
   };
 
+  const detectProviderFromBaseUrl = (url: string): LlmProviderId => {
+    const normalized = url.trim().toLowerCase();
+    if (normalized.includes('deepseek')) return 'deepseek';
+    if (normalized.includes('openai')) return 'openai';
+    return 'custom';
+  };
+
+  const applyProviderPreset = (providerId: LlmProviderId) => {
+    setLlmProvider(providerId);
+    const preset = getProviderPreset(providerId);
+    if (providerId !== 'custom' && preset.baseUrl) {
+      setBaseUrl(preset.baseUrl);
+    }
+    if (providerId !== 'custom' && preset.defaultModel) {
+      setCapabilities((prev) => ({ ...prev, model: preset.defaultModel }));
+    }
+  };
+
   // 重置表单
   const resetForm = () => {
     setEnvironment('dev');
@@ -148,6 +177,8 @@ export default function AgentsPage() {
     setTimeoutSeconds(SMARTBRAIN_DEFAULT_TIMEOUT);
     setMaxRetries(SMARTBRAIN_DEFAULT_MAX_RETRIES);
     setEnabled(true);
+    setLlmProvider('openai');
+    setCapabilities({ ...DEFAULT_CAPABILITIES });
     setFormError(null);
   };
 
@@ -180,7 +211,8 @@ export default function AgentsPage() {
         description: description.trim() || undefined,
         timeoutSeconds,
         maxRetries,
-        enabled
+        enabled,
+        capabilities: capabilitiesToRecord(capabilities),
       };
 
       await createConfig(configData);
@@ -209,6 +241,9 @@ export default function AgentsPage() {
     setTimeoutSeconds(config.timeoutSeconds);
     setMaxRetries(config.maxRetries);
     setEnabled(config.enabled);
+    const caps = capabilitiesFromRecord(config.capabilities);
+    setCapabilities(caps);
+    setLlmProvider(detectProviderFromBaseUrl(config.baseUrl));
     setShowEditDialog(true);
   };
 
@@ -236,10 +271,9 @@ export default function AgentsPage() {
         description: description.trim() || undefined,
         timeoutSeconds,
         maxRetries,
-        enabled
+        enabled,
+        capabilities: capabilitiesToRecord(capabilities, editingConfig.capabilities),
       };
-
-      // 如果填写了新的API密钥，则更新
       if (apiKey.trim()) {
         updateData.apiKey = apiKey.trim();
       }
@@ -423,6 +457,9 @@ export default function AgentsPage() {
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                   应用类型
                 </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  模型
+                </th>
                 <th scope="col" className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
                   状态
                 </th>
@@ -447,6 +484,9 @@ export default function AgentsPage() {
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
                     {config.agentType || '-'}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500 am-mono">
+                    {(config.capabilities?.model as string) || 'gpt-4o-mini'}
                   </td>
                   <td className="whitespace-nowrap px-6 py-4">
                     <div className="flex items-center justify-center space-x-2">
@@ -501,7 +541,7 @@ export default function AgentsPage() {
               
               {configs.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-sm text-gray-500">
+                  <td colSpan={7} className="px-6 py-4 text-center text-sm text-gray-500">
                     暂无配置数据
                   </td>
                 </tr>
@@ -611,7 +651,7 @@ export default function AgentsPage() {
 
                 <div>
                   <Label htmlFor="create-baseUrl" className="mb-2 block text-sm font-medium text-gray-700">
-                    基础URL
+                    基础URL（也可在下方 LLM 区修改）
                   </Label>
                   <Input
                     id="create-baseUrl"
@@ -620,6 +660,7 @@ export default function AgentsPage() {
                     onChange={(e) => setBaseUrl(e.target.value)}
                     disabled={formLoading}
                     placeholder={SMARTBRAIN_API_BASE_URL}
+                    className="am-field"
                   />
                 </div>
 
@@ -653,6 +694,17 @@ export default function AgentsPage() {
                   />
                 </div>
               </div>
+
+              <AgentLlmConfigFields
+                idPrefix="create"
+                formLoading={formLoading}
+                llmProvider={llmProvider}
+                onProviderChange={applyProviderPreset}
+                baseUrl={baseUrl}
+                onBaseUrlChange={setBaseUrl}
+                capabilities={capabilities}
+                onCapabilitiesChange={setCapabilities}
+              />
 
               <div>
                 <Label htmlFor="create-apiKey" className="mb-2 block text-sm font-medium text-gray-700">
@@ -798,7 +850,7 @@ export default function AgentsPage() {
 
                 <div>
                   <Label htmlFor="edit-baseUrl" className="mb-2 block text-sm font-medium text-gray-700">
-                    基础URL
+                    基础URL（也可在下方 LLM 区修改）
                   </Label>
                   <Input
                     id="edit-baseUrl"
@@ -807,6 +859,7 @@ export default function AgentsPage() {
                     onChange={(e) => setBaseUrl(e.target.value)}
                     disabled={formLoading}
                     placeholder={SMARTBRAIN_API_BASE_URL}
+                    className="am-field"
                   />
                 </div>
 
@@ -840,6 +893,17 @@ export default function AgentsPage() {
                   />
                 </div>
               </div>
+
+              <AgentLlmConfigFields
+                idPrefix="edit"
+                formLoading={formLoading}
+                llmProvider={llmProvider}
+                onProviderChange={applyProviderPreset}
+                baseUrl={baseUrl}
+                onBaseUrlChange={setBaseUrl}
+                capabilities={capabilities}
+                onCapabilitiesChange={setCapabilities}
+              />
 
               <div>
                 <Label htmlFor="edit-apiKey" className="mb-2 block text-sm font-medium text-gray-700">
@@ -963,6 +1027,30 @@ export default function AgentsPage() {
                     <div className="mt-1 text-sm text-gray-900">{viewingConfig.baseUrl}</div>
                   </div>
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">模型</Label>
+                    <div className="mt-1 text-sm text-gray-900 am-mono">
+                      {(viewingConfig.capabilities?.model as string) || 'gpt-4o-mini'}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">RAG</Label>
+                    <div className="mt-1 text-sm text-gray-900">
+                      {viewingConfig.capabilities?.enable_rag ? '已启用' : '未启用'}
+                    </div>
+                  </div>
+                </div>
+
+                {(viewingConfig.capabilities?.system_prompt as string) && (
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">系统提示词</Label>
+                    <div className="mt-1 whitespace-pre-wrap rounded border border-gray-200 bg-gray-50 p-3 text-sm text-gray-900">
+                      {viewingConfig.capabilities?.system_prompt as string}
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>

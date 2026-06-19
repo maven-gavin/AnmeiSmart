@@ -2,8 +2,8 @@
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 // SmartBrain API Base URL
-export const SMARTBRAIN_API_BASE_URL = process.env.NEXT_PUBLIC_SMARTBRAIN_API_BASE_URL || 'http://localhost/v1';
-export const SMARTBRAIN_DEFAULT_TIMEOUT = 30;
+export const SMARTBRAIN_API_BASE_URL = process.env.NEXT_PUBLIC_SMARTBRAIN_API_BASE_URL || 'https://api.openai.com/v1';
+export const SMARTBRAIN_DEFAULT_TIMEOUT = 120;
 export const SMARTBRAIN_DEFAULT_MAX_RETRIES = 3;
 
 // WebSocket URL - 单一配置源

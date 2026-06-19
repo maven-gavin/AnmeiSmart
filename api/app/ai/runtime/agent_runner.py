@@ -14,6 +14,8 @@ from app.ai.models.agent_config import AgentConfig
 from app.ai.models.agent_knowledge_base import AgentKnowledgeBase
 from app.ai.models.agent_message import AgentMessage
 from app.ai.rag.retriever_tool import build_rag_tool
+from app.ai.runtime.input_resolver import InputContextResolver
+from app.ai.runtime.mcp_tools import build_mcp_tools_for_groups
 from app.ai.runtime.capabilities import AgentCapabilities
 from app.ai.runtime.llm_factory import LLMFactory
 from app.ai.runtime.sse_emitter import (
@@ -34,9 +36,12 @@ class AgentRunner:
 
     def __init__(self, db: Session):
         self.db = db
+        self.input_resolver = InputContextResolver(db)
 
     def _build_tools(self, agent_config: AgentConfig, capabilities: AgentCapabilities) -> list:
         tools: list = []
+        if capabilities.enable_tools and capabilities.mcp_tool_groups:
+            tools.extend(build_mcp_tools_for_groups(self.db, capabilities.mcp_tool_groups))
         if capabilities.enable_rag and capabilities.knowledge_base_id:
             kb = (
                 self.db.query(AgentKnowledgeBase)
@@ -63,9 +68,7 @@ class AgentRunner:
             elif item.role == "assistant":
                 messages.append(AIMessage(content=item.content))
 
-        user_text = query
-        if inputs:
-            user_text = f"{query}\n\n[context]\n{json.dumps(inputs, ensure_ascii=False)}"
+        user_text = self.input_resolver.enrich_user_message(query, inputs)
         messages.append(HumanMessage(content=user_text))
         return messages
 
