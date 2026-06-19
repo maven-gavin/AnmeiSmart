@@ -10,8 +10,6 @@ from sqlalchemy.orm import Session
 
 from app.common.deps.database import get_db
 from app.channels.services.channel_service import ChannelService
-from app.channels.services.channel_identity_service import ChannelIdentityService
-from app.channels.services.channel_config_service import ChannelConfigService
 from app.websocket.broadcasting_factory import get_broadcasting_service
 from app.channels.adapters.wechat_work.adapter import WeChatWorkAdapter
 
@@ -72,14 +70,3 @@ async def get_channel_service(db: Session = Depends(get_db)) -> ChannelService:
             logger.warning("检测到部分客服配置，但不完整，未注册 wechat_work_kf 适配器")
 
     return service
-
-
-def get_channel_identity_service(db: Session = Depends(get_db)) -> ChannelIdentityService:
-    """ChannelIdentityService 注入"""
-    return ChannelIdentityService(db=db)
-
-
-def get_channel_config_service(db: Session = Depends(get_db)) -> ChannelConfigService:
-    """ChannelConfigService 注入"""
-    return ChannelConfigService(db=db)
-

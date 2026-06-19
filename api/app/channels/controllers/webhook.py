@@ -9,9 +9,6 @@ from fastapi.responses import PlainTextResponse
 from app.channels.services.channel_service import ChannelService
 from app.channels.adapters.wechat_work.adapter import WeChatWorkAdapter
 from app.channels.adapters.wechat_work.kf_adapter import WeChatWorkKfAdapter
-from app.channels.interfaces import ChannelMessage
-from app.channels.services.wechat_work_archive_service import WeChatWorkArchiveService
-from app.channels.services.wechat_work_archive_ingest import ingest_decrypted_messages
 from app.channels.deps.channel_deps import get_channel_service
 
 logger = logging.getLogger(__name__)
@@ -208,54 +205,5 @@ async def wechat_work_kf_webhook(
     payload = adapter.parse_incoming_payload(decrypt_body)
     channel_message = await adapter.receive_message(payload)
     await channel_service.process_incoming_message(channel_message)
-    return PlainTextResponse("success")
-
-
-
-
-@router.post("/webhook/wechat-work-archive")
-async def wechat_work_archive_webhook(
-    request: Request,
-    msg_signature: str = Query(None, description="签名"),
-    timestamp: str = Query(None, description="时间戳"),
-    nonce: str = Query(None, description="随机数"),
-    channel_service: ChannelService = Depends(get_channel_service),
-):
-    """
-    企业微信「会话内容存档」入站接收（已解密的 JSON）。
-
-    说明：
-    - 本端点接收已解密后的 chatdata 列表。
-    - 目前仅落库文本消息，媒体消息后续再完善。
-    """
-    try:
-        payload = await request.json()
-    except Exception:
-        logger.warning("会话存档回调 JSON 解析失败，直接返回 success")
-        return PlainTextResponse("success")
-
-    # 兼容加密回调：payload 内存在 encrypt
-    encrypt = payload.get("encrypt") or payload.get("Encrypt")
-    if encrypt and msg_signature and timestamp and nonce:
-        archive_service = WeChatWorkArchiveService(db=channel_service.db)
-        decrypted = archive_service.decrypt_callback_payload(
-            msg_signature=msg_signature,
-            timestamp=timestamp,
-            nonce=nonce,
-            encrypted=str(encrypt),
-        )
-        if decrypted:
-            payload = decrypted
-        else:
-            logger.warning("会话存档回调解密失败，已忽略")
-            return PlainTextResponse("success")
-
-    chatdata = payload.get("chatdata") or payload.get("data") or []
-    if not isinstance(chatdata, list):
-        logger.info("会话存档回调未包含 chatdata 列表，已忽略")
-        return PlainTextResponse("success")
-
-    await ingest_decrypted_messages(chatdata, channel_service=channel_service)
-
     return PlainTextResponse("success")
 

@@ -8,5 +8,4 @@
 def test_imports_smoke() -> None:
     import app.chat.models  # noqa: F401
     import app.channels.services.channel_service  # noqa: F401
-    import app.channels.services.channel_identity_service  # noqa: F401
     import app.customer.services.customer_insight_ai_service  # noqa: F401
