@@ -43,6 +43,25 @@ class AgentKnowledgeService:
             .all()
         )
 
+    def list_documents(self, agent_config_id: str, knowledge_base_id: str) -> List[AgentKnowledgeDocument]:
+        self._load_agent(agent_config_id)
+        kb = (
+            self.db.query(AgentKnowledgeBase)
+            .filter(
+                AgentKnowledgeBase.id == knowledge_base_id,
+                AgentKnowledgeBase.agent_config_id == agent_config_id,
+            )
+            .first()
+        )
+        if not kb:
+            raise ValueError("知识库不存在")
+        return (
+            self.db.query(AgentKnowledgeDocument)
+            .filter(AgentKnowledgeDocument.knowledge_base_id == knowledge_base_id)
+            .order_by(AgentKnowledgeDocument.created_at.desc())
+            .all()
+        )
+
     def create_knowledge_base(
         self,
         *,

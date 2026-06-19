@@ -111,6 +111,13 @@ export const menuConfig: MenuConfig = {
       roles: ['admin']
     },
     {
+      id: 'agents-knowledge',
+      label: '知识库管理',
+      path: '/agents/knowledge',
+      icon: 'records-icon',
+      roles: ['admin']
+    },
+    {
       id: 'mcp',
       label: 'MCP配置',
       path: '/mcp',

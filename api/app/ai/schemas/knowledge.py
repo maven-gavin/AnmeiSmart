@@ -45,3 +45,7 @@ class KnowledgeBaseListResponse(BaseModel):
 
 class KnowledgeDocumentResponse(BaseModel):
     document: KnowledgeDocumentInfo
+
+
+class KnowledgeDocumentListResponse(BaseModel):
+    items: List[KnowledgeDocumentInfo]

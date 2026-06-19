@@ -11,6 +11,7 @@ from app.ai.schemas.knowledge import (
     KnowledgeBaseListResponse,
     KnowledgeDocumentIndexRequest,
     KnowledgeDocumentInfo,
+    KnowledgeDocumentListResponse,
     KnowledgeDocumentResponse,
 )
 from app.ai.services.knowledge_service import AgentKnowledgeService
@@ -59,6 +60,27 @@ def create_knowledge_base(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+
+
+@router.get(
+    "/{agent_config_id}/knowledge-bases/{knowledge_base_id}/documents",
+    response_model=KnowledgeDocumentListResponse,
+)
+def list_documents(
+    agent_config_id: str,
+    knowledge_base_id: str,
+    db: Session = Depends(get_db),
+    _admin=Depends(get_current_admin),
+):
+    service = AgentKnowledgeService(db)
+    try:
+        items = [
+            KnowledgeDocumentInfo(**service.serialize_doc(doc))
+            for doc in service.list_documents(agent_config_id, knowledge_base_id)
+        ]
+        return KnowledgeDocumentListResponse(items=items)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
 @router.post(
