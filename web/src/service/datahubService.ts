@@ -18,6 +18,11 @@ import type {
   RetryFailedTasksResult,
   TriggerBackfillPayload,
   TriggerDailyIncrementalPayload,
+  DatahubWatchlistInfo,
+  DatahubWatchlistSymbolSummary,
+  DatahubWatchlistUpdatePayload,
+  MarketDailyBarInfo,
+  WatchlistBoardResponse,
 } from '@/types/datahub'
 
 export const datahubService = {
@@ -215,6 +220,86 @@ export const datahubService = {
       return resp.data
     } catch (err) {
       handleApiError(err, '获取 DataHub 指标汇总失败')
+      throw err
+    }
+  },
+
+  async listWatchlist(): Promise<DatahubWatchlistInfo[]> {
+    try {
+      const resp = await apiClient.get<DatahubWatchlistInfo[]>('/datahub/watchlist')
+      return resp.data
+    } catch (err) {
+      handleApiError(err, '获取自选股失败')
+      throw err
+    }
+  },
+
+  async addWatchlistItem(payload: { symbol: string; name?: string; note?: string }): Promise<DatahubWatchlistInfo> {
+    try {
+      const resp = await apiClient.post<DatahubWatchlistInfo>('/datahub/watchlist', payload)
+      return resp.data
+    } catch (err) {
+      handleApiError(err, '添加自选股失败')
+      throw err
+    }
+  },
+
+  async updateWatchlistItem(itemId: string, payload: DatahubWatchlistUpdatePayload): Promise<DatahubWatchlistInfo> {
+    try {
+      const resp = await apiClient.patch<DatahubWatchlistInfo>(`/datahub/watchlist/${encodeURIComponent(itemId)}`, payload)
+      return resp.data
+    } catch (err) {
+      handleApiError(err, '更新自选股失败')
+      throw err
+    }
+  },
+
+  async deleteWatchlistItem(itemId: string): Promise<void> {
+    try {
+      await apiClient.delete(`/datahub/watchlist/${encodeURIComponent(itemId)}`)
+    } catch (err) {
+      handleApiError(err, '删除自选股失败')
+      throw err
+    }
+  },
+
+  async getWatchlistBoard(limitDays = 30): Promise<WatchlistBoardResponse> {
+    try {
+      const resp = await apiClient.get<WatchlistBoardResponse>(`/datahub/watchlist/board?limit_days=${limitDays}`)
+      return resp.data
+    } catch (err) {
+      handleApiError(err, '获取自选股看盘数据失败')
+      throw err
+    }
+  },
+
+  async getMarketDailyBars(params: {
+    symbol: string
+    start_date: string
+    end_date: string
+  }): Promise<MarketDailyBarInfo[]> {
+    try {
+      const search = new URLSearchParams({
+        symbol: params.symbol,
+        start_date: params.start_date,
+        end_date: params.end_date,
+      })
+      const resp = await apiClient.get<MarketDailyBarInfo[]>(`/datahub/market-daily/bars?${search.toString()}`)
+      return resp.data
+    } catch (err) {
+      handleApiError(err, '获取日线明细失败')
+      throw err
+    }
+  },
+
+  async getWatchlistSymbolSummary(symbol: string): Promise<DatahubWatchlistSymbolSummary> {
+    try {
+      const resp = await apiClient.get<DatahubWatchlistSymbolSummary>(
+        `/datahub/watchlist/symbol/${encodeURIComponent(symbol)}/summary`,
+      )
+      return resp.data
+    } catch (err) {
+      handleApiError(err, '获取个股数据摘要失败')
       throw err
     }
   },

@@ -18,11 +18,34 @@ export const menuConfig: MenuConfig = {
       roles: ['admin']
     },
     {
-      id: 'datahub-admin',
+      id: 'datahub-group',
       label: 'DataHub',
       path: '/admin/datahub',
       icon: 'stats-icon',
-      roles: ['admin']
+      roles: ['admin'],
+      children: [
+        {
+          id: 'datahub-watchlist',
+          label: '自选股',
+          path: '/admin/datahub/watchlist',
+          icon: 'stats-icon',
+          roles: ['admin'],
+        },
+        {
+          id: 'datahub-acquisition',
+          label: '数据获取',
+          path: '/admin/datahub',
+          icon: 'stats-icon',
+          roles: ['admin'],
+        },
+        {
+          id: 'datahub-monitor',
+          label: '运行监控',
+          path: '/admin/datahub/monitor',
+          icon: 'stats-icon',
+          roles: ['admin'],
+        },
+      ],
     },
     {
       id: 'chat-consultant',

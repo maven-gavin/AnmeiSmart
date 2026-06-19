@@ -12,7 +12,7 @@ import logging
 from app.core.api import register_exception_handlers
 from app.core.config import get_settings
 from app.api import api_router
-from app.common.deps.database import create_initial_roles, create_initial_system_settings
+from app.common.deps.database import create_initial_roles, create_initial_system_settings, init_db
 
 # 导入新的WebSocket和Redis组件
 from app.core.redis_client import redis_manager, get_redis_client
@@ -40,6 +40,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """应用启动时执行的初始化操作"""
     try:
+        # 确保新增模型对应的数据库表已创建（create_all 仅补建缺失表）
+        init_db()
         # 创建初始角色
         create_initial_roles()  # type: ignore
         # 创建初始系统设置

@@ -11,8 +11,10 @@ from .provider_health_service import DatahubProviderHealthService
 from .quality_service import DatahubQualityService
 from .router_service import DatahubRouterService
 from .security_master_sync_service import SecurityMasterSyncService
-from .storage_service import DatahubStorageService
 from .trading_calendar_sync_service import TradingCalendarSyncService
+from .storage_service import DatahubStorageService
+from .market_daily_read_service import MarketDailyReadService
+from .watchlist_service import DatahubWatchlistService
 
 __all__ = [
     "DatahubService",
@@ -26,4 +28,6 @@ __all__ = [
     "SecurityMasterSyncService",
     "DatahubStorageService",
     "TradingCalendarSyncService",
+    "DatahubWatchlistService",
+    "MarketDailyReadService",
 ]

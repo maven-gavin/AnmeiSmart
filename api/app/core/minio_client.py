@@ -116,22 +116,27 @@ class MinioClient:
         except S3Error as e:
             logger.error(f"文件删除失败: {e}")
             return False
-    
+
     def file_exists(self, object_name: str) -> bool:
-        """
-        检查文件是否存在
-        
-        Args:
-            object_name: 对象名称（存储路径）
-            
-        Returns:
-            文件是否存在
-        """
+        """检查文件是否存在。"""
         try:
             self.client.stat_object(self.bucket_name, object_name)
             return True
         except S3Error:
             return False
+
+    def get_object_bytes(self, object_name: str) -> bytes:
+        """读取对象二进制内容。"""
+        try:
+            response = self.client.get_object(self.bucket_name, object_name)
+            try:
+                return response.read()
+            finally:
+                response.close()
+                response.release_conn()
+        except S3Error as e:
+            logger.error(f"读取对象失败: {object_name}, {e}")
+            raise
     
     def get_file_url(self, object_name: str, expires: int = 3600) -> Optional[str]:
         """

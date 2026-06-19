@@ -13,3 +13,6 @@ class MinioParquetStore:
 
     def exists(self, object_key: str) -> bool:
         return self.minio.file_exists(object_name=object_key)
+
+    def get_bytes(self, object_key: str) -> bytes:
+        return self.minio.get_object_bytes(object_name=object_key)

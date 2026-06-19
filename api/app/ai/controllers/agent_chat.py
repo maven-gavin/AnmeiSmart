@@ -94,7 +94,7 @@ async def get_agent_conversations(
     except ValueError as e:
         # 配置错误或连接错误（service 层已转换为 ValueError）
         error_msg = str(e)
-        if "无法连接到 Dify 服务" in error_msg or "响应超时" in error_msg:
+        if "响应超时" in error_msg or "连接" in error_msg:
             # 服务不可用，返回 503
             logger.error(f"获取会话列表失败: {e}")
             raise HTTPException(
@@ -365,7 +365,7 @@ async def upload_file(
     service: AgentChatService = Depends(get_agent_chat_service)
 ):
     """
-    上传文件到 Dify
+    上传文件到 Agent 文件存储（MinIO）
     
     上传文件用于后续对话中引用
     """
@@ -382,7 +382,7 @@ async def upload_file(
         )
         
         # 转换响应格式
-        # Dify返回的created_at是Unix时间戳（整数），需要转换为ISO格式字符串
+        # created_at 可能是 Unix 时间戳（整数）
         created_at_value = result.get('created_at')
         if isinstance(created_at_value, int):
             # 将Unix时间戳转换为ISO格式字符串
@@ -436,7 +436,7 @@ async def get_application_parameters(
     except ValueError as e:
         # 配置错误或连接错误（service 层已转换为 ValueError）
         error_msg = str(e)
-        if "无法连接到 Dify 服务" in error_msg or "响应超时" in error_msg:
+        if "响应超时" in error_msg or "连接" in error_msg:
             # 服务不可用，返回 503
             logger.error(f"获取应用参数失败: {e}")
             raise HTTPException(

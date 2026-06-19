@@ -1,14 +1,9 @@
-"""
-AI模块依赖注入配置
+"""AI 模块依赖导出。"""
 
-管理AI服务的依赖关系，提供统一的依赖注入接口。
-"""
-
-from .ai_deps import *
+from .ai_deps import get_agent_config_service, get_agent_chat_service, get_agent_runtime_service
 
 __all__ = [
-    "get_ai_service",
-    "get_ai_gateway_service",
     "get_agent_config_service",
-    "get_agent_chat_service"
+    "get_agent_chat_service",
+    "get_agent_runtime_service",
 ]

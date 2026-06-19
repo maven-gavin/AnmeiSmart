@@ -232,13 +232,16 @@ class ExtendedDatasetSyncService:
         rows: list[dict] = []
         for sector in sectors[:200]:
             sector_code = str(sector.get("sector_code") or sector.get("sector_name") or "").strip()
+            sector_name = str(sector.get("sector_name") or sector_code).strip()
             if not sector_code:
                 continue
             items = self.router_service.run_with_policy(
                 dataset="sector_members",
                 provider=provider_name,
-                operation=lambda: provider.get_sector_members(sector_code=sector_code, asof_date=asof_date),
+                operation=lambda sc=sector_code: provider.get_sector_members(sector_code=sc, asof_date=asof_date),
             )
+            for item in items:
+                item["sector_name"] = sector_name
             rows.extend(items)
         return rows
 

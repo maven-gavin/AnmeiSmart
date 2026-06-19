@@ -102,6 +102,13 @@ except Exception:
     
     if [ $migration_exit_code -eq 0 ]; then
         echo "✅ 数据库迁移完成"
+        echo "🔍 检查 pgvector 扩展（RAG 依赖）..."
+        if python scripts/setup_pgvector.py --check-only 2>/dev/null; then
+            :
+        else
+            echo "⚠️  pgvector 未就绪，尝试自动启用..."
+            python scripts/setup_pgvector.py || echo "⚠️  pgvector 启用失败，RAG 功能不可用。请运行: python scripts/setup_pgvector.py"
+        fi
     else
         echo "❌ 数据库迁移失败"
         echo ""

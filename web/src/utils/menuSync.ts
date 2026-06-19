@@ -6,6 +6,7 @@
 
 import { menuConfig } from '@/config/menuConfig';
 import { apiClient } from '@/service/apiClient';
+import type { MenuItem as ConfigMenuItem } from '@/types/menu';
 
 export interface MenuItem {
   name: string;
@@ -14,6 +15,36 @@ export interface MenuItem {
   resourcePath: string;
   parentId?: string | null;
   priority?: number;
+}
+
+function flattenConfigMenus(items: ConfigMenuItem[], parentId?: string | null): MenuItem[] {
+  const result: MenuItem[] = [];
+
+  for (const item of items) {
+    if (item.children?.length) {
+      result.push({
+        name: `menu:${item.id}`,
+        displayName: item.label.trim(),
+        resourceType: 'menu',
+        resourcePath: item.path,
+        parentId: parentId || null,
+        priority: item.priority || 0,
+      });
+      result.push(...flattenConfigMenus(item.children, item.id));
+      continue;
+    }
+
+    result.push({
+      name: `menu:${item.id}`,
+      displayName: item.label.trim(),
+      resourceType: 'menu',
+      resourcePath: item.path,
+      parentId: parentId || null,
+      priority: item.priority || 0,
+    });
+  }
+
+  return result;
 }
 
 export interface SyncMenusResponse {
@@ -26,14 +57,7 @@ export interface SyncMenusResponse {
  * 同步菜单资源到后端
  */
 export async function syncMenuResources(): Promise<SyncMenusResponse> {
-  const menuItems: MenuItem[] = menuConfig.items.map(item => ({
-    name: `menu:${item.id}`,
-    displayName: item.label.trim(),
-    resourceType: 'menu' as const,
-    resourcePath: item.path,
-    parentId: item.parentId || null,
-    priority: item.priority || 0,
-  }));
+  const menuItems: MenuItem[] = flattenConfigMenus(menuConfig.items);
   
   try {
     const response = await apiClient.post<SyncMenusResponse>(

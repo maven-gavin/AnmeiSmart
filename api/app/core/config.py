@@ -13,9 +13,11 @@ class Settings(BaseSettings):
     # 注意：当 allow_credentials=True 时，不能使用通配符 "*"
     # 必须明确列出所有允许的源地址
     BACKEND_CORS_ORIGINS: List[str] = [
-        "http://localhost:3000",  # Next.js frontend
+        "http://localhost:3000",  # Next.js frontend (legacy)
+        "http://localhost:3001",  # Next.js frontend
         "http://localhost:8000",  # FastAPI Swagger UI
-        "http://127.0.0.1:3000",  # Next.js on localhost IP
+        "http://127.0.0.1:3000",  # Next.js on localhost IP (legacy)
+        "http://127.0.0.1:3001",  # Next.js on localhost IP
         "http://127.0.0.1:8000",  # FastAPI on localhost IP
         "http://169.254.89.234:3000",  # Remote access IP (shown in terminal)
         "http://192.168.0.192:8000",  # MCP Inspector access IP
@@ -71,10 +73,17 @@ class Settings(BaseSettings):
     AI_GATEWAY_DEFAULT_TIMEOUT: int = 30
     AI_GATEWAY_MAX_RETRIES: int = 3
     
-    # Agent配置默认值
-    AGENT_DEFAULT_BASE_URL: str = "http://localhost/v1"
-    AGENT_DEFAULT_TIMEOUT: int = 30
+    # Agent / LLM 配置默认值
+    AGENT_DEFAULT_BASE_URL: str = "https://api.openai.com/v1"
+    AGENT_DEFAULT_MODEL: str = "gpt-4o-mini"
+    AGENT_DEFAULT_EMBEDDING_MODEL: str = "text-embedding-3-small"
+    AGENT_DEFAULT_TIMEOUT: int = 120
     AGENT_DEFAULT_MAX_RETRIES: int = 3
+
+    # RAG 配置
+    AGENT_RAG_CHUNK_SIZE: int = 512
+    AGENT_RAG_CHUNK_OVERLAP: int = 64
+    AGENT_RAG_TOP_K: int = 5
     
     # 通知服务配置
     NOTIFICATION_PROVIDER: str = "logging"  # logging, firebase, apns

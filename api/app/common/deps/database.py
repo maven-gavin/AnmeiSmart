@@ -69,10 +69,38 @@ def init_db():
     import app.common.models.file
     import app.channels.models  # 渠道模型
     import app.datahub.models
+    import app.ai.models
     
     # 创建所有表
     Base.metadata.create_all(bind=engine)
+    _ensure_watchlist_item_columns()
     logger.info("数据库表创建完成")
+
+
+def _ensure_watchlist_item_columns() -> None:
+    """为已存在的自选股表补全新增列（create_all 不会 ALTER 旧表）。"""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    if not inspector.has_table("datahub_watchlist_items"):
+        return
+
+    existing = {col["name"] for col in inspector.get_columns("datahub_watchlist_items")}
+    pending: list[str] = []
+    if "backfill_start_date" not in existing:
+        pending.append("ADD COLUMN backfill_start_date DATE")
+    if "backfill_end_date" not in existing:
+        pending.append("ADD COLUMN backfill_end_date DATE")
+    if "window_days" not in existing:
+        pending.append("ADD COLUMN window_days INTEGER")
+
+    if not pending:
+        return
+
+    with engine.begin() as connection:
+        for clause in pending:
+            connection.execute(text(f"ALTER TABLE datahub_watchlist_items {clause}"))
+    logger.info("已补全 datahub_watchlist_items 表字段")
 
 # 创建初始角色
 @with_db

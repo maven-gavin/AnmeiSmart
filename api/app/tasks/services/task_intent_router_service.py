@@ -5,23 +5,19 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
-from app.ai.adapters.dify_agent_client import DifyAgentClientFactory
-from app.ai.models.agent_config import AgentConfig as AgentConfigModel
+from app.ai.services.agent_runtime_service import AgentRuntimeService
 
 logger = logging.getLogger(__name__)
 
 
 class TaskIntentRouterService:
-    """
-    Copilot 意图路由器：
-    - 输入：一段聊天文本
-    - 输出：自动识别的 scene_key（可选）与 intent（可选）
-    """
+    """Copilot 意图路由器（LangChain blocking）。"""
 
     ROUTER_APP_NAME = "任务意图路由器"
 
     def __init__(self, db: Session):
         self.db = db
+        self.runtime = AgentRuntimeService(db)
 
     def _extract_json_obj(self, text: str) -> Optional[dict[str, Any]]:
         if not text:
@@ -32,7 +28,6 @@ class TaskIntentRouterService:
         except Exception:
             pass
 
-        # 尝试提取首个 {...} JSON 对象
         m = re.search(r"\{[\s\S]*\}", text)
         if not m:
             return None
@@ -42,19 +37,6 @@ class TaskIntentRouterService:
         except Exception:
             return None
 
-    def _get_router_agent_config(self) -> Optional[AgentConfigModel]:
-        # 按 app_name 精确匹配查询
-        config = (
-            self.db.query(AgentConfigModel)
-            .filter(
-                AgentConfigModel.enabled.is_(True),
-                AgentConfigModel.app_name == self.ROUTER_APP_NAME
-            )
-            .order_by(AgentConfigModel.created_at.desc())
-            .first()
-        )
-        return config
-
     async def route_scene(
         self,
         *,
@@ -62,22 +44,10 @@ class TaskIntentRouterService:
         user_id: str,
         candidate_scenes: list[str],
     ) -> tuple[Optional[str], Optional[str], Optional[float]]:
-        """
-        Returns:
-            (scene_key, intent, confidence)
-        """
-        if not text.strip():
-            return (None, None, None)
-        if not candidate_scenes:
-            return (None, None, None)
-
-        config = self._get_router_agent_config()
-        if not config:
-            logger.info("TaskIntentRouter: 未配置 router AgentConfig，跳过 LLM 路由")
+        if not text.strip() or not candidate_scenes:
             return (None, None, None)
 
         prompt = (
-            "你是企业聊天副驾驶的“意图路由器”。\n"
             "请根据用户文本的语义，从候选场景中选择最匹配的 scene_key。\n"
             "要求：只输出 JSON，不要输出其它任何内容。\n"
             "输出格式：\n"
@@ -91,26 +61,7 @@ class TaskIntentRouterService:
         )
 
         try:
-            dify_client = DifyAgentClientFactory.create_client(config)
-            user_identifier = f"user_{user_id}"
-
-            answer_text: Optional[str] = None
-            async for chunk in dify_client.create_chat_message(
-                query=prompt,
-                user=user_identifier,
-                conversation_id=None,
-                inputs=None,
-                response_mode="blocking",
-            ):
-                chunk_str = chunk.decode("utf-8") if isinstance(chunk, (bytes, bytearray)) else str(chunk)
-                try:
-                    resp = json.loads(chunk_str)
-                    answer_text = resp.get("answer")
-                except Exception:
-                    # blocking 模式应是一整段 JSON；解析失败则作为纯文本兜底
-                    answer_text = chunk_str
-                break
-
+            answer_text = await self.runtime.invoke_by_app_name(self.ROUTER_APP_NAME, prompt)
             if not answer_text:
                 return (None, None, None)
 
@@ -141,9 +92,6 @@ class TaskIntentRouterService:
                 confidence = None
 
             return (scene_key, intent, confidence)
-
         except Exception as e:
-            logger.warning(f"TaskIntentRouter: LLM 路由失败，已降级: {e}", exc_info=True)
+            logger.warning("TaskIntentRouter: LLM 路由失败，已降级: %s", e, exc_info=True)
             return (None, None, None)
-
-

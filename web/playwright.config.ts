@@ -11,7 +11,7 @@ export default defineConfig({
     ['list']
   ],
   use: {
-    baseURL: 'http://127.0.0.1:3000',
+    baseURL: 'http://127.0.0.1:3001',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -31,7 +31,7 @@ export default defineConfig({
   // 前端: cd web && npm run dev
   webServer: {
     command: 'echo "请确保后端和前端服务已启动"',
-    url: 'http://127.0.0.1:3000',
+    url: 'http://127.0.0.1:3001',
     reuseExistingServer: true,
     timeout: 5000,
   },

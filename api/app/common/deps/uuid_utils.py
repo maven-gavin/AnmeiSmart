@@ -101,6 +101,21 @@ def generate_agent_id() -> str:
     return prefixed_uuid("age")
 
 
+def generate_agent_conversation_id() -> str:
+    """生成 Agent 会话 ID"""
+    return prefixed_uuid("agc")
+
+
+def generate_agent_message_id() -> str:
+    """生成 Agent 消息 ID"""
+    return prefixed_uuid("agm")
+
+
+def generate_agent_knowledge_base_id() -> str:
+    """生成 Agent 知识库 ID"""
+    return prefixed_uuid("akb")
+
+
 # 数字人ID前缀生成函数
 def digital_human_id() -> str:
     """生成数字人ID"""

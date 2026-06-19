@@ -1,12 +1,17 @@
 """
 AI模块数据库模型导出
-
-导出该模块的所有数据库模型，确保SQLAlchemy可以正确建立关系映射。
 """
 
 from .agent_config import AgentConfig
+from .agent_conversation import AgentConversation
+from .agent_message import AgentMessage, AgentMessageFeedback
+from .agent_knowledge_base import AgentKnowledgeBase, AgentKnowledgeDocument
 
 __all__ = [
-    "AgentConfig"
+    "AgentConfig",
+    "AgentConversation",
+    "AgentMessage",
+    "AgentMessageFeedback",
+    "AgentKnowledgeBase",
+    "AgentKnowledgeDocument",
 ]
-

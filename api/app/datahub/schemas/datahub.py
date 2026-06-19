@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, model_validator
 class DatahubDatasetInfo(BaseModel):
     id: str
     dataset_key: str
+    label_zh: Optional[str] = None
     layer: str
     schema_version: str
     description: Optional[str] = None
@@ -192,3 +193,80 @@ class TriggerDailyIncrementalRequest(BaseModel):
     dataset: str = Field("market_daily", description="数据集")
     symbol: Optional[str] = Field(None, description="证券代码，可选")
     window_days: int = Field(7, ge=1, le=30, description="回溯窗口天数")
+
+
+class DatahubWatchlistCreate(BaseModel):
+    symbol: str = Field(..., description="证券代码，支持 6 位数字或带后缀格式")
+    name: Optional[str] = Field(None, description="证券名称，可选")
+    note: Optional[str] = Field(None, description="备注，可选")
+
+
+class DatahubWatchlistInfo(BaseModel):
+    id: str
+    symbol: str
+    name: Optional[str] = None
+    sort_order: int
+    note: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class DatahubWatchlistUpdate(BaseModel):
+    name: Optional[str] = Field(None, description="证券名称")
+    note: Optional[str] = Field(None, description="备注")
+
+
+class DatahubWatchlistWatermarkInfo(BaseModel):
+    dataset: str
+    dataset_label: str
+    last_success_date: Optional[date] = None
+    last_quality_score: Optional[float] = None
+
+
+class DatahubWatchlistSymbolSummary(BaseModel):
+    symbol: str
+    name: Optional[str] = None
+    market_daily_start_date: Optional[date] = None
+    market_daily_end_date: Optional[date] = None
+    market_daily_row_count: int = 0
+    market_daily_quality_score: Optional[float] = None
+    latest_quality_score: Optional[float] = None
+    latest_quality_severity: Optional[str] = None
+    watermarks: list[DatahubWatchlistWatermarkInfo] = Field(default_factory=list)
+    object_indexes: list[dict] = Field(default_factory=list)
+    quality_reports: list[dict] = Field(default_factory=list)
+
+
+class MarketDailyBarInfo(BaseModel):
+    symbol: str
+    trade_date: date
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+    amount: float
+    turnover_rate: Optional[float] = None
+
+
+class WatchlistBoardRow(BaseModel):
+    id: str
+    symbol: str
+    name: Optional[str] = None
+    sector_name: Optional[str] = None
+    trade_date: Optional[date] = None
+    open: Optional[float] = None
+    high: Optional[float] = None
+    low: Optional[float] = None
+    close: Optional[float] = None
+    change_amount: Optional[float] = None
+    change_pct: Optional[float] = None
+    sector_change_pct: Optional[float] = None
+    volume: Optional[float] = None
+    turnover_rate: Optional[float] = None
+    has_data: bool = False
+
+
+class WatchlistBoardResponse(BaseModel):
+    limit_days: int
+    rows: list[WatchlistBoardRow] = Field(default_factory=list)

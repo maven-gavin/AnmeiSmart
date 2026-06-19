@@ -5,7 +5,12 @@ from fastapi import APIRouter, Depends, Query, status
 from app.core.api import ApiResponse
 from app.identity_access.deps import get_current_admin
 from app.identity_access.models.user import User
-from app.datahub.deps import get_datahub_metadata_service, get_datahub_service
+from app.datahub.deps import (
+    get_datahub_metadata_service,
+    get_datahub_service,
+    get_datahub_watchlist_service,
+    get_market_daily_read_service,
+)
 from app.datahub.schemas.datahub import (
     DatahubDatasetInfo,
     DatahubRunFailureDetailInfo,
@@ -25,8 +30,14 @@ from app.datahub.schemas.datahub import (
     DatahubWorkerHeartbeatInfo,
     TriggerBackfillRequest,
     TriggerDailyIncrementalRequest,
+    DatahubWatchlistCreate,
+    DatahubWatchlistInfo,
+    DatahubWatchlistUpdate,
+    DatahubWatchlistSymbolSummary,
+    MarketDailyBarInfo,
+    WatchlistBoardResponse,
 )
-from app.datahub.services import DatahubMetadataService, DatahubService
+from app.datahub.services import DatahubMetadataService, DatahubService, DatahubWatchlistService, MarketDailyReadService
 
 router = APIRouter()
 
@@ -257,3 +268,71 @@ def get_worker_heartbeat(
         offline_threshold_seconds=offline_threshold_seconds,
     )
     return ApiResponse.success(data=data, message="get worker heartbeat success")
+
+
+@router.get("/watchlist", response_model=ApiResponse[list[DatahubWatchlistInfo]])
+def list_watchlist(
+    service: DatahubWatchlistService = Depends(get_datahub_watchlist_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[list[DatahubWatchlistInfo]]:
+    return ApiResponse.success(data=service.list_items(), message="list watchlist success")
+
+
+@router.post("/watchlist", response_model=ApiResponse[DatahubWatchlistInfo], status_code=status.HTTP_201_CREATED)
+def add_watchlist_item(
+    payload: DatahubWatchlistCreate,
+    service: DatahubWatchlistService = Depends(get_datahub_watchlist_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[DatahubWatchlistInfo]:
+    return ApiResponse.success(data=service.add_item(payload), message="add watchlist item success")
+
+
+@router.patch("/watchlist/{item_id}", response_model=ApiResponse[DatahubWatchlistInfo])
+def update_watchlist_item(
+    item_id: str,
+    payload: DatahubWatchlistUpdate,
+    service: DatahubWatchlistService = Depends(get_datahub_watchlist_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[DatahubWatchlistInfo]:
+    return ApiResponse.success(data=service.update_item(item_id, payload), message="update watchlist item success")
+
+
+@router.delete("/watchlist/{item_id}", status_code=status.HTTP_200_OK)
+def delete_watchlist_item(
+    item_id: str,
+    service: DatahubWatchlistService = Depends(get_datahub_watchlist_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[dict[str, bool]]:
+    service.delete_item(item_id)
+    return ApiResponse.success(data={"deleted": True}, message="delete watchlist item success")
+
+
+@router.get("/watchlist/board", response_model=ApiResponse[WatchlistBoardResponse])
+def get_watchlist_board(
+    limit_days: int = Query(30, ge=5, le=365),
+    service: DatahubWatchlistService = Depends(get_datahub_watchlist_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[WatchlistBoardResponse]:
+    return ApiResponse.success(data=service.get_board(limit_days=limit_days), message="get watchlist board success")
+
+
+@router.get("/market-daily/bars", response_model=ApiResponse[list[MarketDailyBarInfo]])
+def get_market_daily_bars(
+    symbol: str = Query(..., description="证券代码"),
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    service: MarketDailyReadService = Depends(get_market_daily_read_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[list[MarketDailyBarInfo]]:
+    rows = service.get_bars(symbol=symbol, start_date=start_date, end_date=end_date)
+    data = [MarketDailyBarInfo.model_validate(row) for row in rows]
+    return ApiResponse.success(data=data, message="get market daily bars success")
+
+
+@router.get("/watchlist/symbol/{symbol}/summary", response_model=ApiResponse[DatahubWatchlistSymbolSummary])
+def get_watchlist_symbol_summary(
+    symbol: str,
+    service: DatahubWatchlistService = Depends(get_datahub_watchlist_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[DatahubWatchlistSymbolSummary]:
+    return ApiResponse.success(data=service.get_symbol_summary(symbol), message="get watchlist symbol summary success")

@@ -30,7 +30,7 @@ from app.datahub.schemas.datahub import (
     TriggerBackfillRequest,
     TriggerDailyIncrementalRequest,
 )
-from app.core.api import BusinessException, ErrorCode
+from app.datahub.catalog import get_dataset_label
 from app.datahub.enums import DatahubTaskStatus
 from app.datahub.normalize import normalize_symbol
 from app.datahub.providers import BaoStockProvider
@@ -67,6 +67,7 @@ class DatahubService:
             DatahubDatasetInfo(
                 id=row.id,
                 dataset_key=row.dataset_key,
+                label_zh=get_dataset_label(row.dataset_key),
                 layer=row.layer,
                 schema_version=row.schema_version,
                 description=row.description,

@@ -1,48 +1,82 @@
-import { useMemo } from 'react';
-import { useAuthContext } from '@/contexts/AuthContext';
-import { usePermission } from '@/hooks/usePermission';
-import { menuConfig } from '@/config/menuConfig';
-import { MenuItem } from '@/types/menu';
+import { useMemo } from 'react'
+import { useAuthContext } from '@/contexts/AuthContext'
+import { usePermission } from '@/hooks/usePermission'
+import { menuConfig } from '@/config/menuConfig'
+import { MenuItem } from '@/types/menu'
 
-export function useFilteredMenuItems(): MenuItem[] {
-  const { user } = useAuthContext();
-  const { hasResource, hasAnyRole, isAdmin } = usePermission();
+function canAccessMenuItem(
+  item: MenuItem,
+  isAdmin: boolean,
+  hasResource: (resource: string) => boolean,
+  hasAnyRole: (roles: MenuItem['roles']) => boolean,
+): boolean {
+  if (item.permission) {
+    const resourceName = `menu:${item.id}`
+    return hasResource(resourceName)
+  }
 
-  return useMemo(() => {
-    if (!user) return [];
+  if (item.roles && item.roles.length > 0) {
+    return hasAnyRole(item.roles)
+  }
 
-    // 如果是admin角色，显示所有菜单
-    if (isAdmin) {
-      return menuConfig.items.slice().sort((a, b) => {
-        const priorityA = a.priority || 0;
-        const priorityB = b.priority || 0;
-        return priorityB - priorityA;
-      });
-    }
-
-    return menuConfig.items
-      .filter(item => {
-        // 优先使用权限控制
-        if (item.permission) {
-          const resourceName = `menu:${item.id}`;
-          return hasResource(resourceName);
-        }
-
-        // 向后兼容：基于角色的菜单控制
-        if (item.roles && item.roles.length > 0) {
-          return hasAnyRole(item.roles);
-        }
-
-        // 如果没有指定权限或角色，默认显示
-        return true;
-      })
-      .sort((a, b) => {
-        // 按优先级排序
-        const priorityA = a.priority || 0;
-        const priorityB = b.priority || 0;
-        return priorityB - priorityA;
-      });
-  }, [user, isAdmin, hasResource, hasAnyRole]);
+  return true
 }
 
+function filterMenuItems(
+  items: MenuItem[],
+  isAdmin: boolean,
+  hasResource: (resource: string) => boolean,
+  hasAnyRole: (roles: MenuItem['roles']) => boolean,
+): MenuItem[] {
+  return items
+    .map((item) => {
+      if (item.children?.length) {
+        const children = filterMenuItems(item.children, isAdmin, hasResource, hasAnyRole)
+        if (children.length === 0) return null
+        return { ...item, children }
+      }
 
+      if (isAdmin || canAccessMenuItem(item, isAdmin, hasResource, hasAnyRole)) {
+        return item
+      }
+      return null
+    })
+    .filter((item): item is MenuItem => item !== null)
+    .sort((a, b) => {
+      const priorityA = a.priority || 0
+      const priorityB = b.priority || 0
+      return priorityB - priorityA
+    })
+}
+
+export function useFilteredMenuItems(): MenuItem[] {
+  const { user } = useAuthContext()
+  const { hasResource, hasAnyRole, isAdmin } = usePermission()
+
+  return useMemo(() => {
+    if (!user) return []
+
+    if (isAdmin) {
+      return menuConfig.items.slice().sort((a, b) => {
+        const priorityA = a.priority || 0
+        const priorityB = b.priority || 0
+        return priorityB - priorityA
+      })
+    }
+
+    return filterMenuItems(menuConfig.items, isAdmin, hasResource, hasAnyRole)
+  }, [user, isAdmin, hasResource, hasAnyRole])
+}
+
+/** 扁平化菜单项，供移动端等场景使用 */
+export function flattenMenuItems(items: MenuItem[]): MenuItem[] {
+  const result: MenuItem[] = []
+  for (const item of items) {
+    if (item.children?.length) {
+      result.push(...flattenMenuItems(item.children))
+    } else {
+      result.push(item)
+    }
+  }
+  return result
+}

@@ -1,4 +1,35 @@
 services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: anmei-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-anmei_pg_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-anmeismart}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-pgvector.sql:/docker-entrypoint-initdb.d/01-pgvector.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-anmeismart}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: anmei-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD:-difyai123456}
+    networks:
+      - app-network
+
   api:
     build:
       context: ./api
@@ -13,9 +44,11 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8000
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - app-network
-      - docker_default
 
   web:
     build:
@@ -43,9 +76,7 @@ services:
 networks:
   app-network:
     driver: bridge
-  # 让 anmei-smart-api 能通过 docker 内网直连 Dify 的 nginx（容器名 docker-nginx-1）
-  # 前提：你已启动 Dify 的 docker compose（会创建名为 docker_default 的 network）
-  docker_default:
-    external: true
-    name: docker_default
+
+volumes:
+  postgres_data:
 

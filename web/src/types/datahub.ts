@@ -1,6 +1,7 @@
 export interface DatahubDatasetInfo {
   id: string
   dataset_key: string
+  label_zh?: string | null
   layer: string
   schema_version: string
   description?: string | null
@@ -180,4 +181,96 @@ export interface FillMarketDailyMissingResult {
   created_runs: number
   filled_symbols: number
   symbols: string[]
+}
+
+export interface DatahubWatchlistInfo {
+  id: string
+  symbol: string
+  name?: string | null
+  sort_order: number
+  note?: string | null
+  backfill_start_date?: string | null
+  backfill_end_date?: string | null
+  window_days?: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DatahubWatchlistUpdatePayload {
+  name?: string
+  note?: string
+}
+
+export interface MarketDailyBarInfo {
+  symbol: string
+  trade_date: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+  amount: number
+  turnover_rate?: number | null
+}
+
+export interface WatchlistBoardRow {
+  id: string
+  symbol: string
+  name?: string | null
+  sector_name?: string | null
+  trade_date?: string | null
+  open?: number | null
+  high?: number | null
+  low?: number | null
+  close?: number | null
+  change_amount?: number | null
+  change_pct?: number | null
+  sector_change_pct?: number | null
+  volume?: number | null
+  turnover_rate?: number | null
+  has_data: boolean
+}
+
+export interface WatchlistBoardResponse {
+  limit_days: number
+  rows: WatchlistBoardRow[]
+}
+
+export interface DatahubWatchlistWatermarkInfo {
+  dataset: string
+  dataset_label: string
+  last_success_date?: string | null
+  last_quality_score?: number | null
+}
+
+export interface DatahubWatchlistSymbolSummary {
+  symbol: string
+  name?: string | null
+  backfill_start_date?: string | null
+  backfill_end_date?: string | null
+  window_days?: number | null
+  market_daily_start_date?: string | null
+  market_daily_end_date?: string | null
+  market_daily_row_count: number
+  market_daily_quality_score?: number | null
+  latest_quality_score?: number | null
+  latest_quality_severity?: string | null
+  watermarks: DatahubWatchlistWatermarkInfo[]
+  object_indexes: Array<{
+    dataset: string
+    dataset_label: string
+    start_date?: string | null
+    end_date?: string | null
+    row_count: number
+    quality_score?: number | null
+    object_key: string
+  }>
+  quality_reports: Array<{
+    dataset: string
+    dataset_label: string
+    biz_date?: string | null
+    quality_score: number
+    severity: string
+    checked_at?: string | null
+  }>
 }

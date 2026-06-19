@@ -453,7 +453,7 @@ class AIGateway:
         return AIResponse(
             request_id=request.request_id,
             content=f"很抱歉，AI服务暂时不可用。错误信息：{error_message}",
-            provider=AIProvider.DIFY,  # 默认提供商
+            provider=AIProvider.AGENT,
             scenario=request.scenario,
             success=False,
             error_message=error_message

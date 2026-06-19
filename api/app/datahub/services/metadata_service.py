@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from app.datahub.catalog import ALL_DATASETS
+from app.datahub.catalog import ALL_DATASETS, get_dataset_label
 from app.datahub.models import DatahubDatasetCatalog
 
 
@@ -12,11 +12,16 @@ class DatahubMetadataService:
 
     def seed_dataset_catalog(self) -> int:
         created = 0
-        existing = {
-            row.dataset_key for row in self.db.query(DatahubDatasetCatalog.dataset_key).all()
+        existing_rows = {
+            row.dataset_key: row for row in self.db.query(DatahubDatasetCatalog).all()
         }
         for dataset in ALL_DATASETS:
-            if dataset in existing:
+            label = get_dataset_label(dataset)
+            description = f"{label} ({dataset})"
+            if dataset in existing_rows:
+                row = existing_rows[dataset]
+                if row.description != description:
+                    row.description = description
                 continue
             row = DatahubDatasetCatalog(
                 dataset_key=dataset,
@@ -24,10 +29,10 @@ class DatahubMetadataService:
                 schema_version="1.0",
                 primary_keys=["dataset", "symbol", "trade_date"],
                 partition_by=["year", "month"],
+                description=description,
                 is_active="true",
             )
             self.db.add(row)
             created += 1
-        if created > 0:
-            self.db.commit()
+        self.db.commit()
         return created

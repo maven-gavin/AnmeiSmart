@@ -2,7 +2,7 @@
 客户画像洞察（AI）服务
 
 目标：
-- 在“客户发送新消息”后，调用 SmartBrain(Dify) 提取洞察
+- 在「客户发送新消息」后，调用 LangChain Agent 提取洞察
 - 将洞察写入 customer_insights（时间流），并可选更新 customer_profiles.ai_summary
 
 说明：
@@ -17,7 +17,7 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
-from app.ai.adapters.dify_agent_client import DifyAgentClientFactory
+from app.ai.services.agent_runtime_service import AgentRuntimeService
 from app.ai.models.agent_config import AgentConfig as AgentConfigModel
 from app.chat.models.chat import Message
 from app.customer.models.customer import CustomerProfile, CustomerInsight, InsightSource, InsightStatus
@@ -177,25 +177,9 @@ class CustomerInsightAIService:
             + ("\n".join(message_lines) if message_lines else "- (无)\n")
         )
 
-        # 3) 调用 Dify（blocking）
-        dify_client = DifyAgentClientFactory.create_client(config)
-        user_identifier = f"user_{customer_id}"
-
-        answer_text: Optional[str] = None
-        async for chunk in dify_client.create_chat_message(
-            query=prompt,
-            user=user_identifier,
-            conversation_id=None,
-            inputs=None,
-            response_mode="blocking",
-        ):
-            chunk_str = chunk.decode("utf-8") if isinstance(chunk, (bytes, bytearray)) else str(chunk)
-            try:
-                resp = json.loads(chunk_str)
-                answer_text = resp.get("answer")
-            except Exception:
-                answer_text = chunk_str
-            break
+        # 3) 调用 LangChain Agent（blocking）
+        runtime = AgentRuntimeService(self.db)
+        answer_text = await runtime.invoke_by_app_name(self.APP_NAME, prompt)
 
         if not answer_text:
             return
