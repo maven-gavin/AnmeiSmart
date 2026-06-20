@@ -2,7 +2,14 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.common.deps import get_db
-from app.datahub.services import DatahubMetadataService, DatahubService, DatahubWatchlistService, MarketDailyReadService
+from app.datahub.services import (
+    ContextExportService,
+    DailyBriefService,
+    DatahubMetadataService,
+    DatahubService,
+    DatahubWatchlistService,
+    MarketDailyReadService,
+)
 
 
 def get_datahub_service(db: Session = Depends(get_db)) -> DatahubService:
@@ -19,3 +26,11 @@ def get_datahub_watchlist_service(db: Session = Depends(get_db)) -> DatahubWatch
 
 def get_market_daily_read_service(db: Session = Depends(get_db)) -> MarketDailyReadService:
     return MarketDailyReadService(db)
+
+
+def get_daily_brief_service(db: Session = Depends(get_db)) -> DailyBriefService:
+    return DailyBriefService(db=db)
+
+
+def get_context_export_service(db: Session = Depends(get_db)) -> ContextExportService:
+    return ContextExportService(db=db)

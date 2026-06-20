@@ -7,7 +7,7 @@ const createMockMessage = (overrides: Partial<Message> = {}): Message => ({
   id: 'test-message-1',
   conversationId: 'conv-1',
   localId: 'local-test-1',
-  content: 'Test message content',
+  content: { text: 'Test message content' },
   type: 'text',
   sender: {
     id: 'user-1',
@@ -70,7 +70,7 @@ describe('ChatMessage', () => {
 
 
   it('highlights search terms correctly', () => {
-    const message = createMockMessage({ content: 'This is a test message' });
+    const message = createMockMessage({ content: { text: 'This is a test message' } });
     render(<ChatMessage message={message} searchTerm="test" />);
     
     const highlightedText = screen.getByText('test');

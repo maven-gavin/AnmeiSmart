@@ -274,3 +274,66 @@ export interface DatahubWatchlistSymbolSummary {
     checked_at?: string | null
   }>
 }
+
+export interface DailyBriefReadinessInfo {
+  as_of_date: string
+  status: string
+  latest_trade_date?: string | null
+  watchlist_count: number
+  missing_count: number
+  worker_online: boolean
+  warnings: string[]
+}
+
+export interface DailyBriefMarketInfo {
+  indices: Array<Record<string, unknown>>
+  five_day_trend: string
+  turnover_summary?: Record<string, unknown> | null
+  breadth?: Record<string, unknown> | null
+}
+
+export interface DailyBriefSectorInfo {
+  sector_name: string
+  stock_count: number
+  avg_stock_change_pct?: number | null
+  sector_change_pct?: number | null
+}
+
+export interface DailyBriefWatchlistItemInfo {
+  symbol: string
+  name?: string | null
+  sector_name?: string | null
+  trade_date?: string | null
+  close?: number | null
+  change_pct?: number | null
+  sector_change_pct?: number | null
+  volume?: number | null
+  turnover_rate?: number | null
+  has_data: boolean
+  data_status: string
+}
+
+export interface DailyBriefRiskFlagInfo {
+  level: string
+  source: string
+  message: string
+  symbol?: string | null
+}
+
+export interface DailyBriefContextInfo {
+  as_of_date: string
+  readiness: DailyBriefReadinessInfo
+  market: DailyBriefMarketInfo
+  related_sectors: DailyBriefSectorInfo[]
+  watchlist: DailyBriefWatchlistItemInfo[]
+  portfolio?: Record<string, unknown> | null
+  observations: Array<Record<string, unknown>>
+  risk_flags: DailyBriefRiskFlagInfo[]
+  data_quality: Record<string, string>
+}
+
+export interface DailyBriefPrepareResultInfo {
+  created_runs: number
+  runs: DatahubJobRunInfo[]
+  message: string
+}

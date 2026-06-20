@@ -52,6 +52,13 @@ export const menuConfig: MenuConfig = {
       priority: 70,
       children: [
         {
+          id: 'datahub-daily-brief',
+          label: '每日看盘',
+          path: '/admin/datahub',
+          icon: 'stats-icon',
+          roles: ['admin'],
+        },
+        {
           id: 'datahub-watchlist',
           label: '自选股',
           path: '/admin/datahub/watchlist',
@@ -60,8 +67,8 @@ export const menuConfig: MenuConfig = {
         },
         {
           id: 'datahub-acquisition',
-          label: '数据获取',
-          path: '/admin/datahub',
+          label: '数据获取（高级）',
+          path: '/admin/datahub/acquisition',
           icon: 'stats-icon',
           roles: ['admin'],
         },

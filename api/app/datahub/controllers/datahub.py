@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query, status
 
@@ -6,10 +7,17 @@ from app.core.api import ApiResponse
 from app.identity_access.deps import get_current_admin
 from app.identity_access.models.user import User
 from app.datahub.deps import (
+    get_context_export_service,
     get_datahub_metadata_service,
     get_datahub_service,
     get_datahub_watchlist_service,
+    get_daily_brief_service,
     get_market_daily_read_service,
+)
+from app.datahub.schemas.daily_brief import (
+    DailyBriefContextInfo,
+    DailyBriefPrepareResultInfo,
+    DailyBriefReadinessInfo,
 )
 from app.datahub.schemas.datahub import (
     DatahubDatasetInfo,
@@ -37,7 +45,14 @@ from app.datahub.schemas.datahub import (
     MarketDailyBarInfo,
     WatchlistBoardResponse,
 )
-from app.datahub.services import DatahubMetadataService, DatahubService, DatahubWatchlistService, MarketDailyReadService
+from app.datahub.services import (
+    ContextExportService,
+    DailyBriefService,
+    DatahubMetadataService,
+    DatahubService,
+    DatahubWatchlistService,
+    MarketDailyReadService,
+)
 
 router = APIRouter()
 
@@ -121,6 +136,74 @@ def run_daily_incremental_now(
 ) -> ApiResponse[DatahubJobRunInfo]:
     run = service.create_daily_incremental_job(payload)
     return ApiResponse.success(data=run, message="daily incremental job queued")
+
+
+@router.get("/daily-brief/readiness", response_model=ApiResponse[DailyBriefReadinessInfo])
+def get_daily_brief_readiness(
+    as_of_date: date | None = Query(None),
+    service: DailyBriefService = Depends(get_daily_brief_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[DailyBriefReadinessInfo]:
+    return ApiResponse.success(data=service.get_readiness(as_of_date=as_of_date), message="get daily brief readiness success")
+
+
+@router.post("/daily-brief/prepare", response_model=ApiResponse[DailyBriefPrepareResultInfo], status_code=status.HTTP_201_CREATED)
+def prepare_daily_brief_data(
+    window_days: int = Query(7, ge=1, le=30),
+    service: DailyBriefService = Depends(get_daily_brief_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[DailyBriefPrepareResultInfo]:
+    return ApiResponse.success(data=service.prepare_today_data(window_days=window_days), message="daily brief data prepare queued")
+
+
+@router.get("/daily-brief/today", response_model=ApiResponse[DailyBriefContextInfo])
+def get_daily_brief_today(
+    as_of_date: date | None = Query(None),
+    service: DailyBriefService = Depends(get_daily_brief_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[DailyBriefContextInfo]:
+    return ApiResponse.success(data=service.get_today_context(as_of_date=as_of_date), message="get daily brief success")
+
+
+@router.post("/daily-brief/analyze", response_model=ApiResponse[DailyBriefContextInfo])
+def analyze_daily_brief(
+    as_of_date: date | None = Query(None),
+    service: DailyBriefService = Depends(get_daily_brief_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[DailyBriefContextInfo]:
+    return ApiResponse.success(data=service.get_today_context(as_of_date=as_of_date), message="daily brief context generated")
+
+
+@router.get("/context/daily", response_model=ApiResponse[dict[str, Any]])
+def get_daily_context_export(
+    as_of_date: date | None = Query(None, alias="date"),
+    service: ContextExportService = Depends(get_context_export_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[dict[str, Any]]:
+    return ApiResponse.success(data=service.get_daily_context(as_of_date=as_of_date), message="get daily context success")
+
+
+@router.get("/context/opencode", response_model=ApiResponse[dict[str, Any]])
+def get_opencode_context_export(
+    as_of_date: date | None = Query(None, alias="date"),
+    service: ContextExportService = Depends(get_context_export_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[dict[str, Any]]:
+    return ApiResponse.success(data=service.get_opencode_context(as_of_date=as_of_date), message="get opencode context success")
+
+
+@router.get("/context/symbol/{symbol}", response_model=ApiResponse[dict[str, Any]])
+def get_symbol_context_export(
+    symbol: str,
+    days: int = Query(10, ge=1, le=120),
+    as_of_date: date | None = Query(None, alias="date"),
+    service: ContextExportService = Depends(get_context_export_service),
+    _: User = Depends(get_current_admin),
+) -> ApiResponse[dict[str, Any]]:
+    return ApiResponse.success(
+        data=service.get_symbol_context(symbol=symbol, days=days, as_of_date=as_of_date),
+        message="get symbol context success",
+    )
 
 
 @router.get("/jobs/runs/{run_id}", response_model=ApiResponse[DatahubJobRunInfo | None])

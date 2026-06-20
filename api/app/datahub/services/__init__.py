@@ -3,6 +3,8 @@ DataHub 服务导出
 """
 
 from .datahub_service import DatahubService
+from .context_export_service import ContextExportService
+from .daily_brief_service import DailyBriefService
 from .extended_dataset_sync_service import ExtendedDatasetSyncService
 from .market_daily_backfill_service import MarketDailyBackfillService
 from .market_daily_incremental_service import MarketDailyIncrementalService
@@ -18,6 +20,8 @@ from .watchlist_service import DatahubWatchlistService
 
 __all__ = [
     "DatahubService",
+    "ContextExportService",
+    "DailyBriefService",
     "ExtendedDatasetSyncService",
     "MarketDailyBackfillService",
     "MarketDailyIncrementalService",

@@ -21,6 +21,9 @@ import type {
   DatahubWatchlistInfo,
   DatahubWatchlistSymbolSummary,
   DatahubWatchlistUpdatePayload,
+  DailyBriefContextInfo,
+  DailyBriefPrepareResultInfo,
+  DailyBriefReadinessInfo,
   MarketDailyBarInfo,
   WatchlistBoardResponse,
 } from '@/types/datahub'
@@ -300,6 +303,46 @@ export const datahubService = {
       return resp.data
     } catch (err) {
       handleApiError(err, '获取个股数据摘要失败')
+      throw err
+    }
+  },
+
+  async getDailyBriefReadiness(): Promise<DailyBriefReadinessInfo> {
+    try {
+      const resp = await apiClient.get<DailyBriefReadinessInfo>('/datahub/daily-brief/readiness')
+      return resp.data
+    } catch (err) {
+      handleApiError(err, '获取每日看盘状态失败')
+      throw err
+    }
+  },
+
+  async prepareDailyBrief(windowDays = 7): Promise<DailyBriefPrepareResultInfo> {
+    try {
+      const resp = await apiClient.post<DailyBriefPrepareResultInfo>(`/datahub/daily-brief/prepare?window_days=${windowDays}`)
+      return resp.data
+    } catch (err) {
+      handleApiError(err, '提交今日数据准备失败')
+      throw err
+    }
+  },
+
+  async getDailyBriefToday(): Promise<DailyBriefContextInfo> {
+    try {
+      const resp = await apiClient.get<DailyBriefContextInfo>('/datahub/daily-brief/today')
+      return resp.data
+    } catch (err) {
+      handleApiError(err, '生成每日看盘上下文失败')
+      throw err
+    }
+  },
+
+  async getOpencodeContext(): Promise<Record<string, unknown>> {
+    try {
+      const resp = await apiClient.get<Record<string, unknown>>('/datahub/context/opencode')
+      return resp.data
+    } catch (err) {
+      handleApiError(err, '导出 opencode 上下文失败')
       throw err
     }
   },
