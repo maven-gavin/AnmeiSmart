@@ -4,7 +4,7 @@
 
 ## 定位
 
-**模块化单体**：本仓库负责业务 API、权限、会话、任务、MCP、DataHub、实时通信；**SmartBrain（外部 Dify + AI Gateway）** 负责 Agent 编排，前端经 `SMARTBRAIN_API_BASE_URL` 调用。
+**模块化单体**：本仓库包含业务 API、权限、会话、任务、MCP、AI Gateway / Agent 运行时、DataHub、实时通信，前后端均在本仓库内交付。
 
 ## 原则
 
@@ -20,7 +20,7 @@
 | 前端 | Next.js、TypeScript、Tailwind、Shadcn |
 | 后端 | FastAPI、SQLAlchemy、Alembic |
 | 存储 | PostgreSQL 16 + pgvector、Redis 7、MinIO |
-| AI | AI Gateway → Dify |
+| AI | AI Gateway + LangGraph Agent 运行时 + RAG（pgvector） |
 | 部署 | Docker Compose（postgres / redis / api / web） |
 
 ## 分层
@@ -28,10 +28,9 @@
 ```text
 web ──HTTP/SSE/WS──▶ api (/api/v1)
                       ├── identity_access / chat / customer / tasks / ...
-                      ├── ai (Gateway, Agent, RAG)
+                      ├── ai (Gateway, Agent 运行时, RAG)
                       ├── mcp / datahub / websocket / common(files)
-                      ├── PostgreSQL / Redis / MinIO
-                      └── Dify（经 AI Gateway）
+                      └── PostgreSQL / Redis / MinIO
 ```
 
 ## 后端模块
@@ -43,7 +42,7 @@ web ──HTTP/SSE/WS──▶ api (/api/v1)
 | customer | `/customers` | 客户画像 |
 | digital_humans | `/digital-humans` | 数字人 |
 | tasks | `/tasks` | 任务治理 |
-| ai | `/ai-gateway`, `/agent` | Gateway、Agent、RAG |
+| ai | `/ai-gateway`, `/agent` | Gateway、Agent 流式对话、RAG |
 | mcp | `/mcp`, `/oauth` | MCP 工具 |
 | datahub | `/datahub` | 标准化行情/财务数据 |
 | websocket | `/ws` | 实时广播 |
@@ -55,22 +54,11 @@ web ──HTTP/SSE/WS──▶ api (/api/v1)
 
 | 场景 | 路径 |
 |------|------|
-| 流式对话 | 前端 SSE → `/agent/*` 或 `/chat` → AI Gateway → Dify（实现见 `web/src/service/apiClient.ts`、`api/app/ai/`） |
+| 流式对话 | 前端 SSE → `/agent/*` → Agent 运行时（LangGraph）→ LLM / MCP / RAG（见 `api/app/ai/`、`web/src/service/apiClient.ts`） |
 | MCP 工具 | Client → `/mcp/server/{code}/mcp` → 鉴权 → `tools/call` |
 | 实时推送 | WS `/ws` → Redis 广播（见 [WebSocket 文档](./websocket-broadcasting-architecture.md)） |
 | DataHub | Worker → Provider → MinIO → `/datahub`（见 [DataHub 文档](./datahub-architecture-plan.md)） |
 | 文件上传 | 前端 → `/files` → MinIO（见 [文件上传文档](./file-upload-readme.md)） |
-
-## 外部集成：Dify
-
-| 运行方式 | Agent baseUrl |
-|----------|---------------|
-| API 在 Docker 内（已加入 Dify 的 `docker_default` 网络） | `http://docker-nginx-1/v1` |
-| API 在宿主机本地跑 | `http://localhost/v1` |
-
-前提：先启动 Dify 的 docker compose。`/v1/info` 无 Bearer 返回 401 属正常。
-
-Dify API 官方文档：https://docs.dify.ai/
 
 ## 非功能
 
