@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { MoreVertical } from 'lucide-react';
 import { getMenuIcon } from '@/utils/menuIcons';
-import { useFilteredMenuItems } from '@/components/layout/useFilteredMenuItems';
+import { useFilteredMenuItems, flattenMenuItems } from '@/components/layout/useFilteredMenuItems';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,15 +21,16 @@ export function MobileBottomNav() {
   const pathname = usePathname();
   const router = useRouter();
   const items = useFilteredMenuItems();
+  const flatItems = useMemo(() => flattenMenuItems(items), [items]);
 
   const { primary, more } = useMemo(() => {
     const primaryItems = MOBILE_PRIMARY_PATHS.flatMap(p => {
-      const found = items.find(i => i.path === p);
+      const found = flatItems.find(i => i.path === p);
       return found ? [found] : [];
     });
 
     const moreItems = MOBILE_MORE_PATHS.flatMap(p => {
-      const found = items.find(i => i.path === p);
+      const found = flatItems.find(i => i.path === p);
       return found ? [found] : [];
     });
 
@@ -37,7 +38,7 @@ export function MobileBottomNav() {
       primary: primaryItems,
       more: moreItems
     };
-  }, [items]);
+  }, [flatItems]);
 
   return (
     <div className="fixed bottom-0 inset-x-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/75 md:hidden">

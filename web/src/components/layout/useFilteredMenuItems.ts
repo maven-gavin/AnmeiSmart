@@ -42,11 +42,27 @@ function filterMenuItems(
       return null
     })
     .filter((item): item is MenuItem => item !== null)
-    .sort((a, b) => {
-      const priorityA = a.priority || 0
-      const priorityB = b.priority || 0
-      return priorityB - priorityA
-    })
+}
+
+/** 分组只剩一个可见子项时，提升为一级菜单，避免无意义的折叠 */
+function flattenSingleChildGroups(items: MenuItem[]): MenuItem[] {
+  return items.flatMap((item) => {
+    if (item.children?.length === 1) {
+      return flattenSingleChildGroups(item.children)
+    }
+    if (item.children?.length) {
+      return [{ ...item, children: flattenSingleChildGroups(item.children) }]
+    }
+    return [item]
+  })
+}
+
+function sortMenuItems(items: MenuItem[]): MenuItem[] {
+  return [...items]
+    .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+    .map((item) =>
+      item.children?.length ? { ...item, children: sortMenuItems(item.children) } : item,
+    )
 }
 
 export function useFilteredMenuItems(): MenuItem[] {
@@ -56,15 +72,11 @@ export function useFilteredMenuItems(): MenuItem[] {
   return useMemo(() => {
     if (!user) return []
 
-    if (isAdmin) {
-      return menuConfig.items.slice().sort((a, b) => {
-        const priorityA = a.priority || 0
-        const priorityB = b.priority || 0
-        return priorityB - priorityA
-      })
-    }
+    const filtered = isAdmin
+      ? menuConfig.items
+      : filterMenuItems(menuConfig.items, isAdmin, hasResource, hasAnyRole)
 
-    return filterMenuItems(menuConfig.items, isAdmin, hasResource, hasAnyRole)
+    return sortMenuItems(flattenSingleChildGroups(filtered))
   }, [user, isAdmin, hasResource, hasAnyRole])
 }
 
@@ -74,7 +86,7 @@ export function flattenMenuItems(items: MenuItem[]): MenuItem[] {
   for (const item of items) {
     if (item.children?.length) {
       result.push(...flattenMenuItems(item.children))
-    } else {
+    } else if (!item.groupOnly) {
       result.push(item)
     }
   }
