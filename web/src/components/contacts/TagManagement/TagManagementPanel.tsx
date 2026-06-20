@@ -93,8 +93,7 @@ export function TagManagementPanel({ onClose }: TagManagementPanelProps) {
     work: '工作关系',
     personal: '个人关系',
     business: '商务关系',
-    medical: '医疗相关',
-    custom: '自定义'
+    custom: '自定义',
   };
 
   if (loading) {

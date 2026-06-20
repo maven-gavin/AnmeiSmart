@@ -237,8 +237,7 @@ async def create_message(
             role = get_user_primary_role(current_user)
             if role == "customer":
                 conv_model = chat_service.db.query(Conversation).filter(Conversation.id == conversation_id).first()
-                # 目前仅处理站内会话（tag != channel）
-                if conv_model and conv_model.tag != "channel":
+                if conv_model:
                     enqueue_customer_insight_job(
                         customer_id=str(current_user.id),
                         conversation_id=conversation_id,

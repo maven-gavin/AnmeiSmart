@@ -27,7 +27,7 @@ export interface UsePermissionReturn {
   /**
    * 检查用户是否有任意一个指定角色
    */
-  hasAnyRole: (roles: string[]) => boolean;
+  hasAnyRole: (roles?: string[]) => boolean;
   
   /**
    * 检查用户是否有指定资源权限
@@ -145,8 +145,8 @@ export function usePermission(): UsePermissionReturn {
     return permissionList.some(permission => permissions.includes(permission));
   };
 
-  const hasAnyRole = (roleList: string[]): boolean => {
-    if (!user) return false;
+  const hasAnyRole = (roleList?: string[]): boolean => {
+    if (!user || !roleList?.length) return false;
     
     return roleList.some(role => roles.some(r => r.toLowerCase() === role.toLowerCase()));
   };

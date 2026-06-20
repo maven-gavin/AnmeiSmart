@@ -98,8 +98,6 @@ export default function ConversationHistoryList({
 
   // 渲染标签
   const renderTags = (conversation: Conversation) => {
-    const channelLabel = conversation.extra_metadata?.channel?.type || '渠道';
-
     return (
     <>
       {/* 未读消息数 */}
@@ -120,14 +118,6 @@ export default function ConversationHistoryList({
         </div>
       )}
 
-      {/* 渠道标签（不新增页面，仅增加标识） */}
-      {conversation.tag === 'channel' && (
-        <div className="flex-shrink-0 ml-2">
-          <span className="inline-flex items-center justify-center h-5 px-2 text-xs font-medium text-white bg-emerald-600 rounded-full">
-            {channelLabel}
-          </span>
-        </div>
-      )}
     </>
     );
   };

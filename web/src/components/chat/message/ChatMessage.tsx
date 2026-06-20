@@ -228,12 +228,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
             <span className="text-sm font-medium text-gray-900">
               {message.sender.name}
             </span>
-            {/* 渠道标识（不改页面结构，仅加标记） */}
-            {message.extra_metadata?.channel?.type && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                {message.extra_metadata.channel.type}
-              </span>
-            )}
             {showTimestamp && (
               <span className="text-xs text-gray-500">
                 {formatDistanceToNow(new Date(message.timestamp), { 

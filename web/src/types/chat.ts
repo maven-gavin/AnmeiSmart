@@ -180,7 +180,7 @@ export interface Conversation {
   id: string;
   title: string;
   chat_mode: 'single' | 'group';  // 重构：type改为chat_mode
-  tag: 'chat' | 'consultation' | 'channel';   // 渠道会话复用现有列表
+  tag: 'chat' | 'consultation';
   owner_id: string;
   owner?: User;
   first_participant_id?: string;  // 新增：第一个参与者ID

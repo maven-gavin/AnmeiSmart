@@ -8,7 +8,7 @@ function canAccessMenuItem(
   item: MenuItem,
   isAdmin: boolean,
   hasResource: (resource: string) => boolean,
-  hasAnyRole: (roles: MenuItem['roles']) => boolean,
+  hasAnyRole: (roles?: MenuItem['roles']) => boolean,
 ): boolean {
   if (item.permission) {
     const resourceName = `menu:${item.id}`
@@ -26,7 +26,7 @@ function filterMenuItems(
   items: MenuItem[],
   isAdmin: boolean,
   hasResource: (resource: string) => boolean,
-  hasAnyRole: (roles: MenuItem['roles']) => boolean,
+  hasAnyRole: (roles?: MenuItem['roles']) => boolean,
 ): MenuItem[] {
   return items
     .map((item) => {

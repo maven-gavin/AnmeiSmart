@@ -207,6 +207,7 @@ python .\scripts\seed_db.py
 
 - **setup_pgvector.py**: 初始化 pgvector 扩展
 - **start_datahub_worker.sh**: 启动 DataHub 后台 worker
+- **cleanup_channel_data.py**: 清理已下线的 tag=channel 历史数据
 
 ## 注意事项
 

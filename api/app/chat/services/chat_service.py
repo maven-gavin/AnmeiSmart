@@ -101,54 +101,7 @@ class ChatService:
                 participant.unread_count = (participant.unread_count or 0) + 1
                 participant.last_message_at = now
 
-    def _get_channel_assignment(self, conversation: Conversation) -> Dict[str, Any]:
-        extra = conversation.extra_metadata or {}
-        assignment = extra.get("assignment") or {}
-        if not isinstance(assignment, dict):
-            return {}
-        return assignment
 
-    def _get_channel_info(self, conversation: Conversation) -> Dict[str, Any]:
-        extra = conversation.extra_metadata or {}
-        channel = extra.get("channel") or {}
-        if not isinstance(channel, dict):
-            return {}
-        return channel
-
-    def claim_channel_conversation_if_needed(self, conversation_id: str, user: User) -> Conversation:
-        """领取渠道会话（未分配 -> 已领取，独占）"""
-        conversation = self.db.query(Conversation).filter(
-            Conversation.id == conversation_id
-        ).with_for_update().first()
-
-        if not conversation:
-            raise BusinessException("会话不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
-
-        if conversation.tag != "channel":
-            return conversation
-
-        assignment = self._get_channel_assignment(conversation)
-        status = assignment.get("status") or "unassigned"
-        assignee_user_id = assignment.get("assignee_user_id")
-
-        if status == "assigned" and assignee_user_id and str(assignee_user_id) != str(user.id):
-            raise BusinessException("该客户会话已被其他人领取", code=ErrorCode.PERMISSION_DENIED)
-
-        if status != "assigned" or not assignee_user_id:
-            extra = conversation.extra_metadata or {}
-            extra["assignment"] = {
-                "status": "assigned",
-                "assignee_user_id": str(user.id),
-                "assignee_name": getattr(user, "username", None),
-                "assigned_at": datetime.now().isoformat(),
-            }
-            conversation.extra_metadata = extra
-
-        # 确保领取人有 participant 记录（用于会话列表与未读）
-        self._get_or_create_participant(conversation_id=conversation.id, user_id=str(user.id), default_role="owner")
-        self.db.flush()
-        return conversation
-    
     # ============ 会话参与者管理 ============
 
     def get_conversation_participants(self, conversation_id: str) -> List[ConversationParticipant]:
@@ -466,61 +419,24 @@ class ChatService:
         if search and search.strip():
             search_pattern = f"%{search.strip()}%"
             query = query.filter(Conversation.title.like(search_pattern))
-        
-        # 额外：把“渠道会话(未分配/已领取给我)”也拼进来，满足不新增前端页面的要求
-        from sqlalchemy import cast, String, or_
 
-        channel_query = self.db.query(Conversation).filter(
-            Conversation.tag == "channel"
-        )
+        total = query.count()
 
-        if search and search.strip():
-            search_pattern = f"%{search.strip()}%"
-            channel_query = channel_query.filter(Conversation.title.like(search_pattern))
-
-        # assignment.assignee_user_id == user_id 或 assignment.status 为空/未分配
-        channel_query = channel_query.filter(
-            or_(
-                cast(Conversation.extra_metadata["assignment"]["assignee_user_id"], String) == user_id,
-                cast(Conversation.extra_metadata["assignment"]["status"], String).is_(None),
-                cast(Conversation.extra_metadata["assignment"]["status"], String) == "unassigned",
-            )
-        )
-
-        # 获取总数（简单合并统计：我的会话 + 渠道会话去重）
-        base_results = query.all()
-        channel_results = channel_query.all()
-        merged_ids = {conv.id for conv, _ in base_results}
-        for conv in channel_results:
-            merged_ids.add(conv.id)
-        total = len(merged_ids)
-        
         # 按个人化视角排序：置顶优先，然后按最后消息时间（参与者视角），最后按会话更新时间
         query = query.order_by(
-            desc(ConversationParticipant.is_pinned),  # 置顶的排前面
-            desc(ConversationParticipant.pinned_at),  # 置顶时间倒序
-            desc(ConversationParticipant.last_message_at),  # 个人最后消息时间倒序
-            desc(Conversation.updated_at)  # 会话更新时间倒序
+            desc(ConversationParticipant.is_pinned),
+            desc(ConversationParticipant.pinned_at),
+            desc(ConversationParticipant.last_message_at),
+            desc(Conversation.updated_at),
         )
-        
-        # 分页：先按原逻辑取我的会话，再补渠道会话（未分配/已领取给我），最后统一排序与裁剪
-        results = query.all()
-        
-        # 提取会话对象和参与者对象（因为查询返回的是 (Conversation, ConversationParticipant) 元组）
+
+        results = query.offset(skip).limit(limit).all()
+
         conversations: List[Conversation] = []
         participants_dict: Dict[str, ConversationParticipant] = {}
         for conv, participant in results:
             conversations.append(conv)
             participants_dict[conv.id] = participant
-
-        # 合并渠道会话（避免重复）
-        for conv in channel_results:
-            if conv.id not in participants_dict and conv.id not in {c.id for c in conversations}:
-                conversations.append(conv)
-        
-        # 统一按更新时间倒序（先做简单排序，再裁剪分页）
-        conversations.sort(key=lambda c: getattr(c, "updated_at", datetime.min), reverse=True)
-        conversations = conversations[skip: skip + limit]
 
         # 加载关联数据（owner 和 participants）
         conversation_ids = [conv.id for conv in conversations]
@@ -584,59 +500,24 @@ class ChatService:
             joinedload(Conversation.participants).joinedload(ConversationParticipant.user)
         ).filter(Conversation.id == conversation_id)
         
-        # 权限检查：检查用户是否是 owner 或参与者；渠道会话允许未分配阶段被任何员工打开并“首发自动领取”
+        # 权限检查：检查用户是否是 owner 或参与者
         participant = None
         if user_id:
-            # 先查询会话是否存在
             conversation = query.first()
             if not conversation:
                 return None
 
-            if conversation.tag == "channel":
-                assignment = self._get_channel_assignment(conversation)
-                status = assignment.get("status") or "unassigned"
-                assignee_user_id = assignment.get("assignee_user_id")
-
-                if status != "assigned" or not assignee_user_id:
-                    # 未分配：允许访问（但不自动创建 participant，避免污染列表排序/未读）
-                    participant = None
-                else:
-                    # 已领取：仅领取人可访问（owner/admin 仍可访问由 can_access_conversation 覆盖）
-                    if str(assignee_user_id) != str(user_id) and str(conversation.owner_id) != str(user_id):
-                        # 也允许参与者访问（如已创建 participant）
-                        participant = self.db.query(ConversationParticipant).filter(
-                            ConversationParticipant.conversation_id == conversation_id,
-                            ConversationParticipant.user_id == user_id,
-                            ConversationParticipant.is_active == True
-                        ).first()
-                        if not participant:
-                            return None
-
-            # 检查用户是否是owner
             if str(conversation.owner_id) == user_id:
-                # 是owner，获取或创建参与者记录
                 participant = self._get_or_create_participant(conversation_id, user_id, default_role="owner")
             else:
-                # 检查用户是否是参与者
                 participant = self.db.query(ConversationParticipant).filter(
                     ConversationParticipant.conversation_id == conversation_id,
                     ConversationParticipant.user_id == user_id,
                     ConversationParticipant.is_active == True
                 ).first()
-                
+
                 if not participant:
-                    # 渠道会话未分配：允许访问
-                    if conversation.tag == "channel":
-                        assignment = self._get_channel_assignment(conversation)
-                        status = assignment.get("status") or "unassigned"
-                        assignee_user_id = assignment.get("assignee_user_id")
-                        if status != "assigned" or not assignee_user_id:
-                            participant = None
-                        else:
-                            return None
-                    else:
-                        # 既不是owner也不是参与者，拒绝访问
-                        return None
+                    return None
         else:
             conversation = query.first()
             if not conversation:
@@ -985,31 +866,9 @@ class ChatService:
         sender: User
     ) -> MessageInfo:
         """创建通用消息"""
-        # 渠道会话：首次发送自动领取（独占）
         conversation = self.db.query(Conversation).filter(Conversation.id == conversation_id).first()
         if not conversation:
             raise BusinessException("会话不存在", code=ErrorCode.RESOURCE_NOT_FOUND)
-
-        channel_extra: Optional[Dict[str, Any]] = None
-        if conversation.tag == "channel":
-            # 领取（若已被他人领取会抛异常）
-            self.claim_channel_conversation_if_needed(conversation_id=conversation_id, user=sender)
-            self.db.commit()
-            self.db.refresh(conversation)
-
-            channel_info = self._get_channel_info(conversation)
-            assignment = self._get_channel_assignment(conversation)
-            channel_extra = {
-                "channel": {
-                    "type": channel_info.get("type"),
-                    "peer_id": channel_info.get("peer_id"),
-                    "peer_name": channel_info.get("peer_name"),
-                    "direction": "outbound",
-                    "assignee_user_id": assignment.get("assignee_user_id"),
-                    "assignee_name": assignment.get("assignee_name"),
-                    "from_user_name": getattr(sender, "username", None),
-                }
-            }
 
         # 验证content字段
         if not request.content:
@@ -1034,7 +893,6 @@ class ChatService:
                 content=text,
                 sender_type="user",  # 智能聊天消息统一使用 user
                 reply_to_message_id=request.reply_to_message_id,
-                extra_metadata=channel_extra
             )
         elif request.type == "media":
             # 从 content 中提取媒体信息
@@ -1051,7 +909,6 @@ class ChatService:
                     media_file_id=media_file_id,
                     text=text,
                     sender_type="chat",  # 智能聊天消息统一使用chat
-                    extra_metadata=channel_extra
                 )
             else:
                 raise ValueError("媒体消息内容格式不正确")
@@ -1200,16 +1057,6 @@ class ChatService:
         
         if not conversation:
             return False
-        
-        # 渠道会话：未分配允许访问；已领取仅领取人/owner/参与者/管理员允许
-        if conversation.tag == "channel":
-            assignment = self._get_channel_assignment(conversation)
-            status = assignment.get("status") or "unassigned"
-            assignee_user_id = assignment.get("assignee_user_id")
-            if status != "assigned" or not assignee_user_id:
-                return True
-            if str(assignee_user_id) == str(user_id):
-                return True
 
         # 检查是否是会话所有者
         if str(conversation.owner_id) == user_id:

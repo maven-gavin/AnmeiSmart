@@ -60,7 +60,7 @@ export interface ConversationApiResponse {
   id: string;
   title: string;
   chat_mode: 'single' | 'group';
-  tag: 'chat' | 'consultation' | 'channel';
+  tag: 'chat' | 'consultation';
   owner_id: string;
   owner?: {
     id: string;
@@ -114,7 +114,7 @@ export interface CreateConversationRequest {
   customer_id: string; // 保持向后兼容，后端会映射到owner_id
   title: string;
   chat_mode?: 'single' | 'group';
-  tag?: 'chat' | 'consultation' | 'channel';
+  tag?: 'chat' | 'consultation';
 }
 
 /**
