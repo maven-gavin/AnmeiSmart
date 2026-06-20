@@ -7,8 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
@@ -33,7 +31,7 @@ import { useAgentConfigs } from '@/hooks/useAgentConfigs';
 import { AgentConfig, AgentConfigCreate, AgentConfigUpdate } from '@/service/agentConfigService';
 import { SMARTBRAIN_API_BASE_URL, SMARTBRAIN_DEFAULT_TIMEOUT, SMARTBRAIN_DEFAULT_MAX_RETRIES } from '@/config';
 import { EnhancedPagination } from '@/components/ui/pagination';
-import { AgentLlmConfigFields } from '@/components/agents/AgentLlmConfigFields';
+import { AgentConfigForm } from '@/components/agents/AgentConfigForm';
 import {
   capabilitiesFromRecord,
   capabilitiesToRecord,
@@ -365,6 +363,24 @@ export default function AgentsPage() {
   const currentConfigs = configs.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(configs.length / itemsPerPage);
 
+  const formValues = {
+    environment,
+    appId,
+    appName,
+    agentType,
+    apiKey,
+    baseUrl,
+    description,
+    timeoutSeconds,
+    maxRetries,
+    enabled,
+    llmProvider,
+    capabilities,
+  };
+
+  const agentConfigDialogClass =
+    'flex max-h-[90vh] w-full max-w-4xl flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl';
+
   return (
     <AppLayout requiredRole={user?.currentRole}>
       <div className="container mx-auto px-4 py-6">
@@ -441,7 +457,7 @@ export default function AgentsPage() {
 
 
 
-        <div className="overflow-hidden rounded-lg border border-gray-200 shadow">
+        <div className="overflow-x-auto rounded-lg border border-gray-200 shadow">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -573,400 +589,80 @@ export default function AgentsPage() {
 
         {/* 创建对话框 */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>创建Agent配置</DialogTitle>
+          <DialogContent className={agentConfigDialogClass}>
+            <DialogHeader className="shrink-0 border-b border-gray-200 px-6 py-5">
+              <DialogTitle>创建 Agent 配置</DialogTitle>
               <DialogDescription>
-                创建一个新的Agent配置，设置环境、API密钥和其他参数
+                填写基本信息与 LLM 连接参数，创建新的 Agent
               </DialogDescription>
             </DialogHeader>
-            
-            {formError && (
-              <div className="rounded-md bg-red-50 p-3 text-sm text-red-500">
-                {formError}
-              </div>
-            )}
-            
-            <form onSubmit={handleCreateConfig} className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="create-environment" className="mb-2 block text-sm font-medium text-gray-700">
-                    环境 *
-                  </Label>
-                  <Select value={environment} onValueChange={setEnvironment}>
-                    <SelectTrigger id="create-environment" className="w-full">
-                      <SelectValue placeholder="选择环境" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="dev">开发环境</SelectItem>
-                      <SelectItem value="test">测试环境</SelectItem>
-                      <SelectItem value="prod">生产环境</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <Label htmlFor="create-appId" className="mb-2 block text-sm font-medium text-gray-700">
-                    应用ID *
-                  </Label>
-                  <Input
-                    id="create-appId"
-                    type="text"
-                    value={appId}
-                    onChange={(e) => setAppId(e.target.value)}
-                    disabled={formLoading}
-                    placeholder="例如: AGENT_CHAT_API_KEY"
-                  />
-                </div>
 
-                <div>
-                  <Label htmlFor="create-appName" className="mb-2 block text-sm font-medium text-gray-700">
-                    应用名称 *
-                  </Label>
-                  <Input
-                    id="create-appName"
-                    type="text"
-                    value={appName}
-                    onChange={(e) => setAppName(e.target.value)}
-                    disabled={formLoading}
-                    placeholder="例如: 通用聊天"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="create-agentType" className="mb-2 block text-sm font-medium text-gray-700">
-                    应用类型
-                  </Label>
-                  <Select value={agentType} onValueChange={setAgentType}>
-                    <SelectTrigger id="create-agentType" className="w-full">
-                      <SelectValue placeholder="选择应用类型" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="chat">对话型</SelectItem>
-                      <SelectItem value="agent">智能体</SelectItem>
-                      <SelectItem value="workflow">工作流</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="create-baseUrl" className="mb-2 block text-sm font-medium text-gray-700">
-                    基础URL（也可在下方 LLM 区修改）
-                  </Label>
-                  <Input
-                    id="create-baseUrl"
-                    type="text"
-                    value={baseUrl}
-                    onChange={(e) => setBaseUrl(e.target.value)}
-                    disabled={formLoading}
-                    placeholder={SMARTBRAIN_API_BASE_URL}
-                    className="am-field"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="create-timeoutSeconds" className="mb-2 block text-sm font-medium text-gray-700">
-                    超时时间(秒)
-                  </Label>
-                  <Input
-                    id="create-timeoutSeconds"
-                    type="number"
-                    value={timeoutSeconds}
-                    onChange={(e) => setTimeoutSeconds(parseInt(e.target.value) || 30)}
-                    disabled={formLoading}
-                    min="1"
-                    max="300"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="create-maxRetries" className="mb-2 block text-sm font-medium text-gray-700">
-                    最大重试次数
-                  </Label>
-                  <Input
-                    id="create-maxRetries"
-                    type="number"
-                    value={maxRetries}
-                    onChange={(e) => setMaxRetries(parseInt(e.target.value) || 3)}
-                    disabled={formLoading}
-                    min="0"
-                    max="10"
-                  />
-                </div>
-              </div>
-
-              <AgentLlmConfigFields
+            <div className="flex min-h-0 flex-1 flex-col px-6 pb-6 pt-4">
+              <AgentConfigForm
+                mode="create"
                 idPrefix="create"
                 formLoading={formLoading}
-                llmProvider={llmProvider}
-                onProviderChange={applyProviderPreset}
-                baseUrl={baseUrl}
+                formError={formError}
+                values={formValues}
+                onEnvironmentChange={setEnvironment}
+                onAppIdChange={setAppId}
+                onAppNameChange={setAppName}
+                onAgentTypeChange={setAgentType}
+                onApiKeyChange={setApiKey}
                 onBaseUrlChange={setBaseUrl}
-                capabilities={capabilities}
+                onDescriptionChange={setDescription}
+                onTimeoutSecondsChange={setTimeoutSeconds}
+                onMaxRetriesChange={setMaxRetries}
+                onEnabledChange={setEnabled}
+                onProviderChange={applyProviderPreset}
                 onCapabilitiesChange={setCapabilities}
+                onSubmit={handleCreateConfig}
+                onCancel={() => {
+                  setShowCreateDialog(false);
+                  resetForm();
+                }}
               />
-
-              <div>
-                <Label htmlFor="create-apiKey" className="mb-2 block text-sm font-medium text-gray-700">
-                  API密钥 *
-                </Label>
-                <Input
-                  id="create-apiKey"
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  disabled={formLoading}
-                  placeholder="输入API密钥"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="create-description" className="mb-2 block text-sm font-medium text-gray-700">
-                  描述
-                </Label>
-                <Textarea
-                  id="create-description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  disabled={formLoading}
-                  rows={3}
-                  placeholder="可选: 配置的详细描述"
-                />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="create-enabled"
-                  checked={enabled}
-                  onCheckedChange={(checked) => setEnabled(checked === true)}
-                  disabled={formLoading}
-                />
-                <Label htmlFor="create-enabled" className="text-sm font-medium text-gray-700">
-                  启用配置
-                </Label>
-              </div>
-              
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowCreateDialog(false);
-                    resetForm();
-                  }}
-                  disabled={formLoading}
-                >
-                  取消
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={formLoading}
-                  className="bg-orange-500 hover:bg-orange-600"
-                >
-                  {formLoading ? '创建中...' : '创建配置'}
-                </Button>
-              </DialogFooter>
-            </form>
+            </div>
           </DialogContent>
         </Dialog>
 
         {/* 编辑对话框 */}
         <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>编辑Agent配置</DialogTitle>
+          <DialogContent className={agentConfigDialogClass}>
+            <DialogHeader className="shrink-0 border-b border-gray-200 px-6 py-5">
+              <DialogTitle>编辑 Agent 配置</DialogTitle>
               <DialogDescription>
-                修改Agent配置的参数和设置
+                {editingConfig ? `正在编辑「${editingConfig.appName}」` : '修改 Agent 配置的参数和设置'}
               </DialogDescription>
             </DialogHeader>
-            
-            {formError && (
-              <div className="rounded-md bg-red-50 p-3 text-sm text-red-500">
-                {formError}
-              </div>
-            )}
-            
-            <form onSubmit={handleEditConfig} className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="edit-environment" className="mb-2 block text-sm font-medium text-gray-700">
-                    环境 *
-                  </Label>
-                  <Select value={environment} onValueChange={setEnvironment}>
-                    <SelectTrigger id="edit-environment" className="w-full">
-                      <SelectValue placeholder="选择环境" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="dev">开发环境</SelectItem>
-                      <SelectItem value="test">测试环境</SelectItem>
-                      <SelectItem value="prod">生产环境</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <Label htmlFor="edit-appId" className="mb-2 block text-sm font-medium text-gray-700">
-                    应用ID *
-                  </Label>
-                  <Input
-                    id="edit-appId"
-                    type="text"
-                    value={appId}
-                    onChange={(e) => setAppId(e.target.value)}
-                    disabled={formLoading}
-                    placeholder="例如: AGENT_CHAT_API_KEY"
-                  />
-                </div>
 
-                <div>
-                  <Label htmlFor="edit-appName" className="mb-2 block text-sm font-medium text-gray-700">
-                    应用名称 *
-                  </Label>
-                  <Input
-                    id="edit-appName"
-                    type="text"
-                    value={appName}
-                    onChange={(e) => setAppName(e.target.value)}
-                    disabled={formLoading}
-                    placeholder="例如: 通用聊天"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="edit-agentType" className="mb-2 block text-sm font-medium text-gray-700">
-                    应用类型
-                  </Label>
-                  <Select value={agentType} onValueChange={setAgentType}>
-                    <SelectTrigger id="edit-agentType" className="w-full">
-                      <SelectValue placeholder="选择应用类型" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="chat">对话型</SelectItem>
-                      <SelectItem value="agent">智能体</SelectItem>
-                      <SelectItem value="workflow">工作流</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="edit-baseUrl" className="mb-2 block text-sm font-medium text-gray-700">
-                    基础URL（也可在下方 LLM 区修改）
-                  </Label>
-                  <Input
-                    id="edit-baseUrl"
-                    type="text"
-                    value={baseUrl}
-                    onChange={(e) => setBaseUrl(e.target.value)}
-                    disabled={formLoading}
-                    placeholder={SMARTBRAIN_API_BASE_URL}
-                    className="am-field"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="edit-timeoutSeconds" className="mb-2 block text-sm font-medium text-gray-700">
-                    超时时间(秒)
-                  </Label>
-                  <Input
-                    id="edit-timeoutSeconds"
-                    type="number"
-                    value={timeoutSeconds}
-                    onChange={(e) => setTimeoutSeconds(parseInt(e.target.value) || 30)}
-                    disabled={formLoading}
-                    min="1"
-                    max="300"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="edit-maxRetries" className="mb-2 block text-sm font-medium text-gray-700">
-                    最大重试次数
-                  </Label>
-                  <Input
-                    id="edit-maxRetries"
-                    type="number"
-                    value={maxRetries}
-                    onChange={(e) => setMaxRetries(parseInt(e.target.value) || 3)}
-                    disabled={formLoading}
-                    min="0"
-                    max="10"
-                  />
-                </div>
-              </div>
-
-              <AgentLlmConfigFields
+            <div className="flex min-h-0 flex-1 flex-col px-6 pb-6 pt-4">
+              <AgentConfigForm
+                mode="edit"
                 idPrefix="edit"
                 formLoading={formLoading}
-                llmProvider={llmProvider}
-                onProviderChange={applyProviderPreset}
-                baseUrl={baseUrl}
+                formError={formError}
+                values={formValues}
+                onEnvironmentChange={setEnvironment}
+                onAppIdChange={setAppId}
+                onAppNameChange={setAppName}
+                onAgentTypeChange={setAgentType}
+                onApiKeyChange={setApiKey}
                 onBaseUrlChange={setBaseUrl}
-                capabilities={capabilities}
+                onDescriptionChange={setDescription}
+                onTimeoutSecondsChange={setTimeoutSeconds}
+                onMaxRetriesChange={setMaxRetries}
+                onEnabledChange={setEnabled}
+                onProviderChange={applyProviderPreset}
                 onCapabilitiesChange={setCapabilities}
+                onSubmit={handleEditConfig}
+                onCancel={() => {
+                  setShowEditDialog(false);
+                  setEditingConfig(null);
+                  resetForm();
+                }}
               />
-
-              <div>
-                <Label htmlFor="edit-apiKey" className="mb-2 block text-sm font-medium text-gray-700">
-                  API密钥（留空表示不修改）
-                </Label>
-                <Input
-                  id="edit-apiKey"
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  disabled={formLoading}
-                  placeholder="输入新的API密钥（可选）"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="edit-description" className="mb-2 block text-sm font-medium text-gray-700">
-                  描述
-                </Label>
-                <Textarea
-                  id="edit-description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  disabled={formLoading}
-                  rows={3}
-                  placeholder="可选: 配置的详细描述"
-                />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="edit-enabled"
-                  checked={enabled}
-                  onCheckedChange={(checked) => setEnabled(checked === true)}
-                  disabled={formLoading}
-                />
-                <Label htmlFor="edit-enabled" className="text-sm font-medium text-gray-700">
-                  启用配置
-                </Label>
-              </div>
-              
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowEditDialog(false);
-                    setEditingConfig(null);
-                    resetForm();
-                  }}
-                  disabled={formLoading}
-                >
-                  取消
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={formLoading}
-                  className="bg-orange-500 hover:bg-orange-600"
-                >
-                  {formLoading ? '更新中...' : '更新配置'}
-                </Button>
-              </DialogFooter>
-            </form>
+            </div>
           </DialogContent>
         </Dialog>
 

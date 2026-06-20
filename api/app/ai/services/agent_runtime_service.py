@@ -243,8 +243,13 @@ class AgentRuntimeService:
                 },
             }
         except Exception as exc:
+            error_text = str(exc)
+            if "401" in error_text or "authentication" in error_text.lower():
+                message = "LLM API Key 无效或已过期，请在「编辑配置」中更新 API Key"
+            else:
+                message = f"LLM 连接测试失败: {exc}"
             return {
                 "success": False,
-                "message": f"LLM 连接测试失败: {exc}",
-                "details": {"model": caps.model, "base_url": config.base_url, "error": str(exc)},
+                "message": message,
+                "details": {"model": caps.model, "base_url": config.base_url, "error": error_text},
             }
