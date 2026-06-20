@@ -373,55 +373,6 @@ class BroadcastingService:
         except Exception as e:
             logger.error(f"发送移动端通知失败: {e}")
     
-    async def broadcast_consultation_reply(self, conversation_id: str, reply_data: Dict[str, Any], consultant_id: str):
-        """
-        广播顾问回复（优化推送策略：桌面端实时，移动端推送）
-        """
-        try:
-            participants = await self._get_conversation_participants(conversation_id)
-            
-            reply_payload = {
-                "action": "consultation_reply",
-                "data": reply_data,
-                "conversation_id": conversation_id,
-                "consultant_id": consultant_id,
-                "timestamp": datetime.now().isoformat()
-            }
-            
-            for participant_id in participants:
-                if participant_id == consultant_id:
-                    continue  # 排除发送者
-                
-                # 检查用户在线状态
-                is_online = await self.connection_manager.is_user_online(participant_id)
-                
-                if is_online:
-                    # 在线用户：发送到所有设备
-                    await self.connection_manager.send_to_user(participant_id, reply_payload)
-                    logger.debug(f"顾问回复已发送到在线用户: user_id={participant_id}")
-                else:
-                    # 离线用户：优先推送到移动设备
-                    
-                    notify_data = NotificationData(
-                        title="顾问回复",
-                        body=self._extract_notification_content(reply_data),
-                        conversation_id=conversation_id,
-                        action="open_conversation"
-                    )
-                    
-                    await self._send_to_user_with_fallback(
-                        user_id=participant_id,
-                        payload=reply_payload,
-                        target_device_type="mobile",
-                        notification_data=notify_data
-                    )
-                    logger.debug(f"顾问回复推送已发送: user_id={participant_id}")
-            
-            logger.info(f"顾问回复广播完成: conversation_id={conversation_id}, consultant_id={consultant_id}")
-            
-        except Exception as e:
-            logger.error(f"广播顾问回复失败: {e}")
-    
     async def get_user_device_info(self, user_id: str) -> List[Dict[str, Any]]:
         """
         获取用户的设备连接信息

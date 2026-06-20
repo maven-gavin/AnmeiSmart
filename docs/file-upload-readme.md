@@ -766,7 +766,6 @@ const uploadFileWithResumable = async (file: File): Promise<FileInfo> => {
 - ✅ 文件上传端到端测试
 
 ### 功能测试
-- ✅ 文件上传功能测试指南
 - ✅ 断点续传测试
 - ✅ 多种文件类型测试
 
@@ -818,9 +817,8 @@ const uploadFileWithResumable = async (file: File): Promise<FileInfo> => {
 
 ## 相关文档
 
-- [文件上传功能测试指南](./文件上传功能测试指南.md)
-- [统一消息模型实现文档](./unified-message-model-implementation.md)
 - [AI Agent Chat API 指南](./agent-chat-api-guide.md)
+- [API 错误处理规范](./API_ERROR_HANDLING_STANDARD.md)
 
 ---
 

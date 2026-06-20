@@ -100,38 +100,29 @@ npm run dev
 
 ```
 AnmeiSmart/
-├── api/                 # 后端API服务
-│   ├── app/             # 应用主目录
-│   │   ├── api/         # API路由
-│   │   │   ├── core/        # 核心配置
-│   │   │   ├── db/          # 数据库模型和配置
-│   │   │   ├── schemas/     # 数据验证模式
-│   │   │   └── services/    # 业务服务
-│   │   ├── migrations/      # 数据库迁移
-│   │   └── tests/           # 测试
-├── web/                 # 前端应用
-│   │   ├── public/          # 静态资源
-│   │   └── src/             # 源代码
-│   │       ├── app/         # 页面组件
-│   │       ├── components/  # 可复用组件
-│   │       ├── contexts/    # React上下文
-│   │       ├── service/     # 服务层
-│   │       └── types/       # 类型定义
-├── docs/                # 项目文档
-├── desktop/                # （待新增）：Tauri桌面应用
-│   │   ├── src-tauri/         # Tauri Rust后端
-│   │   ├── src/               # 共享前端代码
-│   │   └── tauri.conf.json    # Tauri配置
-├── mobile/                 # （待新增）：Tauri移动应用
-│   │   ├── src-tauri/         # 移动端Tauri配置
-│   │   ├── src/               # 移动端适配代码
-│   │   └── gen/               # 生成的移动端代码
-└── shared/                 # （待新增）：共享组件和逻辑
-    │    ├── components/        # 跨平台UI组件
-    │    ├── services/          # 共享业务逻辑
-    │    ├── types/             # 共享类型定义
-    │    └── utils/             # 工具函数
+├── api/                 # 后端 FastAPI
+│   ├── app/             # 业务域模块（identity_access, chat, datahub, ...）
+│   ├── migrations/      # Alembic 迁移
+│   └── scripts/         # 初始化与运维脚本
+├── web/                 # 前端 Next.js
+├── docs/                # 项目文档（见下方索引）
+└── docker-compose.yml
 ```
+
+## 文档索引
+
+| 文档 | 说明 |
+|------|------|
+| [产品需求说明书](./产品需求说明书.md) | 产品总览 |
+| [datahub-architecture-plan.md](./datahub-architecture-plan.md) | DataHub 架构 |
+| [agent-chat-api-guide.md](./agent-chat-api-guide.md) | Agent 对话 API |
+| [file-upload-readme.md](./file-upload-readme.md) | 文件上传 |
+| [API_ERROR_HANDLING_STANDARD.md](./API_ERROR_HANDLING_STANDARD.md) | 全栈错误处理 |
+| [ERROR_HANDLING_STANDARD.md](./ERROR_HANDLING_STANDARD.md) | 前端错误处理 |
+| [websocket-broadcasting-architecture.md](./websocket-broadcasting-architecture.md) | WebSocket 广播 |
+| [ai-gateway-architecture-implementation.md](./ai-gateway-architecture-implementation.md) | AI Gateway |
+| [database-design.md](./database-design.md) | 数据库设计 |
+| [AnmeiSmart系统架构与选型深度研究报告v1.0.md](./AnmeiSmart系统架构与选型深度研究报告v1.0.md) | 架构选型 |
 
 ## 分支管理规范
 

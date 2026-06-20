@@ -112,7 +112,7 @@ def computed_property(self) -> str:
 
 ## 参考实现
 
-参考`api/app/db/models/system.py`中的`AIModelConfig`和`DifyConfig`类的实现。
+参考 `api/app/ai/models/agent_config.py` 中带加密字段的 hybrid_property 实现。
 
 ## 类型检查
 
