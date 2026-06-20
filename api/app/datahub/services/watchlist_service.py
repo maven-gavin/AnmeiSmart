@@ -50,7 +50,7 @@ class DatahubWatchlistService:
             raise BusinessException(f"自选股已存在: {symbol}", code=ErrorCode.VALIDATION_ERROR)
 
         name = (payload.name or "").strip() or None
-        if not name:
+        if self._is_placeholder_name(name):
             name = self._lookup_security_name(symbol)
 
         max_sort = self.db.query(DatahubWatchlistItem.sort_order).order_by(DatahubWatchlistItem.sort_order.desc()).first()
@@ -222,7 +222,7 @@ class DatahubWatchlistService:
             if sector_code:
                 needed_sector_codes.add(sector_code)
 
-            display_name = item.name or name_map.get(item.symbol)
+            display_name = self._resolve_display_name(item.symbol, item.name, name_map)
 
             rows.append(
                 WatchlistBoardRow(
@@ -261,11 +261,26 @@ class DatahubWatchlistService:
         return WatchlistBoardResponse(limit_days=limit_days, rows=rows)
 
     @staticmethod
+    def _is_placeholder_name(name: str | None) -> bool:
+        if not name:
+            return True
+        trimmed = name.strip()
+        return not trimmed or trimmed.isdigit()
+
+    def _resolve_display_name(self, symbol: str, stored_name: str | None, name_map: dict[str, str]) -> str | None:
+        resolved = name_map.get(normalize_symbol(symbol))
+        if resolved:
+            return resolved
+        if stored_name and not self._is_placeholder_name(stored_name):
+            return stored_name
+        return None
+
+    @staticmethod
     def _apply_resolved_name(row: DatahubWatchlistItem, name_map: dict[str, str]) -> bool:
-        if row.name:
-            return False
         resolved = name_map.get(row.symbol)
         if not resolved:
+            return False
+        if row.name and not DatahubWatchlistService._is_placeholder_name(row.name):
             return False
         row.name = resolved
         return True

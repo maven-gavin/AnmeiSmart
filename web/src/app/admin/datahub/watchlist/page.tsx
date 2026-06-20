@@ -19,11 +19,7 @@ export default function DatahubWatchlistPage() {
   return (
     <AppLayout requiredRole={user?.currentRole}>
       <div className="am-page">
-        <div className="am-container space-y-6">
-          <div>
-            <h1 className="am-page-title">自选股</h1>
-            <p className="text-sm text-gray-500">查看自选列表的最新日线行情（DataHub 标准数据）</p>
-          </div>
+        <div className="am-container space-y-4 py-4">
           <WatchlistBoard />
         </div>
       </div>
