@@ -1,67 +1,68 @@
-# 前端错误处理开发规范
+# 错误处理规范
 
-## 概述
+前后端 API 交互的统一错误处理约定。实现细节见代码，本文仅保留契约与用法要点。
 
-本文档定义前端统一的错误处理规范。后端 API 契约见 [API_ERROR_HANDLING_STANDARD.md](./API_ERROR_HANDLING_STANDARD.md)。
+## API 契约
 
-## 核心原则
+所有响应使用 `{ code, message, data?, timestamp? }` 格式，`code === 0` 表示成功。
 
-1. **统一错误类型**：使用 `ApiClientError` 作为唯一错误类型
-2. **自动错误处理**：业务错误自动 toast，系统错误自动上报
-3. **类型安全**：充分利用 TypeScript 类型检查
+| 错误码范围 | 类型 | HTTP 状态码（典型） |
+|-----------|------|-------------------|
+| `0` | 成功 | 200 |
+| `40000–49999` | 业务错误（可预期） | 200 / 404 等 |
+| `50000+` | 系统错误（意外） | 500 |
 
-## 错误分类
+完整错误码见 `api/app/core/api/errors.py`。
 
-| 错误类型 | 错误码范围 | Toast | 控制台 | 上报 | 示例 |
-|---------|-----------|-------|--------|------|------|
-| 业务错误 | 40000-49999 | ✅ | ❌ | ❌ | 角色名称已存在 |
-| 系统错误 | 50000+ | ✅ | ✅ | ✅ | 服务器内部错误 |
-| 网络错误 | - | ✅ | ✅ | ✅ | 网络连接失败 |
-| 认证错误 | 401 | ✅ | ✅ | ✅ | Token 过期 |
+## 后端
 
-## 导入
+**模块**：`app.core.api`（`ApiResponse`、`ErrorCode`、`BusinessException`、`SystemException`）
 
-```typescript
-import { ApiClientError, ErrorType, handleApiError } from '@/service/apiClient'
+**Controller 模式**：
+
+```python
+from app.core.api import ApiResponse, BusinessException, SystemException, ErrorCode
+
+@router.post("", response_model=ApiResponse[EntityResponse])
+async def create_entity(...):
+    try:
+        entity = service.create(...)
+        return ApiResponse.success(EntityResponse.model_validate(entity), message="创建成功")
+    except BusinessException:
+        raise
+    except Exception as e:
+        logger.error("创建失败", exc_info=True)
+        raise SystemException("创建失败", code=ErrorCode.SYSTEM_ERROR)
 ```
 
-## 使用方式
+**Service 层**：业务校验失败直接 `raise BusinessException(...)`，不抛 `HTTPException`。
+
+**全局处理器**：已在应用启动时注册（`register_exception_handlers`），Controller 无需手动构造错误响应。
+
+参考：`api/app/core/api/`、`api/app/identity_access/controllers/roles.py`
+
+## 前端
+
+**模块**：`@/service/apiClient`（`apiClient`、`ApiClientError`、`ErrorType`、`handleApiError`）
+
+| 错误类型 | 错误码 | Toast | 上报 |
+|---------|--------|-------|------|
+| 业务错误 | 40000–49999 | 自动 | 否 |
+| 系统错误 | 50000+ | 自动 | 是 |
+| 认证/网络 | 401 等 | 自动 | 是 |
 
 ```typescript
-import { handleApiError } from '@/service/apiClient'
-import toast from 'react-hot-toast'
+import { apiClient, handleApiError } from '@/service/apiClient'
 
 try {
   await apiClient.post('/roles', data)
   toast.success('创建成功')
 } catch (err) {
-  const message = handleApiError(err, '创建失败')
-  setFormError(message)
+  setFormError(handleApiError(err, '创建失败'))
 }
 ```
 
-## 创建自定义错误
+- 业务错误：`apiClient` 已 toast，组件内只设置表单/页面错误文案
+- 不要用已废弃的 `AppError` / `@/service/errors`
 
-```typescript
-import { ApiClientError, ErrorType } from '@/service/apiClient'
-
-throw new ApiClientError('角色名称已存在', {
-  code: 40001,
-  status: 200,
-  type: ErrorType.VALIDATION,
-})
-```
-
-## 最佳实践
-
-1. 业务错误不手动 toast（`apiClient` 已处理）
-2. 系统错误不手动 `console.error`（会自动上报）
-3. 统一用 `handleApiError` 提取表单/页面错误文案
-4. 不要使用已废弃的 `AppError` / `@/service/errors`
-
-## 检查清单
-
-- [ ] 使用 `ApiClientError`
-- [ ] 使用 `handleApiError` 处理 catch
-- [ ] 业务错误不重复 toast
-- [ ] 系统错误不重复打日志
+参考：`web/src/service/apiClient.ts`、`web/src/service/permissionService.ts`

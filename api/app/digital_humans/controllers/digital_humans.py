@@ -1,7 +1,7 @@
 """
 数字人管理API端点
 
-遵循 docs/API_ERROR_HANDLING_STANDARD.md：
+遵循 docs/ERROR_HANDLING_STANDARD.md：
 - 使用 ApiResponse 统一响应格式
 - 使用 BusinessException/SystemException + ErrorCode 统一错误处理
 """
