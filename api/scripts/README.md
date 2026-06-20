@@ -14,7 +14,7 @@
 
 ## 数据库迁移流程
 
-1. 当你修改 `app/db/models/` 目录下的模型文件时，需要创建数据库迁移
+1. 当你修改各业务域 `app/*/models/` 下的模型文件时，需要创建数据库迁移
 2. 使用 `migration.py` 脚本检测变更并创建迁移文件
 3. 应用迁移更新数据库结构
 4. 如果需要测试数据，使用 `seed_db.py` 填充
@@ -115,7 +115,7 @@ python .\scripts\seed_db.py
 
 ## 数据库设计原则
 
-- `app/db/models/` 目录下的模型文件是数据库结构的唯一真实来源
+- 各业务域 `app/*/models/` 下的模型文件是数据库结构的来源
 - 所有数据库结构变更都应通过模型文件修改和迁移脚本来实现
 - 系统基础数据通过 `init_db.py` 初始化
 - 测试和示例数据通过 `seed_db.py` 填充
@@ -205,9 +205,8 @@ python .\scripts\seed_db.py
 
 ## 其他脚本
 
-此外，还有一些辅助脚本：
-
-- **setup.py**: 安装指南脚本
+- **setup_pgvector.py**: 初始化 pgvector 扩展
+- **start_datahub_worker.sh**: 启动 DataHub 后台 worker
 
 ## 注意事项
 

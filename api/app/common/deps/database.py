@@ -67,7 +67,6 @@ def init_db():
     import app.customer.models
     import app.common.models.upload
     import app.common.models.file
-    import app.channels.models  # 渠道模型
     import app.datahub.models
     import app.ai.models
     

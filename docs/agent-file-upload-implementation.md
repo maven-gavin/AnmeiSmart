@@ -269,7 +269,6 @@ file: <binary>
 ## 📚 相关文档
 
 - [Agent对话API指南](./agent-chat-api-guide.md)
-- [Agent配置管理](./agent-config-constants.md)
 - [文件上传功能](./file-upload-readme.md)
 
 ## 🎉 总结

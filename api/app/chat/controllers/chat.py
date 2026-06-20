@@ -32,10 +32,8 @@ from app.core.api import (
 
 # 导入服务层
 from app.chat.services.chat_service import ChatService
-from app.channels.services.channel_service import ChannelService
-from app.channels.deps.channel_deps import get_channel_service
 from app.chat.deps.chat import get_chat_service
-from app.chat.models.chat import Conversation, Message
+from app.chat.models.chat import Conversation
 from app.customer.services.customer_insight_pipeline import enqueue_customer_insight_job
 
 # 导入事件总线
@@ -217,7 +215,6 @@ async def create_message(
     request: MessageCreateRequest,
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
-    channel_service: ChannelService = Depends(get_channel_service),
 ):
     """创建通用消息"""
     try:
@@ -228,22 +225,6 @@ async def create_message(
             sender=current_user
         )
 
-        # 渠道会话：将消息转发到对应渠道（不影响现有页面，只影响发送去向）
-        conv_model = None
-        try:
-            conv_model = chat_service.db.query(Conversation).filter(Conversation.id == conversation_id).first()
-            if conv_model and conv_model.tag == "channel":
-                channel_meta = (conv_model.extra_metadata or {}).get("channel") if isinstance(conv_model.extra_metadata, dict) else None
-                if isinstance(channel_meta, dict):
-                    channel_type = channel_meta.get("type")
-                    peer_id = channel_meta.get("peer_id")
-                    if channel_type and peer_id:
-                        msg_model = chat_service.db.query(Message).filter(Message.id == message.id).first()
-                        if msg_model:
-                            await channel_service.send_to_channel(msg_model, channel_type=channel_type, channel_user_id=peer_id)
-        except Exception as e:
-            logger.error(f"渠道消息转发失败: conversation_id={conversation_id}, error={e}", exc_info=True)
-        
         # 广播消息
         await chat_service.broadcast_message_safe(
             conversation_id=conversation_id,
@@ -255,8 +236,7 @@ async def create_message(
         try:
             role = get_user_primary_role(current_user)
             if role == "customer":
-                if not conv_model:
-                    conv_model = chat_service.db.query(Conversation).filter(Conversation.id == conversation_id).first()
+                conv_model = chat_service.db.query(Conversation).filter(Conversation.id == conversation_id).first()
                 # 目前仅处理站内会话（tag != channel）
                 if conv_model and conv_model.tag != "channel":
                     enqueue_customer_insight_job(

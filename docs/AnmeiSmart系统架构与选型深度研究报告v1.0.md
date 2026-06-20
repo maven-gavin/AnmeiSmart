@@ -59,7 +59,7 @@
   - 统一 `apiClient`，支持普通 HTTP 与 SSE 流式响应。  
 
 - **应用服务层（FastAPI）**  
-  - 以业务域模块组织（identity_access / chat / mcp / ai / tasks / channels / digital_humans 等）。  
+  - 以业务域模块组织（identity_access / chat / mcp / ai / tasks / datahub / digital_humans 等）。  
   - 路由统一在 `api/app/api.py` 聚合，便于版本与网关治理。  
 
 - **协议与智能层（MCP + AI Gateway）**  
@@ -226,14 +226,11 @@
 - 任务意图路由、敏感规则、状态流转可配置；  
 - 任务与消息、用户、渠道打通，提升执行可追踪性。  
 
-### 5.6 渠道接入域（Channels）
+### 5.6 渠道接入域（规划中）
 
-**目标**：统一对接飞书/钉钉等外部渠道，隔离接入复杂度。  
+**状态**：尚未实现。原企业微信集成已移除，后续如需接入飞书/钉钉等外部渠道再单独设计。
 
-**设计重点：**
-- 适配器模式统一渠道差异；  
-- Webhook 与归档拉取分离，降低耦合；  
-- 渠道身份映射（channel identity）确保会话主体一致。  
+**目标**：统一对接外部 IM 渠道，隔离接入复杂度。
 
 ---
 

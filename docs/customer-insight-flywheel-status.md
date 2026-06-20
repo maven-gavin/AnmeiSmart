@@ -70,12 +70,8 @@
   - 在 `POST /chat/conversations/{conversation_id}/messages` 成功后：
     - 若发送者主角色为 customer 且会话 tag != channel，则异步触发洞察任务
   - 新增异步 pipeline：创建独立 DB Session 执行洞察提取与落库，失败降级只记录日志
-- **多渠道入站身份归一（channel -> customer）**
-  - 新增 `ChannelIdentity`（`channel_identities`）：`channel_type + peer_id -> customer_user_id`
-  - 渠道入站消息处理：自动 lookup/create customer(User)+Customer/Profile，并把渠道会话 `owner_id` 绑定到该 customer
-  - 渠道入站文本消息：同样会触发洞察 pipeline（失败不影响主流程）
-- **会话内容存档接入（客户联系）**
-  - 已移除（原企业微信会话存档方案不再维护）
+- **多渠道入站（已移除）**
+  - 原 channels 模块与企业微信集成已下线；历史 tag=channel 的会话数据可能仍存在，但不再有入站/出站能力
 - **配置启用方式**
   - 通过 AgentConfig 表按 `app_name="客户画像洞察器"` 精确匹配启用
   - 未配置时自动跳过洞察提取，不影响主流程
@@ -97,16 +93,9 @@
 - 待办：覆盖触发时机（AI 写入、人工写入、或两者）
 - 待办：是否需要“同类合并/压缩”来控制 token
 
-#### 4.2 多渠道入站的进一步完善（待做）
+#### 4.2 多渠道入站（已下线）
 
-当前已实现基础闭环：外部消息可以自动归一到 customer 并触发画像飞轮。后续仍建议补齐：
-
-- ✅ 已实现：支持“把一个新来的 channel peer_id 绑定到一个**已有** customer”（避免重复建客户）
-- ✅ 已实现：支持“一个 customer 绑定多个 ChannelIdentity”（多渠道同一客户合并）
-- ✅ 已实现：支持人工合并/迁移（冲突处理、误识别修正）
-- ✅ 已实现：补齐前端管理入口（运营/管理员可视化绑定、合并、纠错）
-- ✅ 已实现：更强的自动身份归一（基于手机号/union_id 等外部联系人信息做自动匹配）
-- 备注：入站消息支持可选预绑定（`extra_data.customer_user_id` / `extra_data.bind_to_customer_user_id`），便于后续接入“外部联系人同步/手机号匹配”等上游能力后，直接写入同一客户飞轮。
+原 channels 模块已移除。若后续重新接入外部 IM，需重新设计 adapter 与身份归一方案。
 
 ### 5. 待优化（Nice-to-have / Risk）
 
@@ -119,14 +108,10 @@
 - **性能**
   - profile 查询 active_insights 可考虑增加索引（profile_id, status, created_at desc）
 
-### 6. 下一步计划（立即执行）
+### 6. 下一步计划
 
-1. 设计并落地：`channel_type + peer_id -> customer_id` 映射实体（或复用现有 contacts 模型）
-2. 修改 Channel 入站消息处理：
-   - 将渠道会话关联到真实 customer_id
-   - 入站消息落库后也触发洞察 pipeline
-3. 校验：外部渠道消息进入画像页，能看到 AI 摘要与洞察流持续更新
-
+1. 完善洞察覆盖/归档策略（见 §4.1）
+2. 提升 Dify 输出稳定性与任务幂等性（见 §5）
 
 ### 7. 额外的思考，暂时不实现，待上述任务完成后再沟通分析，现在怎么做还没有想好。
 #### 1. 消息触发SmartBrain（dify）要做的几件事情
