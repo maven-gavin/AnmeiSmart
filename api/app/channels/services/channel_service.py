@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from app.channels.interfaces import ChannelAdapter, ChannelMessage
 from app.chat.services.chat_service import ChatService
 from app.chat.models.chat import Message, Conversation
-from app.common.services.file_service import FileService
 from app.core.api import BusinessException, ErrorCode
 from app.customer.services.customer_insight_pipeline import enqueue_customer_insight_job
 
@@ -25,7 +24,6 @@ class ChannelService:
         self.adapters: Dict[str, ChannelAdapter] = {}
         self.broadcasting_service = broadcasting_service
         self.chat_service = ChatService(db=db, broadcasting_service=broadcasting_service)
-        self.file_service = FileService(db=db)
     
     def register_adapter(self, channel_type: str, adapter: ChannelAdapter):
         """注册渠道适配器"""
@@ -100,39 +98,6 @@ class ChannelService:
                 )
             elif channel_message.message_type == "media":
                 media_info = channel_message.content.get("media_info", {})
-
-                # 如果是企业微信媒体，且有MediaId，尝试下载并转存到我们的MinIO
-                media_id = channel_message.extra_data.get("media_id") if channel_message.extra_data else None
-                if media_id and channel_message.channel_type == "wechat_work":
-                    adapter = self.get_adapter("wechat_work")
-                    if adapter and hasattr(adapter, "client"):
-                        logger.info(f"尝试下载并转存企业微信媒体: media_id={media_id}")
-                        data = await adapter.client.download_media(media_id)
-                        if data:
-                            # 转存到我们的MinIO
-                            # 尝试获取文件名
-                            filename = media_info.get("name") or channel_message.extra_data.get("file_name") or f"wechat_{media_id}"
-                            
-                            # 获取 MIME 类型
-                            mime_type = media_info.get("mime_type")
-                            
-                            upload_result = await self.file_service.upload_binary_data(
-                                data=data,
-                                filename=filename,
-                                conversation_id=conversation.id,
-                                user_id=conversation.owner_id, # 使用会话所有者作为文件归属
-                                mime_type=mime_type
-                            )
-                            
-                            # 更新 media_info 使用我们的存储信息
-                            media_info["file_id"] = upload_result["file_id"]
-                            media_info["name"] = upload_result["file_name"]
-                            media_info["size_bytes"] = upload_result["file_size"]
-                            media_info["mime_type"] = upload_result["mime_type"]
-                            logger.info(f"企业微信媒体转存成功: file_id={media_info['file_id']}")
-                        else:
-                            logger.warning(f"下载企业微信媒体失败: media_id={media_id}")
-
                 media_file_id = media_info.get("file_id")
                 if not media_file_id:
                     logger.warning("渠道媒体消息缺少 file_id，无法创建媒体消息")

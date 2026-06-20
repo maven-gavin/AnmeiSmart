@@ -241,18 +241,9 @@ localPort = 8000
 remotePort = 6000
 ```
 
-## 企业微信 Webhook 配置
+## HTTPS 反向代理配置（TCP 模式）
 
-使用 FRP 后，企业微信 Webhook URL 配置为：
-
-- **TCP 模式**: `http://your_server_ip:6000/api/v1/channels/webhook/wechat-work`
-- **HTTP 模式**: `https://your-domain.com/api/v1/channels/webhook/wechat-work`
-
-**注意**：企业微信要求 HTTPS，所以：
-1. 如果使用 TCP 模式，需要在服务器端配置 Nginx 反向代理并配置 SSL 证书
-2. 如果使用 HTTP 模式，FRP 支持直接配置域名和 SSL
-
-### Nginx 反向代理配置（TCP 模式 + HTTPS）
+若外部服务要求 HTTPS，可在服务器端配置 Nginx 反向代理并配置 SSL 证书：
 
 ```nginx
 server {

@@ -12,7 +12,7 @@ from fastapi import Request
 @dataclass
 class ChannelMessage:
     """渠道消息标准格式"""
-    channel_type: str  # 渠道类型：wechat_work, wechat, whatsapp等
+    channel_type: str  # 渠道类型：lark, dingtalk, whatsapp 等
     channel_message_id: str  # 渠道消息ID（用于去重）
     channel_user_id: str  # 渠道用户ID
     content: Dict[str, Any]  # 消息内容（标准格式）

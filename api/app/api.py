@@ -11,8 +11,6 @@ from app.mcp.controllers import mcp_config, mcp_server, mcp_oauth
 from app.digital_humans.controllers import digital_humans, admin_digital_humans
 from app.tasks.controllers import tasks
 from app.datahub.controllers import datahub as datahub_controller
-from app.channels.controllers import webhook as channel_webhook
-
 api_router = APIRouter()
 
 # 认证相关路由
@@ -87,9 +85,6 @@ api_router.include_router(datahub_controller.router, prefix="/datahub", tags=["d
 
 # 通讯录管理路由
 api_router.include_router(contacts.router, prefix="/contacts", tags=["contacts"])
-
-# 渠道Webhook路由
-api_router.include_router(channel_webhook.router, tags=["channels"])
 
 # 后续可添加其他路由
 

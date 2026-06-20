@@ -231,7 +231,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
             {/* 渠道标识（不改页面结构，仅加标记） */}
             {message.extra_metadata?.channel?.type && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                {['wechat_work', 'wechat_work_kf'].includes(message.extra_metadata.channel.type) ? '企微' : message.extra_metadata.channel.type}
+                {message.extra_metadata.channel.type}
               </span>
             )}
             {showTimestamp && (

@@ -98,14 +98,7 @@ export default function ConversationHistoryList({
 
   // 渲染标签
   const renderTags = (conversation: Conversation) => {
-    const channelType = conversation.extra_metadata?.channel?.type;
-    const channelLabel = channelType === 'wechat_work_contact'
-      ? '企微-客户'
-      : channelType === 'wechat_work_kf'
-      ? '企微-客服'
-      : channelType === 'wechat_work'
-      ? '企微-应用'
-      : '渠道';
+    const channelLabel = conversation.extra_metadata?.channel?.type || '渠道';
 
     return (
     <>
