@@ -29,7 +29,6 @@ interface ChatActionsMenuProps {
 }
 
 export function ChatActionsMenu({
-  conversationId,
   hasCustomerProfile = false,
   onSearchToggle,
   onParticipantsToggle,

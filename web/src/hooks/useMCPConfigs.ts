@@ -9,6 +9,10 @@ import {
   MCPServerStatus 
 } from '@/service/mcpConfigService'
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
+}
+
 export function useMCPConfigs() {
   const [groups, setGroups] = useState<MCPGroup[]>([])
   const [tools, setTools] = useState<MCPTool[]>([])
@@ -25,8 +29,8 @@ export function useMCPConfigs() {
     try {
       const data = await mcpConfigService.getGroups()
       setGroups(data)
-    } catch (error: any) {
-      setError(error.message || '获取分组列表失败')
+    } catch (error: unknown) {
+      setError(getErrorMessage(error, '获取分组列表失败'))
       console.error('加载MCP分组失败:', error)
     } finally {
       setIsLoading(false)
@@ -40,8 +44,8 @@ export function useMCPConfigs() {
       await mcpConfigService.createGroup(groupData)
       await loadGroups() // 重新加载分组列表
       return true
-    } catch (error: any) {
-      setError(error.message || '创建分组失败')
+    } catch (error: unknown) {
+      setError(getErrorMessage(error, '创建分组失败'))
       console.error('创建MCP分组失败:', error)
       return false
     } finally {
@@ -56,8 +60,8 @@ export function useMCPConfigs() {
       await mcpConfigService.updateGroup(groupId, groupData)
       await loadGroups() // 重新加载分组列表
       return true
-    } catch (error: any) {
-      setError(error.message || '更新分组失败')
+    } catch (error: unknown) {
+      setError(getErrorMessage(error, '更新分组失败'))
       console.error('更新MCP分组失败:', error)
       return false
     } finally {
@@ -72,8 +76,8 @@ export function useMCPConfigs() {
       await mcpConfigService.deleteGroup(groupId)
       await loadGroups() // 重新加载分组列表
       return true
-    } catch (error: any) {
-      setError(error.message || '删除分组失败')
+    } catch (error: unknown) {
+      setError(getErrorMessage(error, '删除分组失败'))
       console.error('删除MCP分组失败:', error)
       return false
     } finally {
@@ -86,8 +90,8 @@ export function useMCPConfigs() {
     try {
       const data = await mcpConfigService.getGroupApiKey(groupId)
       return data.api_key
-    } catch (error: any) {
-      setError(error.message || '获取API密钥失败')
+    } catch (error: unknown) {
+      setError(getErrorMessage(error, '获取API密钥失败'))
       console.error('获取分组API密钥失败:', error)
       return null
     }
@@ -100,8 +104,8 @@ export function useMCPConfigs() {
       const data = await mcpConfigService.regenerateApiKey(groupId)
       await loadGroups() // 重新加载分组列表以更新API密钥
       return data.api_key
-    } catch (error: any) {
-      setError(error.message || '重新生成API密钥失败')
+    } catch (error: unknown) {
+      setError(getErrorMessage(error, '重新生成API密钥失败'))
       console.error('重新生成API密钥失败:', error)
       return null
     } finally {
@@ -114,8 +118,8 @@ export function useMCPConfigs() {
     try {
       const data = await mcpConfigService.getGroupServerUrl(groupId)
       return data
-    } catch (error: any) {
-      setError(error.message || '获取MCP Server URL失败')
+    } catch (error: unknown) {
+      setError(getErrorMessage(error, '获取MCP Server URL失败'))
       console.error('获取MCP Server URL失败:', error)
       return null
     }
@@ -129,8 +133,8 @@ export function useMCPConfigs() {
     try {
       const data = await mcpConfigService.getTools(groupId)
       setTools(data)
-    } catch (error: any) {
-      setError(error.message || '获取工具列表失败')
+    } catch (error: unknown) {
+      setError(getErrorMessage(error, '获取工具列表失败'))
       console.error('加载MCP工具失败:', error)
     } finally {
       setIsLoading(false)
@@ -144,8 +148,8 @@ export function useMCPConfigs() {
       await mcpConfigService.updateTool(toolId, toolData)
       await loadTools() // 重新加载工具列表
       return true
-    } catch (error: any) {
-      setError(error.message || '更新工具失败')
+    } catch (error: unknown) {
+      setError(getErrorMessage(error, '更新工具失败'))
       console.error('更新MCP工具失败:', error)
       return false
     } finally {
@@ -160,10 +164,11 @@ export function useMCPConfigs() {
       await mcpConfigService.refreshTools()
       await loadTools() // 重新加载工具列表
       return true
-    } catch (error: any) {
-      const friendlyMessage = error.message?.includes('网络连接失败') 
-        ? 'MCP服务器连接失败，请检查服务器是否正常运行' 
-        : error.message || '刷新工具列表时遇到问题，请稍后重试'
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error, '')
+      const friendlyMessage = errorMessage.includes('网络连接失败')
+        ? 'MCP服务器连接失败，请检查服务器是否正常运行'
+        : errorMessage || '刷新工具列表时遇到问题，请稍后重试'
       
       setError(friendlyMessage)
       console.error('刷新MCP工具列表失败:', error)
@@ -180,8 +185,8 @@ export function useMCPConfigs() {
     try {
       const data = await mcpConfigService.getMCPServerStatus()
       setServerStatus(data)
-    } catch (error: any) {
-      setError(error.message || '获取服务器状态失败')
+    } catch (error: unknown) {
+      setError(getErrorMessage(error, '获取服务器状态失败'))
       console.error('获取MCP服务器状态失败:', error)
     }
   }, [])

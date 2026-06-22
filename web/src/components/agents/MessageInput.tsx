@@ -41,7 +41,6 @@ export function MessageInput({
     isRecording,
     startRecording,
     stopRecording,
-    cancelRecording
   } = useRecording();
 
   // 文件上传

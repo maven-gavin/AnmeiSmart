@@ -251,7 +251,7 @@ class ProfileService {
   async getMyBasicInfo(): Promise<BasicUserInfo> {
     try {
       // 后端返回的是 UserResponse，需要映射到 BasicUserInfo
-      const response = await apiClient.get<any>('/auth/me');
+      const response = await apiClient.get<Record<string, unknown>>('/auth/me');
       
       if (!response.data) {
         throw new ApiClientError('获取用户基本信息失败', {
@@ -261,6 +261,15 @@ class ProfileService {
       }
       
       const userData = response.data;
+
+      const asString = (value: unknown, fallback = ''): string =>
+        typeof value === 'string' ? value : fallback;
+      const asOptionalString = (value: unknown): string | undefined =>
+        typeof value === 'string' ? value : undefined;
+      const asBoolean = (value: unknown, fallback = true): boolean =>
+        typeof value === 'boolean' ? value : fallback;
+      const asStringArray = (value: unknown): string[] =>
+        Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
       
       // 调试日志
       console.log('[getMyBasicInfo] 后端返回的原始数据:', userData);
@@ -273,15 +282,15 @@ class ProfileService {
       
       // 映射数据，支持驼峰和下划线两种格式
       const basicInfo: BasicUserInfo = {
-        id: userData.id || '',
-        username: userData.username || '',
-        email: userData.email || '',
-        phone: userData.phone || undefined,
-        avatar: userData.avatar || undefined,
-        is_active: userData.is_active ?? userData.isActive ?? true,
-        created_at: userData.created_at || userData.createdAt || '',
-        roles: userData.roles || [],
-        active_role: userData.active_role || userData.activeRole || undefined
+        id: asString(userData.id),
+        username: asString(userData.username),
+        email: asString(userData.email),
+        phone: asOptionalString(userData.phone),
+        avatar: asOptionalString(userData.avatar),
+        is_active: asBoolean(userData.is_active ?? userData.isActive, true),
+        created_at: asString(userData.created_at ?? userData.createdAt),
+        roles: asStringArray(userData.roles),
+        active_role: asOptionalString(userData.active_role ?? userData.activeRole),
       };
       
       console.log('[getMyBasicInfo] 映射后的数据:', basicInfo);

@@ -1,6 +1,6 @@
 import { MessageHandler, MessageHandlerRegistry } from './messageHandler';
 import { MessageEventHandler } from './messageEventHandler';
-import { MessageType } from '../types';
+import { MessageData, MessageType } from '../types';
 
 /**
  * 创建默认的处理器注册表 - 新分布式架构
@@ -26,7 +26,7 @@ export function createDefaultHandlerRegistry(): MessageHandlerRegistry {
 export function createCustomHandler(
   name: string,
   types: MessageType[],
-  handler: (message: any) => boolean,
+  handler: (message: MessageData) => boolean,
   priority: number = 20
 ): MessageHandler {
   // 创建匿名处理器类
@@ -35,7 +35,7 @@ export function createCustomHandler(
       super(name, types, priority);
     }
     
-    public handle(message: any): boolean {
+    public handle(message: MessageData): boolean {
       return handler(message);
     }
   }

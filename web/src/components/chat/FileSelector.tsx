@@ -87,20 +87,6 @@ export default function FileSelector({
     return `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }, []);
 
-  // 计算文件MD5（用于断点续传验证）
-  const calculateFileHash = useCallback(async (file: File): Promise<string> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const buffer = reader.result as ArrayBuffer;
-        const hashArray = Array.from(new Uint8Array(buffer));
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        resolve(hashHex.substr(0, 16)); // 使用前16个字符作为简化的hash
-      };
-      reader.readAsArrayBuffer(file.slice(0, Math.min(file.size, 64 * 1024))); // 只读取前64KB计算hash
-    });
-  }, []);
-
   // 检查上传状态
   const checkUploadStatus = useCallback(async (uploadId: string): Promise<{
     status: 'not_found' | 'uploading' | 'completed';

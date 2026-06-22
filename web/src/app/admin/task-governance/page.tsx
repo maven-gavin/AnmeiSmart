@@ -241,7 +241,7 @@ export default function TaskGovernanceAdminPage() {
           scene_key,
           description: queueForm.description.trim() || undefined,
           rotation_strategy: queueForm.rotation_strategy,
-          config: (parsed.value as any) ?? undefined,
+          config: parsed.value === null ? null : (parsed.value as Record<string, unknown>),
           is_active: queueForm.is_active,
         })
         toast.success('更新队列成功')
@@ -251,9 +251,9 @@ export default function TaskGovernanceAdminPage() {
           scene_key,
           description: queueForm.description.trim() || undefined,
           rotation_strategy: queueForm.rotation_strategy,
-          config: (parsed.value as any) ?? undefined,
+          config: parsed.value === null ? null : (parsed.value as Record<string, unknown>),
           is_active: queueForm.is_active,
-        } as any)
+        })
         toast.success('创建队列成功')
       }
       setQueueDialogOpen(false)
@@ -315,7 +315,7 @@ export default function TaskGovernanceAdminPage() {
           match_type: ruleForm.match_type,
           priority: ruleForm.priority,
           target: ruleForm.target.trim() || undefined,
-          task_templates: templates as any,
+          task_templates: templates === undefined ? undefined : (templates as Array<Record<string, unknown>>),
           description: ruleForm.description.trim() || undefined,
           enabled: ruleForm.enabled,
         })
@@ -327,10 +327,10 @@ export default function TaskGovernanceAdminPage() {
           match_type: ruleForm.match_type,
           priority: ruleForm.priority,
           target: ruleForm.target.trim() || undefined,
-          task_templates: templates as any,
+          task_templates: templates === undefined ? undefined : (templates as Array<Record<string, unknown>>),
           description: ruleForm.description.trim() || undefined,
           enabled: ruleForm.enabled,
-        } as any)
+        })
         toast.success('创建路由规则成功')
       }
       setRuleDialogOpen(false)
@@ -387,7 +387,7 @@ export default function TaskGovernanceAdminPage() {
           pattern,
           match_type: sensitiveForm.match_type,
           priority: sensitiveForm.priority,
-          suggestion_templates: templates as any,
+          suggestion_templates: templates === undefined ? undefined : (templates as Array<Record<string, unknown>>),
           description: sensitiveForm.description.trim() || undefined,
           enabled: sensitiveForm.enabled,
         })
@@ -398,10 +398,10 @@ export default function TaskGovernanceAdminPage() {
           pattern,
           match_type: sensitiveForm.match_type,
           priority: sensitiveForm.priority,
-          suggestion_templates: templates as any,
+          suggestion_templates: templates === undefined ? undefined : (templates as Array<Record<string, unknown>>),
           description: sensitiveForm.description.trim() || undefined,
           enabled: sensitiveForm.enabled,
-        } as any)
+        })
         toast.success('创建敏感规则成功')
       }
       setSensitiveDialogOpen(false)

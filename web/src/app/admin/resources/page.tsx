@@ -73,8 +73,8 @@ export default function ResourcesPage() {
       });
       setResources(response.resources);
       setTotal(response.total);
-    } catch (err: any) {
-      setError(err.message || '加载资源列表失败');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '加载资源列表失败');
       toast.error('加载资源列表失败');
     } finally {
       setLoading(false);
@@ -122,8 +122,8 @@ export default function ResourcesPage() {
       } else {
         loadResources();
       }
-    } catch (err: any) {
-      toast.error(err.message || '删除资源失败');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : '删除资源失败');
     } finally {
       setDeleteLoading(false);
     }
@@ -137,8 +137,8 @@ export default function ResourcesPage() {
       const result = await syncMenuResources();
       toast.success(`菜单资源同步成功：创建 ${result.created_count} 个，更新 ${result.updated_count} 个`);
       loadResources();
-    } catch (err: any) {
-      toast.error(err.message || '同步菜单资源失败');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : '同步菜单资源失败');
     } finally {
       setSyncLoading(false);
     }
@@ -199,7 +199,7 @@ export default function ResourcesPage() {
               />
             </div>
             <div className="flex items-end gap-2 pb-1">
-              <Select value={resourceTypeFilter} onValueChange={(value: any) => setResourceTypeFilter(value)}>
+              <Select value={resourceTypeFilter} onValueChange={(value: 'all' | 'api' | 'menu') => setResourceTypeFilter(value)}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="资源类型" />
                 </SelectTrigger>

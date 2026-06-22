@@ -19,8 +19,6 @@ export function DigitalHumanDrawer({
   isOpen,
   digitalHuman,
   onClose,
-  onDigitalHumanChange,
-  allDigitalHumans
 }: DigitalHumanDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const [activeAgent, setActiveAgent] = useState<AgentConfig | null>(null);
@@ -59,7 +57,7 @@ export function DigitalHumanDrawer({
 
   // Handle click outside to close
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    function handleClickOutside() {
       // Logic for closing on background click is already handled by the overlay div
     }
     document.addEventListener("mousedown", handleClickOutside);

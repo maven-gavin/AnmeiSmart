@@ -1,6 +1,8 @@
 import { MessageHandler } from './messageHandler';
 import { MessageData, MessageType } from '../types';
 
+type EventCallback = (data: unknown) => void;
+
 /**
  * 消息事件处理器
  * 专门处理来自新WebSocket架构的消息广播事件
@@ -76,33 +78,34 @@ export class MessageEventHandler extends MessageHandler {
    * 检查是否是事件消息格式
    */
   private isEventMessage(message: MessageData): boolean {
-    return !!(message as any).event_type || !!(message as any).action;
+    return !!(message.event_type || message.action);
   }
   
   /**
    * 获取事件类型
    */
   private getEventType(message: MessageData): string {
-    return (message as any).event_type || (message as any).action || 'unknown';
+    return message.event_type || message.action || 'unknown';
   }
   
   /**
    * 获取事件数据
    */
-  private getEventData(message: MessageData): any {
-    return (message as any).data || (message as any).payload || message;
+  private getEventData(message: MessageData): unknown {
+    return message.data ?? message.payload ?? message;
   }
   
   /**
    * 处理新消息事件
    */
-  private handleNewMessage(eventData: any): void {
+  private handleNewMessage(eventData: unknown): void {
+    const data = eventData as Record<string, unknown> | null;
     console.log('[MessageEventHandler] 处理新消息事件:', {
       eventData,
       eventDataType: typeof eventData,
-      eventDataKeys: eventData ? Object.keys(eventData) : [],
-      conversationId: eventData?.conversation_id,
-      messageId: eventData?.id
+      eventDataKeys: data ? Object.keys(data) : [],
+      conversationId: data?.conversation_id,
+      messageId: data?.id
     });
     this.invokeCallbacks('new_message', eventData);
   }
@@ -110,49 +113,49 @@ export class MessageEventHandler extends MessageHandler {
   /**
    * 处理在线状态更新事件
    */
-  private handlePresenceUpdate(eventData: any): void {
+  private handlePresenceUpdate(eventData: unknown): void {
     this.invokeCallbacks('presence_update', eventData);
   }
   
   /**
    * 处理输入状态更新事件
    */
-  private handleTypingUpdate(eventData: any): void {
+  private handleTypingUpdate(eventData: unknown): void {
     this.invokeCallbacks('typing_update', eventData);
   }
   
   /**
    * 处理会话更新事件
    */
-  private handleConversationUpdate(eventData: any): void {
+  private handleConversationUpdate(eventData: unknown): void {
     this.invokeCallbacks('conversation_update', eventData);
   }
   
   /**
    * 处理系统通知事件
    */
-  private handleSystemNotification(eventData: any): void {
+  private handleSystemNotification(eventData: unknown): void {
     this.invokeCallbacks('system_notification', eventData);
   }
   
   /**
    * 添加新消息事件回调
    */
-  public addNewMessageCallback(callback: (data: any) => void): void {
+  public addNewMessageCallback(callback: EventCallback): void {
     this.addCallback('new_message', callback);
   }
   
   /**
    * 添加在线状态更新回调
    */
-  public addPresenceUpdateCallback(callback: (data: any) => void): void {
+  public addPresenceUpdateCallback(callback: EventCallback): void {
     this.addCallback('presence_update', callback);
   }
   
   /**
    * 添加通用事件回调
    */
-  public addEventCallback(callback: (data: any) => void): void {
+  public addEventCallback(callback: EventCallback): void {
     this.addCallback('event', callback);
   }
-} 
+}

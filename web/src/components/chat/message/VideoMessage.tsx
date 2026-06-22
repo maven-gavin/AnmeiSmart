@@ -17,7 +17,6 @@ export default function VideoMessage({ message, onRetry }: MessageContentProps) 
 
   const mediaInfo = message.type === 'media' ? (message.content as MediaMessageContent)?.media_info : null;
   const fileId = mediaInfo?.file_id || null;
-  const previewUrl = mediaInfo?.url || null;
 
   // temp_ 时优先用本地预览 url；否则 file_id 优先
   const loadKey = useMemo(() => {

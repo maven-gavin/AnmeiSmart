@@ -21,10 +21,39 @@ import { useConversationState } from '@/hooks/useConversationState';
 import { useMessageState } from '@/hooks/useMessageState';
 import { useWebSocket } from '@/contexts/WebSocketContext';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { Message, SenderType } from '@/types/chat';
+import { Message, MessageContent, SenderType } from '@/types/chat';
 import { ChevronLeft } from 'lucide-react';
 import { getConversationParticipants } from '@/service/chatService';
 import { userService } from '@/service/userService';
+
+interface WebSocketNewMessageData {
+  id: string;
+  conversation_id: string;
+  content?: unknown;
+  type?: string;
+  sender_id?: string;
+  sender_type?: string;
+  sender_name?: string;
+  sender_avatar?: string;
+  timestamp?: string;
+  is_important?: boolean;
+}
+
+function isWebSocketNewMessageData(data: unknown): data is WebSocketNewMessageData {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'id' in data &&
+    typeof (data as WebSocketNewMessageData).id === 'string'
+  );
+}
+
+function mapWebSocketMessageType(type?: string): Message['type'] {
+  if (type === 'media' || type === 'system' || type === 'structured') {
+    return type;
+  }
+  return 'text';
+}
 
 function SmartCommunicationContent() {
   const router = useRouter();
@@ -158,7 +187,7 @@ function SmartCommunicationContent() {
     const { action, data } = websocketState.lastMessage;
     
     // 检查是否是有效的新消息
-    if (action !== 'new_message' || !data || !data.id) {
+    if (action !== 'new_message' || !isWebSocketNewMessageData(data)) {
       return;
     }
     
@@ -178,10 +207,12 @@ function SmartCommunicationContent() {
     }
     
     // 确保content是对象格式
-    let messageContent = data.content;
-    if (typeof messageContent === 'string') {
-      messageContent = { text: messageContent };
-    } else if (!messageContent || typeof messageContent !== 'object') {
+    let messageContent: MessageContent;
+    if (typeof data.content === 'string') {
+      messageContent = { text: data.content };
+    } else if (data.content && typeof data.content === 'object') {
+      messageContent = data.content as MessageContent;
+    } else {
       messageContent = { text: '' };
     }
     
@@ -190,9 +221,9 @@ function SmartCommunicationContent() {
       id: data.id,
       conversationId: data.conversation_id,
       content: messageContent,
-      type: data.type || 'text',
+      type: mapWebSocketMessageType(data.type),
       sender: {
-        id: data.sender_id,
+        id: data.sender_id ?? '',
         // WebSocket 层统一使用 'user' | 'ai' | 'system'
         type: (data.sender_type as SenderType) || 'user',
         name: data.sender_name || '未知用户',
@@ -353,7 +384,8 @@ function SmartCommunicationContent() {
 
   // 会话操作处理
   const handleConversationAction = useCallback((action: string, conversationId: string) => {
-    // 会话操作处理逻辑
+    void action;
+    void conversationId;
   }, []);
 
   // 右侧面板切换处理

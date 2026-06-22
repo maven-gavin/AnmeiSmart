@@ -1,8 +1,8 @@
 'use client';
 
-import { memo, useState, useEffect } from 'react';
+import { memo, useState, useEffect, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Receipt, BrainCircuit, ChevronLeft } from 'lucide-react';
+import { Receipt, ChevronLeft } from 'lucide-react';
 import type { AgentConfig } from '@/service/agentConfigService';
 import { useAgentChat } from '@/hooks/useAgentChat';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -69,6 +69,11 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
   // 从 chatState 中获取 appConfig
   const { appConfig } = chatState;
 
+  const handleMessageSend = useCallback((message: string, files?: File[]) => {
+    const inputs = files?.length ? { files } : undefined;
+    void chatState.sendMessage(message, inputs);
+  }, [chatState.sendMessage]);
+
   // 选择智能体
   const handleSelectAgent = (agent: AgentConfig) => {
     if (externalOnSelectAgent) {
@@ -95,7 +100,7 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
   };
 
   // 更新对话标题
-  const handleConversationUpdate = (conversationId: string, title: string) => {
+  const handleConversationUpdate = () => {
     // 刷新对话列表以反映标题更新
     chatState.loadConversations();
   };
@@ -149,13 +154,6 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
   const handleSwitchToHistory = () => {
     if (isMobile) {
       setMobileView('history');
-    }
-  };
-
-  // 移动端：处理切换到 agent 视图
-  const handleSwitchToAgent = () => {
-    if (isMobile && !hideSidebar) {
-      setMobileView('agent');
     }
   };
 
@@ -324,7 +322,7 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
                 {/* 输入区域 */}
                 <div className="border-t border-gray-200">
                   <MessageInput
-                    onSend={chatState.sendMessage}
+                    onSend={handleMessageSend}
                     disabled={chatState.isResponding}
                     isResponding={chatState.isResponding}
                     onStop={chatState.stopResponding}
@@ -483,7 +481,7 @@ export const AgentChatPanel = memo<AgentChatPanelProps>(({
                   {/* 输入区域 */}
                   <div className="border-t border-gray-200">
                     <MessageInput
-                      onSend={chatState.sendMessage}
+                      onSend={handleMessageSend}
                       disabled={chatState.isResponding}
                       isResponding={chatState.isResponding}
                       onStop={chatState.stopResponding}

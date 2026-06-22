@@ -7,7 +7,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useGetState } from 'ahooks';
 import { produce } from 'immer';
 import type { AgentConfig } from '@/service/agentConfigService';
-import type { AgentMessage, AgentConversation, AgentThought, ApplicationParameters } from '@/types/agent-chat';
+import type { AgentMessage, AgentConversation, ApplicationParameters } from '@/types/agent-chat';
 import agentChatService, { getApplicationParameters } from '@/service/agentChatService';
 import { toast } from 'react-hot-toast';
 
@@ -26,7 +26,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
   const [isConversationsLoading, setIsConversationsLoading] = useState(false);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [appConfig, setAppConfig] = useState<ApplicationParameters | null>(null);
-  const [savedInputs, setSavedInputs] = useState<Record<string, any> | null>(null);  // 保存首次对话的inputs
+  const [savedInputs, setSavedInputs] = useState<Record<string, unknown> | null>(null);  // 保存首次对话的inputs
   
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -82,7 +82,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
   }, [agentConfig.id, isValidAgent, setMessages]);
 
   // 发送消息
-  const sendMessage = useCallback(async (text: string, inputs?: Record<string, any>) => {
+  const sendMessage = useCallback(async (text: string, inputs?: Record<string, unknown>) => {
     if (!text.trim() || isResponding || !isValidAgent) return;
     
     // 如果有新的inputs，保存它们；后续对话使用保存的inputs
@@ -353,9 +353,8 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
             
             // 检查是否有metadata中包含完整答案
             if (!aiMessage.content && messageEndData?.metadata) {
-              // 某些情况下，完整答案可能在metadata中
-              const metadata = messageEndData.metadata;
-              if (metadata.answer && typeof metadata.answer === 'string') {
+              const metadata = messageEndData.metadata as { answer?: unknown };
+              if (typeof metadata.answer === 'string') {
                 aiMessage.content = metadata.answer;
                 setMessages(
                   produce((draft) => {
@@ -559,7 +558,7 @@ export const useAgentChat = ({ agentConfig, onError }: UseAgentChatOptions) => {
     if (abortControllerRef.current) {
       try {
         abortControllerRef.current.abort();
-      } catch (error) {
+      } catch {
         console.log('请求已中止');
       }
       abortControllerRef.current = null;

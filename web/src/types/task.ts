@@ -23,7 +23,7 @@ export interface Task {
   task_data?: unknown;
   due_date?: string;
   completed_at?: string;
-  result?: any;
+  result?: unknown;
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -47,7 +47,7 @@ export interface UpdateTaskRequest {
   status?: 'pending' | 'assigned' | 'in_progress' | 'completed' | 'cancelled';
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   notes?: string;
-  result?: any;
+  result?: unknown;
 }
 
 export interface TaskFilters {

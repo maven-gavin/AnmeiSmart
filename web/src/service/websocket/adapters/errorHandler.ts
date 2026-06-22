@@ -1,5 +1,3 @@
-import { ConnectionStatus } from '../types';
-
 /**
  * 错误日志级别
  */
@@ -28,8 +26,8 @@ export enum ErrorType {
 export interface WebSocketError {
   type: ErrorType | string;
   message: string;
-  originalError?: any;
-  details?: any;
+  originalError?: unknown;
+  details?: unknown;
   timestamp: Date;
   stack?: string;
   toString: () => string;
@@ -60,7 +58,7 @@ export class WebSocketErrorHandler {
    * @param details 错误详情
    * @returns 标准化的错误对象
    */
-  public handleConnectionError(error: any, details?: any): WebSocketError {
+  public handleConnectionError(error: unknown, details?: unknown): WebSocketError {
     const wsError = this.createError(
       ErrorType.CONNECTION,
       '连接错误',
@@ -80,7 +78,7 @@ export class WebSocketErrorHandler {
    * @param message 相关消息
    * @returns 标准化的错误对象
    */
-  public handleMessageError(error: any, message?: any): WebSocketError {
+  public handleMessageError(error: unknown, message?: unknown): WebSocketError {
     const wsError = this.createError(
       ErrorType.MESSAGE,
       '消息处理错误',
@@ -100,7 +98,7 @@ export class WebSocketErrorHandler {
    * @param data 相关数据
    * @returns 标准化的错误对象
    */
-  public handleSerializationError(error: any, data?: any): WebSocketError {
+  public handleSerializationError(error: unknown, data?: unknown): WebSocketError {
     const wsError = this.createError(
       ErrorType.SERIALIZATION,
       '序列化/反序列化错误',
@@ -120,7 +118,7 @@ export class WebSocketErrorHandler {
    * @param details 错误详情
    * @returns 标准化的错误对象
    */
-  public handleHeartbeatError(error: any, details?: any): WebSocketError {
+  public handleHeartbeatError(error: unknown, details?: unknown): WebSocketError {
     const wsError = this.createError(
       ErrorType.HEARTBEAT,
       '心跳机制错误',
@@ -161,7 +159,7 @@ export class WebSocketErrorHandler {
    * @param details 错误详情
    * @returns 标准化的错误对象
    */
-  public handleError(type: string, error: any, details?: any): WebSocketError {
+  public handleError(type: string, error: unknown, details?: unknown): WebSocketError {
     const wsError = this.createError(
       type || ErrorType.UNKNOWN,
       `错误: ${type}`,
@@ -240,8 +238,8 @@ export class WebSocketErrorHandler {
   private createError(
     type: ErrorType | string,
     message: string,
-    originalError?: any,
-    details?: any
+    originalError?: unknown,
+    details?: unknown
   ): WebSocketError {
     // 提取原始错误信息
     const errorMessage = originalError instanceof Error 
@@ -343,4 +341,4 @@ export class WebSocketErrorHandler {
         break;
     }
   }
-} 
+}

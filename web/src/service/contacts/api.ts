@@ -77,26 +77,22 @@ export async function searchUsers(searchRequest: UserSearchRequest): Promise<Use
   // 后端返回 ApiResponse<List[UserSearchResult>]，其中：
   // - name 字段需要映射到前端的 username
   // - is_friend / friendship_status 表示当前用户与该用户之间是否已经存在任何好友关系以及其状态
-  const response = await apiClient.post<any[]>('/contacts/friends/search', searchRequest);
+  const response = await apiClient.post<Record<string, unknown>[]>('/contacts/friends/search', searchRequest);
   const items = response.data || [];
   
-  return items.map((item) => {
+  return items.map((item): UserSearchResult => {
     const friendshipStatus = (item.friendship_status || undefined) as FriendshipStatus | undefined;
     // 只要存在任何好友关系（包括 pending/accepted 等），就认为已经有关联关系，不再展示“添加”按钮
     const hasRelationship = Boolean(friendshipStatus) || Boolean(item.is_friend);
 
     return {
-      id: item.id,
-      username: item.name || item.username || '未知用户', // 映射 name 到 username
-      avatar: item.avatar,
-      roles: [], // 后端未返回 roles，给默认空数组
+      id: String(item.id ?? ''),
+      username: String(item.name ?? item.username ?? '未知用户'),
+      avatar: typeof item.avatar === 'string' ? item.avatar : undefined,
+      roles: [],
       is_friend: hasRelationship,
       friendship_status: friendshipStatus,
-      // 保留可能的额外字段
-      email: item.email,
-      phone: item.phone,
-      mutual_friends_count: item.mutual_friends_count ?? 0
-    } as UserSearchResult;
+    };
   });
 }
 
@@ -302,7 +298,7 @@ export async function updateGroupMembers(groupId: string, memberUpdate: UpdateGr
 /**
  * 基于分组创建群聊
  */
-export async function createGroupChat(groupId: string, chatConfig: CreateGroupChatRequest): Promise<any> {
+export async function createGroupChat(groupId: string, chatConfig: CreateGroupChatRequest): Promise<unknown> {
   const response = await apiClient.post(`/contacts/groups/${groupId}/chat`, chatConfig);
   return response.data;
 }

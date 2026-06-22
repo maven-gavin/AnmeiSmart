@@ -53,7 +53,7 @@ export interface AgentConfigUpdate {
 export interface TestConnectionResult {
   success: boolean;
   message: string;
-  details?: any;
+  details?: Record<string, unknown>;
 }
 
 export interface AgentConfigResponse {
@@ -71,21 +71,21 @@ export interface AgentConfigListResponse {
 /**
  * 将后端返回的下划线命名数据转换为前端使用的驼峰命名
  */
-const mapAgentConfigFromApi = (apiData: any): AgentConfig => {
+const mapAgentConfigFromApi = (apiData: Record<string, unknown>): AgentConfig => {
   return {
-    id: apiData.id,
-    environment: apiData.environment,
-    appId: apiData.app_id || apiData.appId,
-    appName: apiData.app_name || apiData.appName,
-    agentType: apiData.agent_type || apiData.agentType,
-    capabilities: apiData.capabilities ?? undefined,
-    baseUrl: apiData.base_url || apiData.baseUrl,
-    timeoutSeconds: apiData.timeout_seconds || apiData.timeoutSeconds,
-    maxRetries: apiData.max_retries || apiData.maxRetries,
-    enabled: apiData.enabled,
-    description: apiData.description,
-    createdAt: apiData.created_at || apiData.createdAt,
-    updatedAt: apiData.updated_at || apiData.updatedAt
+    id: apiData.id as string,
+    environment: apiData.environment as string,
+    appId: (apiData.app_id || apiData.appId) as string,
+    appName: (apiData.app_name || apiData.appName) as string,
+    agentType: (apiData.agent_type || apiData.agentType) as string | undefined,
+    capabilities: (apiData.capabilities as Record<string, unknown> | undefined) ?? undefined,
+    baseUrl: (apiData.base_url || apiData.baseUrl) as string,
+    timeoutSeconds: (apiData.timeout_seconds || apiData.timeoutSeconds) as number,
+    maxRetries: (apiData.max_retries || apiData.maxRetries) as number,
+    enabled: apiData.enabled as boolean,
+    description: apiData.description as string | undefined,
+    createdAt: (apiData.created_at || apiData.createdAt) as string,
+    updatedAt: (apiData.updated_at || apiData.updatedAt) as string
   };
 };
 
@@ -95,12 +95,12 @@ const mapAgentConfigFromApi = (apiData: any): AgentConfig => {
  */
 export const getAgentConfigs = async (): Promise<AgentConfig[]> => {
   try {
-    const response = await apiClient.get<any>('/agent/configs');
+    const response = await apiClient.get<{ data?: Record<string, unknown>[] }>('/agent/configs');
     const data = response.data.data || [];
     
     // 转换字段名从下划线到驼峰
     return Array.isArray(data) 
-      ? data.map(mapAgentConfigFromApi)
+      ? data.map(item => mapAgentConfigFromApi(item as Record<string, unknown>))
       : [];
   } catch (error) {
     console.error('获取Agent配置列表失败:', error);
@@ -115,36 +115,15 @@ export const getAgentConfigs = async (): Promise<AgentConfig[]> => {
  */
 export const getAgentConfig = async (configId: string): Promise<AgentConfig> => {
   try {
-    const response = await apiClient.get<any>(`/agent/configs/${configId}`);
+    const response = await apiClient.get<{ data: Record<string, unknown> }>(`/agent/configs/${configId}`);
     const data = response.data.data;
     
     // 转换字段名从下划线到驼峰
-    return mapAgentConfigFromApi(data);
+    return mapAgentConfigFromApi(data as Record<string, unknown>);
   } catch (error) {
     console.error('获取Agent配置详情失败:', error);
     throw error;
   }
-};
-
-/**
- * 将前端使用的驼峰命名转换为后端需要的下划线命名
- */
-const mapAgentConfigToApi = (config: AgentConfigCreate | AgentConfigUpdate): any => {
-  const result: any = {};
-  
-  if ('environment' in config && config.environment !== undefined) result.environment = config.environment;
-  if ('appId' in config && config.appId !== undefined) result.app_id = config.appId;
-  if ('appName' in config && config.appName !== undefined) result.app_name = config.appName;
-  if ('agentType' in config && config.agentType !== undefined) result.agent_type = config.agentType;
-  if ('capabilities' in config && config.capabilities !== undefined) result.capabilities = config.capabilities;
-  if ('apiKey' in config && config.apiKey !== undefined) result.api_key = config.apiKey;
-  if ('baseUrl' in config && config.baseUrl !== undefined) result.base_url = config.baseUrl;
-  if ('timeoutSeconds' in config && config.timeoutSeconds !== undefined) result.timeout_seconds = config.timeoutSeconds;
-  if ('maxRetries' in config && config.maxRetries !== undefined) result.max_retries = config.maxRetries;
-  if ('enabled' in config && config.enabled !== undefined) result.enabled = config.enabled;
-  if ('description' in config && config.description !== undefined) result.description = config.description;
-  
-  return result;
 };
 
 /**
@@ -155,14 +134,14 @@ const mapAgentConfigToApi = (config: AgentConfigCreate | AgentConfigUpdate): any
 export const createAgentConfig = async (config: AgentConfigCreate): Promise<AgentConfig> => {
   try {
     // 后端期望camelCase格式，直接发送
-    const response = await apiClient.post<any>(
+    const response = await apiClient.post<{ data: Record<string, unknown> }>(
       '/agent/configs',
       { body: config }
     );
     
     const data = response.data.data;
     // 转换返回数据的字段名从下划线到驼峰
-    return mapAgentConfigFromApi(data);
+    return mapAgentConfigFromApi(data as Record<string, unknown>);
   } catch (error) {
     console.error('创建Agent配置失败:', error);
     throw error;
@@ -181,14 +160,14 @@ export const updateAgentConfig = async (
 ): Promise<AgentConfig> => {
   try {
     // 后端期望camelCase格式，直接发送
-    const response = await apiClient.put<any>(
+    const response = await apiClient.put<{ data: Record<string, unknown> }>(
       `/agent/configs/${configId}`, 
       { body: config }
     );
     
     const data = response.data.data;
     // 转换返回数据的字段名从下划线到驼峰
-    return mapAgentConfigFromApi(data);
+    return mapAgentConfigFromApi(data as Record<string, unknown>);
   } catch (error) {
     console.error('更新Agent配置失败:', error);
     throw error;

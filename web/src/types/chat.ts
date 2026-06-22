@@ -45,7 +45,7 @@ export interface MediaInfo {
     width?: number; // 图片/视频的宽度（像素）
     height?: number; // 图片/视频的高度（像素）
     duration_seconds?: number; // 音频/视频的时长（秒）
-    [key: string]: any; // 其他扩展的元数据字段
+    [key: string]: unknown; // 其他扩展的元数据字段
   };
 }
 
@@ -67,16 +67,16 @@ export interface SystemEventContent {
   participants?: string[]; // 参与者
   duration_seconds?: number; // 持续时间（如通话）
   call_id?: string; // 通话ID
-  [key: string]: any; // 其他事件相关数据
+  [key: string]: unknown; // 其他事件相关数据
 }
 
 // 通用卡片组件数据
 export interface CardComponent {
   type: 'button' | 'text' | 'image' | 'divider';
-  content?: any;
+  content?: unknown;
   action?: {
     type: 'cancel' | 'custom';
-    data?: any;
+    data?: unknown;
   };
 }
 
@@ -85,11 +85,11 @@ export interface StructuredMessageContent {
   card_type: 'service_recommendation' | 'consultation_summary' | 'custom';
   title: string;
   subtitle?: string;
-  data: any; // 根据card_type确定具体数据结构
+  data: Record<string, unknown>; // 根据card_type确定具体数据结构
   components?: CardComponent[]; // 可选的交互组件
   actions?: {
-    primary?: { text: string; action: string; data?: any };
-    secondary?: { text: string; action: string; data?: any };
+    primary?: { text: string; action: string; data?: unknown };
+    secondary?: { text: string; action: string; data?: unknown };
   };
 }
 
@@ -121,7 +121,7 @@ export interface Message {
   // 新功能字段
   reply_to_message_id?: string; // 回复的消息ID
   reactions?: { [emoji: string]: string[] }; // 反应数据 {"👍": ["user_id1", "user_id2"]}
-  extra_metadata?: { [key: string]: any }; // 额外元数据
+  extra_metadata?: { [key: string]: unknown }; // 额外元数据
   
   // 数字人半接管确认机制
   requires_confirmation?: boolean; // 是否需要确认（半接管模式）
@@ -152,7 +152,7 @@ export interface CreateMediaMessageData {
   mime_type: string;
   size_bytes: number;
   text?: string;
-  metadata?: { [key: string]: any };
+  metadata?: { [key: string]: unknown };
   is_important?: boolean;
   reply_to_message_id?: string;
   upload_method?: string;
@@ -161,18 +161,18 @@ export interface CreateMediaMessageData {
 export interface CreateSystemEventData {
   event_type: string;
   status?: string;
-  event_data?: { [key: string]: any };
+  event_data?: { [key: string]: unknown };
 }
 
 export interface CreateStructuredMessageData {
   card_type: string;
   title: string;
   subtitle?: string;
-  data: any;
+  data: Record<string, unknown>;
   components?: CardComponent[];
   actions?: {
-    primary?: { text: string; action: string; data?: any };
-    secondary?: { text: string; action: string; data?: any };
+    primary?: { text: string; action: string; data?: unknown };
+    secondary?: { text: string; action: string; data?: unknown };
   };
 }
 
@@ -195,7 +195,7 @@ export interface Conversation {
   isArchived: boolean;
   is_pinned?: boolean;            // 新增：是否置顶
   pinned_at?: string;             // 新增：置顶时间
-  extra_metadata?: { [key: string]: any };
+  extra_metadata?: { [key: string]: unknown };
 }
 
 export interface CustomerProfile {

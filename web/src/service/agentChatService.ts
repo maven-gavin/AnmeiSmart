@@ -7,8 +7,55 @@ import { apiClient, ssePost } from './apiClient';
 import type { 
   AgentMessage, 
   AgentConversation, 
+  AgentThought,
   SSECallbacks
 } from '@/types/agent-chat';
+
+interface AgentConversationApiItem {
+  id: string;
+  agent_config_id?: string;
+  agentConfigId?: string;
+  title?: string;
+  created_at?: string;
+  createdAt?: string;
+  updated_at?: string;
+  updatedAt?: string;
+  message_count?: number;
+  messageCount?: number;
+  last_message?: string;
+  lastMessage?: string;
+}
+
+interface AgentConversationListResponse {
+  data?: AgentConversationApiItem[];
+}
+
+interface AgentMessageApiItem {
+  id: string;
+  conversation_id: string;
+  content: string;
+  is_answer: boolean;
+  timestamp: string;
+  agent_thoughts?: unknown;
+  files?: unknown;
+  is_error?: boolean;
+  feedback?: unknown;
+}
+
+interface AgentConversationApiResponse {
+  id: string;
+  agent_config_id?: string;
+  agentConfigId?: string;
+  title?: string;
+  created_at?: string;
+  createdAt?: string;
+  updated_at?: string;
+  updatedAt?: string;
+  message_count?: number;
+  messageCount?: number;
+  last_message?: string;
+  lastMessage?: string;
+}
 
 /**
  * 发送 Agent 消息（流式响应）
@@ -18,7 +65,7 @@ export const sendAgentMessage = async (
   conversationId: string | null,
   message: string,
   callbacks: SSECallbacks,
-  inputs?: Record<string, any>
+  inputs?: Record<string, unknown>
 ): Promise<void> => {
   return ssePost(
     `/agent/${agentConfigId}/chat`,
@@ -40,20 +87,23 @@ export const sendAgentMessage = async (
 export const getAgentConversations = async (
   agentConfigId: string
 ): Promise<AgentConversation[]> => {
-  const response = await apiClient.get<any[]>(
+  const response = await apiClient.get<AgentConversationApiItem[]>(
     `/agent/${agentConfigId}/conversations`
   );
   
   // 处理可能的响应包装
-  const data = Array.isArray(response.data) ? response.data : (response.data as any).data || [];
+  const rawData = response.data;
+  const data: AgentConversationApiItem[] = Array.isArray(rawData)
+    ? rawData
+    : (rawData as AgentConversationListResponse).data || [];
   
   // 映射后端字段到前端类型
-  return data.map((item: any) => ({
+  return data.map((item) => ({
     id: item.id,
     agentConfigId: item.agent_config_id || item.agentConfigId || agentConfigId,
-    title: item.title,
-    createdAt: item.created_at || item.createdAt,
-    updatedAt: item.updated_at || item.updatedAt,
+    title: item.title ?? '',
+    createdAt: item.created_at || item.createdAt || '',
+    updatedAt: item.updated_at || item.updatedAt || '',
     messageCount: item.message_count || item.messageCount || 0,
     lastMessage: item.last_message || item.lastMessage
   }));
@@ -67,7 +117,7 @@ export const getAgentMessages = async (
   conversationId: string,
   limit: number = 50
 ): Promise<AgentMessage[]> => {
-  const response = await apiClient.get<any[]>(
+  const response = await apiClient.get<AgentMessageApiItem[]>(
     `/agent/${agentConfigId}/conversations/${conversationId}/messages`,
     { params: { limit } }
   );
@@ -79,10 +129,10 @@ export const getAgentMessages = async (
     content: msg.content,
     isAnswer: msg.is_answer,  // 转换 is_answer -> isAnswer
     timestamp: msg.timestamp,
-    agentThoughts: msg.agent_thoughts,
-    files: msg.files,
+    agentThoughts: msg.agent_thoughts as AgentThought[] | undefined,
+    files: msg.files as AgentMessage['files'],
     isError: msg.is_error,
-    feedback: msg.feedback,
+    feedback: msg.feedback as AgentMessage['feedback'],
     // 历史消息不触发“加载建议问题...”
     shouldLoadSuggestedQuestions: false,
   }));
@@ -95,7 +145,7 @@ export const createAgentConversation = async (
   agentConfigId: string,
   title?: string
 ): Promise<AgentConversation> => {
-  const response = await apiClient.post<any>(
+  const response = await apiClient.post<AgentConversationApiResponse>(
     `/agent/${agentConfigId}/conversations`,
     { body: { title } }
   );
@@ -106,9 +156,9 @@ export const createAgentConversation = async (
   return {
     id: item.id,
     agentConfigId: item.agent_config_id || item.agentConfigId || agentConfigId,
-    title: item.title,
-    createdAt: item.created_at || item.createdAt,
-    updatedAt: item.updated_at || item.updatedAt,
+    title: item.title ?? '',
+    createdAt: item.created_at || item.createdAt || '',
+    updatedAt: item.updated_at || item.updatedAt || '',
     messageCount: item.message_count || item.messageCount || 0,
     lastMessage: item.last_message || item.lastMessage
   };
@@ -183,11 +233,11 @@ export const stopMessageGeneration = async (
  */
 export const getApplicationParameters = async (
   agentConfigId: string
-): Promise<any> => {
-  const response = await apiClient.get(
+): Promise<Record<string, unknown>> => {
+  const response = await apiClient.get<Record<string, unknown>>(
     `/agent/${agentConfigId}/parameters`
   );
-  return response.data;
+  return response.data ?? {};
 };
 
 // 导出服务对象

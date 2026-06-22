@@ -38,20 +38,21 @@ export const uploadAgentFile = async (
     }
     
     return result;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const apiError = error as { message?: string; status?: number; statusText?: string; response?: unknown };
     console.error('文件上传详细错误:', {
-      message: error?.message,
-      status: error?.status,
-      statusText: error?.statusText,
-      response: error?.response,
+      message: apiError?.message,
+      status: apiError?.status,
+      statusText: apiError?.statusText,
+      response: apiError?.response,
       error
     });
     
     // 抛出更有意义的错误
-    if (error?.status) {
-      throw new Error(`上传失败 (${error.status}): ${error.statusText || '未知错误'}`);
+    if (apiError?.status) {
+      throw new Error(`上传失败 (${apiError.status}): ${apiError.statusText || '未知错误'}`);
     }
-    throw new Error(error?.message || '文件上传失败');
+    throw new Error(apiError?.message || '文件上传失败');
   }
 };
 

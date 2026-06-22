@@ -6,7 +6,6 @@ import type {
   Task, 
   TaskFilters, 
   TaskStats, 
-  CreateTaskRequest,
   UpdateTaskRequest
 } from '@/types/task';
 
@@ -66,7 +65,7 @@ export function useTasks(userRole?: string) {
   const updateTaskStatus = async (
     taskId: string, 
     status: string, 
-    updateData?: any
+    updateData?: UpdateTaskRequest
   ): Promise<Task> => {
     try {
       const response = await apiClient.put<Task>(`/tasks/${taskId}`, {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { UserRole, Role } from '@/types/auth';
+import { UserRole, Role, User } from '@/types/auth';
 import { userService } from '@/service/userService';
 import { permissionService } from '@/service/permissionService';
 import { Input } from '@/components/ui/input';
@@ -53,8 +53,8 @@ export default function UserCreateModal({ isOpen, onClose, onUserCreated }: User
               setTenantId(tenantsList[0].id);
             }
           }
-        } catch (err: any) {
-          toast.error(err.message || '获取数据失败');
+        } catch (err: unknown) {
+          toast.error(err instanceof Error ? err.message : '获取数据失败');
           console.error('获取数据失败:', err);
         } finally {
           setLoadingRoles(false);
@@ -117,15 +117,15 @@ export default function UserCreateModal({ isOpen, onClose, onUserCreated }: User
       await userService.createUser({
         username,
         email,
-        password, // password 字段在创建时需要，但不在 User 类型中
+        password,
         phone: phone || undefined,
         roles,
         tenantId: tenantId || 'system'
-      } as any);
+      } as Partial<User> & { password: string });
       
       onUserCreated();
-    } catch (err: any) {
-      toast.error(err.message || '创建用户失败');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : '创建用户失败');
     } finally {
       setLoading(false);
     }

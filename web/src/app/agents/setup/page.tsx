@@ -340,13 +340,6 @@ export default function AgentsPage() {
     );
   }
 
-  // 状态样式映射
-  const getStatusStyle = (enabled: boolean) => {
-    return enabled 
-      ? 'bg-green-100 text-green-800' 
-      : 'bg-gray-100 text-gray-800';
-  };
-
   // 环境样式映射
   const getEnvironmentStyle = (env: string) => {
     const styles: Record<string, string> = {

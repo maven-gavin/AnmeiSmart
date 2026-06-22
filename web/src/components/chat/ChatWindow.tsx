@@ -7,7 +7,6 @@ import { Conversation, type Message } from '@/types/chat'
 import ChatMessage from '@/components/chat/message/ChatMessage'
 import MessageInput from '@/components/chat/MessageInput'
 import { saveMessage } from '@/service/chatService'
-import { useAuthContext } from '@/contexts/AuthContext'
 import { useConversationTitleEditor } from '@/hooks/useConversationTitleEditor'
 // 新的菜单系统组件
 import { ChatActionsMenu } from '@/components/chat/ChatActionsMenu'
@@ -48,8 +47,6 @@ export default function ChatWindow({
   digitalHumanId,
   peerUserId = null,
   peerUserType = null,
-  onAction,
-  onLoadMessages,
   onCustomerProfileToggle,
   onSearchToggle,
   onParticipantsToggle,
@@ -61,7 +58,6 @@ export default function ChatWindow({
   isHistoryListCollapsed = false,
   onToggleHistoryList
 }: ChatWindowProps) {
-  const { user } = useAuthContext();
   const router = useRouter()
   const websocketState = useWebSocket()
 
@@ -195,7 +191,7 @@ export default function ChatWindow({
     const msg = websocketState.lastMessage
     if (!msg || msg.action !== 'system_notification') return
 
-    const data = msg.data as any
+    const data = msg.data as Record<string, unknown> | undefined
     const title = typeof data?.title === 'string' ? data.title : 'AI 副驾驶'
     const messageText = typeof data?.message === 'string' ? data.message : ''
 
@@ -225,20 +221,20 @@ export default function ChatWindow({
       if (message && toggleMessageImportant) {
         await toggleMessageImportant(messageId, message.is_important || false);
       }
-    } catch (error) {
+    } catch {
       //DODO： Toast 告知用户标记重点消息失败
     }
   }, [messages, toggleMessageImportant]);
 
-  const handleReaction = useCallback(async (messageId: string, emoji: string) => {
+  const handleReaction = useCallback(async () => {
     //DODO： Toast 告知用户添加响应
   }, []);
 
-  const handleReply = useCallback((message: Message) => {
+  const handleReply = useCallback(() => {
     //DODO： Toast 告知用户回复消息
   }, []);
 
-  const handleDelete = useCallback(async (messageId: string) => {
+  const handleDelete = useCallback(async () => {
     //DODO： Toast 告知用户删除消息
   }, []);
 
@@ -257,7 +253,7 @@ export default function ChatWindow({
     }
   }, []);
 
-  const handleCardAction = useCallback((action: string, data: any) => {
+  const handleCardAction = useCallback((action: string, data: Record<string, unknown>) => {
     console.log('卡片操作:', action, data);
   }, []);
 

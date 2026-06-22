@@ -47,8 +47,8 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
           ]);
           setAvailableRoles(rolesList);
           setAvailableTenants(tenantsList);
-        } catch (err: any) {
-          toast.error(err.message || '获取数据失败');
+        } catch (err: unknown) {
+          toast.error(err instanceof Error ? err.message : '获取数据失败');
           console.error('获取数据失败:', err);
         } finally {
           setLoadingRoles(false);
@@ -148,13 +148,13 @@ export default function UserEditModal({ isOpen, onClose, user, onUserUpdated }: 
         updateData.roles = roles; 
     }
     
-    if (isActive !== user.isActive) (updateData as any).is_active = isActive;
+    if (isActive !== user.isActive) updateData.isActive = isActive;
     
     try {
-      await userService.updateUser(String(user.id), updateData as any);
+      await userService.updateUser(String(user.id), updateData);
       onUserUpdated();
-    } catch (err: any) {
-      toast.error(err.message || '更新用户失败');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : '更新用户失败');
     } finally {
       setLoading(false);
     }

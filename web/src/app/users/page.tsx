@@ -4,12 +4,11 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { User, UserRole } from '@/types/auth';
+import { User } from '@/types/auth';
 import { userService } from '@/service/userService';
 import UserCreateModal from '@/components/admin/UserCreateModal';
 import UserEditModal from '@/components/admin/UserEditModal';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/components/layout/AppLayout';
 import { EnhancedPagination } from '@/components/ui/pagination';
@@ -70,8 +69,8 @@ export default function UsersPage() {
       setUsers(result.users);
       setTotal(result.total);
       
-    } catch (err: any) {
-      setError(err.message || '获取用户列表失败');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '获取用户列表失败');
       toast.error('获取用户列表失败');
     } finally {
       setLoading(false);
@@ -87,36 +86,6 @@ export default function UsersPage() {
   const handleSearch = () => {
     setCurrentPage(1);
     fetchUsers();
-  };
-
-  // 重置搜索
-  const handleReset = () => {
-    setSearchKeyword('');
-    setCurrentPage(1);
-    // 由于 useEffect 依赖 searchKeyword 可能会导致闭包问题或者竞态
-    // 最好是 setState 后触发 fetch，或者直接 fetch
-    // 这里 setSearchKeyword 是异步的，fetchUsers 使用的是闭包中的 state
-    // 所以需要等待下一次 render
-    // 我们可以在 useEffect 中监听 searchKeyword 变化？不，这会导致输入时频繁请求
-    // 所以这里手动调用 fetchUsers 传递空字符串
-    // 但 fetchUsers 读取的是 state... 
-    // 简单的做法：
-    setTimeout(() => {
-        // 这是一个 hack，更好的方式是将 fetchUsers 移入 useEffect 并添加依赖，
-        // 但为了避免输入时自动搜索，我们保持手动触发
-        // 实际上，handleReset 设置 state 后，我们可以利用一个 ref 或者 just reload
-        window.location.reload(); // 最简单粗暴的重置，或者...
-    }, 0);
-  };
-  // 更好的 handleReset
-  const resetFilters = () => {
-      setSearchKeyword('');
-      // 这里的 fetchUsers 还是会读到旧的 searchKeyword
-      // 让我们修改 fetchUsers 接受参数
-      // ...
-      // 实际上，由于 React 的批处理，我们可以将 fetchUsers 放入 useEffect [searchKeyword] 但不，那是自动搜索
-      // 我们直接刷新页面吧，或者
-      // setTrigger(!trigger)
   };
 
   // 处理用户创建
@@ -162,8 +131,8 @@ export default function UsersPage() {
       } else {
         fetchUsers();
       }
-    } catch (err: any) {
-      toast.error(err.message || '删除用户失败');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : '删除用户失败');
     } finally {
       setDeleteLoading(false);
     }

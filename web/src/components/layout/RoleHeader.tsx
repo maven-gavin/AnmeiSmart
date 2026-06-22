@@ -69,7 +69,6 @@ export default function RoleHeader() {
 
   // 获取当前角色信息
   const currentRole = currentUser?.currentRole;
-  const currentRoleInfo = currentRole ? getRoleDisplayInfo(currentRole) : null;
   
   // 检查用户是否有多个角色
   const hasMultipleRoles = currentUser?.roles && currentUser.roles.length > 1;

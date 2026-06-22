@@ -72,7 +72,7 @@ export interface CreateDigitalHumanRequest {
   welcome_message?: string;
 }
 
-export interface UpdateDigitalHumanRequest extends Partial<CreateDigitalHumanRequest> {}
+export type UpdateDigitalHumanRequest = Partial<CreateDigitalHumanRequest>;
 
 export interface AddAgentConfigRequest {
   agent_config_id: string;
@@ -82,12 +82,10 @@ export interface AddAgentConfigRequest {
   is_active: boolean;
 }
 
-export interface UpdateAgentConfigRequest extends Partial<AddAgentConfigRequest> {}
+export type UpdateAgentConfigRequest = Partial<AddAgentConfigRequest>;
 
 // 管理员端类型
-export interface AdminDigitalHuman extends DigitalHuman {
-  // 管理员可以看到更多信息
-}
+export type AdminDigitalHuman = DigitalHuman;
 
 export interface UpdateDigitalHumanStatusRequest {
   status: 'active' | 'inactive' | 'maintenance';

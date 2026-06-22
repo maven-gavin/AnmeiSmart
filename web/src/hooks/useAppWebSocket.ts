@@ -3,9 +3,20 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { authService } from '@/service/authService';
 import { getWebSocketClient, ConnectionStatus, WebSocketConfig } from '@/service/websocket';
-import { SenderType } from '@/service/websocket/types';
+import { MessageData, SenderType } from '@/service/websocket/types';
 import { getDeviceInfo } from '@/service/utils';
 import { WS_BASE_URL } from '@/config';
+
+type ConnectionStatusChangeEvent = {
+  oldStatus: ConnectionStatus;
+  newStatus: ConnectionStatus;
+  connectionId?: string;
+};
+
+export type AppWebSocketLastMessage = {
+  action: string;
+  data: unknown;
+};
 
 type AppWebSocketState = {
   // 连接状态
@@ -15,12 +26,12 @@ type AppWebSocketState = {
   connectionType: string;
 
   // 最近一条事件消息（例如 new_message）
-  lastMessage: any;
+  lastMessage: AppWebSocketLastMessage | null;
 
   // 操作
   connect: () => Promise<boolean>;
   disconnect: () => void;
-  sendMessage: (message: any) => boolean;
+  sendMessage: (message: MessageData | Record<string, unknown>) => boolean;
 };
 
 function getDefaultWebSocketConfig(): WebSocketConfig {
@@ -46,7 +57,7 @@ function getWebSocketClientSafely(): ReturnType<typeof getWebSocketClient> {
 export function useAppWebSocket(): AppWebSocketState {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
-  const [lastMessage, setLastMessage] = useState<any>(null);
+  const [lastMessage, setLastMessage] = useState<AppWebSocketLastMessage | null>(null);
 
   const isConnectingRef = useRef(false);
   const hasTriedInitialConnectRef = useRef(false);
@@ -80,7 +91,7 @@ export function useAppWebSocket(): AppWebSocketState {
       const connectionParams = {
         userId: user.id,
         token,
-        userType: mapUserRoleToSenderType(user.currentRole || 'user'),
+        userType: mapUserRoleToSenderType(),
         connectionId: `app_${Date.now()}`,
         deviceId: deviceInfo?.deviceId,
         deviceType: deviceInfo?.type,
@@ -118,7 +129,7 @@ export function useAppWebSocket(): AppWebSocketState {
   }, []);
 
   const sendMessage = useCallback(
-    (message: any): boolean => {
+    (message: MessageData | Record<string, unknown>): boolean => {
       const client = getWebSocketClientSafely();
       if (!client.isConnected()) {
         console.warn('WebSocket 未连接，无法发送消息');
@@ -138,7 +149,7 @@ export function useAppWebSocket(): AppWebSocketState {
   useEffect(() => {
     const client = getWebSocketClientSafely();
 
-    const statusListener = (event: any) => {
+    const statusListener = (event: ConnectionStatusChangeEvent) => {
       setConnectionStatus(event.newStatus);
       setIsConnected(event.newStatus === ConnectionStatus.CONNECTED);
     };
@@ -159,7 +170,7 @@ export function useAppWebSocket(): AppWebSocketState {
     const client = getWebSocketClientSafely();
 
     // 聊天新消息：直接使用 new_message 事件（已由后端统一为 action: new_message）
-    const offNewMessage = client.onNewMessage((eventData: any) => {
+    const offNewMessage = client.onNewMessage((eventData: unknown) => {
       setLastMessage({
         action: 'new_message',
         data: eventData,
@@ -167,22 +178,23 @@ export function useAppWebSocket(): AppWebSocketState {
     });
 
     // 通用事件：用于 direct_message、system_notification 等
-    const offEvent = client.onEvent((eventData: any) => {
+    const offEvent = client.onEvent((eventData: unknown) => {
+      const typedEvent = eventData as { type?: string; payload?: unknown } | null;
       // 只处理带 type 且包含 payload 的通用事件（例如联系人相关事件）
       // 聊天 new_message 的 eventData 是扁平化消息数据，不含 payload 字段，这里忽略以避免覆盖 new_message
-      if (!eventData || !eventData.type || !('payload' in eventData)) {
+      if (!typedEvent || !typedEvent.type || !('payload' in typedEvent)) {
         return;
       }
 
       setLastMessage({
-        action: eventData.type,
-        data: eventData.payload,
+        action: typedEvent.type,
+        data: typedEvent.payload,
       });
     });
 
     return () => {
-      offNewMessage && offNewMessage();
-      offEvent && offEvent();
+      offNewMessage?.();
+      offEvent?.();
     };
   }, []);
 
@@ -218,7 +230,7 @@ export function useAppWebSocket(): AppWebSocketState {
   };
 }
 
-function mapUserRoleToSenderType(role: string): SenderType {
+function mapUserRoleToSenderType(): SenderType {
   // 应用级长连接目前只代表「当前登录用户」本身
   // 无论其业务角色是 customer / consultant / doctor 等，SenderType 都统一归为 USER
   // 如果后续接入专用 AI 设备连接，可以在这里根据 role 映射为 SenderType.AI

@@ -15,7 +15,7 @@ export abstract class MessageHandler {
   protected readonly supportedTypes: MessageType[];
   
   // 回调函数集合
-  protected callbacks: Map<string, Set<(data: MessageData) => void>> = new Map();
+  protected callbacks: Map<string, Set<(data: unknown) => void>> = new Map();
   
   /**
    * 构造函数
@@ -77,7 +77,7 @@ export abstract class MessageHandler {
    * @param eventType 事件类型
    * @param callback 回调函数
    */
-  public addCallback(eventType: string, callback: (data: MessageData) => void): void {
+  public addCallback(eventType: string, callback: (data: unknown) => void): void {
     if (!this.callbacks.has(eventType)) {
       this.callbacks.set(eventType, new Set());
     }
@@ -91,7 +91,7 @@ export abstract class MessageHandler {
    * @param callback 回调函数
    * @returns 是否成功移除
    */
-  public removeCallback(eventType: string, callback: (data: MessageData) => void): boolean {
+  public removeCallback(eventType: string, callback: (data: unknown) => void): boolean {
     if (!this.callbacks.has(eventType)) {
       return false;
     }
@@ -112,7 +112,7 @@ export abstract class MessageHandler {
    * @param eventType 事件类型
    * @param message 消息数据
    */
-  protected invokeCallbacks(eventType: string, message: MessageData): void {
+  protected invokeCallbacks(eventType: string, message: unknown): void {
     // 检查是否有该事件类型的回调
     if (!this.callbacks.has(eventType)) {
       return;

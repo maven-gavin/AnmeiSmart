@@ -38,7 +38,7 @@ export function WatchlistBoard() {
   const [detailSymbol, setDetailSymbol] = useState<string | null>(null)
   const [detailBars, setDetailBars] = useState<MarketDailyBarInfo[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
-  const [detailDays, setDetailDays] = useState(30)
+  const detailDays = 30
 
   const loadBoard = useCallback(async () => {
     setLoading(true)

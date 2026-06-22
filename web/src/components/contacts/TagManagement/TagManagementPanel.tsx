@@ -5,18 +5,13 @@ import { Plus, Edit, Trash2, Tag as TagIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CreateTagModal } from './CreateTagModal';
 import type { ContactTag, TagCategory } from '@/types/contacts';
 import { getContactTags, deleteContactTag } from '@/service/contacts/api';
 import { toast } from 'react-hot-toast';
 
-interface TagManagementPanelProps {
-  onClose?: () => void;
-}
-
-export function TagManagementPanel({ onClose }: TagManagementPanelProps) {
+export function TagManagementPanel() {
   const [tags, setTags] = useState<ContactTag[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');

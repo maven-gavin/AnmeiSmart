@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import toast from 'react-hot-toast';
 import SystemSettingsPage from '@/app/settings/page';
 import systemService from '@/service/systemService';
 
@@ -192,7 +193,6 @@ describe('系统设置页面测试', () => {
     });
     
     // 检查toast.error是否被调用
-    const toast = require('react-hot-toast');
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('加载系统设置失败');
     });

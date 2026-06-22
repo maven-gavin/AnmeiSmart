@@ -10,7 +10,7 @@ export class WebSocketConnection extends EventEmitter {
   private url: string = '';
   private status: ConnectionStatus = ConnectionStatus.DISCONNECTED;
   private connectionId: string = '';
-  private connectionParams: Record<string, any> = {};
+  private connectionParams: Record<string, unknown> = {};
   private timeoutId: NodeJS.Timeout | null = null;
   private connectionTimeout: number = 20000; // 默认20秒超时
   
@@ -20,7 +20,7 @@ export class WebSocketConnection extends EventEmitter {
    * @param params 连接参数
    * @returns 成功创建的连接
    */
-  public connect(url: string, params: Record<string, any> = {}): Promise<WebSocket> {
+  public connect(url: string, params: Record<string, unknown> = {}): Promise<WebSocket> {
     return new Promise((resolve, reject) => {
       try {
         // 验证URL
@@ -49,7 +49,9 @@ export class WebSocketConnection extends EventEmitter {
         // 保存连接参数
         this.url = url;
         this.connectionParams = { ...params };
-        this.connectionId = params.connectionId || crypto.randomUUID();
+        this.connectionId = typeof params.connectionId === 'string'
+          ? params.connectionId
+          : crypto.randomUUID();
         
         // 创建WebSocket对象
         const socket = new WebSocket(url);
@@ -257,7 +259,7 @@ export class WebSocketConnection extends EventEmitter {
   /**
    * 获取连接参数
    */
-  public getConnectionParams(): Record<string, any> {
+  public getConnectionParams(): Record<string, unknown> {
     return { ...this.connectionParams };
   }
   
@@ -326,7 +328,7 @@ export class WebSocketConnection extends EventEmitter {
       if (this.socket) {
         try {
           this.socket.close();
-        } catch (error) {
+        } catch {
           // 忽略关闭错误
         }
         this.socket = null;

@@ -29,14 +29,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { EnhancedPagination } from '@/components/ui/pagination';
 import { cn } from '@/service/utils';
 
-interface ContactBookManagementPanelProps {
-  // 可以添加额外的props
-}
-
-export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) {
+export function ContactBookManagementPanel() {
   const { user } = useAuthContext();
   
   // 状态管理
@@ -91,14 +86,15 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
         loadFriends();
         break;
         
-      case 'friend_online_status_changed':
-        // 更新好友在线状态，data 中包含 friend_id / is_online 等信息
+      case 'friend_online_status_changed': {
+        const statusData = data as { friend_id?: string; is_online?: boolean };
         setFriends(prev => prev.map(f => 
-          f.friend?.id === data.friend_id 
-            ? { ...f, friend: { ...f.friend!, isOnline: data.is_online } }
+          f.friend?.id === statusData.friend_id 
+            ? { ...f, friend: { ...f.friend!, isOnline: Boolean(statusData.is_online) } }
             : f
         ));
         break;
+      }
         
       default:
         console.log('未知的通讯录 WebSocket 事件:', action, data);
@@ -156,7 +152,7 @@ export function ContactBookManagementPanel({}: ContactBookManagementPanelProps) 
       setLoading(true);
       const validViews: Array<'all' | 'starred' | 'recent' | 'pending' | 'blocked'> = ['all', 'starred', 'recent', 'pending', 'blocked'];
       const filters: FriendListFilters = {
-        view: (selectedView === 'all' || !validViews.includes(selectedView as any)) 
+        view: (selectedView === 'all' || !validViews.includes(selectedView as typeof validViews[number])) 
           ? undefined 
           : (selectedView as 'starred' | 'recent' | 'pending' | 'blocked'),
         tags: selectedTags.length > 0 ? selectedTags : undefined,

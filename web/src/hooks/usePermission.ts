@@ -177,7 +177,7 @@ export function usePermission(): UsePermissionReturn {
           try {
             const key = '__anmei_client_error_logs__';
             const raw = sessionStorage.getItem(key);
-            const prev = raw ? (JSON.parse(raw) as any[]) : [];
+            const prev = raw ? (JSON.parse(raw) as unknown[]) : [];
             const next = [
               ...(Array.isArray(prev) ? prev : []),
               {

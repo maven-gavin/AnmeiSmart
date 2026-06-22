@@ -1,7 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
-import toast from 'react-hot-toast';
+import { useState } from 'react';
 import type { LocalFilePreview } from '@/hooks/useMediaUpload';
 
 interface MediaPreviewProps {
@@ -15,7 +14,6 @@ interface MediaPreviewProps {
 }
 
 export function MediaPreview({ 
-  conversationId,
   imagePreview, 
   audioPreview, 
   filePreview,
@@ -163,7 +161,7 @@ export function MediaPreview({
           {/* 提示信息 */}
           <div className="mt-3 text-center">
             <p className="text-xs text-gray-500">
-              可以试听录音内容，满意后点击"发送"按钮发送语音消息
+              可以试听录音内容，满意后点击{'"'}发送{'"'}按钮发送语音消息
             </p>
           </div>
         </div>

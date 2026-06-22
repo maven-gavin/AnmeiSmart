@@ -7,6 +7,20 @@ import { MessageHandler, MessageHandlerRegistry, MessageEventHandler, createDefa
 import { MessageQueue } from './core/messageQueue';
 import { ConnectionStatus, WebSocketConfig, MessageData, ConnectionParams } from './types';
 
+interface StatusChangeEvent {
+  oldStatus: ConnectionStatus;
+  newStatus: ConnectionStatus;
+  connectionId?: string;
+  timestamp?: number;
+  error?: unknown;
+}
+
+interface NamedMessageHandler extends MessageHandler {
+  getName(): string;
+}
+
+type OutgoingMessage = MessageData | Record<string, unknown>;
+
 /**
  * WebSocket客户端服务
  * 整合所有WebSocket相关功能，提供统一的接口
@@ -84,7 +98,7 @@ export class WebSocketClient {
     this.reconnector.on('reconnected', this.handleReconnection.bind(this));
     
     // 处理重连器错误事件，防止未捕获的错误
-    this.reconnector.on('error', (error: any) => {
+    this.reconnector.on('error', (error: unknown) => {
       if (this.config.debug) {
         console.error('重连器错误:', error);
       }
@@ -114,7 +128,7 @@ export class WebSocketClient {
     this.connectionParams = { ...params };
     
     // 构建完整URL - 分布式架构使用通用端点
-    let url = this.config.url;
+    const url = this.config.url;
     console.log(`WebSocketClient: 连接分布式WebSocket端点: ${url}`);
     
     // 添加查询参数
@@ -213,14 +227,15 @@ export class WebSocketClient {
    * @param conversationId 可选的会话ID
    * @returns 是否发送成功
    */
-  public sendMessage(message: MessageData | Record<string, any>, conversationId?: string): boolean {
+  public sendMessage(message: OutgoingMessage, conversationId?: string): boolean {
     // 如果消息本身没有会话ID但提供了conversationId参数，则添加到消息中
     if (conversationId && !message.conversation_id && typeof message === 'object') {
       message = { ...message, conversation_id: conversationId };
     }
     
     // 实际的会话ID，优先使用消息中的
-    const actualConversationId = (message as any).conversation_id || conversationId;
+    const rawConversationId = 'conversation_id' in message ? message.conversation_id : undefined;
+    const actualConversationId = typeof rawConversationId === 'string' ? rawConversationId : conversationId;
     
     try {
       // 检查连接状态
@@ -265,10 +280,10 @@ export class WebSocketClient {
    * 处理原始消息
    * @param event 消息事件
    */
-  private handleRawMessage(event: any): void {
+  private handleRawMessage(event: MessageEvent): void {
     try {
       // 反序列化消息
-      let message: any;
+      let message: MessageData | Record<string, unknown>;
       
       if (typeof event.data === 'string') {
         message = this.serializer.deserialize(event.data);
@@ -284,31 +299,31 @@ export class WebSocketClient {
       
       // 适配消息格式
       console.log('[WebSocket] 原始消息:', message);
-      const adaptedMessage = this.adapter.adapt(message);
+      const adaptedMessage = this.adapter.adapt(message as Record<string, unknown>);
       console.log('[WebSocket] 适配后消息:', {
         id: adaptedMessage.id,
         conversation_id: adaptedMessage.conversation_id,
         type: adaptedMessage.type,
-        action: (adaptedMessage as any).action,
-        event_type: (adaptedMessage as any).event_type,
-        data: (adaptedMessage as any).data,
-        hasData: !!(adaptedMessage as any).data
+        action: adaptedMessage.action,
+        event_type: adaptedMessage.event_type,
+        data: adaptedMessage.data,
+        hasData: !!adaptedMessage.data
       });
       
       // 分发到处理器
       const handled = this.handlerRegistry.dispatchMessage(adaptedMessage);
-      console.log('[WebSocket] 消息分发结果:', { handled, action: (adaptedMessage as any).action });
+      console.log('[WebSocket] 消息分发结果:', { handled, action: adaptedMessage.action });
       
       // 只在开发模式下且消息类型重要时输出日志
       if (this.config.debug && this.shouldLogMessage(adaptedMessage)) {
         // 避免消息日志过于频繁
-        const messageKey = `${(adaptedMessage as any).action || 'unknown'}_${adaptedMessage.type || 'unknown'}`;
+        const messageKey = `${adaptedMessage.action || 'unknown'}_${adaptedMessage.type || 'unknown'}`;
         const lastLogTime = sessionStorage.getItem(`ws_msg_log_${messageKey}`);
         const now = Date.now();
         
         if (!lastLogTime || now - parseInt(lastLogTime) > 5000) { // 5秒内相同类型消息不重复日志
           console.log('WebSocket收到消息:', {
-            action: (adaptedMessage as any).action || 'unknown',
+            action: adaptedMessage.action || 'unknown',
             type: adaptedMessage.type || 'unknown',
             timestamp: new Date().toISOString(),
             handled
@@ -326,7 +341,7 @@ export class WebSocketClient {
    * @param message 消息对象
    * @returns 是否应该记录
    */
-  private shouldLogMessage(message: any): boolean {
+  private shouldLogMessage(message: MessageData): boolean {
     const action = message.action || '';
     const type = message.type || '';
     
@@ -355,7 +370,7 @@ export class WebSocketClient {
       const message = await this.serializer.deserializeAsync(blob);
       
       // 适配消息格式
-      const adaptedMessage = this.adapter.adapt(message);
+      const adaptedMessage = this.adapter.adapt(message as Record<string, unknown>);
       
       // 分发到处理器
       const handled = this.handlerRegistry.dispatchMessage(adaptedMessage);
@@ -373,7 +388,7 @@ export class WebSocketClient {
   /**
    * 处理重连事件
    */
-  private handleReconnection(event: any): void {
+  private handleReconnection(): void {
     // 重连成功后处理消息队列
     const conversationId = this.connectionParams.conversationId;
     
@@ -463,7 +478,7 @@ export class WebSocketClient {
   private getMessageEventHandler(): MessageEventHandler | null {
     const handler = this.handlerRegistry
       .getHandlers()
-      .find(h => (h as any).getName && (h as any).getName() === 'MessageEventHandler') as MessageEventHandler | undefined;
+      .find(h => (h as NamedMessageHandler).getName?.() === 'MessageEventHandler') as MessageEventHandler | undefined;
     return handler || null;
   }
 
@@ -472,7 +487,7 @@ export class WebSocketClient {
    * @param callback 回调函数，参数为扁平化后的消息数据
    * @returns 取消订阅函数
    */
-  public onNewMessage(callback: (data: any) => void): () => void {
+  public onNewMessage(callback: (data: unknown) => void): () => void {
     const handler = this.getMessageEventHandler();
     if (!handler) {
       if (this.config.debug) {
@@ -484,7 +499,7 @@ export class WebSocketClient {
     handler.addNewMessageCallback(callback);
 
     return () => {
-      handler.removeCallback('new_message', callback as any);
+      handler.removeCallback('new_message', callback);
     };
   }
 
@@ -493,7 +508,7 @@ export class WebSocketClient {
    * @param callback 回调函数，参数为事件数据
    * @returns 取消订阅函数
    */
-  public onEvent(callback: (data: any) => void): () => void {
+  public onEvent(callback: (data: unknown) => void): () => void {
     const handler = this.getMessageEventHandler();
     if (!handler) {
       if (this.config.debug) {
@@ -505,7 +520,7 @@ export class WebSocketClient {
     handler.addEventCallback(callback);
 
     return () => {
-      handler.removeCallback('event', callback as any);
+      handler.removeCallback('event', callback);
     };
   }
   
@@ -528,7 +543,7 @@ export class WebSocketClient {
    * 添加连接状态变化监听器
    * @param listener 回调函数，参数为 { oldStatus: ConnectionStatus, newStatus: ConnectionStatus, connectionId: string }
    */
-  public addConnectionStatusListener(listener: (event: any) => void): void {
+  public addConnectionStatusListener(listener: (event: StatusChangeEvent) => void): void {
     this.connection.on('statusChange', listener);
   }
   
@@ -536,7 +551,7 @@ export class WebSocketClient {
    * 移除连接状态变化监听器
    * @param listener 要移除的回调函数
    */
-  public removeConnectionStatusListener(listener: (event: any) => void): void {
+  public removeConnectionStatusListener(listener: (event: StatusChangeEvent) => void): void {
     this.connection.off('statusChange', listener);
   }
   
@@ -674,7 +689,7 @@ export function resetWebSocketClient(): void {
   if (instance) {
     try {
       instance.disconnect();
-    } catch (error) {
+    } catch {
       // 忽略错误
     }
     instance = null;

@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { authService } from '@/service/authService';
 
 // 测试账号配置
 const TEST_ACCOUNTS = [
@@ -95,9 +94,6 @@ export default function LoginForm() {
     try {
       // 使用AuthContext的login方法
       await login(accountUsername, accountPassword);
-      
-      // 获取当前用户信息（使用 authService 而不是直接访问 localStorage）
-      const user = authService.getCurrentUser();
       
       // 获取跳转URL（如果有）
       const params = new URLSearchParams(window.location.search);

@@ -1,4 +1,5 @@
 import { test, expect, BrowserContext, Page } from '@playwright/test';
+import config from '../test.config.js';
 import { 
   loginCustomerAPIAndGetToken,
   loginConsultantAPIAndGetToken,
@@ -6,18 +7,11 @@ import {
   loginAsCustomer,
   loginAsConsultant,
   waitForChatReady,
-  getCustomerToken,
-  getConsultantToken,
   getConversationMessages
 } from './test-utils';
 
-// 导入测试配置
-const config = require('../test.config');
-
 // 定义测试会话ID
 let testConversationId: string;
-let customerToken: string | null = null;
-let consultantToken: string | null = null;
 
 // 测试查询和预期关键词
 const TEST_QUERY = config.testData.testQuery;
@@ -32,11 +26,9 @@ test.beforeAll(async () => {
   try {
     // 1. 客户登录获取令牌
     await loginCustomerAPIAndGetToken();
-    customerToken = getCustomerToken();
     
     // 2. 顾问登录获取令牌（用于监控会话）
     await loginConsultantAPIAndGetToken();
-    consultantToken = getConsultantToken();
     
     // 3. 客户创建测试会话（符合业务流程：客户发起咨询）
     testConversationId = await createCustomerTestConversation();

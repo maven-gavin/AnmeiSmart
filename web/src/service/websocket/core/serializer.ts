@@ -38,7 +38,7 @@ export class WebSocketSerializer {
    * @param message 要序列化的消息对象
    * @returns 序列化后的数据，字符串或二进制
    */
-  public serialize(message: MessageData | Record<string, any>): string | ArrayBuffer {
+  public serialize(message: MessageData | Record<string, unknown>): string | ArrayBuffer {
     // 如果启用了验证，先验证消息格式
     if (this.validateMessages) {
       this.validateMessage(message);
@@ -62,7 +62,7 @@ export class WebSocketSerializer {
    * @param data 要反序列化的数据
    * @returns 反序列化后的消息对象
    */
-  public deserialize(data: string | ArrayBuffer | Blob): MessageData | Record<string, any> {
+  public deserialize(data: string | ArrayBuffer | Blob): MessageData | Record<string, unknown> {
     try {
       let jsonString: string;
       
@@ -97,7 +97,7 @@ export class WebSocketSerializer {
    * @param data 要反序列化的数据
    * @returns Promise，解析为反序列化后的消息对象
    */
-  public async deserializeAsync(data: string | ArrayBuffer | Blob): Promise<MessageData | Record<string, any>> {
+  public async deserializeAsync(data: string | ArrayBuffer | Blob): Promise<MessageData | Record<string, unknown>> {
     try {
       let jsonString: string;
       
@@ -157,7 +157,7 @@ export class WebSocketSerializer {
    * @param message 要验证的消息对象
    * @throws 如果消息格式无效则抛出错误
    */
-  private validateMessage(message: any): void {
+  private validateMessage(message: MessageData | Record<string, unknown>): void {
     // 基本检查
     if (!message || typeof message !== 'object') {
       throw new Error('无效的消息：不是对象');
@@ -165,30 +165,32 @@ export class WebSocketSerializer {
     
     // 检查是否为完整的MessageData
     if ('id' in message && 'conversation_id' in message && 'type' in message && 'sender' in message) {
+      const msg = message as MessageData;
       // 验证MessageData格式
-      if (!message.id || typeof message.id !== 'string') {
+      if (!msg.id || typeof msg.id !== 'string') {
         throw new Error('无效的消息：缺少有效的id');
       }
       
-      if (!message.conversation_id || typeof message.conversation_id !== 'string') {
+      if (!msg.conversation_id || typeof msg.conversation_id !== 'string') {
         throw new Error('无效的消息：缺少有效的conversation_id');
       }
       
-      if (!message.type || !Object.values(MessageType).includes(message.type)) {
-        throw new Error(`无效的消息：类型 ${message.type} 不受支持`);
+      if (!msg.type || !Object.values(MessageType).includes(msg.type)) {
+        throw new Error(`无效的消息：类型 ${String(msg.type)} 不受支持`);
       }
       
-      if (!message.sender || typeof message.sender !== 'object' || !message.sender.id) {
+      if (!msg.sender || typeof msg.sender !== 'object' || !msg.sender.id) {
         throw new Error('无效的消息：缺少有效的sender信息');
       }
       
-      if (!message.timestamp) {
+      if (!msg.timestamp) {
         throw new Error('无效的消息：缺少timestamp');
       }
     }
     
     // 允许基本的命令消息通过（不完全符合MessageData格式）
-    if (message.type === 'heartbeat' || message.type === 'command') {
+    const messageType = (message as Record<string, unknown>).type;
+    if (messageType === 'heartbeat' || messageType === 'command') {
       return;
     }
   }
@@ -227,7 +229,7 @@ export class WebSocketSerializer {
    * @param data 要序列化的数据
    * @returns ArrayBuffer
    */
-  serializeToBinary(data: any): ArrayBuffer {
+  serializeToBinary(data: MessageData | Record<string, unknown>): ArrayBuffer {
     try {
       const jsonString = JSON.stringify(data);
       // 将纯文本转换为二进制，并确保返回的是ArrayBuffer类型

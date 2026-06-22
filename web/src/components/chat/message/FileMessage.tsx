@@ -60,8 +60,11 @@ export default function FileMessage({ message, compact, fileInfo }: FileMessageP
         
         // 如果文件大小为0，尝试从metadata中获取
         let fileSize = mediaInfo.size_bytes;
-        if (fileSize === 0 && mediaInfo.metadata && mediaInfo.metadata.size_bytes) {
-          fileSize = mediaInfo.metadata.size_bytes;
+        if (fileSize === 0 && mediaInfo.metadata) {
+          const metaSize = (mediaInfo.metadata as Record<string, unknown>).size_bytes;
+          if (typeof metaSize === 'number') {
+            fileSize = metaSize;
+          }
         }
         
         return {
@@ -204,7 +207,7 @@ export default function FileMessage({ message, compact, fileInfo }: FileMessageP
         try {
           const errorData = await response.json();
           errorMessage = errorData.detail || errorMessage;
-        } catch (e) {
+        } catch {
           // 忽略JSON解析错误
         }
         throw new Error(errorMessage);
@@ -332,7 +335,7 @@ export default function FileMessage({ message, compact, fileInfo }: FileMessageP
                 alt={currentFileInfo.file_name}
                 className="max-w-full max-h-full object-contain"
                 onClick={() => setIsPreviewOpen(false)}
-                onError={(e) => {
+                onError={() => {
                   console.error('图片预览加载失败');
                   toast.error('图片加载失败');
                   setIsPreviewOpen(false);

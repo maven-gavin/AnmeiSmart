@@ -42,7 +42,7 @@ export interface MCPTool {
   description?: string
   enabled: boolean
   timeout_seconds: number
-  config_data: Record<string, any>
+  config_data: Record<string, unknown>
   created_at: string
   updated_at: string
 }
@@ -52,7 +52,7 @@ export interface MCPToolUpdate {
   enabled?: boolean
   timeout_seconds?: number
   description?: string
-  config_data?: Record<string, any>
+  config_data?: Record<string, unknown>
 }
 
 export interface MCPServerStatus {
@@ -186,13 +186,13 @@ class MCPConfigService {
   /**
    * 获取MCP调用日志
    */
-  async getMCPCallLogs(groupId?: string, limit: number = 50): Promise<any[]> {
+  async getMCPCallLogs(groupId?: string, limit: number = 50): Promise<Record<string, unknown>[]> {
     const params = new URLSearchParams()
     if (groupId) params.append('group_id', groupId)
     params.append('limit', limit.toString())
     
     const url = `/mcp/admin/call-logs?${params.toString()}`
-    const response = await apiClient.get<any[]>(url)
+    const response = await apiClient.get<Record<string, unknown>[]>(url)
     return response.data
   }
 
@@ -201,8 +201,8 @@ class MCPConfigService {
   /**
    * 生成Agent MCP配置
    */
-  async generateAgentConfig(): Promise<Record<string, any>> {
-    const response = await apiClient.get<Record<string, any>>('/mcp/admin/agent-config')
+  async generateAgentConfig(): Promise<Record<string, unknown>> {
+    const response = await apiClient.get<Record<string, unknown>>('/mcp/admin/agent-config')
     return response.data
   }
 }

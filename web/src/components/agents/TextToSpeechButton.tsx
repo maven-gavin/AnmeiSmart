@@ -15,7 +15,6 @@ interface TextToSpeechButtonProps {
 export function TextToSpeechButton({
   text,
   agentConfigId,
-  messageId
 }: TextToSpeechButtonProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,7 +46,7 @@ export function TextToSpeechButton({
             text: text.substring(0, 1000), // 限制文本长度
             streaming: false
           },
-          responseType: 'blob' as any
+          skipContentType: true
         }
       );
 

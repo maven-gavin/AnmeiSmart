@@ -110,7 +110,7 @@ class ResourceService {
    */
   async updateResource(resourceId: string, data: UpdateResourceRequest): Promise<Resource> {
     // 将驼峰命名转换为下划线命名以匹配后端API
-    const requestData: any = {};
+    const requestData: Record<string, unknown> = {};
     if (data.displayName !== undefined) requestData.display_name = data.displayName;
     if (data.description !== undefined) requestData.description = data.description;
     if (data.resourcePath !== undefined) requestData.resource_path = data.resourcePath;
@@ -134,7 +134,7 @@ class ResourceService {
   /**
    * 同步菜单资源
    */
-  async syncMenuResources(menus: any[]): Promise<SyncMenusResponse> {
+  async syncMenuResources(menus: Record<string, unknown>[]): Promise<SyncMenusResponse> {
     const response = await apiClient.post<SyncMenusResponse>(
       '/resources/sync-menus',
       { menus, version: process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0' }

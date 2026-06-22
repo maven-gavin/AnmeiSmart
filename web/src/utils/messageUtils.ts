@@ -157,16 +157,11 @@ export function getMessageSortKey(timestamp: string, id: string): string {
 
 import { 
   Message, 
-  MessageContent, 
   MediaInfo, 
   TextMessageContent, 
   MediaMessageContent, 
   SystemEventContent,
   StructuredMessageContent,
-  CreateTextMessageData,
-  CreateMediaMessageData,
-  CreateSystemEventData,
-  CardComponent
 } from '@/types/chat';
 
 /**
@@ -206,7 +201,7 @@ export class MessageUtils {
   /**
    * 获取结构化消息的卡片数据
    */
-  static getStructuredCardData(message: Message): any | null {
+  static getStructuredCardData(message: Message): Record<string, unknown> | null {
     if (message.type === 'structured') {
       return (message.content as StructuredMessageContent).data;
     }
@@ -246,7 +241,7 @@ export class MessageUtils {
    * 格式化系统事件为可读文本
    */
   static formatSystemEventText(content: SystemEventContent): string {
-    const { system_event_type, status, participants } = content;
+    const { system_event_type, status } = content;
     
     switch (system_event_type) {
       case 'user_joined':
@@ -361,7 +356,7 @@ export class MessageUtils {
    */
   static createSystemEventContent(
     eventType: string,
-    data?: { [key: string]: any }
+    data?: Record<string, unknown>
   ): SystemEventContent {
     return {
       system_event_type: eventType,
@@ -374,7 +369,7 @@ export class MessageUtils {
    * 创建服务推荐卡片内容
    */
   static createServiceRecommendationContent(
-    services: any[],
+    services: Record<string, unknown>[],
     title: string = '推荐服务'
   ): StructuredMessageContent {
     return {

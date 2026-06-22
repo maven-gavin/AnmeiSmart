@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useState, useRef } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { RecordingControls } from '@/components/chat/RecordingControls';
@@ -9,17 +9,16 @@ import FAQSection from '@/components/chat/FAQSection';
 import ConversationTakeover from '@/components/chat/ConversationTakeover';
 import { useRecording } from '@/hooks/useRecording';
 import { useMediaUpload, type LocalFilePreview } from '@/hooks/useMediaUpload';
-import { type Message, type MediaMessageContent, type TextMessageContent } from '@/types/chat';
+import { type Message, type TextMessageContent, type FileInfo } from '@/types/chat';
 import { v4 as uuidv4 } from 'uuid';
 import { authService } from "@/service/authService";
 import { ApiClientError, ErrorType } from '@/service/apiClient';
-import FileSelector from './FileSelector';
 import { MessageUtils } from '@/utils/messageUtils';
 import { apiClient } from '@/service/apiClient';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { saveMessage } from '@/service/chatService';
 import { ScreenshotCapture } from './ScreenshotCapture';
-import { Send, Smile, Image, Paperclip, Mic } from 'lucide-react';
+import { Send, Image, Paperclip, Mic } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 interface MessageInputProps {
@@ -36,12 +35,9 @@ interface MessageInputProps {
 export default function MessageInput({
   conversationId,
   onSendMessage,
-  onUpdateMessages,
   messages = [],
   onInputFocus,
   onMessageAdded,
-  peerUserId = null,
-  peerUserType = null
 }: MessageInputProps) {
   const { user } = useAuthContext();
 
@@ -263,7 +259,7 @@ export default function MessageInput({
       formData.append('conversation_id', conversationId);
       // 注意：不再传递text参数，因为文件上传API不再创建消息
 
-      const { data: result } = await apiClient.upload<any>('/files/upload', formData);
+      const { data: result } = await apiClient.upload<{ success: boolean; message: string; file_info: FileInfo }>('/files/upload', formData);
 
       if (!result.success) {
         // 上传失败，更新消息状态为failed
@@ -380,7 +376,7 @@ export default function MessageInput({
       const formData = new FormData();
       formData.append('file', originalFile);
       formData.append('conversation_id', conversationId);
-      const { data: result } = await apiClient.upload<any>('/files/upload', formData);
+      const { data: result } = await apiClient.upload<{ success: boolean; message: string; file_info: FileInfo }>('/files/upload', formData);
 
       if (!result.success) {
         const failedMessage: Message = {
@@ -506,7 +502,7 @@ export default function MessageInput({
       formData.append('conversation_id', conversationId);
       // 注意：不再传递text参数，因为文件上传API不再创建消息
 
-      const { data: result } = await apiClient.upload<any>('/files/upload', formData);
+      const { data: result } = await apiClient.upload<{ success: boolean; message: string; file_info: FileInfo }>('/files/upload', formData);
 
       if (!result.success) {
         // 上传失败，更新消息状态为failed

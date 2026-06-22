@@ -15,7 +15,7 @@ export class WebSocketReconnector extends EventEmitter {
   private timer: NodeJS.Timeout | null = null;
   private isEnabled: boolean = true;
   private lastUrl: string = '';
-  private lastParams: Record<string, any> = {};
+  private lastParams: Record<string, unknown> = {};
   private exponentialBackoff: boolean = true;
 
   /**
@@ -139,7 +139,7 @@ export class WebSocketReconnector extends EventEmitter {
   /**
    * 处理连接状态变化
    */
-  private handleConnectionStatusChange(event: any): void {
+  private handleConnectionStatusChange(event: Record<string, unknown>): void {
     // 保存连接参数，用于重连
     if (event.newStatus === ConnectionStatus.CONNECTED) {
       this.lastUrl = this.connection.getUrl();
@@ -150,7 +150,7 @@ export class WebSocketReconnector extends EventEmitter {
   /**
    * 处理连接打开事件
    */
-  private handleConnectionOpen(event: any): void {
+  private handleConnectionOpen(event: Record<string, unknown>): void {
     // 连接成功，重置重连计数
     this.attempts = 0;
     this.cancelReconnect();
@@ -163,14 +163,14 @@ export class WebSocketReconnector extends EventEmitter {
   /**
    * 处理连接关闭事件
    */
-  private handleConnectionClose(event: any): void {
+  private handleConnectionClose(payload: { code?: number; wasClean?: boolean }): void {
     // 只有在启用了重连机制且不是正常关闭时才尝试重连
     if (!this.isEnabled) {
       return;
     }
     
     // 如果是服务器要求关闭或应用主动关闭，则不重连
-    if (event.code === 1000 && event.wasClean) {
+    if (payload.code === 1000 && payload.wasClean) {
       return;
     }
     
@@ -180,7 +180,7 @@ export class WebSocketReconnector extends EventEmitter {
   /**
    * 处理连接错误事件
    */
-  private handleConnectionError(event: any): void {
+  private handleConnectionError(): void {
     // 连接错误时，如果启用了重连，则尝试重连
     if (this.isEnabled) {
       this.scheduleReconnect();

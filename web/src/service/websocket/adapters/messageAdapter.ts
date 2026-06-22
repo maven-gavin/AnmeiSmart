@@ -1,5 +1,15 @@
 import { MessageData, MessageType, SenderType } from '../types';
 
+type RawMessage = Record<string, unknown>;
+
+function asRecord(value: unknown): RawMessage {
+  return (value && typeof value === 'object' ? value : {}) as RawMessage;
+}
+
+function getString(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
 /**
  * 消息适配器
  * 负责消息格式转换，确保不同来源的消息能够以统一格式处理
@@ -10,7 +20,7 @@ export class MessageAdapter {
    * @param rawMessage 原始消息
    * @returns 标准格式的消息
    */
-  public adapt(rawMessage: any): MessageData {
+  public adapt(rawMessage: RawMessage): MessageData {
     try {
       // 优先检查是否是事件消息格式（带action和data字段）
       if (rawMessage.action && rawMessage.data) {
@@ -44,18 +54,20 @@ export class MessageAdapter {
    * @param message 要检查的消息
    * @returns 是否为标准格式
    */
-  private isStandardMessage(message: any): message is MessageData {
+  private isStandardMessage(message: unknown): message is MessageData {
+    if (!message || typeof message !== 'object') {
+      return false;
+    }
+    const msg = message as MessageData;
     return (
-      message &&
-      typeof message === 'object' &&
-      typeof message.id === 'string' &&
-      typeof message.conversation_id === 'string' &&
-      typeof message.type === 'string' &&
-      message.sender &&
-      typeof message.sender === 'object' &&
-      typeof message.sender.id === 'string' &&
-      typeof message.sender.type === 'string' &&
-      typeof message.timestamp === 'string'
+      typeof msg.id === 'string' &&
+      typeof msg.conversation_id === 'string' &&
+      typeof msg.type === 'string' &&
+      msg.sender &&
+      typeof msg.sender === 'object' &&
+      typeof msg.sender.id === 'string' &&
+      typeof msg.sender.type === 'string' &&
+      typeof msg.timestamp === 'string'
     );
   }
 
@@ -64,17 +76,17 @@ export class MessageAdapter {
    * @param rawMessage 原始消息
    * @returns 标准格式的内容消息
    */
-  private adaptContentMessage(rawMessage: any): MessageData {
+  private adaptContentMessage(rawMessage: RawMessage): MessageData {
     const now = new Date().toISOString();
     
     // 构建基本消息结构
     const message: MessageData = {
-      id: rawMessage.id || this.generateId(),
-      conversation_id: rawMessage.conversation_id || '',
-      content: rawMessage.content || '',
-      type: this.getMessageType(rawMessage.type),
+      id: getString(rawMessage.id) || this.generateId(),
+      conversation_id: getString(rawMessage.conversation_id),
+      content: rawMessage.content ?? '',
+      type: this.getMessageType(getString(rawMessage.type)),
       sender: this.getSender(rawMessage.sender),
-      timestamp: rawMessage.timestamp || now,
+      timestamp: getString(rawMessage.timestamp) || now,
     };
     
     // 添加可选字段 - 支持两种字段名格式
@@ -84,8 +96,8 @@ export class MessageAdapter {
       message.is_important = !!rawMessage.is_important;
     }
     
-    if (rawMessage.metadata) {
-      message.metadata = { ...rawMessage.metadata };
+    if (rawMessage.metadata && typeof rawMessage.metadata === 'object') {
+      message.metadata = { ...(rawMessage.metadata as Record<string, unknown>) };
     }
     
     return message;
@@ -96,23 +108,23 @@ export class MessageAdapter {
    * @param rawMessage 原始消息
    * @returns 标准格式的系统消息
    */
-  private adaptSystemMessage(rawMessage: any): MessageData {
+  private adaptSystemMessage(rawMessage: RawMessage): MessageData {
     const now = new Date().toISOString();
     
     // 系统消息通常没有发送者，使用默认系统发送者
     return {
-      id: rawMessage.id || this.generateId(),
-      conversation_id: rawMessage.conversation_id || '',
-      content: rawMessage.content || '',
+      id: getString(rawMessage.id) || this.generateId(),
+      conversation_id: getString(rawMessage.conversation_id),
+      content: rawMessage.content ?? '',
       type: MessageType.SYSTEM,
       sender: {
         id: 'system',
         type: SenderType.SYSTEM,
         name: '系统',
       },
-      timestamp: rawMessage.timestamp || now,
+      timestamp: getString(rawMessage.timestamp) || now,
       isSystemMessage: true,
-      metadata: rawMessage.metadata || {},
+      metadata: (rawMessage.metadata as Record<string, unknown> | undefined) || {},
     };
   }
 
@@ -121,22 +133,22 @@ export class MessageAdapter {
    * @param rawMessage 原始消息
    * @returns 标准格式的服务消息
    */
-  private adaptServiceMessage(rawMessage: any): MessageData {
+  private adaptServiceMessage(rawMessage: RawMessage): MessageData {
     const now = new Date().toISOString();
     
     return {
-      id: rawMessage.id || this.generateId(),
-      conversation_id: rawMessage.conversation_id || '',
-      content: rawMessage.content || '',
-      type: this.getMessageType(rawMessage.type),
+      id: getString(rawMessage.id) || this.generateId(),
+      conversation_id: getString(rawMessage.conversation_id),
+      content: rawMessage.content ?? '',
+      type: this.getMessageType(getString(rawMessage.type)),
       sender: {
         id: 'system',
         type: SenderType.SYSTEM,
         name: '系统',
       },
-      timestamp: rawMessage.timestamp || now,
+      timestamp: getString(rawMessage.timestamp) || now,
       isSystemMessage: true,
-      metadata: rawMessage.metadata || {
+      metadata: (rawMessage.metadata as Record<string, unknown> | undefined) || {
         serviceType: rawMessage.type,
         payload: rawMessage.payload || {},
       },
@@ -148,23 +160,22 @@ export class MessageAdapter {
    * @param rawMessage 原始消息
    * @returns 标准格式的消息
    */
-  private adaptGenericMessage(rawMessage: any): MessageData {
+  private adaptGenericMessage(rawMessage: RawMessage): MessageData {
     const now = new Date().toISOString();
     
     // 检查是否是事件消息格式（带action和data字段）
     if (rawMessage.action && rawMessage.data) {
-      // 这是事件消息格式，保留action和data字段
-      const adaptedMessage: any = {
-        id: rawMessage.data?.id || rawMessage.id || rawMessage.messageId || this.generateId(),
-        conversation_id: rawMessage.data?.conversation_id || rawMessage.conversation_id || rawMessage.conversationId || '',
-        content: rawMessage.data?.content || rawMessage.content || rawMessage.message || '',
-        type: this.inferMessageType(rawMessage.data || rawMessage),
-        sender: this.extractSender(rawMessage.data || rawMessage),
-        timestamp: rawMessage.data?.timestamp || rawMessage.timestamp || rawMessage.time || rawMessage.date || now,
-        // 保留事件相关字段
-        action: rawMessage.action,
+      const eventData = asRecord(rawMessage.data);
+      const adaptedMessage: MessageData = {
+        id: getString(eventData.id) || getString(rawMessage.id) || getString(rawMessage.messageId) || this.generateId(),
+        conversation_id: getString(eventData.conversation_id) || getString(rawMessage.conversation_id) || getString(rawMessage.conversationId),
+        content: eventData.content ?? rawMessage.content ?? rawMessage.message ?? '',
+        type: this.inferMessageType(eventData.id ? eventData : rawMessage),
+        sender: this.extractSender(eventData.id ? eventData : rawMessage),
+        timestamp: getString(eventData.timestamp) || getString(rawMessage.timestamp) || getString(rawMessage.time) || getString(rawMessage.date) || now,
+        action: getString(rawMessage.action),
         data: rawMessage.data,
-        event_type: rawMessage.event_type || rawMessage.action,
+        event_type: getString(rawMessage.event_type) || getString(rawMessage.action),
         metadata: {
           originalMessage: rawMessage,
           adaptedBy: 'event',
@@ -172,8 +183,8 @@ export class MessageAdapter {
       };
       
       // 添加可选字段
-      if (rawMessage.data?.is_important !== undefined) {
-        adaptedMessage.is_important = rawMessage.data.is_important;
+      if (eventData.is_important !== undefined) {
+        adaptedMessage.is_important = !!eventData.is_important;
       }
       
       return adaptedMessage;
@@ -187,12 +198,12 @@ export class MessageAdapter {
     
     // 构建标准消息结构
     return {
-      id: rawMessage.id || rawMessage.messageId || this.generateId(),
-      conversation_id: rawMessage.conversation_id || rawMessage.conversationId || '',
-      content: rawMessage.content || rawMessage.message || rawMessage.data || '',
+      id: getString(rawMessage.id) || getString(rawMessage.messageId) || this.generateId(),
+      conversation_id: getString(rawMessage.conversation_id) || getString(rawMessage.conversationId),
+      content: rawMessage.content ?? rawMessage.message ?? rawMessage.data ?? '',
       type: messageType,
       sender: sender,
-      timestamp: rawMessage.timestamp || rawMessage.time || rawMessage.date || now,
+      timestamp: getString(rawMessage.timestamp) || getString(rawMessage.time) || getString(rawMessage.date) || now,
       metadata: {
         originalMessage: rawMessage,
         adaptedBy: 'generic',
@@ -206,13 +217,13 @@ export class MessageAdapter {
    * @param originalMessage 原始消息
    * @returns 标准格式的错误消息
    */
-  private createErrorMessage(error: any, originalMessage?: any): MessageData {
+  private createErrorMessage(error: unknown, originalMessage?: RawMessage): MessageData {
     const now = new Date().toISOString();
     const errorMessage = error instanceof Error ? error.message : String(error);
     
     return {
       id: this.generateId(),
-      conversation_id: originalMessage?.conversation_id || '',
+      conversation_id: getString(originalMessage?.conversation_id),
       content: `消息处理错误: ${errorMessage}`,
       type: MessageType.SYSTEM,
       sender: {
@@ -281,10 +292,10 @@ export class MessageAdapter {
    * @param rawMessage 原始消息
    * @returns 推断的消息类型
    */
-  private inferMessageType(rawMessage: any): MessageType {
+  private inferMessageType(rawMessage: RawMessage): MessageType {
     // 如果有明确的type字段
     if (rawMessage.type) {
-      return this.getMessageType(rawMessage.type);
+      return this.getMessageType(getString(rawMessage.type));
     }
     
     // 根据content内容推断
@@ -307,7 +318,7 @@ export class MessageAdapter {
     
     // 如果有messageType字段
     if (rawMessage.messageType) {
-      return this.getMessageType(rawMessage.messageType);
+      return this.getMessageType(getString(rawMessage.messageType));
     }
     
     // 默认为文本类型
@@ -319,7 +330,7 @@ export class MessageAdapter {
    * @param senderInfo 原始发送者信息
    * @returns 标准格式的发送者
    */
-  private getSender(senderInfo: any): MessageData['sender'] {
+  private getSender(senderInfo: unknown): MessageData['sender'] {
     // 如果没有发送者信息，返回默认未知发送者
     if (!senderInfo) {
       return {
@@ -332,15 +343,17 @@ export class MessageAdapter {
     // 如果已经是标准格式，直接返回
     if (
       typeof senderInfo === 'object' &&
-      typeof senderInfo.id === 'string' &&
-      typeof senderInfo.type === 'string'
+      senderInfo !== null
     ) {
-      return {
-        id: senderInfo.id,
-        type: this.getSenderType(senderInfo.type),
-        name: senderInfo.name || undefined,
-        avatar: senderInfo.avatar || undefined,
-      };
+      const record = senderInfo as Record<string, unknown>;
+      if (typeof record.id === 'string' && typeof record.type === 'string') {
+        return {
+          id: record.id,
+          type: this.getSenderType(record.type),
+          name: typeof record.name === 'string' ? record.name : undefined,
+          avatar: typeof record.avatar === 'string' ? record.avatar : undefined,
+        };
+      }
     }
     
     // 如果是简单字符串，尝试解析为ID或类型
@@ -355,12 +368,14 @@ export class MessageAdapter {
       };
     }
     
+    const sender = asRecord(senderInfo);
+    
     // 尝试从对象中提取信息
     return {
-      id: senderInfo.id || senderInfo.userId || senderInfo.user_id || 'unknown',
-      type: this.getSenderType(senderInfo.type || senderInfo.role),
-      name: senderInfo.name || senderInfo.userName || senderInfo.nickname || undefined,
-      avatar: senderInfo.avatar || senderInfo.avatarUrl || undefined,
+      id: getString(sender.id) || getString(sender.userId) || getString(sender.user_id) || 'unknown',
+      type: this.getSenderType(getString(sender.type) || getString(sender.role)),
+      name: getString(sender.name) || getString(sender.userName) || getString(sender.nickname) || undefined,
+      avatar: getString(sender.avatar) || getString(sender.avatarUrl) || undefined,
     };
   }
 
@@ -369,7 +384,7 @@ export class MessageAdapter {
    * @param rawMessage 原始消息
    * @returns 标准格式的发送者
    */
-  private extractSender(rawMessage: any): MessageData['sender'] {
+  private extractSender(rawMessage: RawMessage): MessageData['sender'] {
     // 首先检查sender字段
     if (rawMessage.sender) {
       return this.getSender(rawMessage.sender);
@@ -388,10 +403,12 @@ export class MessageAdapter {
     // 尝试从分散的字段中组合信息
     if (rawMessage.userId || rawMessage.user_id || rawMessage.senderId || rawMessage.sender_id) {
       return {
-        id: rawMessage.userId || rawMessage.user_id || rawMessage.senderId || rawMessage.sender_id,
-        type: this.getSenderType(rawMessage.userType || rawMessage.user_type || rawMessage.senderType || rawMessage.sender_type),
-        name: rawMessage.userName || rawMessage.user_name || rawMessage.senderName || rawMessage.sender_name || undefined,
-        avatar: rawMessage.userAvatar || rawMessage.user_avatar || rawMessage.senderAvatar || rawMessage.sender_avatar || undefined,
+        id: getString(rawMessage.userId) || getString(rawMessage.user_id) || getString(rawMessage.senderId) || getString(rawMessage.sender_id),
+        type: this.getSenderType(
+          getString(rawMessage.userType) || getString(rawMessage.user_type) || getString(rawMessage.senderType) || getString(rawMessage.sender_type)
+        ),
+        name: getString(rawMessage.userName) || getString(rawMessage.user_name) || getString(rawMessage.senderName) || getString(rawMessage.sender_name) || undefined,
+        avatar: getString(rawMessage.userAvatar) || getString(rawMessage.user_avatar) || getString(rawMessage.senderAvatar) || getString(rawMessage.sender_avatar) || undefined,
       };
     }
     

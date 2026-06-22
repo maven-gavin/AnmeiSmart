@@ -1,15 +1,16 @@
-import { Conversation, Message } from '@/types/chat';
+import { Conversation, Message, MessageContent } from '@/types/chat';
 
 /**
  * 格式化消息内容用于显示
  */
-export const formatMessageContent = (content: any): string => {
+export const formatMessageContent = (content: MessageContent | string): string => {
   if (typeof content === 'string') {
     return content;
   }
   
   if (content && typeof content === 'object' && 'text' in content) {
-    return content.text || '';
+    const text = content.text;
+    return typeof text === 'string' ? text : '';
   }
   
   return JSON.stringify(content);

@@ -670,7 +670,7 @@ export const request = async <T>(url: string, options: unknown = {}, otherOption
     }
 
     // 处理 401 认证错误
-    const errResp: Response = err as any
+    const errResp = err as unknown as Response
     if (errResp.status === 401) {
       const {
         isSmartBrainAPI = false,
@@ -791,7 +791,7 @@ const FETCH_OPTION_KEYS = new Set([
 const normalizeBodyOptions = (options: unknown): FetchOptionType => {
   // 如果是数组，将其包装在 body 字段中
   if (Array.isArray(options)) {
-    return { body: options } as FetchOptionType
+    return { body: options } as unknown as FetchOptionType
   }
   
   if (!options || typeof options !== 'object') {

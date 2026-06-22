@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, X, Tag, Users, UserPlus, ChevronLeft } from 'lucide-react';
+import { Search, X, UserPlus, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -29,12 +29,7 @@ export function ContactToolbar({
   onTagsChange,
   selectedGroups,
   onGroupsChange,
-  sortBy,
-  sortOrder,
-  onSortChange,
   onAddFriend,
-  tags,
-  groups,
   onToggleSidebar
 }: ContactToolbarProps) {
   return (
@@ -94,7 +89,7 @@ export function ContactToolbar({
           {searchQuery && (
             <Badge variant="secondary" className="flex items-center space-x-1">
               <Search className="w-3 h-3" />
-              <span>"{searchQuery}"</span>
+              <span>{'"'}{searchQuery}{'"'}</span>
               <Button
                 variant="ghost"
                 size="sm"

@@ -148,7 +148,7 @@ export class WebSocketHeartbeat extends EventEmitter {
    * 处理收到的消息
    * @param event 消息事件
    */
-  private handleMessage(event: any): void {
+  private handleMessage(event: MessageEvent): void {
     try {
       // 尝试解析消息
       const data = typeof event.data === 'string' 
@@ -164,7 +164,7 @@ export class WebSocketHeartbeat extends EventEmitter {
           data
         });
       }
-    } catch (error) {
+    } catch {
       // 忽略非JSON消息
     }
   }
@@ -173,7 +173,7 @@ export class WebSocketHeartbeat extends EventEmitter {
    * 处理连接状态变化
    * @param event 状态变化事件
    */
-  private handleConnectionStatusChange(event: any): void {
+  private handleConnectionStatusChange(event: Record<string, unknown>): void {
     // 连接断开时停止心跳
     if (event.newStatus === 'DISCONNECTED' || event.newStatus === 'ERROR') {
       this.stop();

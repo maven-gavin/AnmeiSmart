@@ -34,7 +34,7 @@ export function ScreenshotCapture({
         width: element.scrollWidth,
         height: element.scrollHeight,
         logging: false,  // 禁用日志以提高性能
-      } as any);  // 使用 as any 绕过类型检查，因为类型定义较旧
+      } satisfies Parameters<typeof html2canvas>[1]);
       
       // 将 canvas 转换为 blob
       canvas.toBlob(

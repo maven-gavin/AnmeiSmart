@@ -108,7 +108,7 @@ export interface InteractionRecord {
   interaction_type: InteractionType;
   related_object_type?: string;
   related_object_id?: string;
-  interaction_data?: any;
+  interaction_data?: Record<string, unknown>;
   occurred_at: string;
   created_at: string;
 }
@@ -245,7 +245,7 @@ export interface TagSuggestion {
 export interface BatchFriendOperations {
   friendship_ids: string[];
   operation: 'add_tags' | 'remove_tags' | 'move_to_group' | 'remove_from_group' | 'star' | 'unstar' | 'mute' | 'unmute';
-  operation_data?: any;
+  operation_data?: Record<string, unknown>;
 }
 
 export interface BatchOperationResponse {

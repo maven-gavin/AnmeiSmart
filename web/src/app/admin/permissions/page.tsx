@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, type FormEvent } from 'react';
+import React, { useState, useEffect, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { usePermission } from '@/hooks/usePermission';
@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -32,7 +31,7 @@ import {
 import { permissionService } from '@/service/permissionService';
 import { resourceService, Resource } from '@/service/resourceService';
 import { handleApiError } from '@/service/apiClient';
-import { Permission, Role } from '@/types/auth';
+import { Permission } from '@/types/auth';
 import toast from 'react-hot-toast';
 import AppLayout from '@/components/layout/AppLayout';
 import { EnhancedPagination } from '@/components/ui/pagination';
@@ -204,7 +203,7 @@ export default function PermissionsPage() {
     setPermissionFormError(null);
 
     try {
-      const payload: any = {
+      const payload: Partial<Permission> = {
         displayName: permissionForm.displayName.trim() || undefined,
         description: permissionForm.description.trim() || undefined,
         permissionType: permissionForm.permissionType,
@@ -270,8 +269,8 @@ export default function PermissionsPage() {
       
       setAvailableResources(allResourcesResponse.resources);
       setAssignedResources(assignedResourcesResponse);
-    } catch (err: any) {
-      toast.error(err.message || '加载资源列表失败');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : '加载资源列表失败');
       setIsAssignResourcesDialogOpen(false);
     } finally {
       setAssignResourcesLoading(false);
@@ -289,8 +288,8 @@ export default function PermissionsPage() {
       // 重新加载已分配的资源
       const assignedResourcesResponse = await permissionService.getPermissionResources(assignResourcesTarget.id);
       setAssignedResources(assignedResourcesResponse);
-    } catch (err: any) {
-      toast.error(err.message || '分配资源失败');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : '分配资源失败');
     } finally {
       setAssignResourcesLoading(false);
     }
@@ -307,8 +306,8 @@ export default function PermissionsPage() {
       // 重新加载已分配的资源
       const assignedResourcesResponse = await permissionService.getPermissionResources(assignResourcesTarget.id);
       setAssignedResources(assignedResourcesResponse);
-    } catch (err: any) {
-      toast.error(err.message || '移除资源失败');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : '移除资源失败');
     } finally {
       setAssignResourcesLoading(false);
     }
@@ -674,7 +673,7 @@ export default function PermissionsPage() {
                   <Label htmlFor="createPermissionType">权限类型</Label>
                   <Select
                     value={permissionForm.permissionType}
-                    onValueChange={(value: any) => setPermissionForm({ ...permissionForm, permissionType: value })}
+                    onValueChange={(value: Permission['permissionType']) => setPermissionForm({ ...permissionForm, permissionType: value })}
                     disabled={permissionFormLoading}
                   >
                     <SelectTrigger>
@@ -692,7 +691,7 @@ export default function PermissionsPage() {
                   <Label htmlFor="createPermissionScope">权限范围</Label>
                   <Select
                     value={permissionForm.scope}
-                    onValueChange={(value: any) => setPermissionForm({ ...permissionForm, scope: value })}
+                    onValueChange={(value: Permission['scope']) => setPermissionForm({ ...permissionForm, scope: value })}
                     disabled={permissionFormLoading}
                   >
                     <SelectTrigger>
@@ -855,7 +854,7 @@ export default function PermissionsPage() {
                   <Label htmlFor="editPermissionType">权限类型</Label>
                   <Select
                     value={permissionForm.permissionType}
-                    onValueChange={(value: any) => setPermissionForm({ ...permissionForm, permissionType: value })}
+                    onValueChange={(value: Permission['permissionType']) => setPermissionForm({ ...permissionForm, permissionType: value })}
                     disabled={permissionFormLoading}
                   >
                     <SelectTrigger>
@@ -873,7 +872,7 @@ export default function PermissionsPage() {
                   <Label htmlFor="editPermissionScope">权限范围</Label>
                   <Select
                     value={permissionForm.scope}
-                    onValueChange={(value: any) => setPermissionForm({ ...permissionForm, scope: value })}
+                    onValueChange={(value: Permission['scope']) => setPermissionForm({ ...permissionForm, scope: value })}
                     disabled={permissionFormLoading}
                   >
                     <SelectTrigger>
@@ -965,7 +964,7 @@ export default function PermissionsPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>确认删除</AlertDialogTitle>
               <AlertDialogDescription>
-                确定要删除权限 "{deletePermissionTarget?.displayName || deletePermissionTarget?.name}" 吗？此操作不可撤销。
+                确定要删除权限 &quot;{deletePermissionTarget?.displayName || deletePermissionTarget?.name}&quot; 吗？此操作不可撤销。
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -987,7 +986,7 @@ export default function PermissionsPage() {
             <DialogHeader>
               <DialogTitle>分配资源</DialogTitle>
               <DialogDescription>
-                为权限 "{assignResourcesTarget?.displayName || assignResourcesTarget?.name}" 分配可访问的资源
+                为权限 &quot;{assignResourcesTarget?.displayName || assignResourcesTarget?.name}&quot; 分配可访问的资源
               </DialogDescription>
             </DialogHeader>
             {assignResourcesLoading && availableResources.length === 0 ? (
@@ -1025,7 +1024,7 @@ export default function PermissionsPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>确认删除</AlertDialogTitle>
               <AlertDialogDescription>
-                确定要删除权限 "{deletePermissionTarget?.displayName || deletePermissionTarget?.name}" 吗？此操作不可撤销。
+                确定要删除权限 &quot;{deletePermissionTarget?.displayName || deletePermissionTarget?.name}&quot; 吗？此操作不可撤销。
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

@@ -5,7 +5,6 @@ import { MessageFeedback } from './MessageFeedback';
 import { SuggestedQuestions } from './SuggestedQuestions';
 import { StreamMarkdown } from '@/components/base/StreamMarkdown';
 import { TextToSpeechButton } from './TextToSpeechButton';
-import { TypingIndicator } from './TypingIndicator';
 import { cn } from '@/service/utils';
 import { useMemo } from 'react';
 

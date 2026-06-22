@@ -103,7 +103,7 @@ export default function FAQSection({
     
     // 按匹配分数排序，选择前3个
     const topFAQs = scoredFAQs
-      .sort((a: any, b: any) => b.score - a.score)
+      .sort((a, b) => b.score - a.score)
       .slice(0, 5)
       .map(({ id, question, answer, tags }) => ({ id, question, answer, tags }));
     

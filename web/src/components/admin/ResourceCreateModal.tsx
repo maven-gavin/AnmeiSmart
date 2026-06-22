@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -65,8 +65,8 @@ export default function ResourceCreateModal({ isOpen, onClose, onResourceCreated
         priority: 0,
       });
       onClose();
-    } catch (err: any) {
-      toast.error(err.message || '创建资源失败');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : '创建资源失败');
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,12 @@
 import { EventEmitter } from 'events';
+import { MessageData } from '../types';
+
+function getMessageId(message: MessageData | Record<string, unknown>): string {
+  if ('id' in message && typeof message.id === 'string') {
+    return message.id;
+  }
+  return crypto.randomUUID();
+}
 
 /**
  * 消息队列配置
@@ -14,7 +22,7 @@ export interface MessageQueueConfig {
  */
 export interface QueuedMessage {
   id: string;              // 消息ID
-  message: any;            // 消息内容
+  message: MessageData | Record<string, unknown>;            // 消息内容
   timestamp: number;       // 消息时间戳
   retryCount: number;      // 重试次数
   conversationId?: string; // 会话ID
@@ -54,10 +62,10 @@ export class MessageQueue extends EventEmitter {
    * @param conversationId 会话ID
    * @returns 队列消息对象
    */
-  public enqueue(message: any, conversationId?: string): QueuedMessage {
+  public enqueue(message: MessageData | Record<string, unknown>, conversationId?: string): QueuedMessage {
     // 创建队列消息对象
     const queuedMessage: QueuedMessage = {
-      id: message.id || crypto.randomUUID(),
+      id: getMessageId(message),
       message,
       timestamp: Date.now(),
       retryCount: 0,
@@ -145,7 +153,7 @@ export class MessageQueue extends EventEmitter {
    * @param filter 消息过滤函数
    */
   public async processQueue(
-    processor: (message: any) => Promise<boolean>,
+    processor: (message: MessageData | Record<string, unknown>) => Promise<boolean>,
     filter?: (queuedMessage: QueuedMessage) => boolean
   ): Promise<void> {
     // 防止并发处理

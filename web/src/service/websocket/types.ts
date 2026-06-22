@@ -36,7 +36,7 @@ export enum SenderType {
 export interface MessageData {
   id: string;                // 消息ID
   conversation_id: string;   // 会话ID
-  content: any;              // 消息内容
+  content: unknown;          // 消息内容
   type: MessageType;         // 消息类型
   sender: {
     id: string;              // 发送者ID
@@ -47,14 +47,18 @@ export interface MessageData {
   timestamp: string;         // 消息时间戳
   is_important?: boolean;    // 是否标记为重要
   isSystemMessage?: boolean; // 是否为系统消息
-  metadata?: Record<string, any>; // 额外元数据
+  metadata?: Record<string, unknown>; // 额外元数据
+  action?: string;           // 事件动作
+  event_type?: string;       // 事件类型
+  data?: unknown;            // 事件数据
+  payload?: unknown;         // 事件载荷
 }
 
 /**
  * WebSocket事件处理器接口
  */
 export interface WebSocketEventHandler {
-  (data: any): void;
+  (data: unknown): void;
 }
 
 /**
@@ -85,5 +89,5 @@ export interface ConnectionParams {
   conversationId?: string;    // 会话ID
   token?: string;             // 认证令牌
   userType?: SenderType;      // 用户类型
-  [key: string]: any;         // 其他参数
+  [key: string]: unknown;     // 其他参数
 } 

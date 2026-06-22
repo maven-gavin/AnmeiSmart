@@ -245,10 +245,16 @@ export function ErrorHandler() {
       const target = event.target;
       if (!isResourceElement(target)) return;
 
-      const anyTarget = target as any;
+      const mediaTarget = target as HTMLImageElement | HTMLVideoElement | HTMLAudioElement | HTMLSourceElement;
+      const currentSrc = 'currentSrc' in mediaTarget && typeof mediaTarget.currentSrc === 'string'
+        ? mediaTarget.currentSrc
+        : '';
+      const elementSrc = 'src' in mediaTarget && typeof mediaTarget.src === 'string'
+        ? mediaTarget.src
+        : '';
       const src: string =
-        (typeof anyTarget.currentSrc === 'string' && anyTarget.currentSrc) ||
-        (typeof anyTarget.src === 'string' && anyTarget.src) ||
+        currentSrc ||
+        elementSrc ||
         target.getAttribute('src') ||
         target.getAttribute('href') ||
         '';

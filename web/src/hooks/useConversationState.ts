@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Conversation } from '@/types/chat';
+import { Conversation, Message } from '@/types/chat';
 import { 
   getConversations, 
   getConversationDetails, 
@@ -87,7 +87,7 @@ export const useConversationState = () => {
   };
 
   // 更新最后一条消息（用于实时预览）
-  const updateLastMessage = (conversationId: string, message: any) => {
+  const updateLastMessage = (conversationId: string, message: Message) => {
     setConversations(prev => prev.map(conv => {
       if (conv.id === conversationId) {
         // 1. 更新全局缓存 (异步)

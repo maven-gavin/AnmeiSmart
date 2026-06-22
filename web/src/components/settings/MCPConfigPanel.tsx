@@ -18,14 +18,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { 
@@ -43,7 +35,6 @@ export function MCPConfigPanel() {
   const {
     groups,
     tools,
-    serverStatus,
     isLoading,
     isSubmitting,
     error,
@@ -298,7 +289,7 @@ export function MCPConfigPanel() {
         setEditingTool(null)
         setToolConfigForm({ config_data: '{}' })
       }
-    } catch (error) {
+    } catch {
       alert('配置数据格式错误，请检查JSON格式是否正确')
     }
   }

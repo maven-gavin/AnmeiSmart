@@ -36,7 +36,7 @@ interface CustomerProfile {
   industry?: string;
   company_scale?: string;
   ai_summary?: string;
-  extra_data?: Record<string, any>;
+  extra_data?: Record<string, unknown>;
   active_insights?: CustomerInsight[];
   created_at?: string;
   updated_at?: string;
@@ -124,7 +124,7 @@ class CustomerService {
     try {
       // 注意：可能需要通过chat service获取系统消息
       // 或者后端提供专门的notifications endpoint
-      const { getConversationMessages } = await import('./chatService');
+      await import('./chatService');
       
       // 获取与系统的会话消息
       // 这里需要根据实际业务逻辑调整

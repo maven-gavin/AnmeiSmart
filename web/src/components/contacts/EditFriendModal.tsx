@@ -15,7 +15,7 @@ interface EditFriendModalProps {
   tags: ContactTag[];
 }
 
-export function EditFriendModal({ friendship, onClose, onSuccess, tags }: EditFriendModalProps) {
+export function EditFriendModal({ friendship, onClose, onSuccess }: EditFriendModalProps) {
   const [nickname, setNickname] = useState(friendship.nickname || '');
   const [remark, setRemark] = useState(friendship.remark || '');
   const [loading, setLoading] = useState(false);

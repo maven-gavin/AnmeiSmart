@@ -1,4 +1,4 @@
-import type { AfterResponseHook, BeforeErrorHook, BeforeRequestHook, Hooks, HTTPError } from 'ky'
+import type { AfterResponseHook, BeforeErrorHook, BeforeRequestHook, Hooks, HTTPError, SearchParamsOption } from 'ky'
 import ky from 'ky'
 import type { IOtherOptions } from './apiClient'
 import toast from 'react-hot-toast'
@@ -18,8 +18,8 @@ export const ContentType = {
 }
 
 export type FetchOptionType = Omit<RequestInit, 'body'> & {
-  params?: Record<string, any>
-  body?: BodyInit | Record<string, any> | null
+  params?: SearchParamsOption
+  body?: BodyInit | Record<string, unknown> | null
 }
 
 const afterResponse204: AfterResponseHook = async (_request: Request, _options: RequestInit, response: Response) => {

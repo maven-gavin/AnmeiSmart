@@ -3,7 +3,7 @@
  * 统一管理聊天相关的后端API调用
  */
 
-import { apiClient, ApiClientError } from '../apiClient';
+import { apiClient } from '../apiClient';
 import {
   Message,
   Conversation,
@@ -13,7 +13,6 @@ import {
   ConversationApiResponse,
   MessageApiResponse,
   AIServiceRequest,
-  AI_INFO,
   ConversationParticipantApiResponse,
   ConversationParticipant,
 } from './types';
@@ -89,7 +88,7 @@ export class ChatApiService {
    */
   public static async updateConversation(
     conversationId: string,
-    updates: { chat_mode?: 'single' | 'group'; title?: string; [key: string]: any }
+    updates: { chat_mode?: 'single' | 'group'; title?: string; [key: string]: unknown }
   ): Promise<Conversation> {
     const response = await apiClient.patch<ConversationApiResponse>(
       `${this.BASE_PATH}/conversations/${conversationId}`,
@@ -233,8 +232,8 @@ export class ChatApiService {
    * 创建媒体消息
    */
   public static async createMediaMessage(message: Message): Promise<Message> {
-    const content = message.content as any;
-    const mediaInfo = content.media_info;
+    const content = message.content as Record<string, unknown>;
+    const mediaInfo = content.media_info as Record<string, unknown> | undefined;
     
     if (!mediaInfo || !mediaInfo.file_id) {
       throw new Error('媒体消息缺少文件ID');
@@ -249,8 +248,10 @@ export class ChatApiService {
     // 确保文件大小不为0，如果为0则尝试从metadata中获取
     let fileSize = mediaInfo.size_bytes;
     if (!fileSize || fileSize === 0) {
-      if (mediaInfo.metadata && mediaInfo.metadata.size_bytes) {
-        fileSize = mediaInfo.metadata.size_bytes;
+      const metadata = mediaInfo.metadata as Record<string, unknown> | undefined;
+      const metaSize = metadata?.size_bytes;
+      if (typeof metaSize === 'number') {
+        fileSize = metaSize;
       } else {
         fileSize = 0; // 如果确实没有大小信息，保持为0
       }
@@ -378,20 +379,32 @@ export class ChatApiService {
    * 获取客户列表
    */
   public static async getCustomerList(): Promise<Customer[]> {
-    const response = await apiClient.get<any[]>('/customers/');
-    return response.data?.map(customer => {
+    interface CustomerApiItem {
+      id?: string;
+      name?: string;
+      avatar?: string;
+      is_online?: boolean;
+      last_message?: { content?: unknown; created_at?: string };
+      updated_at?: string;
+      unread_count?: number;
+      life_cycle_stage?: string;
+    }
+
+    const response = await apiClient.get<CustomerApiItem[]>('/customers/');
+    return response.data?.map((customer) => {
       // 处理lastMessage的结构化内容
       let lastMessageText = '';
-      if (customer.last_message?.content) {
-        const content = customer.last_message.content;
-        if (typeof content === 'string') {
-          lastMessageText = content;
-        } else if (typeof content === 'object') {
+      const lastMessageContent = customer.last_message?.content;
+      if (lastMessageContent) {
+        if (typeof lastMessageContent === 'string') {
+          lastMessageText = lastMessageContent;
+        } else if (typeof lastMessageContent === 'object' && lastMessageContent !== null) {
+          const content = lastMessageContent as Record<string, unknown>;
           // 新的结构化格式
-          if (content.text) {
+          if (typeof content.text === 'string') {
             lastMessageText = content.text;
           } else if (content.media_info && content.text) {
-            lastMessageText = content.text || '[媒体消息]';
+            lastMessageText = typeof content.text === 'string' ? content.text : '[媒体消息]';
           } else if (content.media_info) {
             lastMessageText = '[媒体消息]';
           } else {
@@ -401,14 +414,14 @@ export class ChatApiService {
       }
 
       return {
-        id: customer.id,
-        name: customer.name || "未知用户",
-        avatar: customer.avatar || '/avatars/user.png',
-        isOnline: customer.is_online || false,
+        id: String(customer.id ?? ''),
+        name: typeof customer.name === 'string' ? customer.name : '未知用户',
+        avatar: typeof customer.avatar === 'string' ? customer.avatar : '/avatars/user.png',
+        isOnline: Boolean(customer.is_online),
         lastMessage: lastMessageText,
-        lastMessageTime: customer.last_message?.created_at || customer.updated_at,
-        unreadCount: customer.unread_count || 0,
-        lifeCycleStage: customer.life_cycle_stage || 'lead',
+        lastMessageTime: customer.last_message?.created_at || customer.updated_at || '',
+        unreadCount: typeof customer.unread_count === 'number' ? customer.unread_count : 0,
+        lifeCycleStage: typeof customer.life_cycle_stage === 'string' ? customer.life_cycle_stage : 'lead',
       };
     }) || [];
   }

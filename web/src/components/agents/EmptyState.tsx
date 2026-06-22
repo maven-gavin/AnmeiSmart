@@ -8,7 +8,7 @@ import type { ApplicationParameters } from '@/types/agent-chat';
 interface EmptyStateProps {
   agentConfig: AgentConfig;
   appConfig: ApplicationParameters;
-  onSendMessage?: (message: string, formData?: Record<string, any>) => void;
+  onSendMessage?: (message: string, formData?: Record<string, unknown>) => void;
 }
 
 export function EmptyState({ agentConfig, appConfig, onSendMessage }: EmptyStateProps) {
@@ -58,7 +58,7 @@ export function EmptyState({ agentConfig, appConfig, onSendMessage }: EmptyState
   };
 
   // 处理表单提交
-  const handleFormSubmit = (formData: Record<string, any>) => {
+  const handleFormSubmit = (formData: Record<string, unknown>) => {
     if (onSendMessage) {
       // 如果有开场白，直接开始对话；否则发送表单数据
       const message = appConfig?.opening_statement || '开始对话';

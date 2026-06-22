@@ -63,10 +63,7 @@ const ImageMessage = ({ message, searchTerm, compact, onRetry }: MessageContentP
       
       // 使用统一的文件服务获取图片
       const fileService = new FileService();
-      let blob: Blob;
-      
-      // 开发阶段：业务只存 file_id；非 direct url 的 key 视为 file_id
-      blob = await fileService.getFilePreviewStreamByFileId(fileIdOrObjectName);
+      const blob = await fileService.getFilePreviewStreamByFileId(fileIdOrObjectName);
       
       if (blob.size === 0) {
         throw new Error('接收到空的图片数据');

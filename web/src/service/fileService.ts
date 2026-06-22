@@ -68,8 +68,9 @@ export class FileService {
         `${FILE_CONFIG.API_ENDPOINTS.info}/${objectName}`
       );
       return response.data || null;
-    } catch (error: any) {
-      if (error.status === 404) {
+    } catch (error: unknown) {
+      const status = (error as { status?: number }).status;
+      if (status === 404) {
         return null;
       }
       console.error('获取文件信息失败:', error);
@@ -122,8 +123,9 @@ export class FileService {
         `/files/${fileId}/info`
       );
       return response.data || null;
-    } catch (error: any) {
-      if (error.status === 404) {
+    } catch (error: unknown) {
+      const status = (error as { status?: number }).status;
+      if (status === 404) {
         return null;
       }
       console.error('获取文件信息失败:', error);

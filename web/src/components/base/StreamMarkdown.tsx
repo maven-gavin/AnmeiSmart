@@ -95,10 +95,10 @@ export function StreamMarkdown({
     // streamdown 依赖中包含 (?<=...) 和 \p{...}，不支持会直接在加载 chunk 时 SyntaxError
     try {
       // lookbehind
-      // eslint-disable-next-line no-new
+       
       new RegExp('(?<=a)b');
       // Unicode property escapes
-      // eslint-disable-next-line no-new
+       
       new RegExp('\\p{P}', 'u');
       return true;
     } catch {
@@ -112,7 +112,7 @@ export function StreamMarkdown({
     try {
       const key = '__anmei_client_error_logs__';
       const raw = sessionStorage.getItem(key);
-      const prev = raw ? (JSON.parse(raw) as any[]) : [];
+      const prev = raw ? (JSON.parse(raw) as Record<string, unknown>[]) : [];
       const next = [
         ...(Array.isArray(prev) ? prev : []),
         {

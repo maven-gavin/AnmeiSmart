@@ -3,18 +3,13 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
 import { 
   X, 
   Settings, 
-  UserPlus, 
-  Search, 
   Bell, 
   BellOff,
   Pin,
-  Users,
   MessageSquare,
   Volume2,
   VolumeX,
@@ -38,7 +33,6 @@ interface ConversationSettings {
 }
 
 export function ConversationSettingsPanel({ 
-  conversationId, 
   isOpen, 
   onClose,
   onSettingsChange

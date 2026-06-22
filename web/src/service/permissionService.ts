@@ -264,8 +264,8 @@ class PermissionService {
   /**
    * 获取租户统计信息
    */
-  async getTenantStatistics(tenantId: string): Promise<any> {
-    const response = await apiClient.get<any>(`/tenants/${tenantId}/statistics`);
+  async getTenantStatistics(tenantId: string): Promise<Record<string, unknown>> {
+    const response = await apiClient.get<Record<string, unknown>>(`/tenants/${tenantId}/statistics`);
     return response.data;
   }
 
@@ -275,7 +275,7 @@ class PermissionService {
    * 检查用户权限
    */
   async checkUserPermission(userId: string, permission: string): Promise<boolean> {
-    const response = await apiClient.get<any>(`/users/${userId}/permissions/check`, {
+    const response = await apiClient.get<{ has_permission: boolean }>(`/users/${userId}/permissions/check`, {
       params: { permission }
     });
     return response.data.has_permission;
@@ -285,7 +285,7 @@ class PermissionService {
    * 检查用户角色
    */
   async checkUserRole(userId: string, role: string): Promise<boolean> {
-    const response = await apiClient.get<any>(`/users/${userId}/roles/check`, {
+    const response = await apiClient.get<{ has_role: boolean }>(`/users/${userId}/roles/check`, {
       params: { role }
     });
     return response.data.has_role;
@@ -295,7 +295,7 @@ class PermissionService {
    * 获取用户权限列表
    */
   async getUserPermissions(userId: string): Promise<string[]> {
-    const response = await apiClient.get<any>(`/users/${userId}/permissions`);
+    const response = await apiClient.get<{ permissions: string[] }>(`/users/${userId}/permissions`);
     return response.data.permissions;
   }
 
@@ -303,7 +303,7 @@ class PermissionService {
    * 获取用户角色列表
    */
   async getUserRoles(userId: string): Promise<string[]> {
-    const response = await apiClient.get<any>(`/users/${userId}/roles`);
+    const response = await apiClient.get<{ roles: string[] }>(`/users/${userId}/roles`);
     return response.data.roles;
   }
 
@@ -311,7 +311,7 @@ class PermissionService {
    * 检查用户是否为管理员
    */
   async isUserAdmin(userId: string): Promise<boolean> {
-    const response = await apiClient.get<any>(`/users/${userId}/admin/check`);
+    const response = await apiClient.get<{ is_admin: boolean }>(`/users/${userId}/admin/check`);
     return response.data.is_admin;
   }
 

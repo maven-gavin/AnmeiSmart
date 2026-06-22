@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronDown, ChevronUp, Upload, X, File, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Upload, X, File as FileIcon, Image as ImageIcon, Loader2 } from 'lucide-react';
 import type { UserInputFormField } from '@/types/agent-chat';
 import { uploadAgentFile, uploadAgentFiles } from '@/service/agentFileService';
 import toast from 'react-hot-toast';
@@ -13,15 +13,15 @@ import toast from 'react-hot-toast';
 interface UserInputFormProps {
   fields: UserInputFormField[];
   agentConfigId: string;  // 新增：Agent配置ID，用于文件上传
-  onSubmit: (values: Record<string, any>) => void;
+  onSubmit: (values: Record<string, unknown>) => void;
   onCancel?: () => void;
 }
 
 export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: UserInputFormProps) {
   const [collapsed, setCollapsed] = useState(false);
-  const [values, setValues] = useState<Record<string, any>>(() => {
+  const [values, setValues] = useState<Record<string, unknown>>(() => {
     // 初始化默认值
-    const initialValues: Record<string, any> = {};
+    const initialValues: Record<string, unknown> = {};
     fields.forEach(field => {
       if (field.default !== undefined) {
         initialValues[field.variable] = field.default;
@@ -31,6 +31,24 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
+
+  const getStringValue = (variable: string): string => {
+    const value = values[variable];
+    return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+  };
+
+  const getFileListValue = (variable: string): File[] => {
+    const value = values[variable];
+    return Array.isArray(value) ? value.filter((item): item is File => item instanceof File) : [];
+  };
+
+  const getSingleFile = (variable: string): File | null => {
+    const value = values[variable];
+    if (value instanceof File) {
+      return value;
+    }
+    return null;
+  };
 
   // 过滤隐藏字段
   const visibleFields = fields.filter(f => !f.hide);
@@ -114,7 +132,7 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
     
     try {
       // 处理文件字段：上传文件到Dify并替换为文件ID
-      const finalValues: Record<string, any> = { ...values };
+      const finalValues: Record<string, unknown> = { ...values };
       
       for (const field of visibleFields) {
         if (field.type === 'file' || field.type === 'file-list') {
@@ -153,16 +171,16 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
       
       // 提交最终值（包含Dify文件ID）
       onSubmit(finalValues);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('文件上传失败:', error);
-      const errorMessage = error?.message || '文件上传失败，请重试';
+      const errorMessage = error instanceof Error ? error.message : '文件上传失败，请重试';
       toast.error(errorMessage);
     } finally {
       setUploading(false);
     }
   };
 
-  const handleValueChange = (variable: string, value: any) => {
+  const handleValueChange = (variable: string, value: unknown) => {
     setValues(prev => ({ ...prev, [variable]: value }));
     // 清除该字段的错误
     if (errors[variable]) {
@@ -190,7 +208,7 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
       handleValueChange(variable, file);
     } else if (field.type === 'file-list') {
       // 多文件上传
-      const currentFiles = values[variable] || [];
+      const currentFiles = getFileListValue(variable);
       const newFiles = [...currentFiles, ...fileArray];
       handleValueChange(variable, newFiles);
     }
@@ -204,8 +222,8 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
     if (field.type === 'file') {
       handleValueChange(variable, null);
     } else if (field.type === 'file-list' && fileIndex !== undefined) {
-      const currentFiles = values[variable] || [];
-      const newFiles = currentFiles.filter((_: any, index: number) => index !== fileIndex);
+      const currentFiles = getFileListValue(variable);
+      const newFiles = currentFiles.filter((_, index) => index !== fileIndex);
       handleValueChange(variable, newFiles);
     }
   };
@@ -215,7 +233,7 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
     if (file.type.startsWith('image/')) {
       return <ImageIcon className="h-4 w-4 text-blue-500" />;
     }
-    return <File className="h-4 w-4 text-gray-500" />;
+    return <FileIcon className="h-4 w-4 text-gray-500" />;
   };
 
   // 格式化文件大小
@@ -229,7 +247,7 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
 
   // 渲染字段
   const renderField = (field: UserInputFormField) => {
-    const value = values[field.variable] ?? '';
+    const value = getStringValue(field.variable);
     // 默认使用 text-input 类型（Dify API可能不返回type字段）
     const fieldType = field.type || 'text-input';
 
@@ -287,8 +305,10 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
         );
       
       case 'file':
-      case 'file-list':
+      case 'file-list': {
         const currentFile = values[field.variable];
+        const singleFile = getSingleFile(field.variable);
+        const fileList = getFileListValue(field.variable);
         const isMultiple = field.type === 'file-list';
         const uploadMethods = field.allowed_file_upload_methods || ['local_file'];
         const currentMethod = uploadMethods.length > 1 
@@ -326,7 +346,7 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
             )}
 
             {/* 本地文件上传 */}
-            {currentMethod === 'local_file' && (
+            {currentMethod === 'local_file' ? (
               <div className="relative">
                 <input
                   type="file"
@@ -345,14 +365,14 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
                   </p>
                 </div>
               </div>
-            )}
+            ) : null}
 
             {/* 远程URL输入 */}
             {currentMethod === 'remote_url' && (
               <div>
                 {isMultiple ? (
                   <Textarea
-                    value={Array.isArray(currentFile) ? currentFile.join('\n') : (currentFile || '')}
+                    value={Array.isArray(currentFile) ? currentFile.filter((u): u is string => typeof u === 'string').join('\n') : getStringValue(field.variable)}
                     onChange={(e) => {
                       const urls = e.target.value.split('\n').filter(u => u.trim());
                       handleValueChange(field.variable, urls);
@@ -363,7 +383,7 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
                   />
                 ) : (
                   <Input
-                    value={currentFile || ''}
+                    value={typeof currentFile === 'string' ? currentFile : getStringValue(field.variable)}
                     onChange={(e) => handleValueChange(field.variable, e.target.value)}
                     placeholder="输入文件URL"
                     className="w-full"
@@ -376,11 +396,11 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
             )}
 
             {/* 已上传文件列表（仅本地文件） */}
-            {currentMethod === 'local_file' && currentFile && (
+            {currentMethod === 'local_file' && (isMultiple ? fileList.length > 0 : singleFile) && (
               <div className="space-y-2">
                 {isMultiple ? (
                   // 多文件显示
-                  Array.isArray(currentFile) && currentFile.map((file: File, index: number) => (
+                  fileList.map((file: File, index: number) => (
                     <div key={`${field.variable}-file-${index}-${file.name}-${file.size}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div className="flex items-center space-x-3">
                         {getFileIcon(file)}
@@ -398,14 +418,14 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
                       </button>
                     </div>
                   ))
-                ) : (
+                ) : singleFile ? (
                   // 单文件显示
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center space-x-3">
-                      {getFileIcon(currentFile)}
+                      {getFileIcon(singleFile)}
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{currentFile.name}</p>
-                        <p className="text-xs text-gray-500">{formatFileSize(currentFile.size)}</p>
+                        <p className="text-sm font-medium text-gray-900">{singleFile.name}</p>
+                        <p className="text-xs text-gray-500">{formatFileSize(singleFile.size)}</p>
                       </div>
                     </div>
                     <button
@@ -416,11 +436,12 @@ export function UserInputForm({ fields, agentConfigId, onSubmit, onCancel }: Use
                       <X className="h-4 w-4" />
                     </button>
                   </div>
-                )}
+                ) : null}
               </div>
             )}
           </div>
         );
+      }
       
       default:
         return (

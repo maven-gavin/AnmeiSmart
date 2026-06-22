@@ -238,7 +238,7 @@ export async function updateUnreadCountInCache(conversationId: string, increment
   }
 }
 
-export async function updateLastMessageInCache(conversationId: string, message: any): Promise<void> {
+export async function updateLastMessageInCache(conversationId: string, message: Message): Promise<void> {
   chatState.updateConversationLastMessage(conversationId, message);
 }
 
@@ -523,7 +523,7 @@ export async function getOrCreateConversation(): Promise<Conversation> {
     // 创建新会话，添加重试逻辑
     const maxRetries = 3;
     let attempt = 1;
-    let lastError: any;
+    let lastError: unknown;
     
     while (attempt <= maxRetries) {
       try {

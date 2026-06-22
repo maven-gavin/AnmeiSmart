@@ -61,8 +61,8 @@ export default function ResourceEditModal({ isOpen, onClose, resource, onResourc
       toast.success('更新资源成功');
       onResourceUpdated();
       onClose();
-    } catch (err: any) {
-      toast.error(err.message || '更新资源失败');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : '更新资源失败');
     } finally {
       setLoading(false);
     }

@@ -25,7 +25,7 @@ interface ChatMessageProps {
   showTimestamp?: boolean;
   onReaction?: (messageId: string, emoji: string) => void;
   onReply?: (message: Message) => void;
-  onCardAction?: (action: string, data: any) => void;
+  onCardAction?: (action: string, data: Record<string, unknown>) => void;
   onToggleImportant?: (messageId: string) => void;
   onDelete?: (messageId: string) => void;
   onRetry?: (message: Message) => void;

@@ -70,9 +70,9 @@ export type NodeTracing = {
     loop_id?: string
     node_type: BlockEnum
     title: string
-    inputs: any
-    process_data: any
-    outputs?: Record<string, any>
+    inputs: Record<string, unknown>
+    process_data: Record<string, unknown>
+    outputs?: Record<string, unknown>
     status: string
     parallel_run_id?: string
     error?: string
@@ -98,7 +98,7 @@ export type NodeTracing = {
         agent_strategy?: string
         icon?: string
       }
-      loop_variable_map?: Record<string, any>
+      loop_variable_map?: Record<string, unknown>
     }
     metadata: {
       iterator_length: number
@@ -115,7 +115,7 @@ export type NodeTracing = {
     iterDurationMap?: IterationDurationMap
     loopDurationMap?: LoopDurationMap
     finished_at: number
-    extras?: any
+    extras?: Record<string, unknown>
     expand?: boolean // for UI
     details?: NodeTracing[][] // iteration or loop detail
     retryDetail?: NodeTracing[] // retry detail
@@ -224,7 +224,7 @@ export type NodeTracing = {
       id: string
       workflow_id: string
       status: string
-      outputs: any
+      outputs: Record<string, unknown>
       error: string
       elapsed_time: number
       total_tokens: number

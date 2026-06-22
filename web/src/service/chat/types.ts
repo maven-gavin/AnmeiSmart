@@ -42,10 +42,10 @@ export interface ChatStateData {
   chatMessages: Record<string, Message[]>;
   conversations: Conversation[];
   consultantTakeover: Record<string, boolean>;
-  messageQueue: any[];
+  messageQueue: unknown[];
   lastConnectedConversationId: string | null;
   connectionDebounceTimer: NodeJS.Timeout | null;
-  messageCallbacks: Record<string, ((message: any) => void)[]>;
+  messageCallbacks: Record<string, ((message: unknown) => void)[]>;
   processedMessageIds: Set<string>;
   isRequestingMessages: Record<string, boolean>;
   lastMessagesRequestTime: Record<string, number>;
@@ -79,13 +79,13 @@ export interface ConversationApiResponse {
   is_archived: boolean;
   is_pinned?: boolean;
   pinned_at?: string;
-  extra_metadata?: { [key: string]: any };
+  extra_metadata?: Record<string, unknown>;
 }
 
 export interface MessageApiResponse {
   id: string;
   conversation_id?: string;
-  content: any;
+  content: unknown;
   type?: string;
   sender?: {
     id: string;
@@ -104,7 +104,7 @@ export interface MessageApiResponse {
   is_system_message?: boolean;
   reply_to_message_id?: string;
   reactions?: { [emoji: string]: string[] };
-  extra_metadata?: { [key: string]: any };
+  extra_metadata?: Record<string, unknown>;
 }
 
 /**

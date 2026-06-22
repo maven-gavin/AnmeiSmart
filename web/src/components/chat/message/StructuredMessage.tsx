@@ -3,9 +3,17 @@
 import React from 'react';
 import { Message, StructuredMessageContent } from '@/types/chat';
 
+interface ServiceItem {
+  name: string;
+  price: number;
+  description: string;
+  duration: number;
+  suitableFor: string;
+}
+
 interface StructuredMessageProps {
   message: Message;
-  onAction?: (action: string, data: any) => void;
+  onAction?: (action: string, data: Record<string, unknown>) => void;
 }
 
 const StructuredMessage: React.FC<StructuredMessageProps> = ({
@@ -14,7 +22,7 @@ const StructuredMessage: React.FC<StructuredMessageProps> = ({
 }) => {
   const content = message.content as StructuredMessageContent;
 
-  const renderServiceRecommendation = (data: { services: any[] }) => {
+  const renderServiceRecommendation = (data: { services: ServiceItem[] }) => {
     return (
       <div className="p-4">
         <h3 className="text-lg font-semibold text-gray-900 mb-3">{content.title}</h3>
@@ -36,7 +44,7 @@ const StructuredMessage: React.FC<StructuredMessageProps> = ({
 
         {content.actions?.primary && (
           <button
-            onClick={() => onAction?.(content.actions!.primary!.action, content.actions!.primary!.data)}
+            onClick={() => onAction?.(content.actions!.primary!.action, (content.actions!.primary!.data ?? {}) as Record<string, unknown>)}
             className="w-full mt-4 bg-blue-600 text-white py-2 px-4 rounded-lg font-medium 
                      hover:bg-blue-700 transition-colors"
           >
@@ -66,14 +74,14 @@ const StructuredMessage: React.FC<StructuredMessageProps> = ({
         {content.components?.map((component, index) => (
           <div key={index} className="mb-2">
             {component.type === 'text' && (
-              <p className="text-sm text-gray-700">{component.content}</p>
+              <p className="text-sm text-gray-700">{typeof component.content === 'string' ? component.content : String(component.content ?? '')}</p>
             )}
             {component.type === 'button' && (
               <button
-                onClick={() => onAction?.(component.action?.type || 'custom', component.action?.data)}
+                onClick={() => onAction?.(component.action?.type || 'custom', (component.action?.data ?? {}) as Record<string, unknown>)}
                 className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm hover:bg-blue-200 transition-colors"
               >
-                {component.content}
+                {typeof component.content === 'string' ? component.content : String(component.content ?? '')}
               </button>
             )}
             {component.type === 'divider' && (
@@ -88,7 +96,7 @@ const StructuredMessage: React.FC<StructuredMessageProps> = ({
   const renderCardContent = () => {
     switch (content.card_type) {
       case 'service_recommendation':
-        return renderServiceRecommendation(content.data as { services: any[] });
+        return renderServiceRecommendation(content.data as { services: ServiceItem[] });
       
       case 'consultation_summary':
       case 'custom':
@@ -104,4 +112,4 @@ const StructuredMessage: React.FC<StructuredMessageProps> = ({
   );
 };
 
-export default StructuredMessage; 
+export default StructuredMessage;

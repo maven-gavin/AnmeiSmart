@@ -44,7 +44,6 @@ interface AgentConfigPanelProps {
 
 export default function AgentConfigPanel({
   digitalHumanId,
-  onBack,
   apiBasePath
 }: AgentConfigPanelProps) {
   const basePath = apiBasePath ?? '/digital-humans';
@@ -52,7 +51,7 @@ export default function AgentConfigPanel({
   const [availableAgents, setAvailableAgents] = useState<AvailableAgentConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [editingAgent, setEditingAgent] = useState<DigitalHumanAgentConfig | null>(null);
+  const [, setEditingAgent] = useState<DigitalHumanAgentConfig | null>(null);
   
   // 表单状态
   const [selectedAgentId, setSelectedAgentId] = useState('');

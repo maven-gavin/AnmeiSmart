@@ -15,6 +15,7 @@ import { Upload } from 'lucide-react';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useAuthedImageSrc } from '@/hooks/useAuthedImageSrc';
 import toast from 'react-hot-toast';
+import type { UserRole } from '@/types/auth';
 
 export function BasicInfoPanel() {
   const [userInfo, setUserInfo] = useState<BasicUserInfo | null>(null);
@@ -133,7 +134,7 @@ export function BasicInfoPanel() {
         const formDataUpload = new FormData();
         formDataUpload.append('file', avatarFile);
 
-        const { data: result } = await apiClient.upload<any>('/files/upload-avatar', formDataUpload);
+        const { data: result } = await apiClient.upload<{ success: boolean; message?: string; file_info?: { file_id?: string } }>('/files/upload-avatar', formDataUpload);
         if (!result?.success) {
           throw new Error(result?.message || '头像上传失败');
         }
@@ -164,7 +165,7 @@ export function BasicInfoPanel() {
 
       if (roleChanged && formData.active_role) {
         try {
-          const frontendRole = formData.active_role === 'admin' ? 'admin' : formData.active_role as any;
+          const frontendRole = formData.active_role === 'admin' ? 'admin' : formData.active_role as UserRole;
           await authService.switchRole(frontendRole);
           const refreshedInfo = await profileService.getMyBasicInfo();
           setUserInfo(refreshedInfo);

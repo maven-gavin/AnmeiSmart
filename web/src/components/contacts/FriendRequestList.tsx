@@ -5,7 +5,6 @@ import { Check, X, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AvatarCircle } from '@/components/ui/AvatarCircle';
-import { cn } from '@/service/utils';
 import type { FriendRequest } from '@/types/contacts';
 import { getFriendRequests, handleFriendRequest } from '@/service/contacts/api';
 import { toast } from 'react-hot-toast';
@@ -113,7 +112,7 @@ export function FriendRequestList({ onRequestHandled }: FriendRequestListProps) 
                 
                 {request.verification_message && (
                   <p className="text-sm text-gray-600 mt-1">
-                    "{request.verification_message}"
+                    {'"'}{request.verification_message}{'"'}
                   </p>
                 )}
                 

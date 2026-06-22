@@ -1,8 +1,17 @@
 import { Page } from '@playwright/test';
-import { apiClient } from '@/service/apiClient';
+import config from '../test.config.js';
 
-// 导入测试配置
-const config = require('../test.config');
+interface E2ETestGlobal {
+  consultantToken?: string | null;
+  customerToken?: string | null;
+}
+
+const testGlobal = globalThis as typeof globalThis & E2ETestGlobal;
+
+interface ConversationMessage {
+  content: string;
+  sender: { type: string };
+}
 
 // 存储获取的token
 let consultantToken: string | null = null;
@@ -42,7 +51,7 @@ export async function loginConsultantAPIAndGetToken(email: string = config.users
         console.log('成功获取顾问认证令牌');
         
         // 暴露给全局对象，以便测试文件可以访问
-        (global as any).consultantToken = consultantToken;
+        testGlobal.consultantToken = consultantToken;
         
         return true;
       } catch (e) {
@@ -92,7 +101,7 @@ export async function loginCustomerAPIAndGetToken(email: string = config.users.c
         console.log('成功获取顾客认证令牌');
         
         // 暴露给全局对象，以便测试文件可以访问
-        (global as any).customerToken = customerToken;
+        testGlobal.customerToken = customerToken;
         
         return true;
       } catch (e) {
@@ -169,7 +178,7 @@ export async function createCustomerTestConversation(): Promise<string> {
 /**
  * 获取会话消息
  */
-export async function getConversationMessages(conversationId: string, useConsultantToken: boolean = true): Promise<any[]> {
+export async function getConversationMessages(conversationId: string, useConsultantToken: boolean = true): Promise<ConversationMessage[]> {
   try {
     // 确定使用哪个令牌
     let token = useConsultantToken ? consultantToken : customerToken;

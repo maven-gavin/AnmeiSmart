@@ -34,7 +34,7 @@ import toast from 'react-hot-toast';
 import AppLayout from '@/components/layout/AppLayout';
 import { EnhancedPagination } from '@/components/ui/pagination';
 import PermissionTransfer from '@/components/admin/PermissionTransfer';
-import { Permission } from '@/types/auth';
+import { Permission, Role, Tenant } from '@/types/auth';
 
 type RoleItem = {
   id: string;
@@ -49,19 +49,20 @@ type RoleItem = {
   tenantName?: string | null;
 };
 
-const normalizeRole = (role: any): RoleItem => {
-  const id = role?.id ? String(role.id) : '';
+const normalizeRole = (role: Role): RoleItem => {
+  const raw = role as Role & Record<string, unknown>;
+  const id = raw.id ? String(raw.id) : '';
   return {
     id,
-    name: role?.name ?? '',
-    description: role?.description ?? null,
-    displayName: role?.displayName ?? role?.display_name ?? role?.name ?? '',
-    isActive: role?.isActive ?? role?.is_active ?? true,
-    isSystem: role?.isSystem ?? role?.is_system ?? false,
-    isAdmin: role?.isAdmin ?? role?.is_admin ?? false,
-    priority: typeof role?.priority === 'number' ? role.priority : Number(role?.priority ?? 0),
-    tenantId: role?.tenantId ?? role?.tenant_id ?? null,
-    tenantName: role?.tenantName ?? role?.tenant_name ?? null,
+    name: String(raw.name ?? ''),
+    description: typeof raw.description === 'string' ? raw.description : null,
+    displayName: String(raw.displayName ?? raw.display_name ?? raw.name ?? ''),
+    isActive: Boolean(raw.isActive ?? raw.is_active ?? true),
+    isSystem: Boolean(raw.isSystem ?? raw.is_system ?? false),
+    isAdmin: Boolean(raw.isAdmin ?? raw.is_admin ?? false),
+    priority: typeof raw.priority === 'number' ? raw.priority : Number(raw.priority ?? 0),
+    tenantId: (raw.tenantId ?? raw.tenant_id ?? null) as string | null,
+    tenantName: (raw.tenantName ?? raw.tenant_name ?? null) as string | null,
   };
 };
 
@@ -83,7 +84,7 @@ export default function RolesPage() {
   const [roleTenantId, setRoleTenantId] = useState<string>('system');
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [availableTenants, setAvailableTenants] = useState<any[]>([]);
+  const [availableTenants, setAvailableTenants] = useState<Tenant[]>([]);
   const [loadingTenants, setLoadingTenants] = useState(false);
   // 添加分页状态
   const [currentPage, setCurrentPage] = useState(1);
@@ -195,7 +196,7 @@ export default function RolesPage() {
             setRoleTenantId(systemTenant.id);
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('获取租户列表失败:', err);
       } finally {
         setLoadingTenants(false);
@@ -341,9 +342,7 @@ export default function RolesPage() {
       setDeleteTarget(null);
       fetchRoles();
     } catch (err) {
-      // 使用统一的错误处理函数
-      const message = handleApiError(err, '删除角色失败');
-      // 删除操作不需要设置表单错误，只显示 toast（已在 handleApiError 中处理）
+      handleApiError(err, '删除角色失败');
     } finally {
       setDeleteLoading(false);
     }
@@ -365,7 +364,7 @@ export default function RolesPage() {
       // 调试日志
       console.log('所有权限响应:', allPermissionsResponse);
       console.log('所有权限响应类型:', typeof allPermissionsResponse);
-      console.log('是否有 permissions 字段:', 'permissions' in (allPermissionsResponse as any));
+      console.log('是否有 permissions 字段:', allPermissionsResponse && typeof allPermissionsResponse === 'object' && 'permissions' in allPermissionsResponse);
       console.log('已分配权限响应:', assignedPermissionsResponse);
       
       // 处理响应格式
@@ -382,8 +381,8 @@ export default function RolesPage() {
       
       setAvailablePermissions(permissionsList);
       setAssignedPermissions(assignedPermissionsResponse || []);
-    } catch (err: any) {
-      toast.error(err.message || '加载权限列表失败');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : '加载权限列表失败');
       setIsAssignPermissionsDialogOpen(false);
     } finally {
       setAssignPermissionsLoading(false);
@@ -401,8 +400,8 @@ export default function RolesPage() {
       // 重新加载已分配的权限
       const assignedPermissionsResponse = await permissionService.getRolePermissions(assignPermissionsTarget.id);
       setAssignedPermissions(assignedPermissionsResponse);
-    } catch (err: any) {
-      toast.error(err.message || '分配权限失败');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : '分配权限失败');
     } finally {
       setAssignPermissionsLoading(false);
     }
@@ -419,8 +418,8 @@ export default function RolesPage() {
       // 重新加载已分配的权限
       const assignedPermissionsResponse = await permissionService.getRolePermissions(assignPermissionsTarget.id);
       setAssignedPermissions(assignedPermissionsResponse);
-    } catch (err: any) {
-      toast.error(err.message || '移除权限失败');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : '移除权限失败');
     } finally {
       setAssignPermissionsLoading(false);
     }
@@ -1051,7 +1050,7 @@ export default function RolesPage() {
           <DialogHeader>
             <DialogTitle>分配权限</DialogTitle>
             <DialogDescription>
-              为角色 "{assignPermissionsTarget?.displayName || assignPermissionsTarget?.name}" 分配权限
+              为角色 &quot;{assignPermissionsTarget?.displayName || assignPermissionsTarget?.name}&quot; 分配权限
             </DialogDescription>
           </DialogHeader>
           {assignPermissionsLoading && availablePermissions.length === 0 ? (

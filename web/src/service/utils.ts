@@ -89,12 +89,12 @@ export function generateDeviceId(): string {
     const deviceId = `device_${Math.abs(hash)}_${Date.now()}`;
     localStorage.setItem('device_id', deviceId);
     return deviceId;
-  } catch (error) {
+  } catch {
     // 回退方案
     const fallbackId = `device_fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     try {
       localStorage.setItem('device_id', fallbackId);
-    } catch (e) {
+    } catch {
       // 忽略localStorage错误
     }
     return fallbackId;
@@ -127,7 +127,7 @@ export async function getDeviceInfo(): Promise<DeviceInfo> {
 /**
  * 简化的WebSocket设备配置
  */
-export function getWebSocketDeviceConfig(deviceInfo: DeviceInfo) {
+export function getWebSocketDeviceConfig() {
   // 统一配置，不再区分设备类型
   return {
     connectionTimeout: 20000,
@@ -145,11 +145,11 @@ export function formatDeviceInfo(deviceInfo: DeviceInfo): string {
 }
 
 
-export async function asyncRunSafe<T = any>(fn: Promise<T>): Promise<[Error] | [null, T]> {
+export async function asyncRunSafe<T = unknown>(fn: Promise<T>): Promise<[Error] | [null, T]> {
   try {
     return [null, await fn]
   }
-  catch (e: any) {
-    return [e || new Error('unknown error')]
+  catch (e: unknown) {
+    return [e instanceof Error ? e : new Error('unknown error')]
   }
 }

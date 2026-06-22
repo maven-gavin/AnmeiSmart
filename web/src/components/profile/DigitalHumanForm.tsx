@@ -168,7 +168,7 @@ export default function DigitalHumanForm({
         const formData = new FormData();
         formData.append('file', avatarFile);
 
-        const { data: result } = await apiClient.upload<any>('/files/upload-avatar', formData);
+        const { data: result } = await apiClient.upload<{ success: boolean; message?: string; file_info?: { file_id?: string } }>('/files/upload-avatar', formData);
         if (!result?.success) {
           throw new Error(result?.message || '头像上传失败');
         }
@@ -189,21 +189,6 @@ export default function DigitalHumanForm({
       toast.error(message);
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'personal':
-        return <User className="h-4 w-4" />;
-      case 'business':
-        return <Building className="h-4 w-4" />;
-      case 'specialized':
-        return <Zap className="h-4 w-4" />;
-      case 'system':
-        return <Shield className="h-4 w-4" />;
-      default:
-        return <User className="h-4 w-4" />;
     }
   };
 
@@ -269,7 +254,7 @@ export default function DigitalHumanForm({
                   <Label htmlFor="type">数字人类型 *</Label>
                   <Select
                     value={watchedType}
-                    onValueChange={(value) => setValue('type', value as any)}
+                    onValueChange={(value) => setValue('type', value as FormData['type'])}
                   >
                     <SelectTrigger className={errors.type ? 'border-red-500 focus-visible:ring-red-500' : ''}>
                       <SelectValue placeholder="选择数字人类型" />
@@ -324,7 +309,7 @@ export default function DigitalHumanForm({
                   <Label htmlFor="status">状态</Label>
                   <Select
                     value={watch('status')}
-                    onValueChange={(value) => setValue('status', value as any)}
+                    onValueChange={(value) => setValue('status', value as FormData['status'])}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="选择状态" />

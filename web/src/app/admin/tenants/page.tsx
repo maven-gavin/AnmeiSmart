@@ -35,24 +35,33 @@ import toast from 'react-hot-toast';
 import AppLayout from '@/components/layout/AppLayout';
 import { EnhancedPagination } from '@/components/ui/pagination';
 
-const normalizeTenant = (tenant: any): Tenant => {
-  const id = tenant?.id ? String(tenant.id) : '';
+const normalizeTenant = (tenant: Tenant): Tenant => {
+  const raw = tenant as Tenant & Record<string, unknown>;
+  const id = raw.id ? String(raw.id) : '';
   return {
     id,
-    name: tenant?.name ?? '',
-    displayName: tenant?.displayName ?? tenant?.display_name ?? tenant?.name ?? '',
-    description: tenant?.description ?? null,
-    tenantType: tenant?.tenantType ?? tenant?.tenant_type ?? 'standard',
-    status: tenant?.status ?? 'active',
-    isSystem: tenant?.isSystem ?? tenant?.is_system ?? false,
-    isAdmin: tenant?.isAdmin ?? tenant?.is_admin ?? false,
-    priority: typeof tenant?.priority === 'number' ? tenant.priority : Number(tenant?.priority ?? 0),
-    encryptedPubKey: tenant?.encryptedPubKey ?? tenant?.encrypted_pub_key ?? null,
-    contactName: tenant?.contactName ?? tenant?.contact_name ?? null,
-    contactEmail: tenant?.contactEmail ?? tenant?.contact_email ?? null,
-    contactPhone: tenant?.contactPhone ?? tenant?.contact_phone ?? null,
-    createdAt: tenant?.createdAt ?? tenant?.created_at ?? '',
-    updatedAt: tenant?.updatedAt ?? tenant?.updated_at ?? '',
+    name: String(raw.name ?? ''),
+    displayName: String(raw.displayName ?? raw.display_name ?? raw.name ?? ''),
+    description: typeof raw.description === 'string' ? raw.description : undefined,
+    tenantType: (raw.tenantType ?? raw.tenant_type ?? 'standard') as Tenant['tenantType'],
+    status: (raw.status ?? 'active') as Tenant['status'],
+    isSystem: Boolean(raw.isSystem ?? raw.is_system ?? false),
+    isAdmin: Boolean(raw.isAdmin ?? raw.is_admin ?? false),
+    priority: typeof raw.priority === 'number' ? raw.priority : Number(raw.priority ?? 0),
+    encryptedPubKey: typeof (raw.encryptedPubKey ?? raw.encrypted_pub_key) === 'string'
+      ? (raw.encryptedPubKey ?? raw.encrypted_pub_key) as string
+      : undefined,
+    contactName: typeof (raw.contactName ?? raw.contact_name) === 'string'
+      ? (raw.contactName ?? raw.contact_name) as string
+      : undefined,
+    contactEmail: typeof (raw.contactEmail ?? raw.contact_email) === 'string'
+      ? (raw.contactEmail ?? raw.contact_email) as string
+      : undefined,
+    contactPhone: typeof (raw.contactPhone ?? raw.contact_phone) === 'string'
+      ? (raw.contactPhone ?? raw.contact_phone) as string
+      : undefined,
+    createdAt: String(raw.createdAt ?? raw.created_at ?? ''),
+    updatedAt: String(raw.updatedAt ?? raw.updated_at ?? ''),
   };
 };
 
@@ -273,7 +282,7 @@ export default function TenantsPage() {
     setEditError(null);
 
     try {
-      const payload: any = {};
+      const payload: Partial<Tenant> = {};
 
       if (!editingTenant.isSystem) {
         payload.name = nextName;
@@ -640,7 +649,7 @@ export default function TenantsPage() {
                 <Label htmlFor="createTenantType">租户类型</Label>
                 <Select
                   value={tenantType}
-                  onValueChange={(value: any) => setTenantType(value)}
+                  onValueChange={(value: Tenant['tenantType']) => setTenantType(value)}
                   disabled={formLoading}
                 >
                   <SelectTrigger>
@@ -658,7 +667,7 @@ export default function TenantsPage() {
                 <Label htmlFor="createTenantStatus">租户状态</Label>
                 <Select
                   value={tenantStatus}
-                  onValueChange={(value: any) => setTenantStatus(value)}
+                  onValueChange={(value: Tenant['status']) => setTenantStatus(value)}
                   disabled={formLoading}
                 >
                   <SelectTrigger>
@@ -858,7 +867,7 @@ export default function TenantsPage() {
                 <Label htmlFor="editTenantType">租户类型</Label>
                 <Select
                   value={editForm.tenantType}
-                  onValueChange={(value: any) => setEditForm((prev) => ({ ...prev, tenantType: value }))}
+                  onValueChange={(value: Tenant['tenantType']) => setEditForm((prev) => ({ ...prev, tenantType: value }))}
                   disabled={editLoading}
                 >
                   <SelectTrigger>
@@ -876,7 +885,7 @@ export default function TenantsPage() {
                 <Label htmlFor="editTenantStatus">租户状态</Label>
                 <Select
                   value={editForm.status}
-                  onValueChange={(value: any) => setEditForm((prev) => ({ ...prev, status: value }))}
+                  onValueChange={(value: Tenant['status']) => setEditForm((prev) => ({ ...prev, status: value }))}
                   disabled={editLoading}
                 >
                   <SelectTrigger>

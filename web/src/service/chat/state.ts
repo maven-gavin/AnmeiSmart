@@ -116,11 +116,11 @@ export class ChatStateManager {
   
   // ===== 消息队列管理 =====
   
-  public getMessageQueue(): any[] {
+  public getMessageQueue(): unknown[] {
     return this.state.messageQueue;
   }
   
-  public addToMessageQueue(message: any): void {
+  public addToMessageQueue(message: unknown): void {
     this.state.messageQueue.push(message);
   }
   
@@ -148,20 +148,20 @@ export class ChatStateManager {
   
   // ===== 消息回调管理 =====
   
-  public addMessageCallback(action: string, callback: (message: any) => void): void {
+  public addMessageCallback(action: string, callback: (message: unknown) => void): void {
     if (!this.state.messageCallbacks[action]) {
       this.state.messageCallbacks[action] = [];
     }
     this.state.messageCallbacks[action].push(callback);
   }
   
-  public removeMessageCallback(action: string, callback: (message: any) => void): void {
+  public removeMessageCallback(action: string, callback: (message: unknown) => void): void {
     if (this.state.messageCallbacks[action]) {
       this.state.messageCallbacks[action] = this.state.messageCallbacks[action].filter(cb => cb !== callback);
     }
   }
   
-  public getMessageCallbacks(action: string): ((message: any) => void)[] {
+  public getMessageCallbacks(action: string): ((message: unknown) => void)[] {
     return this.state.messageCallbacks[action] || [];
   }
   

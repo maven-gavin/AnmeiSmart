@@ -2,7 +2,7 @@
  * Agent 对话相关类型定义
  */
 
-import type { ThoughtItem } from '@/types/chat';
+import type { ThoughtItem, MessageEnd, MessageReplace } from '@/types/chat';
 import type { VisionFile } from '@/types/smart-brain-app';
 
 // 消息文件
@@ -28,8 +28,8 @@ export interface AgentThought {
   id: string;
   thought: string;               // 思考内容
   tool?: string;                 // 使用的工具
-  toolInput?: any;               // 工具输入
-  toolOutput?: any;              // 工具输出
+  toolInput?: unknown;               // 工具输入
+  toolOutput?: unknown;              // 工具输出
   messageFiles?: MessageFile[];
   observation?: string;          // 观察结果
   position?: number;             // 思考步骤位置
@@ -102,8 +102,8 @@ export interface SSECallbacks {
   onThought?: (thought: ThoughtItem) => void;
   // 注意：streaming 的 message_file 事件是 SmartBrain 的 VisionFile 结构
   onFile?: (file: VisionFile) => void;
-  onMessageEnd?: (data: any) => void;
-  onMessageReplace?: (data: any) => void;
+  onMessageEnd?: (data: MessageEnd) => void;
+  onMessageReplace?: (data: MessageReplace) => void;
   onTextChunk?: (textChunk: { task_id: string; workflow_run_id: string; event: string; data: { text: string } }) => void;
   onWorkflowFinished?: (workflowData: { 
     task_id: string; 
@@ -113,7 +113,7 @@ export interface SSECallbacks {
       id: string; 
       workflow_id: string; 
       status: string; 
-      outputs?: Record<string, any> | string;
+      outputs?: Record<string, unknown> | string;
       error?: string;
     } 
   }) => void;
@@ -166,6 +166,6 @@ export interface ApplicationParameters {
   suggested_questions_after_answer?: {
     enabled: boolean;
   };
-  [key: string]: any;
+  [key: string]: unknown;
 }
 

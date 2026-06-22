@@ -3,7 +3,7 @@
  * 负责API响应数据与前端类型的转换
  */
 
-import { Conversation, Message, User } from '@/types/chat';
+import { Conversation, Message, User, MessageContent } from '@/types/chat';
 import {
   ConversationApiResponse,
   MessageApiResponse,
@@ -50,7 +50,7 @@ export class ChatDataMapper {
     return {
       id: apiResponse.id,
       conversationId: apiResponse.conversation_id || '',
-      content: this.mapMessageContent(apiResponse.content, apiResponse.type),
+      content: this.mapMessageContent(apiResponse.content),
       type: this.mapMessageType(apiResponse.type),
       sender: this.mapSender(apiResponse),
       timestamp: apiResponse.timestamp || apiResponse.created_at || new Date().toISOString(),
@@ -77,12 +77,12 @@ export class ChatDataMapper {
   /**
    * 映射消息内容
    */
-  private static mapMessageContent(content: any, type?: string): any {
+  private static mapMessageContent(content: unknown): MessageContent {
     if (!content) return { text: '' };
     
     // 如果已经是对象格式，直接返回
     if (typeof content === 'object' && content !== null) {
-      return content;
+      return content as MessageContent;
     }
     
     // 如果是字符串，转换为文本消息格式
@@ -115,7 +115,7 @@ export class ChatDataMapper {
     if (apiResponse.sender) {
       return {
         id: apiResponse.sender.id,
-        type: (apiResponse.sender.type as any) || 'user',
+        type: (apiResponse.sender.type as Message['sender']['type']) || 'user',
         name: apiResponse.sender.name || '未知用户',
         avatar: apiResponse.sender.avatar || '/avatars/user.png'
       };
@@ -126,7 +126,7 @@ export class ChatDataMapper {
       id: apiResponse.sender_id || 'unknown',
       // 后端 sender_type 旧值为 chat/system，这里统一映射到 user/system，
       // 未来如果引入 AI 侧主动发消息，可直接返回 'ai'
-      type: (apiResponse.sender_type as any) === 'system' ? 'system' : 'user',
+      type: (apiResponse.sender_type as Message['sender']['type']) === 'system' ? 'system' : 'user',
       name: apiResponse.sender_name || '未知用户',
       avatar: apiResponse.sender_avatar || '/avatars/user.png'
     };

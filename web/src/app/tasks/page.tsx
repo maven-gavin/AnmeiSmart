@@ -27,7 +27,6 @@ import {
   Clock, 
   AlertCircle, 
   Users,
-  RefreshCw,
   Plus,
   User,
   Calendar,
@@ -40,7 +39,7 @@ import {
 import { formatDistanceToNow, format, isValid } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
-import type { Task, CreateTaskRequest, TaskFilters } from '@/types/task';
+import type { Task, CreateTaskRequest, TaskFilters, UpdateTaskRequest } from '@/types/task';
 import { TASK_TYPE_LABELS, TASK_STATUS_LABELS, TASK_PRIORITY_LABELS } from '@/types/task';
 
 export default function TasksPage() {
@@ -50,7 +49,6 @@ export default function TasksPage() {
     tasks,
     isLoading,
     stats,
-    filters,
     setFilters,
     claimTask,
     updateTaskStatus,
@@ -70,7 +68,6 @@ export default function TasksPage() {
   // 详情抽屉状态
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [notes, setNotes] = useState('');
   const [result, setResult] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
@@ -138,8 +135,8 @@ export default function TasksPage() {
     
     setIsUpdating(true);
     try {
-      const updateData: any = {
-        status: newStatus,
+      const updateData: UpdateTaskRequest = {
+        status: newStatus as UpdateTaskRequest['status'],
         notes: notes.trim() || undefined
       };
 
@@ -753,7 +750,7 @@ export default function TasksPage() {
                   </div>
                 )}
 
-                {selectedTask.result && (
+                {selectedTask.result != null && (
                   <div>
                     <Label>已有处理结果</Label>
                     <pre className="am-mono mt-2 text-sm text-gray-700 bg-white p-3 rounded border border-gray-300 overflow-auto max-h-40">
@@ -875,7 +872,7 @@ export default function TasksPage() {
               <Label htmlFor="priority">优先级</Label>
               <Select
                 value={createForm.priority}
-                onValueChange={(value: any) => setCreateForm({ ...createForm, priority: value })}
+                onValueChange={(value: NonNullable<CreateTaskRequest['priority']>) => setCreateForm({ ...createForm, priority: value })}
               >
                 <SelectTrigger className="mt-2 am-field">
                   <SelectValue />
